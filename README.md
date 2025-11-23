@@ -61,7 +61,7 @@ The result is a much lighter inbox and more free Google account storage with far
 4. Pin the extension in your toolbar if you want quick access.
 
 > Replace this line with your real store link when you copy this into GitHub:
-> `[Chrome Web Store link](https://chromewebstore.google.com/detail/...)`
+> `https://chromewebstore.google.com/detail/bmcfpljakkpcbinhgiahncpcbhmihgpc?utm_source=item-share-cb`
 
 ### From source (developer mode)
 
