@@ -210,14 +210,14 @@
       0%, 100% { opacity: 0.92; filter: drop-shadow(0 0 0px transparent); }
       50% { opacity: 1; filter: drop-shadow(0 0 4px rgba(99,102,241,0.4)); }
     }
-    .app-mark svg {
-      width: 18px;
-      height: 18px;
-      opacity: 0.92;
+    .app-mark img {
+      width: 20px;
+      height: 20px;
+      opacity: 0.95;
       will-change: transform;
-      animation: sparkle 3s ease-in-out infinite;
+      transition: transform 0.2s ease, opacity 0.2s ease;
     }
-    .app-mark:hover svg { animation: none; opacity: 1; transform: rotate(15deg) scale(1.1); transition: transform 0.2s ease, opacity 0.2s ease; }
+    .app-mark:hover img { opacity: 1; transform: scale(1.12); }
 
     h1 {
       margin: 0;
@@ -1252,15 +1252,11 @@
       <header class="card-header">
         <div class="header-left">
           <div class="app-mark" aria-hidden="true">
-            <!-- simple "spark" icon -->
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M12 2l1.2 4.5L18 8l-4.8 1.5L12 14l-1.2-4.5L6 8l4.8-1.5L12 2z" />
-              <path d="M19 13l.7 2.7L22 16l-2.3.3L19 19l-.7-2.7L16 16l2.3-.3L19 13z" />
-            </svg>
+            <img src="icons/icon32.png" alt="" width="20" height="20" style="image-rendering: -webkit-optimize-contrast;" />
           </div>
           <h1 id="gcc-title">Gmail One-Click Cleaner</h1>
         </div>
-        <span class="badge" aria-label="Version 3.5.0">v3.5.0</span>
+        <span class="badge" aria-label="Version 4.0.0">v4.0.0</span>
       </header>
 
       <p class="subtitle">
@@ -1506,7 +1502,7 @@
       </div>
 
       <!-- Whitelist Suggestions -->
-        <div class="wl-suggestions" id="wlSuggestions" style="display:none"></div>
+      <div class="wl-suggestions" id="wlSuggestions" style="display:none"></div>
 
       <footer class="footer" role="contentinfo">
         <nav class="footer-left" aria-label="Quick links">
@@ -1516,8 +1512,8 @@
           <button id="openDiagnostics" class="linkish" type="button" aria-label="Open diagnostics page">
             <span aria-hidden="true">🔧</span> Diagnostics
           </button>
-          <button type="button" class="nav-link-stats" id="openStats" aria-label="Statistics">
-            Stats
+          <button id="openStats" class="linkish" type="button" aria-label="Open statistics page">
+            <span aria-hidden="true">📊</span> Stats
           </button>
         </nav>
 
