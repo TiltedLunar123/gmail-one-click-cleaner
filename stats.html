@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gmail One-Click Cleaner – Statistics</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="referrer" content="no-referrer" />
+  <link rel="stylesheet" href="shared.css" />
+
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body {
+      padding: 40px 20px;
+      min-height: 100vh;
+      background-color: var(--bg-deep);
+      background-image:
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.15) 0px, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .page { max-width: 900px; margin: 0 auto; }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(20px, 4vw, 28px);
+      font-weight: 700;
+      background: linear-gradient(to right, #fff, #cbd5e1);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle { margin-bottom: 24px; color: var(--text-muted); font-size: 14px; }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: var(--space-4);
+      margin-bottom: var(--space-6);
+    }
+
+    .stat-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: var(--space-5);
+      text-align: center;
+      backdrop-filter: blur(12px);
+    }
+
+    .stat-value {
+      font-size: 32px;
+      font-weight: 700;
+      line-height: 1.2;
+      background: linear-gradient(135deg, var(--primary), #a78bfa);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: var(--space-1);
+    }
+
+    .section { margin-bottom: var(--space-8); }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: var(--space-4);
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    /* Chart container */
+    .chart-container {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: var(--space-5);
+      min-height: 200px;
+    }
+
+    .chart-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 160px;
+      padding-top: var(--space-4);
+    }
+
+    .chart-bar {
+      flex: 1;
+      min-width: 8px;
+      max-width: 24px;
+      background: linear-gradient(to top, var(--primary), #a78bfa);
+      border-radius: 3px 3px 0 0;
+      transition: height var(--t-slow) var(--ease);
+      position: relative;
+      cursor: default;
+    }
+
+    .chart-bar:hover { opacity: 0.8; }
+
+    .chart-bar .tooltip {
+      display: none;
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-deep);
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-xs);
+      padding: 4px 8px;
+      font-size: 11px;
+      white-space: nowrap;
+      z-index: 10;
+      margin-bottom: 4px;
+    }
+
+    .chart-bar:hover .tooltip { display: block; }
+
+    .chart-labels {
+      display: flex;
+      gap: 3px;
+      margin-top: var(--space-1);
+    }
+
+    .chart-labels span {
+      flex: 1;
+      min-width: 8px;
+      max-width: 24px;
+      font-size: 9px;
+      color: var(--text-dim);
+      text-align: center;
+      overflow: hidden;
+    }
+
+    .no-data {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 160px;
+      color: var(--text-dim);
+      font-size: 14px;
+    }
+
+    /* Category breakdown */
+    .category-list {
+      display: grid;
+      gap: var(--space-3);
+    }
+
+    .category-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+    }
+
+    .category-name {
+      flex: 1;
+      font-weight: 500;
+    }
+
+    .category-count {
+      font-weight: 600;
+      color: var(--primary);
+    }
+
+    .category-bar-bg {
+      width: 100px;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .category-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), #a78bfa);
+      border-radius: 3px;
+      transition: width var(--t-slow) var(--ease);
+    }
+
+    /* History table */
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .history-table th {
+      text-align: left;
+      padding: var(--space-2) var(--space-3);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .history-table td {
+      padding: var(--space-2) var(--space-3);
+      font-size: 13px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+
+    .history-table tr:hover td { background: rgba(255, 255, 255, 0.02); }
+
+    /* Undo section */
+    .undo-list {
+      display: grid;
+      gap: var(--space-3);
+    }
+
+    .undo-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-3) var(--space-4);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+    }
+
+    .undo-info { flex: 1; }
+
+    .undo-meta {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      margin-bottom: var(--space-4);
+      flex-wrap: wrap;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: var(--space-8);
+      color: var(--text-dim);
+    }
+
+    .animate-in { animation: fadeInUp 0.35s var(--ease) both; }
+  </style>
+</head>
+<body>
+  <a href="#main" class="skip-link">Skip to content</a>
+
+  <main id="main" class="page">
+    <header class="animate-in">
+      <h1>Cleanup Statistics</h1>
+      <p class="subtitle">Track your inbox hygiene over time</p>
+    </header>
+
+    <!-- Overview Cards -->
+    <div class="stats-grid animate-in" id="statsGrid">
+      <div class="stat-card">
+        <div class="stat-value" id="totalRuns">0</div>
+        <div class="stat-label">Total Runs</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="totalDeleted">0</div>
+        <div class="stat-label">Emails Cleaned</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="totalFreed">0 MB</div>
+        <div class="stat-label">Space Freed</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="totalArchived">0</div>
+        <div class="stat-label">Archived</div>
+      </div>
+    </div>
+
+    <!-- Activity Chart -->
+    <div class="section animate-in">
+      <div class="section-title">Daily Activity (last 30 days)</div>
+      <div class="chart-container">
+        <div class="chart-bars" id="chartBars"></div>
+        <div class="chart-labels" id="chartLabels"></div>
+      </div>
+    </div>
+
+    <!-- Category Breakdown -->
+    <div class="section animate-in">
+      <div class="section-title">Category Breakdown</div>
+      <div class="category-list" id="categoryList">
+        <div class="empty-state">No category data yet</div>
+      </div>
+    </div>
+
+    <!-- Run History -->
+    <div class="section animate-in">
+      <div class="section-title">Recent Runs</div>
+      <div class="chart-container" style="overflow-x: auto;">
+        <table class="history-table" id="historyTable">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Intensity</th>
+              <th>Cleaned</th>
+              <th>Space</th>
+              <th>Duration</th>
+              <th>Type</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody">
+            <tr><td colspan="6" class="empty-state">No run history yet</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Undo / Recovery -->
+    <div class="section animate-in">
+      <div class="section-title">Recovery Log</div>
+      <p style="font-size: 12px; color: var(--text-dim); margin-bottom: var(--space-3);">
+        Tagged emails can be found in Gmail by searching for the label (e.g., <code>label:GmailCleaner</code>).
+        Deleted emails remain in Trash for 30 days.
+      </p>
+      <div class="toolbar">
+        <button class="btn btn-sm" id="refreshUndoBtn">Refresh</button>
+        <button class="btn btn-sm btn-danger" id="clearUndoBtn">Clear Log</button>
+      </div>
+      <div class="undo-list" id="undoList">
+        <div class="empty-state">No recovery entries</div>
+      </div>
+    </div>
+  </main>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="browser-polyfill.js"></script>
+  <script src="stats.js"></script>
+</body>
+</html>

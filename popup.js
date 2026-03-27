@@ -257,7 +257,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     shareBtn: $("shareBtn"),
 
-    toastContainer: $("toastContainer")
+    toastContainer: $("toastContainer"),
+    accountSelector: $("accountSelector"),
+    wlSuggestions: $("wlSuggestions"),
+    openStatsBtn: $("openStats")
   };
 
   const critical = ["runBtn", "statusEl", "intensityEl", "dryRunEl", "safeModeEl"];
@@ -565,6 +568,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const findGmailTab = async () => {
     if (!hasChromeTabs()) return null;
 
+    // Multi-account: if user selected a specific tab, use it
+    if (state.currentGmailTabId) {
+      try {
+        const tabs = await tabsQuery({ url: `${CONFIG.GMAIL_URL}*` });
+        const selected = tabs.find(t => t.id === state.currentGmailTabId);
+        if (selected) return selected;
+      } catch {}
+    }
+
     const active = await tabsQuery({ active: true, currentWindow: true });
     const activeTab = active?.[0];
     if (activeTab?.url?.startsWith(CONFIG.GMAIL_URL)) return activeTab;
@@ -576,6 +588,90 @@ document.addEventListener("DOMContentLoaded", () => {
     if (all?.length) return all.find((t) => t.active) || all[0];
 
     return null;
+  };
+
+  // =========================
+  // Multi-Account Support
+  // =========================
+
+  const loadGmailAccounts = async () => {
+    if (!hasChrome() || !chrome.runtime?.sendMessage) return;
+    try {
+      const resp = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({ type: "gmailCleanerListGmailTabs" }, resolve);
+      });
+      const tabs = resp?.tabs || [];
+      if (tabs.length <= 1 || !elements.accountSelector) return;
+
+      elements.accountSelector.style.display = "flex";
+      elements.accountSelector.textContent = "";
+
+      tabs.forEach((tab, idx) => {
+        const pill = document.createElement("button");
+        pill.type = "button";
+        pill.className = "account-pill" + (idx === 0 ? " active" : "");
+        pill.textContent = tab.title ? tab.title.replace(/ - Gmail.*$/, "").slice(0, 25) : "Account " + tab.account;
+        pill.dataset.tabId = tab.id;
+        pill.addEventListener("click", () => {
+          elements.accountSelector.querySelectorAll(".account-pill").forEach(p => p.classList.remove("active"));
+          pill.classList.add("active");
+          state.currentGmailTabId = tab.id;
+        });
+        elements.accountSelector.appendChild(pill);
+      });
+    } catch (e) {
+      log("warn", "loadGmailAccounts failed", e);
+    }
+  };
+
+  // =========================
+  // Whitelist Suggestions
+  // =========================
+
+  const loadWhitelistSuggestions = async () => {
+    if (!hasChrome() || !chrome.runtime?.sendMessage || !elements.wlSuggestions) return;
+    try {
+      const resp = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({ type: "gmailCleanerGetWhitelistSuggestions" }, resolve);
+      });
+      const suggestions = resp?.suggestions || [];
+      if (suggestions.length === 0) return;
+
+      const currentWhitelist = await getWhitelist();
+
+      const filtered = suggestions.filter(s => !currentWhitelist.includes(s.sender));
+      if (filtered.length === 0) return;
+
+      elements.wlSuggestions.style.display = "flex";
+      elements.wlSuggestions.textContent = "";
+
+      const label = document.createElement("span");
+      label.style.fontSize = "10px";
+      label.style.color = "#64748b";
+      label.style.marginRight = "4px";
+      label.textContent = "Protect:";
+      elements.wlSuggestions.appendChild(label);
+
+      filtered.slice(0, 5).forEach(s => {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "wl-suggest-chip";
+        chip.textContent = "+ " + s.sender;
+        chip.title = "Add to whitelist (opens: " + s.opens + ", replies: " + s.replies + ")";
+        chip.addEventListener("click", async () => {
+          const wl = await getWhitelist();
+          if (!wl.includes(s.sender)) {
+            wl.push(s.sender);
+            await storageSet("sync", { whitelist: wl });
+            showToast("added " + s.sender + " to whitelist", "success");
+            chip.remove();
+          }
+        });
+        elements.wlSuggestions.appendChild(chip);
+      });
+    } catch (e) {
+      log("warn", "loadWhitelistSuggestions failed", e);
+    }
   };
 
   const showOpenGmailHelper = () => {
@@ -895,6 +991,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  const openStats = async () => {
+    try {
+      await tabsCreate({ url: chrome.runtime.getURL("stats.html") });
+      setTimeout(safeClosePopup, 150);
+    } catch (e) {
+      log("error", "openStats failed", e);
+      showToast("failed to open stats", "error");
+    }
+  };
+
   // =========================
   // Tip links + Share
   // =========================
@@ -1113,6 +1219,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     elements.openOptionsBtn?.addEventListener("click", openOptions);
     elements.openDiagnosticsBtn?.addEventListener("click", openDiagnostics);
+    elements.openStatsBtn?.addEventListener("click", openStats);
 
     setupTipLinks();
     setupShare();
@@ -1131,6 +1238,9 @@ document.addEventListener("DOMContentLoaded", () => {
     await restoreLastConfig();
     await restoreActiveRunUI();
     await maybeShowRatingPrompt();
+
+    loadGmailAccounts();
+    loadWhitelistSuggestions();
 
     log("info", "ready");
   };

@@ -8,6 +8,7 @@
   <meta name="theme-color" content="#020617" />
   <meta name="color-scheme" content="dark" />
   <meta name="referrer" content="no-referrer" />
+  <link rel="stylesheet" href="shared.css" />
 
   <!-- Optional; extension CSP may block remote font CSS anyway -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -1172,6 +1173,73 @@
       .success-ctas, .rating-prompt, .footer, .affiliate-section,
       .pin-hint, .progress-bar { display: none !important; }
     }
+
+    /* Multi-account selector */
+    .account-selector {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: var(--s-3);
+    }
+    .account-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 500;
+      background: rgba(15, 23, 42, 0.56);
+      border: 1px solid rgba(255,255,255,0.07);
+      color: #94a3b8;
+      cursor: pointer;
+      transition: all 140ms cubic-bezier(0.2,0.9,0.2,1);
+    }
+    .account-pill.active {
+      background: rgba(99,102,241,0.2);
+      border-color: rgba(99,102,241,0.4);
+      color: #f1f5f9;
+    }
+    .account-pill:hover { border-color: rgba(255,255,255,0.15); }
+
+    /* Whitelist suggestions */
+    .wl-suggestions {
+      margin-top: var(--s-2);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .wl-suggest-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 10px;
+      background: rgba(16,185,129,0.12);
+      border: 1px solid rgba(16,185,129,0.25);
+      color: #10b981;
+      cursor: pointer;
+      transition: all 140ms ease;
+    }
+    .wl-suggest-chip:hover {
+      background: rgba(16,185,129,0.22);
+    }
+
+    /* Stats nav link */
+    .nav-link-stats {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      color: #94a3b8;
+      text-decoration: none;
+      cursor: pointer;
+      transition: color 140ms ease;
+    }
+    .nav-link-stats:hover { color: #f1f5f9; }
   </style>
 </head>
 
@@ -1253,6 +1321,9 @@
         <span class="badge-recommended">Recommended</span>
       </button>
       <span id="monthly-hint" class="sr-only">Run a safe monthly cleanup targeting old promotions and junk mail</span>
+
+      <!-- Multi-Account Selector -->
+        <div class="account-selector" id="accountSelector" style="display:none"></div>
 
       <section class="section" aria-labelledby="strategy-title">
         <span id="strategy-title" class="section-title">Cleanup Strategy</span>
@@ -1434,6 +1505,9 @@
         <button type="button" class="rating-dismiss" id="ratingDismiss">Maybe later</button>
       </div>
 
+      <!-- Whitelist Suggestions -->
+        <div class="wl-suggestions" id="wlSuggestions" style="display:none"></div>
+
       <footer class="footer" role="contentinfo">
         <nav class="footer-left" aria-label="Quick links">
           <button id="openOptions" class="linkish" type="button" aria-label="Open rules settings">
@@ -1441,6 +1515,9 @@
           </button>
           <button id="openDiagnostics" class="linkish" type="button" aria-label="Open diagnostics page">
             <span aria-hidden="true">🔧</span> Diagnostics
+          </button>
+          <button type="button" class="nav-link-stats" id="openStats" aria-label="Statistics">
+            Stats
           </button>
         </nav>
 
@@ -1592,6 +1669,7 @@
     aria-live="polite"
   ></div>
 
+  <script src="browser-polyfill.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

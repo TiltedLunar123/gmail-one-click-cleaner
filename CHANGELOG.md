@@ -3,6 +3,60 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 4.0.0
+
+- **Background Service Worker**
+  - Added persistent background service worker for messaging coordination, scheduling, and stats persistence.
+  - Extension no longer relies solely on popup staying open for script injection.
+
+- **Undo / Recovery System**
+  - Tracks all cleanup operations with query, label, count, and action type.
+  - Recovery log accessible from the new Statistics page with direct Gmail search links.
+  - Tagged emails can be found via Gmail label search for easy recovery within 30-day Trash window.
+
+- **Scheduled / Automatic Cleanups**
+  - Create daily, weekly, or monthly cleanup schedules via the Options page.
+  - Uses chrome.alarms API for reliable recurring execution.
+  - Schedules can be enabled/disabled or deleted individually.
+  - Requires Gmail to be open in at least one tab.
+
+- **Custom Rules Editor**
+  - Build your own Gmail search queries with per-rule action (delete, archive, label only).
+  - Custom rules run alongside built-in intensity presets.
+  - Manage up to 20 custom rules from the Options page.
+
+- **Multi-Account Support**
+  - Detects multiple Gmail tabs (different Google accounts).
+  - Account selector pills appear in the popup when multiple accounts are open.
+  - Choose which account to clean before starting.
+
+- **Statistics Dashboard**
+  - New dedicated stats page with overview cards (total runs, emails cleaned, space freed).
+  - 30-day daily activity bar chart.
+  - Category breakdown showing which rule categories cleaned the most.
+  - Full run history table with intensity, duration, and action type.
+  - Auto-refreshes every 30 seconds.
+
+- **Shared CSS & Build Pipeline**
+  - Extracted common design tokens and base styles into shared.css.
+  - Added package.json with build scripts (esbuild minification, zip packaging).
+  - Reduced CSS duplication across all extension pages.
+
+- **Smart Whitelist Suggestions**
+  - Tracks sender interactions (opens, replies) to suggest senders you engage with.
+  - Suggestion chips appear in the popup for one-click whitelist additions.
+  - Protects senders you actually read from being cleaned.
+
+- **Firefox & Edge Support**
+  - Added browser-polyfill.js shim for WebExtensions API compatibility.
+  - Promisifies Chrome callback APIs and creates browser.* namespace.
+  - Extension now works across Chrome, Edge, and Firefox with the same codebase.
+
+- **Build & Development Tooling**
+  - Added build.js script for dist packaging and optional JS minification.
+  - Added zip creation for Chrome Web Store submissions.
+  - Added package.json with lint and build scripts.
+
 ## 3.5.0
 
 - **Bug Fixes & UX Improvements**

@@ -1242,6 +1242,24 @@
 
         const allRules = result?.rules ?? DEFAULT_RULES;
         const set = allRules[intensity] ?? allRules.normal ?? DEFAULT_RULES.normal;
+
+        // Also load custom rules
+        try {
+          const customResult = await new Promise((resolve) => {
+            chrome.storage.sync.get("customRules", resolve);
+          });
+          const customRules = customResult?.customRules || [];
+          if (customRules.length > 0) {
+            for (const cr of customRules) {
+              if (cr.query && typeof cr.query === "string") {
+                set.push(cr.query.trim());
+              }
+            }
+          }
+        } catch (e) {
+          debugLog("Failed to load custom rules", { error: e?.message });
+        }
+
         return stripRisky([...set]);
       }
     } catch (e) {
@@ -1942,6 +1960,23 @@
           stats.totalFreedMb += (affectedThisPass * mbPerEmail);
           pass++;
 
+          // Record undo entry for recovery
+          try {
+            if (hasChromeRuntime() && result.deleted && result.count > 0) {
+              chrome.runtime.sendMessage({
+                type: "gmailCleanerRecordUndo",
+                data: {
+                  query: guardedQuery,
+                  label,
+                  count: result.count,
+                  action: CONFIG.archiveInsteadOfDelete ? "archive" : "delete",
+                  tagLabel: tagLabel || "",
+                  intensity: CONFIG.intensity
+                }
+              });
+            }
+          } catch {}
+
           debugLog("Live pass completed", {
             query,
             pass,
@@ -2151,6 +2186,7 @@
     }
 
     RUNNING = true;
+    const runStartTime = Date.now();
 
     CANCELLED = false;
     REVIEW_SIGNAL = null;
@@ -2230,6 +2266,26 @@
         updateProStats(doneStats),
         saveLastRunStats(doneStats)
       ]);
+
+      // Record stats to background service worker
+      try {
+        if (hasChromeRuntime()) {
+          chrome.runtime.sendMessage({
+            type: "gmailCleanerRecordStats",
+            data: {
+              deleted: CONFIG.archiveInsteadOfDelete ? 0 : stats.totalDeleted,
+              archived: CONFIG.archiveInsteadOfDelete ? stats.totalDeleted : 0,
+              freedMb: stats.totalFreedMb,
+              intensity: CONFIG.intensity,
+              dryRun: CONFIG.dryRun,
+              duration: Date.now() - runStartTime,
+              perQuery: stats.perQuery
+            }
+          });
+        }
+      } catch (e) {
+        debugLog("Failed to record stats", { error: e?.message });
+      }
 
       safeSendImmediate({
         phase: "done",

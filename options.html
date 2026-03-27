@@ -8,6 +8,7 @@
   <meta name="theme-color" content="#0f172a" />
   <meta name="color-scheme" content="dark" />
   <meta name="referrer" content="no-referrer" />
+  <link rel="stylesheet" href="shared.css" />
 
   <style>
     :root {
@@ -1052,6 +1053,75 @@
         </div>
       </section>
 
+    <!-- Custom Rules Editor -->
+    <section class="card" style="margin-top: 24px; animation: fadeInUp 0.35s cubic-bezier(0.4,0,0.2,1) both; animation-delay: 0.15s;" aria-labelledby="customRulesTitle">
+      <h2 id="customRulesTitle"><span class="icon" aria-hidden="true">&#9997;</span> Custom Rules</h2>
+      <p style="font-size: 13px; color: var(--text-muted); margin: 8px 0 16px;">
+        Create your own Gmail search queries. These run alongside the built-in intensity rules.
+      </p>
+
+      <div id="customRulesList" style="display: grid; gap: 8px; margin-bottom: 16px;"></div>
+
+      <div style="display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 200px;">
+          <label for="newCustomQuery" style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Gmail search query</label>
+          <input type="text" id="newCustomQuery" placeholder="e.g. from:noreply@example.com older_than:3m"
+            style="width: 100%; padding: 8px 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-main); font-family: var(--font-mono, monospace); font-size: 13px;" />
+        </div>
+        <div style="min-width: 120px;">
+          <label for="newCustomAction" style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Action</label>
+          <select id="newCustomAction" style="width: 100%; padding: 8px 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-main); font-size: 13px;">
+            <option value="delete">Delete</option>
+            <option value="archive">Archive</option>
+            <option value="label">Label only</option>
+          </select>
+        </div>
+        <button type="button" id="addCustomRuleBtn" style="padding: 8px 16px; background: var(--primary); border: none; border-radius: var(--radius-md); color: #fff; font-weight: 600; font-size: 13px; cursor: pointer; white-space: nowrap;">
+          + Add Rule
+        </button>
+      </div>
+    </section>
+
+    <!-- Scheduled Cleanups -->
+    <section class="card" style="margin-top: 24px; animation: fadeInUp 0.35s cubic-bezier(0.4,0,0.2,1) both; animation-delay: 0.2s;" aria-labelledby="schedulesTitle">
+      <h2 id="schedulesTitle"><span class="icon" aria-hidden="true">&#9200;</span> Scheduled Cleanups</h2>
+      <p style="font-size: 13px; color: var(--text-muted); margin: 8px 0 16px;">
+        Automatically run cleanup on a schedule. Requires Gmail to be open in a tab.
+      </p>
+
+      <div id="schedulesList" style="display: grid; gap: 8px; margin-bottom: 16px;"></div>
+
+      <div style="display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap;">
+        <div style="min-width: 120px;">
+          <label for="scheduleInterval" style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Frequency</label>
+          <select id="scheduleInterval" style="width: 100%; padding: 8px 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-main); font-size: 13px;">
+            <option value="1440">Daily</option>
+            <option value="10080" selected>Weekly</option>
+            <option value="43200">Monthly</option>
+          </select>
+        </div>
+        <div style="min-width: 100px;">
+          <label for="scheduleIntensity" style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Intensity</label>
+          <select id="scheduleIntensity" style="width: 100%; padding: 8px 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-main); font-size: 13px;">
+            <option value="light" selected>Light</option>
+            <option value="normal">Normal</option>
+            <option value="deep">Deep</option>
+          </select>
+        </div>
+        <div style="min-width: 80px;">
+          <label for="scheduleAge" style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Min age</label>
+          <select id="scheduleAge" style="width: 100%; padding: 8px 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-main); font-size: 13px;">
+            <option value="3m" selected>3 months</option>
+            <option value="6m">6 months</option>
+            <option value="1y">1 year</option>
+          </select>
+        </div>
+        <button type="button" id="addScheduleBtn" style="padding: 8px 16px; background: var(--primary); border: none; border-radius: var(--radius-md); color: #fff; font-weight: 600; font-size: 13px; cursor: pointer; white-space: nowrap;">
+          + Add Schedule
+        </button>
+      </div>
+    </section>
+
       <footer class="footer-row">
         <nav class="footer-links" aria-label="Footer navigation">
           <a
@@ -1141,6 +1211,7 @@
     <!-- Toasts injected by JS -->
   </div>
 
+  <script src="browser-polyfill.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

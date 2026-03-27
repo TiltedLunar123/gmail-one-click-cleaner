@@ -828,4 +828,222 @@
   } else {
     init();
   }
+
+  // =========================
+  // Custom Rules Editor
+  // =========================
+
+  const CUSTOM_RULES_KEY = "customRules";
+
+  async function loadCustomRules() {
+    if (!hasSyncStorage()) return [];
+    try {
+      const result = await storageGet(CUSTOM_RULES_KEY);
+      return result?.[CUSTOM_RULES_KEY] || [];
+    } catch { return []; }
+  }
+
+  async function saveCustomRules(rules) {
+    if (!hasSyncStorage()) return;
+    await storageSet({ [CUSTOM_RULES_KEY]: rules });
+  }
+
+  async function renderCustomRules() {
+    const container = $("customRulesList");
+    if (!container) return;
+
+    const rules = await loadCustomRules();
+    container.textContent = "";
+
+    if (rules.length === 0) {
+      const empty = document.createElement("div");
+      empty.style.cssText = "text-align:center; padding:16px; color:var(--text-muted); font-size:13px;";
+      empty.textContent = "No custom rules yet. Add one below.";
+      container.appendChild(empty);
+      return;
+    }
+
+    rules.forEach((rule, idx) => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex; align-items:center; gap:8px; padding:8px 12px; background:rgba(15,23,42,0.4); border:1px solid rgba(255,255,255,0.06); border-radius:8px;";
+
+      const query = document.createElement("code");
+      query.style.cssText = "flex:1; font-size:12px; color:var(--text-main); word-break:break-all;";
+      query.textContent = rule.query;
+
+      const action = document.createElement("span");
+      action.style.cssText = "font-size:11px; padding:2px 8px; border-radius:9999px; font-weight:600; text-transform:uppercase;";
+      if (rule.action === "archive") {
+        action.style.background = "rgba(16,185,129,0.15)";
+        action.style.color = "#10b981";
+      } else if (rule.action === "label") {
+        action.style.background = "rgba(56,189,248,0.15)";
+        action.style.color = "#0ea5e9";
+      } else {
+        action.style.background = "rgba(239,68,68,0.15)";
+        action.style.color = "#ef4444";
+      }
+      action.textContent = rule.action;
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.textContent = "\u00D7";
+      deleteBtn.title = "Remove rule";
+      deleteBtn.style.cssText = "background:none; border:none; color:#ef4444; font-size:18px; cursor:pointer; padding:0 4px; line-height:1;";
+      deleteBtn.addEventListener("click", async () => {
+        const allRules = await loadCustomRules();
+        allRules.splice(idx, 1);
+        await saveCustomRules(allRules);
+        renderCustomRules();
+        showToast("Rule removed", "success");
+      });
+
+      row.appendChild(query);
+      row.appendChild(action);
+      row.appendChild(deleteBtn);
+      container.appendChild(row);
+    });
+  }
+
+  const addCustomRuleBtn = $("addCustomRuleBtn");
+  const newCustomQuery = $("newCustomQuery");
+  const newCustomAction = $("newCustomAction");
+
+  if (addCustomRuleBtn) {
+    addCustomRuleBtn.addEventListener("click", async () => {
+      const query = (newCustomQuery?.value || "").trim();
+      if (!query) {
+        showToast("Enter a Gmail search query", "warning");
+        return;
+      }
+      const action = newCustomAction?.value || "delete";
+      const rules = await loadCustomRules();
+      if (rules.length >= 20) {
+        showToast("Maximum 20 custom rules", "warning");
+        return;
+      }
+      rules.push({ query, action, createdAt: Date.now() });
+      await saveCustomRules(rules);
+      if (newCustomQuery) newCustomQuery.value = "";
+      renderCustomRules();
+      showToast("Custom rule added", "success");
+    });
+  }
+
+  renderCustomRules();
+
+  // =========================
+  // Scheduled Cleanups
+  // =========================
+
+  const sendSwMessage = (msg) => new Promise((resolve) => {
+    try {
+      chrome.runtime.sendMessage(msg, (resp) => {
+        if (chrome.runtime?.lastError) resolve(null);
+        else resolve(resp);
+      });
+    } catch { resolve(null); }
+  });
+
+  async function renderSchedules() {
+    const container = $("schedulesList");
+    if (!container) return;
+
+    const resp = await sendSwMessage({ type: "gmailCleanerGetSchedules" });
+    const schedules = resp?.schedules || [];
+    container.textContent = "";
+
+    if (schedules.length === 0) {
+      const empty = document.createElement("div");
+      empty.style.cssText = "text-align:center; padding:16px; color:var(--text-muted); font-size:13px;";
+      empty.textContent = "No scheduled cleanups. Add one below.";
+      container.appendChild(empty);
+      return;
+    }
+
+    const freqLabels = { "1440": "Daily", "10080": "Weekly", "43200": "Monthly" };
+
+    schedules.forEach((schedule) => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex; align-items:center; gap:8px; padding:10px 12px; background:rgba(15,23,42,0.4); border:1px solid rgba(255,255,255,0.06); border-radius:8px;";
+
+      const info = document.createElement("div");
+      info.style.cssText = "flex:1;";
+
+      const title = document.createElement("div");
+      title.style.cssText = "font-size:13px; font-weight:500; color:var(--text-main);";
+      title.textContent = (freqLabels[String(schedule.intervalMinutes)] || "Custom") + " " + schedule.intensity + " clean";
+
+      const meta = document.createElement("div");
+      meta.style.cssText = "font-size:11px; color:var(--text-muted); margin-top:2px;";
+      meta.textContent = "Min age: " + (schedule.minAge || "3m") +
+        (schedule.lastRun ? " \u00B7 Last: " + new Date(schedule.lastRun).toLocaleDateString() : "");
+
+      info.appendChild(title);
+      info.appendChild(meta);
+
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.textContent = schedule.enabled ? "Enabled" : "Disabled";
+      toggle.style.cssText = "padding:4px 10px; border-radius:9999px; font-size:11px; font-weight:600; border:1px solid; cursor:pointer;";
+      if (schedule.enabled) {
+        toggle.style.background = "rgba(16,185,129,0.15)";
+        toggle.style.borderColor = "rgba(16,185,129,0.3)";
+        toggle.style.color = "#10b981";
+      } else {
+        toggle.style.background = "rgba(100,116,139,0.15)";
+        toggle.style.borderColor = "rgba(100,116,139,0.3)";
+        toggle.style.color = "#64748b";
+      }
+      toggle.addEventListener("click", async () => {
+        schedule.enabled = !schedule.enabled;
+        await sendSwMessage({ type: "gmailCleanerSaveSchedule", schedule });
+        renderSchedules();
+        showToast(schedule.enabled ? "Schedule enabled" : "Schedule disabled", "info");
+      });
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.textContent = "\u00D7";
+      deleteBtn.title = "Remove schedule";
+      deleteBtn.style.cssText = "background:none; border:none; color:#ef4444; font-size:18px; cursor:pointer; padding:0 4px; line-height:1;";
+      deleteBtn.addEventListener("click", async () => {
+        await sendSwMessage({ type: "gmailCleanerDeleteSchedule", scheduleId: schedule.id });
+        renderSchedules();
+        showToast("Schedule removed", "success");
+      });
+
+      row.appendChild(info);
+      row.appendChild(toggle);
+      row.appendChild(deleteBtn);
+      container.appendChild(row);
+    });
+  }
+
+  const addScheduleBtn = $("addScheduleBtn");
+  if (addScheduleBtn) {
+    addScheduleBtn.addEventListener("click", async () => {
+      const interval = $("scheduleInterval")?.value || "10080";
+      const intensity = $("scheduleIntensity")?.value || "light";
+      const minAge = $("scheduleAge")?.value || "3m";
+
+      const schedule = {
+        id: "sched_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
+        enabled: true,
+        intervalMinutes: parseInt(interval, 10),
+        intensity,
+        minAge,
+        action: "delete",
+        whitelist: [],
+        createdAt: Date.now(),
+        lastRun: null
+      };
+
+      await sendSwMessage({ type: "gmailCleanerSaveSchedule", schedule });
+      renderSchedules();
+      showToast("Schedule created", "success");
+    });
+  }
+
+  renderSchedules();
 })();
