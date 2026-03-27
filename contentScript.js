@@ -870,10 +870,10 @@
       });
 
       // Consider it a success if state changed OR if we now have selections
-      const stateChanged = stateBefore !== stateAfter;
+      const didChange = stateBefore !== stateAfter;
       const hasSelections = selectedCountAfter !== null && selectedCountAfter > 0;
 
-      if (stateChanged || hasSelections) {
+      if (didChange || hasSelections) {
         return { success: true, reason: "clicked" };
       } else {
         debugLog("Warning: checkbox click may not have worked", { stateBefore, stateAfter });
