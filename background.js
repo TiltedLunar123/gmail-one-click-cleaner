@@ -44,6 +44,22 @@
     await restoreScheduledAlarms();
   });
 
+  // Clean up ACTIVE_RUN if the Gmail tab is closed mid-run
+  chrome.tabs.onRemoved.addListener(async (tabId) => {
+    try {
+      const result = await chrome.storage.session?.get?.(STORAGE_KEYS.ACTIVE_RUN)
+        || await chrome.storage.local.get(STORAGE_KEYS.ACTIVE_RUN);
+      const run = result?.[STORAGE_KEYS.ACTIVE_RUN];
+      if (run && run.gmailTabId === tabId) {
+        console.log("[GCC SW] Gmail tab closed, clearing ACTIVE_RUN");
+        await chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: null });
+        await chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_RUN]: null });
+      }
+    } catch (e) {
+      console.error("[GCC SW] tabs.onRemoved cleanup failed:", e);
+    }
+  });
+
   // =========================
   // Alarm Handler (Scheduled Cleanups)
   // =========================
@@ -88,60 +104,69 @@
   }
 
   async function runScheduledCleanup(scheduleId) {
-    try {
-      const result = await chrome.storage.sync.get(STORAGE_KEYS.SCHEDULES);
-      const schedules = result?.[STORAGE_KEYS.SCHEDULES] || [];
-      const schedule = schedules.find(s => s.id === scheduleId);
+    const MAX_RETRIES = 2;
+    const RETRY_DELAY_MS = 5000;
 
-      if (!schedule || !schedule.enabled) return;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const result = await chrome.storage.sync.get(STORAGE_KEYS.SCHEDULES);
+        const schedules = result?.[STORAGE_KEYS.SCHEDULES] || [];
+        const schedule = schedules.find(s => s.id === scheduleId);
 
-      // Find a Gmail tab
-      const gmailTabs = await chrome.tabs.query({ url: "https://mail.google.com/*" });
-      if (!gmailTabs.length) {
-        console.log("[GCC SW] No Gmail tab found for scheduled cleanup, skipping");
-        return;
+        if (!schedule || !schedule.enabled) return;
+
+        // Find a Gmail tab
+        const gmailTabs = await chrome.tabs.query({ url: "https://mail.google.com/*" });
+        if (!gmailTabs.length) {
+          console.log("[GCC SW] No Gmail tab found for scheduled cleanup, skipping");
+          return;
+        }
+
+        const gmailTab = gmailTabs[0];
+        const config = {
+          intensity: schedule.intensity || "light",
+          dryRun: false,
+          safeMode: true,
+          tagBeforeDelete: true,
+          tagLabelPrefix: "GmailCleaner",
+          guardSkipStarred: true,
+          guardSkipImportant: true,
+          guardSkipUnread: true,
+          guardSkipUserLabels: true,
+          minAge: schedule.minAge || "3m",
+          archiveInsteadOfDelete: schedule.action === "archive",
+          debugMode: false,
+          reviewMode: false,
+          whitelist: schedule.whitelist || [],
+          version: SW_VERSION,
+          scheduled: true,
+          scheduleId
+        };
+
+        // Inject config and content script
+        await chrome.scripting.executeScript({
+          target: { tabId: gmailTab.id },
+          func: (cfg) => { window.GMAIL_CLEANER_CONFIG = cfg; },
+          args: [config]
+        });
+
+        await chrome.scripting.executeScript({
+          target: { tabId: gmailTab.id },
+          files: ["contentScript.js"]
+        });
+
+        // Update last run timestamp
+        schedule.lastRun = Date.now();
+        await chrome.storage.sync.set({ [STORAGE_KEYS.SCHEDULES]: schedules });
+
+        console.log(`[GCC SW] Scheduled cleanup started: ${scheduleId}`);
+        return; // Success, exit retry loop
+      } catch (e) {
+        console.error(`[GCC SW] Scheduled cleanup attempt ${attempt + 1} failed:`, e);
+        if (attempt < MAX_RETRIES) {
+          await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+        }
       }
-
-      const gmailTab = gmailTabs[0];
-      const config = {
-        intensity: schedule.intensity || "light",
-        dryRun: false,
-        safeMode: true,
-        tagBeforeDelete: true,
-        tagLabelPrefix: "GmailCleaner",
-        guardSkipStarred: true,
-        guardSkipImportant: true,
-        guardSkipUnread: true,
-        guardSkipUserLabels: true,
-        minAge: schedule.minAge || "3m",
-        archiveInsteadOfDelete: schedule.action === "archive",
-        debugMode: false,
-        reviewMode: false,
-        whitelist: schedule.whitelist || [],
-        version: SW_VERSION,
-        scheduled: true,
-        scheduleId
-      };
-
-      // Inject config and content script
-      await chrome.scripting.executeScript({
-        target: { tabId: gmailTab.id },
-        func: (cfg) => { window.GMAIL_CLEANER_CONFIG = cfg; },
-        args: [config]
-      });
-
-      await chrome.scripting.executeScript({
-        target: { tabId: gmailTab.id },
-        files: ["contentScript.js"]
-      });
-
-      // Update last run timestamp
-      schedule.lastRun = Date.now();
-      await chrome.storage.sync.set({ [STORAGE_KEYS.SCHEDULES]: schedules });
-
-      console.log(`[GCC SW] Scheduled cleanup started: ${scheduleId}`);
-    } catch (e) {
-      console.error("[GCC SW] Scheduled cleanup failed:", e);
     }
   }
 
@@ -219,13 +244,31 @@
         listGmailTabs().then(tabs => sendResponse({ ok: true, tabs }));
         return true;
 
+      case "gmailCleanerDone":
+        // Clean up active run state when cleanup finishes
+        chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: null }).catch(() => {});
+        chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_RUN]: null }).catch(() => {});
+        broadcastToExtensionPages(msg, sender.tab?.id);
+        break;
+
       default:
         break;
     }
   });
 
-  function broadcastToExtensionPages(msg, excludeTabId) {
-    chrome.runtime.sendMessage(msg).catch(() => {});
+  async function broadcastToExtensionPages(msg, excludeTabId) {
+    try {
+      // Get all extension tabs (progress page, stats page, etc.)
+      const extensionUrl = chrome.runtime.getURL("");
+      const tabs = await chrome.tabs.query({ url: extensionUrl + "*" });
+      for (const tab of tabs) {
+        if (tab.id && tab.id !== excludeTabId) {
+          chrome.tabs.sendMessage(tab.id, msg).catch(() => {});
+        }
+      }
+    } catch {
+      // Ignore errors when no extension tabs are open
+    }
   }
 
   // =========================

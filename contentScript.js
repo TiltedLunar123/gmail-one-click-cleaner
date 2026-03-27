@@ -288,7 +288,7 @@
             const trimmed = s.trim();
             if (!trimmed) return false;
             // Reject entries with spaces or search operators that could break queries
-            if (/\s|OR|AND|{|}|\(|\)/i.test(trimmed)) return false;
+            if (/\s|\bOR\b|\bAND\b|[{}()]/i.test(trimmed)) return false;
             return true;
           })
         : []
@@ -401,14 +401,29 @@
   // v3.3: backoff helpers
   function findRateLimitText() {
     try {
-      const nodes = qsa("div, span");
-      for (const n of nodes) {
-        const t = getTextContent(n);
-        if (!t) continue;
-        const lower = t.toLowerCase();
-        for (const tok of RATE_LIMIT_TOKENS) {
-          if (lower.includes(tok)) {
-            return t.slice(0, 160);
+      // Only check known Gmail UI banner/notification areas, not email content
+      const uiAreas = [
+        ...qsa("div[role='alert']"),
+        ...qsa("div[role='status']"),
+        ...qsa("div.b8.UC"),
+        ...qsa("div[aria-live='assertive']"),
+        ...qsa("div[aria-live='polite']")
+      ];
+      // Fallback: if no specific areas found, check toolbar area only
+      if (uiAreas.length === 0) {
+        const toolbar = findToolbarRoot();
+        if (toolbar) uiAreas.push(toolbar);
+      }
+      for (const area of uiAreas) {
+        const nodes = [area, ...qsa("div, span", area)];
+        for (const n of nodes) {
+          const t = getTextContent(n);
+          if (!t) continue;
+          const lower = t.toLowerCase();
+          for (const tok of RATE_LIMIT_TOKENS) {
+            if (lower.includes(tok)) {
+              return t.slice(0, 160);
+            }
           }
         }
       }
@@ -422,12 +437,16 @@
     const toast = findRateLimitText();
     const msg = toast ? `${reason}: ${toast}` : reason;
 
+    // Add 10-30% random jitter to prevent synchronized retries
+    const jitter = dynamicBackoffMs * (0.1 + Math.random() * 0.2);
+    const backoffWithJitter = Math.ceil(dynamicBackoffMs + jitter);
+
     safeSend({
       phase: "debug",
-      detail: `Backoff ${dynamicBackoffMs}ms (${msg})`
+      detail: `Backoff ${backoffWithJitter}ms (${msg})`
     });
 
-    await cancellableSleep(dynamicBackoffMs, () => CANCELLED);
+    await cancellableSleep(backoffWithJitter, () => CANCELLED);
 
     dynamicBackoffMs = Math.min(
       TIMING.RATE_LIMIT_BACKOFF_MAX_MS,
@@ -502,6 +521,7 @@
       "div[gh='mtb'] div[role='checkbox']",
       "div[gh='mtb'] span[role='checkbox']",
       "div[role='toolbar'] div[role='checkbox']",
+      "div[role='toolbar'] [role='checkbox']",
       "div[aria-label='Select'] div[role='checkbox']",
       "div[aria-label^='Select'] div[role='checkbox']"
     ],
@@ -535,7 +555,8 @@
     selectionInfoBar: [
       "div.aeH",
       "div[gh='tl'] > div.aeH",
-      "div.ya"
+      "div.ya",
+      "div[role='complementary']"
     ]
   });
 
@@ -815,10 +836,21 @@
     }
 
     try {
-      lastMasterCheckboxClickTime = now;
       checkbox.click();
+      lastMasterCheckboxClickTime = now;
 
-      await sleep(TIMING.CHECKBOX_SETTLE_DELAY);
+      // Poll for state change instead of fixed sleep
+      const stateChanged = await waitFor(
+        () => {
+          const newState = getCheckboxState(checkbox);
+          return newState !== stateBefore || extractSelectedCount() > 0;
+        },
+        {
+          timeout: TIMING.SELECTION_VERIFY_TIMEOUT,
+          interval: 50,
+          description: "checkbox state change"
+        }
+      );
 
       // Verify the click had an effect
       const stateAfter = getCheckboxState(checkbox);
@@ -858,7 +890,7 @@
   // =========================
 
   function findButtonByTokens(tokens, primaryPattern, root = findToolbarRoot() || document) {
-    const buttons = qsa("div[role='button'], button", root);
+    const buttons = qsa("div[role='button'], button, span[role='button']", root);
 
     const scored = [];
 
@@ -1241,26 +1273,26 @@
         });
 
         const allRules = result?.rules ?? DEFAULT_RULES;
-        const set = allRules[intensity] ?? allRules.normal ?? DEFAULT_RULES.normal;
+        // Make a mutable copy of the rule set
+        const set = [...(allRules[intensity] ?? allRules.normal ?? DEFAULT_RULES.normal)];
 
-        // Also load custom rules
+        // Load and merge custom rules BEFORE applying safe mode filter
         try {
           const customResult = await new Promise((resolve) => {
             chrome.storage.sync.get("customRules", resolve);
           });
           const customRules = customResult?.customRules || [];
-          if (customRules.length > 0) {
-            for (const cr of customRules) {
-              if (cr.query && typeof cr.query === "string") {
-                set.push(cr.query.trim());
-              }
+          for (const cr of customRules) {
+            if (cr.query && typeof cr.query === "string") {
+              set.push(cr.query.trim());
             }
           }
         } catch (e) {
           debugLog("Failed to load custom rules", { error: e?.message });
         }
 
-        return stripRisky([...set]);
+        // Apply safe mode filter to ALL rules including custom
+        return stripRisky(set);
       }
     } catch (e) {
       debugLog("Failed to load rules from storage", { error: e?.message });
@@ -1329,7 +1361,7 @@
       if (trimmed) {
         // Sanitize: reject entries containing Gmail search operators that could
         // break query intent (e.g. "user@test.com OR attacker@evil.com")
-        if (/\s|OR|AND|{|}|\(|\)/i.test(trimmed)) {
+        if (/\s|\bOR\b|\bAND\b|[{}()]/i.test(trimmed)) {
           debugLog("Skipping suspicious whitelist entry", { entry: trimmed });
           continue;
         }
@@ -1373,9 +1405,16 @@
   async function openSearch(query) {
     const base = getGmailBaseUrl();
     const hash = `#search/${encodeURIComponent(query)}`;
+    const currentHash = location.hash;
+    const targetHash = hash;
 
     if (!location.href.startsWith(base)) {
       location.href = base + hash;
+    } else if (currentHash === targetHash) {
+      // Same hash - force reload by going to inbox then back
+      location.hash = "#inbox";
+      await sleep(TIMING.DOM_SETTLE_DELAY);
+      location.hash = hash;
     } else {
       location.hash = hash;
     }
@@ -1383,7 +1422,14 @@
     const ok = await waitFor(
       () => {
         const main = qs(SELECTORS.main);
-        return main && (qs(SELECTORS.grid, main) || qs(SELECTORS.listContainer, main));
+        if (!main) return false;
+        const grid = qs(SELECTORS.grid, main);
+        if (grid) {
+          // Verify grid has actual rows
+          const rows = qsa("tr", grid);
+          return rows.length > 0;
+        }
+        return qs(SELECTORS.listContainer, main);
       },
       {
         timeout: TIMING.WAIT_SEARCH_TIMEOUT,
@@ -1429,16 +1475,8 @@
       }
     }
 
-    if (dispatchKeyEvent("#", "Digit3", { shiftKey: true })) {
-      await sleep(TIMING.KEYBOARD_ACTION_DELAY);
-      return true;
-    }
-
-    if (dispatchKeyEvent("Delete", "Delete")) {
-      await sleep(TIMING.KEYBOARD_ACTION_DELAY);
-      return true;
-    }
-
+    debugLog("Delete button not found, no keyboard fallback");
+    safeSend({ phase: "debug", detail: "Delete button not found in toolbar" });
     return false;
   }
 
@@ -1454,16 +1492,8 @@
       }
     }
 
-    if (dispatchKeyEvent("e", "KeyE")) {
-      await sleep(TIMING.KEYBOARD_ACTION_DELAY);
-      return true;
-    }
-
-    if (dispatchKeyEvent("y", "KeyY")) {
-      await sleep(TIMING.KEYBOARD_ACTION_DELAY);
-      return true;
-    }
-
+    debugLog("Archive button not found, no keyboard fallback");
+    safeSend({ phase: "debug", detail: "Archive button not found in toolbar" });
     return false;
   }
 
@@ -1502,11 +1532,26 @@
 
     try {
       input.focus();
-      input.value = "";
-      input.dispatchEvent(new Event("input", { bubbles: true }));
 
-      input.value = labelName;
-      input.dispatchEvent(new Event("input", { bubbles: true }));
+      // Use React-compatible value setting via native input setter
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype, "value"
+      )?.set;
+
+      if (nativeInputValueSetter) {
+        nativeInputValueSetter.call(input, "");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+
+        nativeInputValueSetter.call(input, labelName);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      } else {
+        // Fallback for non-React environments
+        input.value = "";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.value = labelName;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      }
 
       const enterEvent = new KeyboardEvent("keydown", {
         key: "Enter",
@@ -1538,13 +1583,23 @@
   function hasNoResults() {
     const mainRoot = getMainRoot();
 
+    // Check for empty grid (works regardless of language)
     const grid = qs(SELECTORS.grid, mainRoot);
     if (grid) {
       const rows = qsa("tr[role='row']", grid);
+      // If grid exists but has zero data rows, it's no results
       if (rows.length === 0) return true;
     }
 
-    const spans = qsa("span", mainRoot);
+    // Check for "no results" text in any language - look for the specific
+    // Gmail empty state container
+    const emptyStateEls = qsa("td.TC", mainRoot);
+    if (emptyStateEls.length > 0) {
+      return true;
+    }
+
+    // Fallback: check known text indicators
+    const spans = qsa("span, div.UI", mainRoot);
     return spans.some((el) => {
       const text = getTextContent(el);
       return SELECTORS.noResultsIndicators.some((indicator) =>
@@ -1596,22 +1651,19 @@
       const text = getTextContent(el);
       if (!text) continue;
 
-      // Match patterns like "50 selected", "All 1,234 conversations selected"
       if (/selected/i.test(text)) {
-        const matches = text.match(/([\d,.\s]+)/g);
-        if (matches && matches.length > 0) {
-          // Get the largest number (likely the count, not page info)
-          let maxCount = 0;
-          for (const match of matches) {
-            const cleaned = match.replace(/[,.\s]/g, "");
-            if (cleaned) {
-              const n = parseInt(cleaned, 10);
-              if (Number.isFinite(n) && n > maxCount) {
-                maxCount = n;
-              }
-            }
-          }
-          if (maxCount > 0) return maxCount;
+        // "All N conversations selected" pattern
+        const allMatch = text.match(/all\s+([\d,.\s]+)\s+conversations?\s+.*selected/i);
+        if (allMatch) {
+          const n = parseInt(allMatch[1].replace(/[,.\s]/g, ""), 10);
+          if (Number.isFinite(n) && n > 0) return n;
+        }
+
+        // "N selected" or "N conversations selected" - get FIRST number
+        const firstMatch = text.match(/([\d,]+)/);
+        if (firstMatch) {
+          const n = parseInt(firstMatch[1].replace(/[,.\s]/g, ""), 10);
+          if (Number.isFinite(n) && n > 0) return n;
         }
       }
     }
@@ -1839,6 +1891,7 @@
       detail: `Starting query ${idx + 1}/${total}: ${label}`
     });
 
+    try {
     while (pass < TIMING.PASS_CAP) {
       if (CANCELLED) {
         throw new CancellationError("Query processing cancelled");
@@ -1960,6 +2013,16 @@
           stats.totalFreedMb += (affectedThisPass * mbPerEmail);
           pass++;
 
+          // Report per-pass progress
+          safeSend({
+            phase: "pass-progress",
+            detail: `${label}: pass ${pass}/${TIMING.PASS_CAP}, ${queryDeletedCount} affected so far`,
+            queryLabel: label,
+            passNumber: pass,
+            passTotal: TIMING.PASS_CAP,
+            queryDeletedCount
+          });
+
           // Record undo entry for recovery
           try {
             if (hasChromeRuntime() && result.deleted && result.count > 0) {
@@ -2041,6 +2104,19 @@
           throw e;
         }
       }
+    }
+    } catch (e) {
+      // Record partial stats even on failure
+      if (!(e instanceof CancellationError)) {
+        recordQueryStats({
+          query,
+          label,
+          count: queryDeletedCount,
+          mode: CONFIG.dryRun ? "dry" : "live",
+          durationMs: Date.now() - start
+        });
+      }
+      throw e;
     }
   }
 
@@ -2346,6 +2422,12 @@
       }
     } finally {
       RUNNING = false;
+      // Notify background to clean up ACTIVE_RUN state
+      try {
+        if (hasChromeRuntime()) {
+          chrome.runtime.sendMessage({ type: "gmailCleanerDone" });
+        }
+      } catch {}
     }
   }
 

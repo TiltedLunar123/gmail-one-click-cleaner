@@ -23,6 +23,32 @@
 
   const RULE_KEYS = Object.freeze(["light", "normal", "deep"]);
 
+  const SYNC_LIMITS = Object.freeze({
+    MAX_ITEM_BYTES: 8192,
+    MAX_TOTAL_BYTES: 102400
+  });
+
+  function estimateStorageSize(obj) {
+    try {
+      return new Blob([JSON.stringify(obj)]).size;
+    } catch {
+      return JSON.stringify(obj).length * 2; // rough estimate
+    }
+  }
+
+  async function safeSyncSet(data, itemLabel = "data") {
+    for (const [key, value] of Object.entries(data)) {
+      const size = estimateStorageSize({ [key]: value });
+      if (size > SYNC_LIMITS.MAX_ITEM_BYTES) {
+        throw new Error(
+          `${itemLabel} is too large for sync storage (${Math.round(size / 1024)}KB, max 8KB). ` +
+          "Try removing some rules or shortening queries."
+        );
+      }
+    }
+    await chrome.storage.sync.set(data);
+  }
+
   // Keep these in sync with the content script defaults.
   const DEFAULT_RULES = Object.freeze({
     light: Object.freeze([
@@ -522,11 +548,11 @@
 
       if (!hasSyncStorage()) throw new Error("Chrome sync storage is not available");
 
-      await storageSet({
+      await safeSyncSet({
         [STORAGE_KEYS.RULES]: normalizeRules(data.rules),
         [STORAGE_KEYS.DEBUG_MODE]: !!data.debugMode,
         [STORAGE_KEYS.WHITELIST]: normalizeWhitelist(data.whitelist)
-      });
+      }, "settings");
 
       state.initialData = collectAllData();
       clearUnsaved();
@@ -749,17 +775,32 @@
 
       if (!hasSyncStorage()) throw new Error("Chrome sync storage is not available");
 
-      await storageSet({
-        [STORAGE_KEYS.RULES]: normalizeRules(json.rules),
-        [STORAGE_KEYS.DEBUG_MODE]: !!json.debugMode,
-        [STORAGE_KEYS.WHITELIST]: normalizeWhitelist(json.whitelist)
-      });
+      // Save backup of current settings before overwriting
+      const backup = await storageGet(null);
 
-      await loadData();
-      clearUnsaved();
+      try {
+        await safeSyncSet({
+          [STORAGE_KEYS.RULES]: normalizeRules(json.rules),
+          [STORAGE_KEYS.DEBUG_MODE]: !!json.debugMode,
+          [STORAGE_KEYS.WHITELIST]: normalizeWhitelist(json.whitelist)
+        }, "imported config");
 
-      showToast("Configuration imported successfully!", "success");
-      srStatus("Configuration imported.");
+        await loadData();
+        clearUnsaved();
+
+        showToast("Configuration imported successfully!", "success");
+        srStatus("Configuration imported.");
+      } catch (importErr) {
+        // Rollback to backup
+        try {
+          await chrome.storage.sync.set(backup);
+          await loadData();
+          showToast("Import failed, settings restored: " + importErr.message, "error");
+        } catch {
+          showToast("Import failed and rollback failed: " + importErr.message, "error");
+        }
+        srStatus("Import failed.");
+      }
     } catch (err) {
       console.error("[Gmail Cleaner] Import error:", err);
 
@@ -845,7 +886,12 @@
 
   async function saveCustomRules(rules) {
     if (!hasSyncStorage()) return;
-    await storageSet({ [CUSTOM_RULES_KEY]: rules });
+    try {
+      await safeSyncSet({ [CUSTOM_RULES_KEY]: rules }, "custom rules");
+    } catch (err) {
+      showToast(err.message, "error");
+      throw err;
+    }
   }
 
   async function renderCustomRules() {

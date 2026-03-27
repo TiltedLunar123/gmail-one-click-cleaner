@@ -878,8 +878,31 @@ document.addEventListener("DOMContentLoaded", () => {
       if (existingProgress?.id) await tabsUpdate(existingProgress.id, { active: true });
       else await tabsCreate({ url: progressUrl, active: true });
 
-      // Inject config + content script into Gmail tab
+      // Set active run BEFORE injection to prevent race conditions
+      await setActiveRun(gmailTab.id);
       updateProgress(75);
+
+      // Check if content script is already attached
+      let alreadyAttached = false;
+      try {
+        const [result] = await scriptingExecuteScript({
+          target: { tabId: gmailTab.id },
+          func: () => !!window.GCC_ATTACHED
+        });
+        alreadyAttached = result?.result === true;
+      } catch {
+        // Tab might not be ready, proceed with injection
+      }
+
+      if (alreadyAttached) {
+        log("info", "Content script already attached, skipping injection");
+        showToast("cleanup already running", "warning");
+        await clearActiveRun();
+        resetRunButton();
+        hideProgress();
+        state.isRunning = false;
+        return;
+      }
 
       await scriptingExecuteScript({
         target: { tabId: gmailTab.id },
@@ -893,8 +916,6 @@ document.addEventListener("DOMContentLoaded", () => {
         target: { tabId: gmailTab.id },
         files: ["contentScript.js"]
       });
-
-      await setActiveRun(gmailTab.id);
 
       // "Successful start" counter (best effort)
       await bumpRunCount();
@@ -933,17 +954,29 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     try {
-      await tabsSendMessage(tabId, { type: "gmailCleanerCancel" });
-      showToast("cancel sent", "info");
-      setStatus("cancel requested", STATUS_TYPES.WARNING, true);
+      const resp = await tabsSendMessage(tabId, { type: "gmailCleanerCancel" });
+      if (resp?.ok) {
+        showToast("cancel confirmed", "info");
+        setStatus("cleanup cancelled", STATUS_TYPES.WARNING, true);
+        await clearActiveRun();
+        hideQuickActions();
+        resetRunButton();
+        state.isRunning = false;
+        state.currentGmailTabId = null;
+        hideProgress();
+      } else {
+        showToast("cancel sent but unconfirmed", "warning");
+        setStatus("cancel requested", STATUS_TYPES.WARNING, true);
+      }
+    } catch {
+      // Tab might be closed - clean up anyway
+      showToast("gmail tab unreachable, clearing state", "warning");
       await clearActiveRun();
       hideQuickActions();
       resetRunButton();
       state.isRunning = false;
       state.currentGmailTabId = null;
       hideProgress();
-    } catch {
-      showToast("could not cancel (is gmail tab still open?)", "warning");
     }
   };
 
