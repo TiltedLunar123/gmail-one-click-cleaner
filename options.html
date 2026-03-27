@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gmail One-Click Cleaner – Rules & Settings</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Configure cleanup rules and settings for Gmail One-Click Cleaner extension" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="referrer" content="no-referrer" />
+
+  <style>
+    :root {
+      /* Palette - Consistent with Diagnostics Page */
+      --bg-deep: #0f172a;
+      --bg-surface: rgba(30, 41, 59, 0.7);
+      --bg-surface-hover: rgba(51, 65, 85, 0.6);
+      --bg-input: rgba(15, 23, 42, 0.6);
+      --bg-input-focus: rgba(15, 23, 42, 0.8);
+
+      --primary: #6366f1; /* Indigo 500 */
+      --primary-hover: #4f46e5; /* Indigo 600 */
+      --primary-glow: rgba(99, 102, 241, 0.4);
+
+      --success: #10b981;
+      --success-bg: rgba(16, 185, 129, 0.15);
+      --success-border: rgba(16, 185, 129, 0.3);
+
+      --warning: #f59e0b;
+      --warning-bg: rgba(249, 115, 22, 0.15);
+      --warning-border: rgba(249, 115, 22, 0.3);
+
+      --danger: #ef4444;
+      --danger-bg: rgba(239, 68, 68, 0.15);
+      --danger-border: rgba(239, 68, 68, 0.3);
+
+      --info: #0ea5e9;
+      --info-bg: rgba(56, 189, 248, 0.15);
+      --info-border: rgba(56, 189, 248, 0.3);
+
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-highlight: rgba(255, 255, 255, 0.15);
+      --border-focus: rgba(99, 102, 241, 0.6);
+
+      --radius-lg: 16px;
+      --radius-md: 8px;
+      --radius-sm: 4px;
+      --radius-full: 9999px;
+
+      --font-sans: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+      --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+
+    html { scroll-behavior: smooth; }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    body {
+      margin: 0;
+      padding: 40px 20px;
+      min-height: 100vh;
+      background-color: var(--bg-deep);
+      background-image:
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.15) 0px, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    .skip-link {
+      position: absolute;
+      top: -100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--primary);
+      color: white;
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      text-decoration: none;
+      font-weight: 600;
+      z-index: 1000;
+      transition: top var(--transition-fast);
+    }
+    .skip-link:focus { top: 10px; }
+
+    .noscript-warning {
+      background: var(--warning-bg);
+      border: 1px solid var(--warning-border);
+      color: #fcd34d;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      border-radius: var(--radius-md);
+      text-align: center;
+    }
+
+    .page {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: var(--bg-surface);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      box-shadow: var(--shadow-md);
+      contain: layout style;
+    }
+
+    h1 {
+      margin: 0 0 8px 0;
+      font-size: clamp(20px, 4vw, 24px);
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      background: linear-gradient(to right, #fff, #cbd5e1);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    h2 .icon {
+      font-size: 18px;
+      opacity: 0.8;
+    }
+
+    .subtitle {
+      margin-bottom: 24px;
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .subtitle strong {
+      color: #f1f5f9;
+      font-weight: 500;
+    }
+
+    .audit-note {
+      margin: 0 0 32px 0;
+      padding: 16px;
+      font-size: 13px;
+      color: var(--text-muted);
+      background: rgba(15, 23, 42, 0.4);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      line-height: 1.6;
+    }
+
+    .audit-note code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: rgba(255, 255, 255, 0.1);
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+      color: #e2e8f0;
+    }
+
+    section {
+      margin-bottom: 24px;
+      animation: fadeInUp 0.4s ease both;
+    }
+    section:nth-child(1) { animation-delay: 0.05s; }
+    section:nth-child(2) { animation-delay: 0.10s; }
+    section:nth-child(3) { animation-delay: 0.15s; }
+    section:nth-child(4) { animation-delay: 0.20s; }
+    section:nth-child(5) { animation-delay: 0.25s; }
+    section:nth-child(6) { animation-delay: 0.30s; }
+    section:nth-child(7) { animation-delay: 0.35s; }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .hint {
+      margin: 0 0 12px 0;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .hint code {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      background: rgba(99, 102, 241, 0.1);
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+      color: #a5b4fc;
+    }
+
+    .divider {
+      margin-top: 32px;
+      padding-top: 32px;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    :focus-visible {
+      outline: 2px solid var(--border-focus);
+      outline-offset: 2px;
+    }
+
+    .textarea-wrapper {
+      position: relative;
+    }
+
+    textarea {
+      width: 100%;
+      height: 140px;
+      padding: 12px 14px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.5;
+      color: #e2e8f0;
+      background: var(--bg-input);
+      resize: vertical;
+      transition:
+        border-color var(--transition-normal),
+        box-shadow var(--transition-normal),
+        background var(--transition-normal);
+    }
+
+    textarea:hover { border-color: var(--border-highlight); }
+
+    textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15), 0 0 16px -4px rgba(99, 102, 241, 0.1);
+      background: var(--bg-input-focus);
+    }
+
+    textarea::placeholder { color: #64748b; }
+
+    textarea::-webkit-scrollbar { width: 8px; }
+    textarea::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    textarea::-webkit-scrollbar-thumb:hover { background: #475569; }
+    textarea::-webkit-scrollbar-track { background: transparent; }
+
+    .textarea-sm { height: 100px; }
+
+    .char-count {
+      position: absolute;
+      bottom: 8px;
+      right: 10px;
+      font-size: 10px;
+      color: #64748b;
+      pointer-events: none;
+      user-select: none;
+      background: rgba(15, 23, 42, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 2px 6px;
+      border-radius: 9999px;
+      display: block;
+      opacity: 0;
+      transition: opacity var(--transition-normal);
+    }
+    textarea:focus ~ .char-count { opacity: 1; }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border: 1px solid transparent;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .pill-light {
+      background: var(--success-bg);
+      border-color: var(--success-border);
+      color: #6ee7b7;
+    }
+
+    .pill-normal {
+      background: rgba(99, 102, 241, 0.15);
+      border-color: rgba(99, 102, 241, 0.3);
+      color: #a5b4fc;
+    }
+
+    .pill-deep {
+      background: var(--warning-bg);
+      border-color: var(--warning-border);
+      color: #fdba74;
+    }
+
+    .pill-protection {
+      background: var(--info-bg);
+      border-color: var(--info-border);
+      color: #7dd3fc;
+    }
+
+    button,
+    .button-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 20px;
+      border-radius: var(--radius-full);
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      text-decoration: none;
+      transition:
+        transform var(--transition-fast),
+        box-shadow var(--transition-fast),
+        background var(--transition-fast),
+        border-color var(--transition-fast),
+        opacity var(--transition-fast);
+      border: 1px solid transparent;
+      position: relative;
+      overflow: hidden;
+    }
+
+    button::before,
+    .button-link::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
+      opacity: 0;
+      transition: opacity var(--transition-fast);
+    }
+
+    button:hover:not(:disabled)::before,
+    .button-link:hover::before {
+      opacity: 1;
+    }
+
+    #save {
+      background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+      color: white;
+      box-shadow: 0 4px 12px var(--primary-glow);
+      padding: 10px 28px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    #save:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px var(--primary-glow);
+    }
+
+    #save:active:not(:disabled) { transform: translateY(0); }
+
+    #save:disabled {
+      background: var(--bg-surface-hover);
+      color: var(--text-muted);
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+
+    button.loading {
+      pointer-events: none;
+      color: transparent;
+    }
+
+    button.loading::after {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @keyframes saveSuccess {
+      0% { transform: scale(1); }
+      30% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+    #save.success {
+      background: linear-gradient(135deg, var(--success), #059669);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+      animation: saveSuccess 0.4s ease;
+    }
+
+    .button-link.secondary,
+    #exportBtn,
+    #importBtn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      color: #cbd5e1;
+    }
+
+    .button-link.secondary:hover,
+    #exportBtn:hover:not(:disabled),
+    #importBtn:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--border-highlight);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+
+    .button-link:not(.secondary) {
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      color: #c7d2fe;
+    }
+
+    .button-link:not(.secondary):hover {
+      background: rgba(99, 102, 241, 0.25);
+      transform: translateY(-1px);
+    }
+
+    .actions-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+
+    .setting-row {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid transparent;
+      transition:
+        background var(--transition-normal),
+        border-color var(--transition-normal);
+    }
+
+    .setting-row:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--border-subtle);
+    }
+
+    .setting-row:focus-within {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--border-focus);
+    }
+
+    .setting-label {
+      font-size: 14px;
+      font-weight: 500;
+      color: #f1f5f9;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .setting-content { flex: 1; }
+
+    input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      border: 1px solid #475569;
+      border-radius: var(--radius-sm);
+      background-color: rgba(15, 23, 42, 0.5);
+      cursor: pointer;
+      margin-top: 2px;
+      position: relative;
+      flex-shrink: 0;
+      transition:
+        background-color var(--transition-fast),
+        border-color var(--transition-fast),
+        box-shadow var(--transition-fast);
+    }
+
+    input[type="checkbox"]:hover { border-color: #64748b; }
+
+    input[type="checkbox"]:focus-visible {
+      outline: 2px solid var(--border-focus);
+      outline-offset: 2px;
+    }
+
+    input[type="checkbox"]:checked {
+      background-color: var(--primary);
+      border-color: var(--primary);
+      background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");
+    }
+
+    input[type="checkbox"]:checked:hover { background-color: var(--primary-hover); }
+
+    .footer-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 40px;
+      gap: 20px;
+      flex-wrap: wrap;
+      padding-top: 20px;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .footer-links {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .footer-links a,
+    #restoreDefaultsBtn {
+      font-size: 13px;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color var(--transition-fast);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .footer-links a:hover,
+    #restoreDefaultsBtn:hover {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    .support-card {
+      margin-top: 40px;
+      padding-top: 24px;
+      border-top: 1px dashed var(--border-subtle);
+    }
+
+    .support-header {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .support-title {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .support-tag {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      background: var(--success-bg);
+      border: 1px solid var(--success-border);
+      color: #6ee7b7;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .support-body {
+      margin: 0 0 20px 0;
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .support-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .support-note {
+      font-size: 12px;
+      color: #64748b;
+      margin: 0;
+    }
+
+    .toast-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .toast {
+      background: var(--bg-surface);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 12px 16px;
+      font-size: 13px;
+      color: var(--text-main);
+      box-shadow: var(--shadow-lg);
+      transform: translateX(calc(100% + 20px));
+      opacity: 0;
+      transition: all var(--transition-normal);
+      max-width: 320px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toast.show {
+      transform: translateX(0);
+      opacity: 1;
+    }
+
+    .toast-success { border-left: 3px solid var(--success); }
+    .toast-error { border-left: 3px solid var(--danger); }
+    .toast-warning { border-left: 3px solid var(--warning); }
+    .toast-info { border-left: 3px solid var(--info); }
+
+    dialog#confirmDialog {
+      background: #1e293b;
+      color: var(--text-main);
+      border: 1px solid var(--border-highlight);
+      border-radius: var(--radius-lg);
+      padding: 0;
+      max-width: 400px;
+      width: 90%;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9);
+      animation: dialogIn 0.2s ease-out;
+    }
+
+    @keyframes dialogIn {
+      from { opacity: 0; transform: scale(0.95) translateY(-10px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    dialog#confirmDialog::backdrop {
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+
+    .dialog-content { padding: 24px; }
+
+    .dialog-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0 0 12px 0;
+      color: #fff;
+    }
+
+    .dialog-body {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin: 0;
+      line-height: 1.6;
+    }
+
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 16px 24px;
+      background: rgba(15, 23, 42, 0.3);
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .dialog-btn {
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border-subtle);
+      background: transparent;
+      color: var(--text-main);
+      padding: 8px 18px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all var(--transition-fast);
+    }
+
+    .dialog-btn:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--border-highlight);
+    }
+
+    .dialog-btn.danger {
+      background: var(--danger-bg);
+      border-color: var(--danger-border);
+      color: #fca5a5;
+    }
+
+    .dialog-btn.danger:hover { background: rgba(239, 68, 68, 0.25); }
+
+    .unsaved-indicator {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--warning);
+      margin-left: auto;
+    }
+
+    .unsaved-indicator.show { display: inline-flex; }
+
+    .unsaved-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--warning);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    .shortcut-hint {
+      font-size: 11px;
+      color: #64748b;
+      margin-left: 8px;
+    }
+
+    kbd {
+      display: inline-block;
+      padding: 2px 5px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      color: #94a3b8;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 600px) {
+      body { padding: 20px 16px; }
+      .card { padding: 20px; }
+
+      .footer-row {
+        flex-direction: column-reverse;
+        align-items: stretch;
+        gap: 20px;
+      }
+
+      #save { width: 100%; }
+
+      .footer-links { justify-content: space-between; }
+
+      .actions-row { flex-direction: column; }
+
+      .actions-row button,
+      .actions-row .button-link { width: 100%; }
+
+      .toast-container {
+        left: 16px;
+        right: 16px;
+        bottom: 16px;
+      }
+
+      .toast { max-width: none; }
+
+      dialog#confirmDialog {
+        margin: auto 16px;
+        max-width: calc(100% - 32px);
+      }
+    }
+
+    @media print {
+      body {
+        background: white;
+        color: black;
+        padding: 20px;
+      }
+
+      .card {
+        background: white;
+        border: 1px solid #ccc;
+        box-shadow: none;
+      }
+
+      .support-card,
+      .footer-row,
+      .toast-container,
+      .skip-link,
+      button,
+      .button-link {
+        display: none !important;
+      }
+
+      textarea {
+        border: 1px solid #ccc;
+        background: #f5f5f5;
+      }
+
+      .pill {
+        border: 1px solid #ccc;
+        background: #f5f5f5;
+        color: #333;
+      }
+    }
+
+    @media (prefers-contrast: high) {
+      :root {
+        --border-subtle: rgba(255, 255, 255, 0.3);
+        --border-highlight: rgba(255, 255, 255, 0.5);
+      }
+
+      .card { border-width: 2px; }
+
+      button,
+      .button-link,
+      input[type="checkbox"] { border-width: 2px; }
+    }
+  </style>
+</head>
+
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <noscript>
+    <div class="noscript-warning">
+      <strong>JavaScript Required</strong><br />
+      This settings page requires JavaScript to function. Please enable JavaScript in your browser settings.
+    </div>
+  </noscript>
+
+  <div class="page">
+    <main class="card" id="main-content">
+      <header>
+        <h1>Gmail One-Click Cleaner – Rules</h1>
+        <p class="subtitle">
+          One Gmail search query per line.
+          <strong>These rule sets define what gets cleaned for each level.</strong>
+          <span class="unsaved-indicator" id="unsavedIndicator" aria-live="polite">
+            <span class="unsaved-dot" aria-hidden="true"></span>
+            <span>Unsaved changes</span>
+          </span>
+        </p>
+      </header>
+
+      <div class="audit-note" role="note">
+        <span aria-hidden="true">ℹ️</span>
+        In live runs (not Dry-Run), matching conversations are first tagged with labels like
+        <code>GmailCleaner - Promotions</code> or <code>GmailCleaner - Big attachments</code>
+        so you can search and audit them later. In Safe Mode, rules that include
+        <code>category:updates</code> or <code>category:forums</code> are automatically skipped.
+        Global guardrails such as <code>skip starred</code> and <code>skip important</code>
+        are layered on top of whatever you put here.
+      </div>
+
+      <section aria-labelledby="light-heading">
+        <div class="section-header">
+          <h2 id="light-heading"><span class="icon" aria-hidden="true">🌱</span> Light</h2>
+          <span class="pill pill-light">Safest / minimal</span>
+        </div>
+        <p class="hint" id="light-description">
+          Focuses on very large attachments and older promo clutter.
+          Good for a first pass or cautious cleanup.
+        </p>
+        <label for="light" class="sr-only">Light cleanup rules (one query per line)</label>
+        <div class="textarea-wrapper">
+          <textarea
+            id="light"
+            spellcheck="false"
+            aria-describedby="light-description"
+            autocomplete="off"
+            autocapitalize="off"
+          ></textarea>
+          <div class="char-count" id="lightCount" aria-hidden="true">0</div>
+        </div>
+      </section>
+
+      <section aria-labelledby="normal-heading">
+        <div class="section-header">
+          <h2 id="normal-heading"><span class="icon" aria-hidden="true">⚖️</span> Normal</h2>
+          <span class="pill pill-normal">Recommended</span>
+        </div>
+        <p class="hint" id="normal-description">
+          Balanced cleanup of old promotions, social updates, newsletters,
+          and large attachments for most inboxes.
+        </p>
+        <label for="normal" class="sr-only">Normal cleanup rules (one query per line)</label>
+        <div class="textarea-wrapper">
+          <textarea
+            id="normal"
+            spellcheck="false"
+            aria-describedby="normal-description"
+            autocomplete="off"
+            autocapitalize="off"
+          ></textarea>
+          <div class="char-count" id="normalCount" aria-hidden="true">0</div>
+        </div>
+      </section>
+
+      <section aria-labelledby="deep-heading">
+        <div class="section-header">
+          <h2 id="deep-heading"><span class="icon" aria-hidden="true">🔥</span> Deep</h2>
+          <span class="pill pill-deep">Aggressive</span>
+        </div>
+        <p class="hint" id="deep-description">
+          More aggressive filters and younger messages.
+          Run a Dry-Run first if you're not sure what will be removed.
+        </p>
+        <label for="deep" class="sr-only">Deep cleanup rules (one query per line)</label>
+        <div class="textarea-wrapper">
+          <textarea
+            id="deep"
+            spellcheck="false"
+            aria-describedby="deep-description"
+            autocomplete="off"
+            autocapitalize="off"
+          ></textarea>
+          <div class="char-count" id="deepCount" aria-hidden="true">0</div>
+        </div>
+      </section>
+
+      <section class="divider" aria-labelledby="whitelist-heading">
+        <div class="section-header" style="margin-top: 0">
+          <h2 id="whitelist-heading"><span class="icon" aria-hidden="true">🛡️</span> Global Whitelist (Never Delete)</h2>
+          <span class="pill pill-protection">Protection</span>
+        </div>
+        <p class="hint" id="whitelist-description">
+          Emails or domains entered here (one per line, e.g. <code>boss@work.com</code> or <code>*@family.com</code>)
+          are <strong>never</strong> touched. The cleaner will automatically append <code>-from:...</code> to every search.
+        </p>
+        <label for="whitelist" class="sr-only">Whitelist entries (one email or domain per line)</label>
+        <div class="textarea-wrapper">
+          <textarea
+            id="whitelist"
+            class="textarea-sm"
+            placeholder="example@gmail.com&#10;*@company.com"
+            spellcheck="false"
+            aria-describedby="whitelist-description"
+            autocomplete="off"
+            autocapitalize="off"
+          ></textarea>
+          <div class="char-count" id="whitelistCount" aria-hidden="true">0</div>
+        </div>
+      </section>
+
+      <section class="divider" aria-labelledby="backup-heading">
+        <div class="section-header" style="margin-top: 0">
+          <h2 id="backup-heading"><span class="icon" aria-hidden="true">💾</span> Backup & Restore</h2>
+        </div>
+        <p class="hint">
+          Export your current rules and whitelist to a file (JSON) to back them up or move to another browser.
+        </p>
+        <div class="actions-row" role="group" aria-label="Backup and restore actions">
+          <button id="exportBtn" class="button-link secondary" type="button" aria-describedby="export-hint">
+            <span aria-hidden="true">📤</span> Export Config
+          </button>
+          <button id="importBtn" class="button-link secondary" type="button" aria-describedby="import-hint">
+            <span aria-hidden="true">📥</span> Import Config
+          </button>
+          <input
+            type="file"
+            id="importFile"
+            accept=".json,application/json"
+            style="display: none"
+            aria-label="Select JSON config file to import"
+          />
+        </div>
+        <p id="export-hint" class="sr-only">Download your current rules as a JSON file</p>
+        <p id="import-hint" class="sr-only">Upload a previously exported JSON config file</p>
+      </section>
+
+      <section class="divider" aria-labelledby="advanced-heading">
+        <div class="section-header" style="margin-top: 0">
+          <h2 id="advanced-heading"><span class="icon" aria-hidden="true">⚙️</span> Advanced Settings</h2>
+        </div>
+
+        <div class="setting-row">
+          <input type="checkbox" id="debugMode" aria-describedby="debug-description" />
+          <div class="setting-content">
+            <label for="debugMode" class="setting-label">Enable Debug Logging</label>
+            <p class="hint" id="debug-description" style="margin-top: 4px; margin-bottom: 0">
+              Outputs detailed activity logs to the browser console (<kbd>F12</kbd>).
+              Useful for reporting bugs or understanding why a run stopped.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer-row">
+        <nav class="footer-links" aria-label="Footer navigation">
+          <a
+            href="diagnostics.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Open diagnostics page (opens in new tab)"
+          >
+            <span aria-hidden="true">🔧</span> Open diagnostics
+          </a>
+
+          <button
+            id="restoreDefaultsBtn"
+            type="button"
+            style="border: none; background: transparent; padding: 0; font-family: inherit;"
+            aria-describedby="restore-hint"
+          >
+            <span aria-hidden="true">↩️</span> Restore defaults
+          </button>
+          <span id="restore-hint" class="sr-only">Reset all rules to their original default values</span>
+        </nav>
+
+        <button id="save" type="button" aria-describedby="save-hint">
+          <span class="save-text">Save rules</span>
+          <span class="shortcut-hint" aria-hidden="true"><kbd>Ctrl</kbd>+<kbd>S</kbd></span>
+        </button>
+        <span id="save-hint" class="sr-only">Save all changes to your cleanup rules</span>
+
+        <!-- Screen-reader status updates (options.js can set this text) -->
+        <span id="srStatus" class="sr-only" aria-live="polite"></span>
+      </footer>
+
+      <aside class="support-card" aria-labelledby="support-heading">
+        <div class="support-header">
+          <p id="support-heading" class="support-title">
+            <span aria-hidden="true">💝</span> Support this inbox cleaner
+          </p>
+          <span class="support-tag">optional</span>
+        </div>
+        <p class="support-body">
+          Gmail Cleaner is built and maintained by a solo developer. Your custom rules run locally in your browser.
+          I never see your Gmail data. If this tool helps you keep a noisy inbox under control, a small tip makes it
+          easier to keep improving it.
+        </p>
+        <div class="support-actions" role="group" aria-label="Support options">
+          <a
+            class="button-link"
+            href="https://www.buymeacoffee.com/judeh1l"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Buy me a coffee (opens in new tab)"
+          >
+            <span aria-hidden="true">☕</span> Buy me a coffee
+          </a>
+          <a
+            class="button-link secondary"
+            href="https://cash.app/$judeh1l"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Tip via Cash App (opens in new tab)"
+          >
+            <span aria-hidden="true">💵</span> Tip via Cash App
+          </a>
+        </div>
+        <p class="support-note">Totally optional, but genuinely appreciated.</p>
+      </aside>
+    </main>
+  </div>
+
+  <!-- Confirmation Dialog -->
+  <dialog id="confirmDialog" aria-labelledby="dialog-title" aria-describedby="dialog-body">
+    <div class="dialog-content">
+      <h2 id="dialog-title" class="dialog-title">Restore Default Rules?</h2>
+      <p id="dialog-body" class="dialog-body">
+        This will replace all your custom rules with the original defaults.
+        This action cannot be undone unless you have a backup.
+      </p>
+    </div>
+    <div class="dialog-actions">
+      <button type="button" class="dialog-btn" id="dialogCancelBtn">Cancel</button>
+      <button type="button" class="dialog-btn danger" id="dialogConfirmBtn">Restore Defaults</button>
+    </div>
+  </dialog>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" role="region" aria-label="Notifications" aria-live="polite">
+    <!-- Toasts injected by JS -->
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

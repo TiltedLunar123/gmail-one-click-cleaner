@@ -1,0 +1,1597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gmail One-Click Cleaner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Bulk-clean your Gmail inbox with one click" />
+  <meta name="theme-color" content="#020617" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="referrer" content="no-referrer" />
+
+  <!-- Optional; extension CSP may block remote font CSS anyway -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+  <style>
+    /* =========================================================
+       Gmail One-Click Cleaner — Popup UI (Redesign v2)
+       NOTE: All existing IDs preserved to avoid breaking popup.js
+       ========================================================= */
+
+    :root {
+      /* Core */
+      --bg: #020617;
+      --bg2: #030a1c;
+      --surface: rgba(15, 23, 42, 0.72);
+      --surface2: rgba(15, 23, 42, 0.56);
+      --surface3: rgba(2, 6, 23, 0.35);
+
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --dim: #64748b;
+
+      --border: rgba(255, 255, 255, 0.07);
+      --border2: rgba(255, 255, 255, 0.12);
+      --ring: rgba(99, 102, 241, 0.6);
+
+      --primary: #6366f1;
+      --primary2: #4f46e5;
+
+      --good: #10b981;
+      --warn: #f59e0b;
+      --bad: #ef4444;
+
+      --amazon: #ff9900;
+
+      /* Shape / spacing */
+      --r-xl: 20px;
+      --r-lg: 16px;
+      --r-md: 12px;
+      --r-sm: 10px;
+      --r-pill: 9999px;
+
+      --s-1: 4px;
+      --s-2: 8px;
+      --s-3: 12px;
+      --s-4: 16px;
+      --s-5: 20px;
+      --s-6: 24px;
+
+      --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+      --ease: cubic-bezier(0.2, 0.9, 0.2, 1);
+      --ease-out: cubic-bezier(0.0, 0.0, 0.2, 1);
+      --ease-in: cubic-bezier(0.4, 0.0, 1, 1);
+      --t-fast: 140ms var(--ease);
+      --t: 190ms var(--ease);
+      --t-slow: 280ms var(--ease);
+
+      accent-color: var(--primary);
+      scroll-behavior: smooth;
+    }
+
+    * { box-sizing: border-box; margin: 0; }
+    html, body { height: 100%; }
+    body {
+      padding: var(--s-5);
+      width: 380px;
+      min-height: 540px;
+      font-family: var(--font);
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+
+      background:
+        radial-gradient(900px 420px at 15% 5%, rgba(99, 102, 241, 0.20), transparent 55%),
+        radial-gradient(900px 420px at 85% 95%, rgba(168, 85, 247, 0.16), transparent 55%),
+        linear-gradient(180deg, var(--bg), var(--bg2));
+      background-attachment: fixed;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+      }
+      :root { scroll-behavior: auto; }
+    }
+
+    ::selection { background: rgba(99, 102, 241, 0.28); color: #fff; }
+
+    /* Entrance animations */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .card > * { animation: fadeInUp 0.35s var(--ease) both; }
+    .card > :nth-child(1) { animation-delay: 0.02s; }
+    .card > :nth-child(2) { animation-delay: 0.05s; }
+    .card > :nth-child(3) { animation-delay: 0.08s; }
+    .card > :nth-child(4) { animation-delay: 0.11s; }
+    .card > :nth-child(5) { animation-delay: 0.14s; }
+    .card > :nth-child(6) { animation-delay: 0.17s; }
+    .card > :nth-child(7) { animation-delay: 0.20s; }
+    .card > :nth-child(8) { animation-delay: 0.23s; }
+    .card > :nth-child(9) { animation-delay: 0.26s; }
+    .card > :nth-child(10) { animation-delay: 0.29s; }
+    .card > :nth-child(n+11) { animation-delay: 0.32s; }
+
+    /* Focus */
+    :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+    :focus:not(:focus-visible) { outline: none; }
+
+    /* Skip link */
+    .skip-link {
+      position: absolute;
+      top: -100%;
+      left: var(--s-4);
+      z-index: 9999;
+      padding: var(--s-2) var(--s-4);
+      background: var(--primary);
+      color: #fff;
+      border-radius: var(--r-sm);
+      text-decoration: none;
+      font-weight: 700;
+      transition: top var(--t-fast);
+    }
+    .skip-link:focus { top: var(--s-4); }
+
+    /* Root layout */
+    .popup-root {
+      display: flex;
+      justify-content: center;
+      contain: layout style;
+    }
+
+    /* Card */
+    .card {
+      width: 100%;
+      border-radius: var(--r-xl);
+      padding: var(--s-6);
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.78), rgba(15, 23, 42, 0.58));
+      border: 1px solid var(--border);
+      box-shadow:
+        0 28px 60px -26px rgba(0, 0, 0, 0.7),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      position: relative;
+      overflow: hidden;
+      contain: paint;
+    }
+
+    /* subtle top highlight */
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(640px 180px at 30% 0%, rgba(255,255,255,0.08), transparent 55%),
+        radial-gradient(520px 220px at 80% 10%, rgba(99,102,241,0.10), transparent 60%);
+      opacity: 0.9;
+    }
+    .card > * { position: relative; }
+
+    /* Header */
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--s-3);
+      margin-bottom: var(--s-2);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: var(--s-3);
+      min-width: 0;
+    }
+
+    .app-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, rgba(99,102,241,0.30), rgba(168,85,247,0.18));
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      box-shadow: 0 10px 22px -14px rgba(99, 102, 241, 0.9);
+      flex: 0 0 auto;
+    }
+    @keyframes sparkle {
+      0%, 100% { opacity: 0.92; filter: drop-shadow(0 0 0px transparent); }
+      50% { opacity: 1; filter: drop-shadow(0 0 4px rgba(99,102,241,0.4)); }
+    }
+    .app-mark svg {
+      width: 18px;
+      height: 18px;
+      opacity: 0.92;
+      will-change: transform;
+      animation: sparkle 3s ease-in-out infinite;
+    }
+    .app-mark:hover svg { animation: none; opacity: 1; transform: rotate(15deg) scale(1.1); transition: transform 0.2s ease, opacity 0.2s ease; }
+
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.2;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      background: linear-gradient(135deg, #fff, #cbd5e1);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .badge {
+      padding: 6px 10px;
+      border-radius: var(--r-pill);
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.28);
+      color: #a5b4fc;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+      user-select: none;
+      flex: 0 0 auto;
+    }
+
+    .subtitle {
+      margin: 0 0 var(--s-4) 0;
+      font-size: 12px;
+      color: var(--muted);
+      opacity: 0.95;
+    }
+    .subtitle br { display: none; }
+    .subtitle span { display: block; }
+
+    /* Screen reader only */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* Banner: pin hint */
+    .pin-hint {
+      display: none;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px;
+      margin-bottom: var(--s-4);
+      border-radius: var(--r-md);
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.14), rgba(139, 92, 246, 0.08));
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+      animation: slideDown 0.22s var(--ease);
+    }
+    .pin-hint.show { display: flex; }
+    .pin-hint-icon { font-size: 18px; line-height: 1.2; margin-top: 1px; }
+    .pin-hint-title { font-size: 12px; font-weight: 800; color: #c7d2fe; margin-bottom: 2px; }
+    .pin-hint-text { font-size: 11px; color: var(--muted); line-height: 1.35; }
+    .pin-hint-close {
+      margin-left: auto;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      cursor: pointer;
+      padding: 6px 8px;
+      border-radius: 10px;
+      line-height: 1;
+      opacity: 0.85;
+      transition: transform var(--t-fast), opacity var(--t-fast), background var(--t-fast), border-color var(--t-fast);
+      flex: 0 0 auto;
+    }
+    .pin-hint-close:hover { opacity: 1; background: rgba(255,255,255,0.08); border-color: var(--border2); transform: translateY(-1px); }
+    .pin-hint-close:active { transform: translateY(0) scale(0.98); }
+
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Sections (generic) */
+    .section {
+      background: linear-gradient(180deg, rgba(2, 6, 23, 0.30), rgba(2, 6, 23, 0.20));
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      margin-bottom: var(--s-4);
+      overflow: hidden;
+      transition: border-color var(--t-fast), background var(--t-fast);
+    }
+    .section:focus-within { border-color: rgba(99, 102, 241, 0.34); }
+    section.section { padding: var(--s-4); }
+
+    /* Details sections */
+    details.section { padding: 0; }
+    summary.section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--s-3);
+      padding: var(--s-4);
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+      color: var(--dim);
+
+      transition: background var(--t-fast), color var(--t-fast);
+    }
+    summary.section-title::-webkit-details-marker { display: none; }
+    summary.section-title::marker { content: ""; }
+    summary.section-title:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+
+    .section-content {
+      padding: 0 var(--s-4) var(--s-4) var(--s-4);
+      border-top: 1px solid transparent;
+    }
+    details[open] .section-content {
+      border-top-color: rgba(255,255,255,0.06);
+      padding-top: var(--s-4);
+      animation: sectionReveal 0.25s var(--ease);
+    }
+
+    @keyframes sectionReveal {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .section-title-left,
+    .section-title-right {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    .section-emoji { font-size: 14px; }
+
+    .chevron {
+      color: var(--muted);
+      transition: transform var(--t), color var(--t);
+      flex: 0 0 auto;
+    }
+    details[open] .chevron { transform: rotate(180deg); color: var(--primary); }
+
+    /* Reassurance (safe box) */
+    .section--reassurance {
+      background: linear-gradient(180deg, rgba(16,185,129,0.10), rgba(2,6,23,0.22));
+      border-color: rgba(16,185,129,0.22);
+    }
+    .section--reassurance > summary.section-title:hover { background: rgba(16,185,129,0.10); }
+    .section--reassurance[open] .chevron { color: #6ee7b7; }
+    .section--reassurance[open] .section-content { border-top-color: rgba(16,185,129,0.16); }
+
+    .reassurance-list {
+      margin: 0 0 10px 0;
+      padding-left: 18px;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .reassurance-list li { margin-bottom: 6px; }
+    .reassurance-list li:last-child { margin-bottom: 0; }
+    .reassurance-list li::marker { color: rgba(110,231,183,0.95); }
+
+    .reassurance-safe {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px;
+      background: rgba(16,185,129,0.10);
+      border: 1px solid rgba(16,185,129,0.16);
+      border-radius: var(--r-md);
+      font-size: 11px;
+      font-weight: 700;
+      color: #6ee7b7;
+    }
+
+    /* Monthly clean CTA */
+    @keyframes borderGlow {
+      0%, 100% { border-color: rgba(16,185,129,0.28); box-shadow: 0 16px 30px -22px rgba(16,185,129,0.85), inset 0 1px 0 rgba(255,255,255,0.08); }
+      50% { border-color: rgba(16,185,129,0.50); box-shadow: 0 16px 30px -22px rgba(16,185,129,0.85), inset 0 1px 0 rgba(255,255,255,0.08), 0 0 20px -4px rgba(16,185,129,0.25); }
+    }
+
+    .monthly-clean-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--s-3);
+      padding: 14px;
+      margin-bottom: var(--s-4);
+      border-radius: var(--r-pill);
+      cursor: pointer;
+      border: 1px solid rgba(16,185,129,0.28);
+      background:
+        linear-gradient(135deg, rgba(16,185,129,0.18), rgba(2,6,23,0.10));
+      color: #6ee7b7;
+      font-family: inherit;
+      font-size: inherit;
+      transition: transform var(--t-fast), box-shadow var(--t-fast), border-color var(--t-fast), background var(--t-fast);
+      touch-action: manipulation;
+      box-shadow:
+        0 16px 30px -22px rgba(16,185,129,0.85),
+        inset 0 1px 0 rgba(255,255,255,0.08);
+      will-change: transform;
+      animation: borderGlow 3s ease-in-out infinite;
+    }
+
+    .monthly-clean-btn:hover {
+      transform: translateY(-1px);
+      border-color: rgba(16,185,129,0.46);
+      background: linear-gradient(135deg, rgba(16,185,129,0.26), rgba(2,6,23,0.12));
+      animation: none;
+    }
+    .monthly-clean-btn:active { transform: translateY(0) scale(0.99); animation: none; }
+
+    .monthly-clean-btn .icon {
+      font-size: 18px;
+      width: 26px;
+      height: 26px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      background: rgba(16,185,129,0.12);
+      border: 1px solid rgba(16,185,129,0.18);
+      flex: 0 0 auto;
+    }
+
+    .monthly-clean-btn .label-text { flex: 1; min-width: 0; text-align: left; }
+    .monthly-clean-btn .label-main { display: block; font-weight: 900; letter-spacing: 0.01em; }
+    .monthly-clean-btn .label-sub { display: block; font-size: 10px; opacity: 0.84; font-weight: 600; color: rgba(167, 243, 208, 0.95); }
+
+    .monthly-clean-btn .badge-recommended {
+      padding: 4px 10px;
+      border-radius: var(--r-pill);
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      background: rgba(16,185,129,0.16);
+      border: 1px solid rgba(16,185,129,0.22);
+      color: #a7f3d0;
+      flex: 0 0 auto;
+    }
+
+    /* Section titles inside non-details sections */
+    section.section .section-title {
+      display: block;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: var(--s-3);
+    }
+
+    /* Fields */
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .field:last-child { margin-bottom: 0; }
+
+    .field label {
+      font-size: 12px;
+      font-weight: 800;
+      color: #cbd5e1;
+      margin-left: 2px;
+    }
+
+    select {
+      width: 100%;
+      appearance: none;
+      -webkit-appearance: none;
+      background-color: rgba(30, 41, 59, 0.42);
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      color: #fff;
+      font-family: inherit;
+      font-size: 13px;
+      padding: 11px 38px 11px 12px;
+      outline: none;
+      cursor: pointer;
+      transition: background-color var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast), transform var(--t-fast);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7' /%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      background-size: 14px;
+    }
+    select:hover {
+      background-color: rgba(30, 41, 59, 0.55);
+      border-color: var(--border2);
+      transform: translateY(-1px);
+    }
+    select:active { transform: translateY(0); }
+    select:focus {
+      border-color: rgba(99, 102, 241, 0.55);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+    }
+    select option { background: #0b1224; color: #fff; }
+
+    /* Toggles */
+    .toggles { display: flex; flex-direction: column; gap: 12px; }
+
+    .toggle {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      user-select: none;
+      padding: 10px;
+      border-radius: var(--r-md);
+      border: 1px solid transparent;
+      background: rgba(255,255,255,0.02);
+      transition: background var(--t-fast), border-color var(--t-fast), transform var(--t-fast);
+    }
+    .toggle:hover {
+      background: rgba(255,255,255,0.05);
+      border-color: rgba(255,255,255,0.06);
+      transform: translateY(-1px);
+    }
+    .toggle:active { transform: translateY(0); }
+
+    .toggle input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 42px;
+      height: 24px;
+      border-radius: var(--r-pill);
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.10);
+      position: relative;
+      cursor: pointer;
+      outline: none;
+      flex: 0 0 auto;
+      transition: background var(--t), border-color var(--t), box-shadow var(--t);
+      box-shadow: inset 0 2px 5px rgba(0,0,0,0.35);
+    }
+    .toggle input[type="checkbox"]::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 18px;
+      height: 18px;
+      border-radius: 9999px;
+      background: #fff;
+      box-shadow: 0 6px 14px -10px rgba(0,0,0,0.9);
+      transition: transform var(--t);
+      will-change: transform;
+    }
+    .toggle input[type="checkbox"]:focus-visible {
+      box-shadow: inset 0 2px 5px rgba(0,0,0,0.35), 0 0 0 2px rgba(99,102,241,0.55);
+      border-color: rgba(99, 102, 241, 0.35);
+    }
+    .toggle input[type="checkbox"]:checked {
+      background: linear-gradient(135deg, var(--primary), var(--primary2));
+      border-color: transparent;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 0 12px -2px rgba(99,102,241,0.5);
+    }
+    .toggle input[type="checkbox"]:checked::after { transform: translateX(18px); }
+
+    .toggle:has(input:checked) {
+      background: rgba(99,102,241,0.06);
+      border-color: rgba(99,102,241,0.15);
+    }
+
+    .toggle-content { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .toggle-main { font-size: 13px; font-weight: 800; color: var(--text); }
+    .toggle-hint { font-size: 11px; color: var(--dim); line-height: 1.3; }
+
+    .toggle-row { display: flex; gap: 10px; }
+    .toggle-row .toggle { flex: 1; padding: 10px; }
+    .toggle-row .toggle-main { font-size: 12px; }
+
+    /* Primary button (Run Cleaner) */
+    .primary {
+      width: 100%;
+      border: none;
+      border-radius: var(--r-pill);
+      padding: 14px 16px;
+      margin-top: 2px;
+      cursor: pointer;
+      color: #fff;
+      font-family: inherit;
+      font-size: inherit;
+      background: linear-gradient(135deg, var(--primary), #4338ca);
+      box-shadow:
+        0 18px 36px -22px rgba(99,102,241,0.95),
+        inset 0 1px 0 rgba(255,255,255,0.20);
+      transition: transform var(--t-fast), box-shadow var(--t-fast), opacity var(--t-fast), filter var(--t-fast);
+      position: relative;
+      overflow: hidden;
+      touch-action: manipulation;
+      isolation: isolate;
+      will-change: transform;
+    }
+
+    .primary::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.18), transparent 55%);
+      opacity: 0;
+      transition: opacity var(--t-fast);
+      z-index: 1;
+    }
+    .primary:hover:not(:disabled) { transform: translateY(-2px); filter: saturate(1.05); }
+    .primary:hover:not(:disabled)::before { opacity: 1; }
+    .primary:active:not(:disabled) { transform: translateY(0) scale(0.99); }
+
+    .primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; filter: none; animation: none; }
+
+    @keyframes btnPulse {
+      0%, 100% { box-shadow: 0 18px 36px -22px rgba(99,102,241,0.95), inset 0 1px 0 rgba(255,255,255,0.20); }
+      50% { box-shadow: 0 18px 36px -22px rgba(99,102,241,0.95), inset 0 1px 0 rgba(255,255,255,0.20), 0 0 28px -4px rgba(99,102,241,0.35); }
+    }
+    .primary:not(:disabled):not(.loading):not(.success):not(.running) {
+      animation: btnPulse 2.5s ease-in-out infinite;
+    }
+    .primary:hover:not(:disabled) { animation: none; }
+
+    .primary .label {
+      display: block;
+      font-size: 14px;
+      font-weight: 1000;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      position: relative;
+      z-index: 2;
+    }
+    .primary .sub {
+      display: block;
+      font-size: 10px;
+      opacity: 0.82;
+      font-weight: 700;
+      margin-top: 2px;
+      position: relative;
+      z-index: 2;
+      color: rgba(226,232,240,0.92);
+    }
+
+    /* Button states for JS */
+    .primary.loading { pointer-events: none; }
+    .primary.loading .label, .primary.loading .sub { opacity: 0; }
+    .primary.loading::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 20px;
+      height: 20px;
+      margin: -10px 0 0 -10px;
+      border: 2px solid rgba(255,255,255,0.32);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      z-index: 3;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .primary.success {
+      background: linear-gradient(135deg, var(--good), #059669);
+      box-shadow: 0 18px 36px -24px rgba(16,185,129,0.9), inset 0 1px 0 rgba(255,255,255,0.20);
+    }
+    @keyframes runningPulse {
+      0%, 100% { box-shadow: 0 18px 36px -24px rgba(245,158,11,0.85), inset 0 1px 0 rgba(255,255,255,0.20); }
+      50% { box-shadow: 0 18px 36px -24px rgba(245,158,11,0.85), inset 0 1px 0 rgba(255,255,255,0.20), 0 0 24px -4px rgba(245,158,11,0.3); }
+    }
+    .primary.running {
+      background: linear-gradient(135deg, var(--warn), #d97706);
+      box-shadow: 0 18px 36px -24px rgba(245,158,11,0.85), inset 0 1px 0 rgba(255,255,255,0.20);
+      animation: runningPulse 1.5s ease-in-out infinite;
+    }
+
+    /* Shortcut hint */
+    .shortcut-hint {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: 0;
+      transition: opacity var(--t-fast);
+      z-index: 2;
+      font-size: 9px;
+      color: rgba(226,232,240,0.75);
+      pointer-events: none;
+    }
+    .primary:hover .shortcut-hint,
+    .primary:focus-visible .shortcut-hint { opacity: 1; }
+
+    kbd {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: rgba(2,6,23,0.35);
+      border: 1px solid rgba(255,255,255,0.10);
+      font-size: 9px;
+      font-family: inherit;
+      color: rgba(226,232,240,0.8);
+    }
+
+    /* Progress */
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      background: rgba(255,255,255,0.10);
+      border-radius: var(--r-pill);
+      overflow: hidden;
+      margin-top: var(--s-3);
+      display: none;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .progress-bar.show { display: block; }
+
+    .progress-bar-inner {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--primary), #22d3ee, #34d399);
+      background-size: 200% 100%;
+      animation: shimmer 2s linear infinite;
+      transition: width var(--t-slow);
+      border-radius: var(--r-pill);
+      will-change: width;
+    }
+    @keyframes shimmer {
+      0% { background-position: 100% 0%; }
+      100% { background-position: -100% 0%; }
+    }
+
+    /* Quick actions */
+    .quick-actions {
+      display: none;
+      justify-content: center;
+      gap: 10px;
+      margin-top: var(--s-3);
+    }
+    .quick-actions.show { display: flex; }
+
+    .quick-action-btn {
+      border-radius: var(--r-pill);
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.05);
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 8px 14px;
+      cursor: pointer;
+      transition: transform var(--t-fast), background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+      touch-action: manipulation;
+    }
+    .quick-action-btn:hover {
+      background: rgba(255,255,255,0.10);
+      border-color: var(--border2);
+      color: var(--text);
+      transform: translateY(-1px);
+    }
+    .quick-action-btn:active { transform: translateY(0) scale(0.98); }
+
+    .quick-action-btn.danger {
+      border-color: rgba(239,68,68,0.35);
+      color: #fca5a5;
+    }
+    .quick-action-btn.danger:hover { background: rgba(239,68,68,0.12); }
+
+    /* Status */
+    .status {
+      margin-top: var(--s-4);
+      min-height: 18px;
+      font-size: 12px;
+      text-align: center;
+      font-weight: 700;
+      color: var(--muted);
+      transition: color 0.3s ease, opacity 0.3s ease, transform 0.3s ease;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+    .status:empty::before { content: "\00a0"; }
+    .status.status-success { color: #6ee7b7; }
+    .status.status-error { color: #fca5a5; }
+    .status.status-warning { color: #fcd34d; }
+    .status.status-running { color: #a5b4fc; }
+
+    @keyframes statusPop {
+      0% { transform: scale(0.95); opacity: 0.5; }
+      50% { transform: scale(1.02); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .status:not(:empty) { animation: statusPop 0.25s var(--ease); }
+
+    /* Result summary */
+    .result-summary {
+      display: none;
+      margin-top: var(--s-4);
+      padding: var(--s-5);
+      border-radius: var(--r-lg);
+      background: linear-gradient(135deg, rgba(16,185,129,0.14), rgba(2,6,23,0.12));
+      border: 1px solid rgba(16,185,129,0.26);
+      text-align: center;
+      animation: slideDown 0.22s var(--ease);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+    .result-summary.show { display: block; }
+
+    @keyframes celebrateIcon {
+      0% { transform: scale(0) rotate(-20deg); }
+      50% { transform: scale(1.2) rotate(5deg); }
+      70% { transform: scale(0.9) rotate(-2deg); }
+      100% { transform: scale(1) rotate(0deg); }
+    }
+    .result-summary-icon { font-size: 34px; margin-bottom: 10px; display: block; animation: celebrateIcon 0.5s var(--ease) both; }
+    .result-summary-title { font-size: 16px; font-weight: 1000; color: #6ee7b7; margin-bottom: 6px; animation: fadeInUp 0.3s var(--ease) 0.15s both; }
+    .result-summary-stats { font-size: 13px; color: #a7f3d0; margin-bottom: 10px; line-height: 1.5; animation: fadeInUp 0.3s var(--ease) 0.25s both; }
+    .result-summary-stats strong { color: #fff; font-weight: 1000; font-variant-numeric: tabular-nums; }
+    .result-summary-note {
+      font-size: 11px;
+      color: var(--muted);
+      padding-top: 10px;
+      border-top: 1px solid rgba(16,185,129,0.14);
+    }
+
+    /* Success CTAs */
+    .success-ctas {
+      display: none;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .success-ctas.show { display: flex; animation: slideDown 0.22s var(--ease) 0.05s both; }
+
+    .cta-btn {
+      flex: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: var(--r-pill);
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.05);
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 900;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform var(--t-fast), background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+      touch-action: manipulation;
+    }
+    .cta-btn:hover {
+      background: rgba(255,255,255,0.10);
+      border-color: var(--border2);
+      color: var(--text);
+      transform: translateY(-1px);
+    }
+    .cta-btn:active { transform: translateY(0) scale(0.98); }
+
+    .cta-btn.cta-primary {
+      border: none;
+      color: #0b1224;
+      background: linear-gradient(135deg, #fbbf24, #f59e0b);
+      box-shadow: 0 16px 30px -24px rgba(251,191,36,0.9), inset 0 1px 0 rgba(255,255,255,0.22);
+    }
+    .cta-btn.cta-primary:hover { transform: translateY(-1px); }
+
+    /* Rating prompt */
+    .rating-prompt {
+      display: none;
+      margin-top: var(--s-4);
+      padding: var(--s-4);
+      border-radius: var(--r-lg);
+      background: linear-gradient(135deg, rgba(251,191,36,0.10), rgba(2,6,23,0.12));
+      border: 1px solid rgba(251,191,36,0.22);
+      text-align: center;
+      animation: slideDown 0.22s var(--ease);
+    }
+    .rating-prompt.show { display: block; }
+
+    .rating-prompt-text {
+      font-size: 13px;
+      font-weight: 800;
+      color: #fcd34d;
+      margin-bottom: 10px;
+    }
+
+    .rating-stars {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .rating-star {
+      font-size: 22px;
+      cursor: pointer;
+      user-select: none;
+      transition: transform var(--t-fast), filter var(--t-fast);
+      filter: drop-shadow(0 8px 16px rgba(0,0,0,0.25));
+    }
+    .rating-star:hover { transform: scale(1.12); }
+    .rating-star:active { transform: scale(1.02); }
+
+    .rating-prompt-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: var(--r-pill);
+      border: none;
+      background: linear-gradient(135deg, #fbbf24, #f59e0b);
+      color: #0b1224;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 1000;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform var(--t-fast), box-shadow var(--t-fast);
+      box-shadow: 0 16px 30px -26px rgba(251,191,36,0.9), inset 0 1px 0 rgba(255,255,255,0.22);
+      touch-action: manipulation;
+    }
+    .rating-prompt-btn:hover { transform: translateY(-1px); }
+    .rating-prompt-btn:active { transform: translateY(0) scale(0.98); }
+
+    .rating-dismiss {
+      display: block;
+      margin: 10px auto 0 auto;
+      background: none;
+      border: none;
+      color: var(--dim);
+      font-size: 11px;
+      font-weight: 800;
+      font-family: inherit;
+      cursor: pointer;
+      padding: 6px 10px;
+      border-radius: 10px;
+      transition: color var(--t-fast), background var(--t-fast);
+    }
+    .rating-dismiss:hover { color: var(--muted); background: rgba(255,255,255,0.05); }
+
+    /* Footer */
+    .footer {
+      margin-top: var(--s-5);
+      padding-top: var(--s-4);
+      border-top: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .footer-left { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .linkish {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      color: var(--dim);
+      font-size: 11px;
+      font-weight: 900;
+      font-family: inherit;
+      cursor: pointer;
+      padding: 8px 10px;
+      border-radius: 12px;
+      transition: transform var(--t-fast), background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      touch-action: manipulation;
+    }
+    .linkish:hover {
+      background: rgba(255,255,255,0.06);
+      border-color: rgba(255,255,255,0.10);
+      color: var(--text);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px -6px rgba(0,0,0,0.4);
+    }
+    .linkish:active { transform: translateY(0) scale(0.98); box-shadow: none; }
+
+    .linkish.tip {
+      border-color: rgba(244,114,182,0.22);
+      background: rgba(244,114,182,0.06);
+      color: #f9a8d4;
+    }
+    .linkish.tip:hover {
+      background: rgba(244,114,182,0.10);
+      border-color: rgba(244,114,182,0.32);
+      color: #ffd1e9;
+    }
+
+    /* Affiliate */
+    .affiliate-section {
+      margin-top: var(--s-5);
+      padding-top: var(--s-4);
+      border-top: 1px dashed rgba(255,255,255,0.12);
+    }
+
+    .section--affiliate {
+      background: linear-gradient(180deg, rgba(255,153,0,0.06), rgba(2,6,23,0.20));
+      border-color: rgba(255,153,0,0.20);
+    }
+    .section--affiliate > summary.section-title:hover { background: rgba(255,153,0,0.10); }
+    .section--affiliate[open] .chevron { color: var(--amazon); }
+    .section--affiliate[open] .section-content { border-top-color: rgba(255,153,0,0.14); }
+
+    .affiliate-amazon-badge {
+      padding: 4px 10px;
+      border-radius: var(--r-pill);
+      font-size: 9px;
+      font-weight: 1000;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: rgba(255,153,0,0.14);
+      border: 1px solid rgba(255,153,0,0.30);
+      color: var(--amazon);
+    }
+
+    .affiliate-pitch {
+      font-size: 11px;
+      color: var(--dim);
+      margin: 0 0 12px 0;
+      line-height: 1.5;
+    }
+    .affiliate-pitch strong { color: #fcd34d; font-weight: 1000; }
+
+    .affiliate-grid { display: flex; flex-direction: column; gap: 10px; }
+
+    .affiliate-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: rgba(255,153,0,0.05);
+      border: 1px solid rgba(255,153,0,0.14);
+      border-radius: var(--r-md);
+      text-decoration: none;
+      color: inherit;
+      transition: transform var(--t-fast), border-color var(--t-fast), background var(--t-fast);
+    }
+    .affiliate-item:hover {
+      background: rgba(255,153,0,0.10);
+      border-color: rgba(255,153,0,0.28);
+      transform: translateX(2px);
+    }
+    .affiliate-item:active { transform: translateX(0) scale(0.99); }
+
+    .affiliate-item-icon { font-size: 18px; flex: 0 0 auto; }
+    .affiliate-item-info { flex: 1; min-width: 0; }
+    .affiliate-item-name {
+      font-size: 11px;
+      font-weight: 1000;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 1px;
+    }
+    .affiliate-item-desc { font-size: 10px; color: var(--dim); }
+    .affiliate-item-tag {
+      padding: 4px 8px;
+      border-radius: var(--r-pill);
+      font-size: 9px;
+      font-weight: 1000;
+      background: rgba(16,185,129,0.14);
+      border: 1px solid rgba(16,185,129,0.18);
+      color: #a7f3d0;
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }
+    .affiliate-item-arrow { color: rgba(255,153,0,0.85); font-size: 14px; flex: 0 0 auto; }
+
+    .affiliate-disclosure {
+      margin-top: 10px;
+      font-size: 9px;
+      color: var(--dim);
+      text-align: center;
+      opacity: 0.75;
+    }
+
+    /* Toast */
+    .toast-container {
+      position: fixed;
+      bottom: var(--s-4);
+      left: var(--s-4);
+      right: var(--s-4);
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .toast {
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: var(--r-md);
+      background: rgba(30, 41, 59, 0.92);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 22px 40px -28px rgba(0,0,0,0.9);
+      color: var(--text);
+      font-size: 12px;
+
+      transform: translateY(100%);
+      opacity: 0;
+      transition: transform var(--t), opacity var(--t);
+      will-change: transform, opacity;
+    }
+
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast-success { border-left: 3px solid var(--good); }
+    .toast-error { border-left: 3px solid var(--bad); }
+    .toast-warning { border-left: 3px solid var(--warn); }
+    .toast-info { border-left: 3px solid var(--primary); }
+
+    .toast-icon { flex: 0 0 auto; font-size: 14px; }
+
+    /* High contrast / forced colors */
+    @media (prefers-contrast: high) {
+      :root { --border: rgba(255,255,255,0.35); --border2: rgba(255,255,255,0.55); }
+      .card { border-width: 2px; }
+      select, .toggle input[type="checkbox"] { border-width: 2px; }
+    }
+
+    @media (forced-colors: active) {
+      .primary, .cta-btn, .monthly-clean-btn { border: 2px solid CanvasText; }
+      .toggle input[type="checkbox"] { border: 2px solid CanvasText; }
+      .toggle input[type="checkbox"]:checked { background: Highlight; }
+    }
+
+    /* Print — hide interactive chrome */
+    @media print {
+      body { width: auto; min-height: auto; background: #fff; color: #000; }
+      .primary, .monthly-clean-btn, .quick-actions, .toast-container,
+      .success-ctas, .rating-prompt, .footer, .affiliate-section,
+      .pin-hint, .progress-bar { display: none !important; }
+    }
+  </style>
+</head>
+
+<body>
+  <a href="#runCleanup" class="skip-link">Skip to main action</a>
+
+  <div class="popup-root">
+    <main class="card" role="main" aria-labelledby="gcc-title">
+
+      <header class="card-header">
+        <div class="header-left">
+          <div class="app-mark" aria-hidden="true">
+            <!-- simple "spark" icon -->
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 2l1.2 4.5L18 8l-4.8 1.5L12 14l-1.2-4.5L6 8l4.8-1.5L12 2z" />
+              <path d="M19 13l.7 2.7L22 16l-2.3.3L19 19l-.7-2.7L16 16l2.3-.3L19 13z" />
+            </svg>
+          </div>
+          <h1 id="gcc-title">Gmail One-Click Cleaner</h1>
+        </div>
+        <span class="badge" aria-label="Version 3.5.0">v3.5.0</span>
+      </header>
+
+      <p class="subtitle">
+        <span>Bulk-clean categories like Promotions &amp; Social.</span>
+        <span>Runs locally. Safe to stop anytime.</span>
+      </p>
+
+      <!-- Screen-reader-only live region -->
+      <div id="srStatus" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+      <div class="pin-hint" id="pinHint" role="alert" aria-live="polite">
+        <span class="pin-hint-icon" aria-hidden="true">📌</span>
+        <div class="pin-hint-content">
+          <div class="pin-hint-title">Pin for quick access</div>
+          <div class="pin-hint-text">Pin this extension for a 1-click monthly clean when Gmail feels full.</div>
+        </div>
+        <button class="pin-hint-close" id="pinHintClose" type="button" aria-label="Dismiss pin hint">×</button>
+      </div>
+
+      <details class="section section--reassurance" id="reassurance" open>
+        <summary class="section-title" aria-controls="reassuranceContent">
+          <span class="section-title-left">
+            <span class="section-emoji" aria-hidden="true">🛡️</span>
+            <span>How it works (100% safe)</span>
+          </span>
+          <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            aria-hidden="true">
+            <path d="M6 9l6 6 6-6"></path>
+          </svg>
+        </summary>
+
+        <div class="section-content" id="reassuranceContent">
+          <ul class="reassurance-list" role="list">
+            <li>Searches your Gmail for old promos, social, newsletters &amp; large files</li>
+            <li>Tags matches before moving (so you can audit later)</li>
+            <li>Moves to Trash or Archive, you choose</li>
+          </ul>
+
+          <div class="reassurance-safe" role="status">
+            <span aria-hidden="true">✓</span>
+            Nothing permanently deleted until you empty Trash (30 days)
+          </div>
+        </div>
+      </details>
+
+      <button
+        id="monthlyCleanBtn"
+        class="monthly-clean-btn"
+        type="button"
+        aria-describedby="monthly-hint"
+      >
+        <span class="icon" aria-hidden="true">🗓️</span>
+        <span class="label-text">
+          <span class="label-main">Monthly Light Clean</span>
+          <span class="label-sub">Safe for repeat use, old promos &amp; junk only</span>
+        </span>
+        <span class="badge-recommended">Recommended</span>
+      </button>
+      <span id="monthly-hint" class="sr-only">Run a safe monthly cleanup targeting old promotions and junk mail</span>
+
+      <section class="section" aria-labelledby="strategy-title">
+        <span id="strategy-title" class="section-title">Cleanup Strategy</span>
+
+        <div class="field">
+          <label for="intensity">Rule Intensity</label>
+          <select id="intensity" name="intensity" aria-describedby="intensity-hint">
+            <option value="monthly">🗓️ Monthly · Safe for regular use (recommended)</option>
+            <option value="light">Light · Very safe, mainly junk &amp; old attachments</option>
+            <option value="normal" selected>Normal · Standard cleanup</option>
+            <option value="deep">Deep · Aggressive on old promos</option>
+          </select>
+          <span id="intensity-hint" class="sr-only">Choose how aggressively to clean your inbox</span>
+        </div>
+
+        <div class="field">
+          <label for="actionType">Action</label>
+          <select id="actionType" name="actionType" aria-describedby="action-hint">
+            <option value="trash" selected>Move to Trash (Delete)</option>
+            <option value="archive">Archive (Keep in All Mail)</option>
+          </select>
+          <span id="action-hint" class="sr-only">Choose what to do with matched emails</span>
+        </div>
+
+        <div class="field">
+          <label for="minAge">Minimum Age</label>
+          <select id="minAge" name="minAge" aria-describedby="age-hint">
+            <option value="" selected>Use rule defaults (e.g. 30 days)</option>
+            <option value="3m">Older than 3 months</option>
+            <option value="6m">Older than 6 months</option>
+            <option value="1y">Older than 1 year</option>
+          </select>
+          <span id="age-hint" class="sr-only">Only clean emails older than this age</span>
+        </div>
+      </section>
+
+      <details class="section" id="safetySection">
+        <summary class="section-title">
+          <span>Safety &amp; Guardrails</span>
+          <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            aria-hidden="true">
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
+        </summary>
+
+        <div class="section-content">
+          <div class="toggles" role="group" aria-label="Safety options">
+
+            <label class="toggle">
+              <input id="dryRun" type="checkbox" role="switch" aria-describedby="dryrun-hint" />
+              <div class="toggle-content">
+                <span class="toggle-main">Dry Run (Simulate only)</span>
+                <span class="toggle-hint" id="dryrun-hint">See what happens without touching mail · <kbd>Ctrl+D</kbd></span>
+              </div>
+            </label>
+
+            <label class="toggle">
+              <input id="reviewMode" type="checkbox" role="switch" aria-describedby="review-hint" />
+              <div class="toggle-content">
+                <span class="toggle-main">Review Matches</span>
+                <span class="toggle-hint" id="review-hint">Pause and confirm each query first</span>
+              </div>
+            </label>
+
+            <label class="toggle">
+              <input id="safeMode" type="checkbox" role="switch" aria-describedby="safe-hint" />
+              <div class="toggle-content">
+                <span class="toggle-main">Safe Mode</span>
+                <span class="toggle-hint" id="safe-hint">Skip receipts, shipping, and forums</span>
+              </div>
+            </label>
+
+            <div class="toggle-row" role="group" aria-label="Skip options">
+              <label class="toggle">
+                <input id="skipStarred" type="checkbox" checked role="switch" aria-label="Skip Starred emails" />
+                <div class="toggle-content">
+                  <span class="toggle-main">Skip Starred</span>
+                </div>
+              </label>
+
+              <label class="toggle">
+                <input id="skipImportant" type="checkbox" checked role="switch" aria-label="Skip Important emails" />
+                <div class="toggle-content">
+                  <span class="toggle-main">Skip Important</span>
+                </div>
+              </label>
+            </div>
+
+          </div>
+        </div>
+      </details>
+
+      <button
+        id="runCleanup"
+        class="primary"
+        type="button"
+        aria-describedby="run-hint"
+      >
+        <span class="label">Run Cleaner</span>
+        <span class="sub">Items are tagged before action</span>
+        <span class="shortcut-hint" aria-hidden="true"><kbd>Enter</kbd></span>
+      </button>
+      <span id="run-hint" class="sr-only">Start the Gmail cleanup process</span>
+
+      <div
+        class="progress-bar"
+        id="progressBar"
+        role="progressbar"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow="0"
+        aria-label="Cleanup progress"
+      >
+        <div class="progress-bar-inner" id="progressBarInner"></div>
+      </div>
+
+      <div class="quick-actions" id="quickActions" role="group" aria-label="Quick actions">
+        <button id="cancelBtn" class="quick-action-btn danger" type="button" aria-label="Cancel cleanup">Cancel</button>
+        <button id="openProgressBtn" class="quick-action-btn" type="button" aria-label="Open progress window">Open Progress</button>
+      </div>
+
+      <div id="status" class="status" role="status" aria-live="polite" aria-atomic="true"></div>
+
+      <div class="result-summary" id="resultSummary" role="region" aria-labelledby="result-title">
+        <span class="result-summary-icon" aria-hidden="true">✨</span>
+        <div class="result-summary-title" id="result-title">Cleanup Complete!</div>
+        <div class="result-summary-stats">
+          Cleaned <strong id="resultCount">0</strong> emails · Freed ~<strong id="resultSize">0 MB</strong> (est.)
+          <br><span style="opacity: 0.8">(all moved to Trash)</span>
+        </div>
+        <div class="result-summary-note">
+          📁 Nothing permanently deleted, Gmail keeps Trash for 30 days. You can restore anytime.
+        </div>
+      </div>
+
+      <div class="success-ctas" id="successCtas" role="group" aria-label="Post-cleanup actions">
+        <a
+          href="https://chromewebstore.google.com/detail/bmcfpljakkpcbinhgiahncpcbhmihgpc?utm_source=item-share-cb"
+          target="_blank"
+          rel="noopener noreferrer"
+          referrerpolicy="no-referrer"
+          class="cta-btn cta-primary"
+          id="rateBtn"
+        >
+          <span aria-hidden="true">⭐</span>
+          Rate on Chrome Web Store
+        </a>
+
+        <button type="button" class="cta-btn" id="shareBtn">
+          <span aria-hidden="true">📤</span>
+          Share Extension
+        </button>
+      </div>
+
+      <div class="rating-prompt" id="ratingPrompt" role="region" aria-labelledby="rating-text">
+        <div class="rating-prompt-text" id="rating-text">Was this cleanup helpful? 🙏</div>
+
+        <div class="rating-stars" role="group" aria-label="Rate from 1 to 5 stars">
+          <span class="rating-star" role="button" tabindex="0" data-rating="1" aria-label="Rate 1 star">⭐</span>
+          <span class="rating-star" role="button" tabindex="0" data-rating="2" aria-label="Rate 2 stars">⭐</span>
+          <span class="rating-star" role="button" tabindex="0" data-rating="3" aria-label="Rate 3 stars">⭐</span>
+          <span class="rating-star" role="button" tabindex="0" data-rating="4" aria-label="Rate 4 stars">⭐</span>
+          <span class="rating-star" role="button" tabindex="0" data-rating="5" aria-label="Rate 5 stars">⭐</span>
+        </div>
+
+        <a
+          href="https://chromewebstore.google.com/detail/bmcfpljakkpcbinhgiahncpcbhmihgpc?utm_source=item-share-cb"
+          target="_blank"
+          rel="noopener noreferrer"
+          referrerpolicy="no-referrer"
+          class="rating-prompt-btn"
+          id="ratingBtn"
+        >
+          <span aria-hidden="true">⭐</span>
+          Rate us ★★★★★
+        </a>
+
+        <button type="button" class="rating-dismiss" id="ratingDismiss">Maybe later</button>
+      </div>
+
+      <footer class="footer" role="contentinfo">
+        <nav class="footer-left" aria-label="Quick links">
+          <button id="openOptions" class="linkish" type="button" aria-label="Open rules settings">
+            <span aria-hidden="true">⚙️</span> Rules
+          </button>
+          <button id="openDiagnostics" class="linkish" type="button" aria-label="Open diagnostics page">
+            <span aria-hidden="true">🔧</span> Diagnostics
+          </button>
+        </nav>
+
+        <div>
+          <a
+            href="https://www.buymeacoffee.com/judeh1l"
+            target="_blank"
+            rel="noopener noreferrer"
+            referrerpolicy="no-referrer"
+            class="linkish tip"
+            aria-label="Support the developer (opens in new tab)"
+          >
+            <span aria-hidden="true">❤️</span> Tip
+          </a>
+        </div>
+      </footer>
+
+      <aside class="affiliate-section" aria-label="Affiliate picks">
+        <details class="section section--affiliate" id="affiliateSection">
+          <summary class="section-title" aria-controls="affiliateContent">
+            <span class="section-title-left">
+              <span class="section-emoji" aria-hidden="true">💾</span>
+              <span>Jude's cheap storage &amp; setup picks</span>
+            </span>
+
+            <span class="section-title-right">
+              <span class="affiliate-amazon-badge" aria-label="Amazon affiliate links">Amazon</span>
+              <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true">
+                <path d="M6 9l6 6 6-6"></path>
+              </svg>
+            </span>
+          </summary>
+
+          <div class="section-content" id="affiliateContent">
+            <p class="affiliate-pitch">
+              Cleaned your inbox but <strong>still running low on storage?</strong>
+              These budget picks helped me upgrade my setup without breaking the bank:
+            </p>
+
+            <div class="affiliate-grid" role="list">
+              <a
+                href="https://amzn.to/3MrwsMz"
+                target="_blank"
+                rel="noopener noreferrer sponsored"
+                referrerpolicy="no-referrer"
+                class="affiliate-item"
+                data-product="samsung-t7"
+                role="listitem"
+              >
+                <span class="affiliate-item-icon" aria-hidden="true">💿</span>
+                <div class="affiliate-item-info">
+                  <div class="affiliate-item-name">Samsung T7 Portable SSD (1TB)</div>
+                  <div class="affiliate-item-desc">1,050MB/s · USB 3.2 · Fits in pocket</div>
+                </div>
+                <span class="affiliate-item-tag">Best Value</span>
+                <span class="affiliate-item-arrow" aria-hidden="true">→</span>
+              </a>
+
+              <a
+                href="https://amzn.to/3Mftfjl"
+                target="_blank"
+                rel="noopener noreferrer sponsored"
+                referrerpolicy="no-referrer"
+                class="affiliate-item"
+                data-product="lexar-usb"
+                role="listitem"
+              >
+                <span class="affiliate-item-icon" aria-hidden="true">🔌</span>
+                <div class="affiliate-item-info">
+                  <div class="affiliate-item-name">Lexar 128GB USB-C Drive</div>
+                  <div class="affiliate-item-desc">Dual USB-A/C · Metal swivel design</div>
+                </div>
+                <span class="affiliate-item-tag">Compact</span>
+                <span class="affiliate-item-arrow" aria-hidden="true">→</span>
+              </a>
+
+              <a
+                href="https://amzn.to/4aBnKW6"
+                target="_blank"
+                rel="noopener noreferrer sponsored"
+                referrerpolicy="no-referrer"
+                class="affiliate-item"
+                data-product="laptop-stand"
+                role="listitem"
+              >
+                <span class="affiliate-item-icon" aria-hidden="true">💻</span>
+                <div class="affiliate-item-info">
+                  <div class="affiliate-item-name">Amazon Basics Laptop Stand</div>
+                  <div class="affiliate-item-desc">Ergonomic · Adjustable · Up to 17.3"</div>
+                </div>
+                <span class="affiliate-item-tag">Posture Fix</span>
+                <span class="affiliate-item-arrow" aria-hidden="true">→</span>
+              </a>
+
+              <a
+                href="https://amzn.to/4pqDwYB"
+                target="_blank"
+                rel="noopener noreferrer sponsored"
+                referrerpolicy="no-referrer"
+                class="affiliate-item"
+                data-product="rii-keyboard"
+                role="listitem"
+              >
+                <span class="affiliate-item-icon" aria-hidden="true">⌨️</span>
+                <div class="affiliate-item-info">
+                  <div class="affiliate-item-name">Rii Ultra-Slim USB Keyboard</div>
+                  <div class="affiliate-item-desc">Compact · Mac &amp; PC · Quiet keys</div>
+                </div>
+                <span class="affiliate-item-tag">$15 Budget</span>
+                <span class="affiliate-item-arrow" aria-hidden="true">→</span>
+              </a>
+
+              <a
+                href="https://amzn.to/48oWb0L"
+                target="_blank"
+                rel="noopener noreferrer sponsored"
+                referrerpolicy="no-referrer"
+                class="affiliate-item"
+                data-product="cable-kit"
+                role="listitem"
+              >
+                <span class="affiliate-item-icon" aria-hidden="true">🔧</span>
+                <div class="affiliate-item-info">
+                  <div class="affiliate-item-name">192pc Cable Management Kit</div>
+                  <div class="affiliate-item-desc">Sleeves + clips + ties · Full desk cleanup</div>
+                </div>
+                <span class="affiliate-item-tag">Satisfying</span>
+                <span class="affiliate-item-arrow" aria-hidden="true">→</span>
+              </a>
+            </div>
+
+            <p class="affiliate-disclosure">
+              As an Amazon Associate I earn from qualifying purchases. Thanks for supporting! 🙏
+            </p>
+          </div>
+        </details>
+      </aside>
+
+    </main>
+  </div>
+
+  <div
+    class="toast-container"
+    id="toastContainer"
+    role="region"
+    aria-label="Notifications"
+    aria-live="polite"
+  ></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

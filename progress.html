@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gmail One-Click Cleaner – Progress</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Gmail One-Click Cleaner progress dashboard - watch your Gmail cleanup in real-time" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="referrer" content="no-referrer" />
+
+  <style>
+    :root {
+      /* Palette */
+      --bg-deep: #0f172a;
+      --bg-surface: rgba(30, 41, 59, 0.75);
+      --bg-terminal: #020617;
+
+      --primary: #6366f1; /* Indigo 500 */
+      --primary-hover: #4f46e5; /* Indigo 600 */
+      --primary-glow: rgba(99, 102, 241, 0.5);
+
+      --success: #10b981;
+      --success-glow: rgba(16, 185, 129, 0.4);
+
+      --warning: #f59e0b;
+      --warning-glow: rgba(245, 158, 11, 0.4);
+
+      --danger: #ef4444;
+      --danger-hover: #dc2626;
+      --danger-glow: rgba(239, 68, 68, 0.4);
+
+      --amazon: #ff9900;
+
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-highlight: rgba(255, 255, 255, 0.15);
+      --border-focus: rgba(99, 102, 241, 0.6);
+
+      --radius-lg: 16px;
+      --radius-md: 10px;
+      --radius-sm: 6px;
+      --radius-full: 9999px;
+
+      --font-sans: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+      --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    *,
+    *::before,
+    *::after { box-sizing: border-box; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background-color: var(--bg-deep);
+      background-image:
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.15) 0px, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    .skip-link {
+      position: absolute;
+      top: -100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--primary);
+      color: white;
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      text-decoration: none;
+      font-weight: 600;
+      z-index: 1000;
+      transition: top var(--transition-fast);
+    }
+
+    .skip-link:focus { top: 10px; }
+
+    .wrap {
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 20px 40px;
+    }
+
+    .panel {
+      background: var(--bg-surface);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      box-shadow:
+        0 20px 40px -10px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+      contain: layout style;
+    }
+
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px 0;
+      font-size: clamp(18px, 4vw, 22px);
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      background: linear-gradient(to right, #fff, #cbd5e1);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-copy {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      max-width: 580px;
+      margin: 0;
+    }
+
+    .header-copy strong {
+      color: #e2e8f0;
+      font-weight: 600;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #6ee7b7;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.1);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .pill::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    .status-row {
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    #status {
+      flex: 1;
+      font-size: 15px;
+      font-weight: 500;
+      color: #fff;
+      min-height: 24px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border-subtle);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+      will-change: transform;
+    }
+
+    .spinner[hidden] { display: none; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .status-hint {
+      font-size: 12px;
+      color: var(--text-muted);
+      max-width: 400px;
+      text-align: right;
+    }
+
+    .progress-row {
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .bar {
+      flex: 1;
+      height: 12px;
+      border-radius: var(--radius-full);
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-subtle);
+      overflow: hidden;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+      position: relative;
+    }
+
+    .inner {
+      height: 100%;
+      width: 0;
+      background: linear-gradient(90deg, var(--primary), #22d3ee, #34d399);
+      background-size: 200% 100%;
+      animation: shimmer 2s linear infinite;
+      transition: width var(--transition-slow);
+      box-shadow: 0 0 12px rgba(99, 102, 241, 0.5);
+      position: relative;
+    }
+
+    .inner[data-complete="true"] {
+      background: linear-gradient(90deg, var(--success), #34d399);
+      animation: none;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 100% 0%; }
+      100% { background-position: -100% 0%; }
+    }
+
+    #percentText {
+      width: 48px;
+      text-align: right;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: #e2e8f0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .controls {
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    button:focus-visible,
+    a:focus-visible {
+      outline: 2px solid var(--border-focus);
+      outline-offset: 2px;
+    }
+
+    #cancelBtn {
+      border: none;
+      border-radius: var(--radius-full);
+      padding: 10px 24px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, var(--danger), var(--danger-hover));
+      color: white;
+      cursor: pointer;
+      box-shadow: 0 4px 12px var(--danger-glow);
+      transition:
+        transform var(--transition-fast),
+        box-shadow var(--transition-fast),
+        opacity var(--transition-fast);
+      position: relative;
+      overflow: hidden;
+    }
+
+    #cancelBtn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent);
+      opacity: 0;
+      transition: opacity var(--transition-fast);
+    }
+
+    #cancelBtn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px var(--danger-glow);
+    }
+
+    #cancelBtn:hover:not(:disabled)::before { opacity: 1; }
+
+    #cancelBtn:active:not(:disabled) { transform: translateY(0); }
+
+    #cancelBtn:disabled {
+      background: var(--border-subtle);
+      color: var(--text-muted);
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+
+    .controls-secondary {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ghost-btn {
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-full);
+      background: transparent;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition:
+        background var(--transition-fast),
+        border-color var(--transition-fast),
+        color var(--transition-fast);
+    }
+
+    .ghost-btn:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--border-highlight);
+      color: #fff;
+    }
+
+    .ghost-btn:active:not(:disabled) { background: rgba(255, 255, 255, 0.08); }
+
+    .ghost-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .ghost-btn[aria-pressed="true"] {
+      background: rgba(99, 102, 241, 0.15);
+      border-color: rgba(99, 102, 241, 0.4);
+      color: #a5b4fc;
+    }
+
+    .meta {
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 4px;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      padding: 2px 8px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #c7d2fe;
+      background: rgba(99, 102, 241, 0.1);
+      transition: all var(--transition-fast);
+    }
+
+    .tag[data-phase="searching"] {
+      border-color: rgba(34, 211, 238, 0.4);
+      background: rgba(34, 211, 238, 0.1);
+      color: #67e8f9;
+    }
+
+    .tag[data-phase="cleaning"] {
+      border-color: rgba(245, 158, 11, 0.4);
+      background: rgba(245, 158, 11, 0.1);
+      color: #fcd34d;
+    }
+
+    .tag[data-phase="complete"] {
+      border-color: rgba(16, 185, 129, 0.4);
+      background: rgba(16, 185, 129, 0.1);
+      color: #6ee7b7;
+    }
+
+    .tag[data-phase="error"] {
+      border-color: rgba(239, 68, 68, 0.4);
+      background: rgba(239, 68, 68, 0.1);
+      color: #fca5a5;
+    }
+
+    #summary {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    #summary .pill {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--border-subtle);
+      color: #e2e8f0;
+      box-shadow: none;
+      text-transform: none;
+      letter-spacing: normal;
+    }
+
+    #summary .pill::before { display: none; }
+
+    #summaryTable {
+      width: 100%;
+      margin-top: 16px;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 12px;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      display: none;
+    }
+
+    #summaryTable th,
+    #summaryTable td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    #summaryTable th {
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-size: 10px;
+      letter-spacing: 0.05em;
+      background: rgba(15, 23, 42, 0.6);
+      position: sticky;
+      top: 0;
+    }
+
+    #summaryTable td {
+      color: #cbd5e1;
+      background: rgba(15, 23, 42, 0.3);
+      transition: background var(--transition-fast);
+    }
+
+    #summaryTable tbody tr:hover td { background: rgba(15, 23, 42, 0.5); }
+
+    #summaryTable tbody tr:last-child td { border-bottom: none; }
+
+    #summaryTable td:first-child {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .logs-container {
+      margin-top: 16px;
+      position: relative;
+    }
+
+    .logs-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .logs-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .logs-actions { display: flex; gap: 4px; align-items: center; }
+
+    .log-filter {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 4px 8px;
+      font-size: 11px;
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      width: 140px;
+      outline: none;
+      transition: border-color var(--transition-fast), width var(--transition-fast);
+    }
+    .log-filter:focus {
+      border-color: var(--border-focus);
+      width: 180px;
+    }
+    .log-filter::placeholder { color: var(--text-muted); opacity: 0.6; }
+
+    .icon-btn {
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 4px 8px;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 11px;
+      transition: all var(--transition-fast);
+    }
+
+    .icon-btn:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: #fff;
+    }
+
+    #details {
+      padding: 16px;
+      border-radius: var(--radius-md);
+      background: var(--bg-terminal);
+      border: 1px solid var(--border-subtle);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 1.6;
+      color: #94a3b8;
+      max-height: 240px;
+      overflow-y: auto;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+      scroll-behavior: smooth;
+    }
+
+    #details::-webkit-scrollbar { width: 8px; }
+    #details::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    #details::-webkit-scrollbar-thumb:hover { background: #475569; }
+    #details::-webkit-scrollbar-track { background: transparent; }
+
+    #details { scrollbar-width: thin; scrollbar-color: #334155 transparent; }
+
+    #details > div {
+      margin-bottom: 2px;
+      word-break: break-word;
+      padding: 2px 0;
+    }
+
+    #details .log-info { color: #94a3b8; }
+    #details .log-success { color: #6ee7b7; }
+    #details .log-warning { color: #fcd34d; }
+    #details .log-error { color: #fca5a5; }
+    #details .log-timestamp {
+      color: #64748b;
+      margin-right: 8px;
+      user-select: none;
+    }
+
+    #details:empty::before,
+    #details .empty-state {
+      content: 'Waiting for first signal…';
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    .keyboard-shortcuts {
+      margin-top: 16px;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+    .shortcuts-summary {
+      padding: 10px 14px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+      transition: background var(--transition-fast), color var(--transition-fast);
+    }
+    .shortcuts-summary::-webkit-details-marker { display: none; }
+    .shortcuts-summary::marker { content: ""; }
+    .shortcuts-summary:hover { background: rgba(255,255,255,0.03); color: var(--text-main); }
+    .shortcuts-list {
+      padding: 8px 14px 12px;
+      border-top: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .shortcut-item {
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .shortcut-item kbd {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-subtle);
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: #e2e8f0;
+      min-width: 28px;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .affiliate-section {
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px dashed var(--border-subtle);
+    }
+
+    .affiliate-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .affiliate-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+
+    .affiliate-amazon-badge {
+      padding: 3px 8px;
+      background: rgba(255, 153, 0, 0.15);
+      border: 1px solid rgba(255, 153, 0, 0.3);
+      border-radius: var(--radius-full);
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--amazon);
+    }
+
+    .affiliate-pitch {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+
+    .affiliate-pitch strong { color: #fcd34d; }
+
+    .affiliate-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    .affiliate-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      background: rgba(255, 153, 0, 0.04);
+      border: 1px solid rgba(255, 153, 0, 0.12);
+      border-radius: var(--radius-sm);
+      text-decoration: none;
+      transition: all var(--transition-fast);
+    }
+
+    .affiliate-item:hover {
+      background: rgba(255, 153, 0, 0.1);
+      border-color: rgba(255, 153, 0, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .affiliate-item-icon { font-size: 24px; flex-shrink: 0; }
+
+    .affiliate-item-info { flex: 1; min-width: 0; }
+
+    .affiliate-item-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 2px;
+    }
+
+    .affiliate-item-desc { font-size: 11px; color: var(--text-muted); }
+
+    .affiliate-item-tag {
+      padding: 3px 8px;
+      background: rgba(16, 185, 129, 0.12);
+      border-radius: var(--radius-full);
+      font-size: 9px;
+      font-weight: 600;
+      color: #6ee7b7;
+      white-space: nowrap;
+    }
+
+    .affiliate-disclosure {
+      margin-top: 16px;
+      font-size: 10px;
+      color: var(--text-muted);
+      text-align: center;
+      opacity: 0.7;
+    }
+
+    #tipPrompt {
+      margin-top: 20px;
+      display: none;
+      font-size: 13px;
+      color: var(--text-muted);
+      text-align: center;
+      padding: 16px;
+      background: rgba(99, 102, 241, 0.03);
+      border-radius: var(--radius-md);
+      animation: fadeIn 0.5s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    #tipPrompt a {
+      color: #a5b4fc;
+      text-decoration: none;
+      font-weight: 500;
+      transition: color var(--transition-fast);
+      border-bottom: 1px solid transparent;
+    }
+
+    #tipPrompt a:hover {
+      color: #fff;
+      border-bottom-color: currentColor;
+    }
+
+    .muted { color: var(--text-muted); }
+
+    dialog#reviewModal {
+      background: #1e293b;
+      color: var(--text-main);
+      border: 1px solid var(--border-highlight);
+      border-radius: var(--radius-lg);
+      padding: 0;
+      max-width: 420px;
+      width: 90%;
+      box-shadow:
+        0 25px 50px -12px rgba(0, 0, 0, 0.9),
+        0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+      animation: modalIn 0.2s ease-out;
+    }
+
+    @keyframes modalIn {
+      from { opacity: 0; transform: scale(0.95) translateY(-10px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    dialog#reviewModal::backdrop {
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+
+    .modal-content { padding: 24px; }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0 0 12px 0;
+      color: #fff;
+    }
+
+    .modal-body {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 0;
+      line-height: 1.6;
+    }
+
+    .modal-query {
+      display: block;
+      font-family: var(--font-mono);
+      background: rgba(0, 0, 0, 0.3);
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-subtle);
+      color: #a5b4fc;
+      margin: 12px 0 0 0;
+      word-break: break-all;
+      font-size: 12px;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      background: rgba(15, 23, 42, 0.3);
+      padding: 16px 24px;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .modal-btn {
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border-subtle);
+      background: transparent;
+      color: var(--text-main);
+      padding: 8px 18px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all var(--transition-fast);
+    }
+
+    .modal-btn:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--border-highlight);
+    }
+
+    .modal-btn.primary {
+      background: var(--primary);
+      border-color: transparent;
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+    }
+
+    .modal-btn.primary:hover {
+      background: var(--primary-hover);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.5);
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--bg-surface);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 12px 16px;
+      font-size: 13px;
+      color: var(--text-main);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all var(--transition-normal);
+      z-index: 1000;
+    }
+
+    .toast.show { transform: translateY(0); opacity: 1; }
+
+    .toast.success { border-left: 3px solid var(--success); }
+    .toast.warning { border-left: 3px solid var(--warning); }
+    .toast.error { border-left: 3px solid var(--danger); }
+
+    @media (max-width: 640px) {
+      .wrap { margin: 20px auto; padding: 0 16px 20px; }
+      .panel { padding: 20px; }
+      .header-row { flex-direction: column; gap: 12px; }
+      .pill { align-self: flex-start; }
+      .status-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+      .status-hint { text-align: left; }
+      .controls { flex-direction: column-reverse; align-items: stretch; }
+      #cancelBtn { width: 100%; }
+      .controls-secondary { justify-content: center; width: 100%; }
+      .meta { flex-direction: column; align-items: flex-start; gap: 8px; }
+      #summary { width: 100%; }
+      .affiliate-grid { grid-template-columns: 1fr; }
+      dialog#reviewModal { margin: auto 16px; max-width: calc(100% - 32px); }
+      .toast { left: 16px; right: 16px; bottom: 16px; }
+    }
+
+    @media print {
+      body { background: white; color: black; }
+      .panel { background: white; border: 1px solid #ccc; box-shadow: none; }
+      .controls,
+      .controls-secondary,
+      #tipPrompt,
+      .affiliate-section,
+      .skip-link { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <div class="wrap">
+    <main class="panel" id="main-content" role="region" aria-label="Gmail Cleaner progress">
+      <header class="header-row">
+        <div>
+          <h1>Gmail One-Click Cleaner</h1>
+          <p class="header-copy">
+            Watch Gmail searches run, tag matches, and bulk-clean low-value mail in batches
+            while leaving your normal conversations alone. In live runs,
+            matching conversations are labeled (e.g. <strong>GmailCleaner - Promotions</strong>) before they are moved to Trash
+            or <strong>All Mail</strong>, so you can audit them later.
+          </p>
+        </div>
+        <span class="pill" id="versionPill" aria-label="Status: Live progress">v3.5.0</span>
+      </header>
+
+      <div class="status-row">
+        <div id="status" role="status" aria-live="polite">
+          <span class="spinner" aria-hidden="true"></span>
+          <span id="statusText">Initializing cleanup…</span>
+        </div>
+        <p class="status-hint">
+          You can close this tab after the run finishes. Gmail keeps Trash for 30&nbsp;days.
+        </p>
+      </div>
+
+      <div class="progress-row" role="group" aria-label="Cleanup progress">
+        <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Cleanup progress">
+          <div id="barInner" class="inner"></div>
+        </div>
+        <output id="percentText" aria-label="Percentage complete">0%</output>
+      </div>
+
+      <nav class="controls" aria-label="Run controls">
+        <button id="cancelBtn" type="button" aria-describedby="cancel-hint">Cancel run</button>
+        <span id="cancel-hint" hidden>Stops the current cleanup operation</span>
+
+        <div class="controls-secondary">
+          <button id="reconnectBtn" type="button" class="ghost-btn" title="Attempt to reconnect to the Gmail tab">
+            Reconnect
+          </button>
+          <button id="reinjectBtn" type="button" class="ghost-btn" title="Re-inject the content script">
+            Re-inject
+          </button>
+          <button id="toggleLogs" type="button" class="ghost-btn" aria-pressed="false" aria-controls="details" title="Toggle log visibility">
+            Logs
+          </button>
+        </div>
+      </nav>
+
+      <div class="meta">
+        <div>
+          Phase: <span id="tags" class="tag" data-phase="starting" role="status">starting</span>
+        </div>
+        <div id="summary" class="kpi" role="status" aria-live="polite" aria-label="Cleanup statistics"></div>
+      </div>
+
+      <table id="summaryTable" aria-label="Per-query results summary">
+        <thead>
+          <tr>
+            <th scope="col">Query</th>
+            <th scope="col">Mode</th>
+            <th scope="col">Count</th>
+            <th scope="col">Freed MB</th>
+            <th scope="col">Duration</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+
+      <div class="logs-container">
+        <div class="logs-header">
+          <span class="logs-title">Activity Log</span>
+          <div class="logs-actions">
+            <input id="logFilter" type="text" class="log-filter" placeholder="Filter logs..." aria-label="Filter log entries" />
+            <button id="copyLogsBtn" type="button" class="icon-btn" title="Copy logs to clipboard" aria-label="Copy logs to clipboard">Copy</button>
+            <button id="clearLogsBtn" type="button" class="icon-btn" title="Clear logs" aria-label="Clear logs">Clear</button>
+          </div>
+        </div>
+        <div id="details" role="log" aria-live="off" aria-label="Cleanup activity log">
+          <div class="empty-state">Waiting for first signal…</div>
+        </div>
+      </div>
+
+      <details class="keyboard-shortcuts" aria-label="Keyboard shortcuts">
+        <summary class="shortcuts-summary">Keyboard shortcuts</summary>
+        <div class="shortcuts-list">
+          <div class="shortcut-item"><kbd>Esc</kbd> Cancel run / skip review</div>
+          <div class="shortcut-item"><kbd>Enter</kbd> Proceed in review modal</div>
+          <div class="shortcut-item"><kbd>Ctrl+Shift+C</kbd> Copy logs</div>
+        </div>
+      </details>
+
+      <aside id="tipPrompt" aria-label="Support the developer">
+        <p style="margin: 0;">
+          Saved a chunk of time or storage on this run?
+          You can say thanks with a small tip:
+          <a
+            href="https://www.buymeacoffee.com/judeh1l"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Buy Jude a coffee (opens in new tab)"
+          >
+            Buy Jude a coffee
+          </a>
+          or
+          <a
+            href="https://cash.app/$judeh1l"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Tip via Cash App (opens in new tab)"
+          >
+            tip via Cash App
+          </a>.
+        </p>
+      </aside>
+
+      <section class="affiliate-section" id="affiliateSection" aria-labelledby="affiliate-title">
+        <div class="affiliate-header">
+          <div class="affiliate-title">
+            <span class="affiliate-title-icon" aria-hidden="true">💾</span>
+            <span id="affiliate-title">Jude's cheap storage & setup picks</span>
+          </div>
+          <span class="affiliate-amazon-badge">Amazon</span>
+        </div>
+        <p class="affiliate-pitch">
+          Cleaned your inbox but <strong>still running low on storage?</strong> These budget picks helped me upgrade my setup:
+        </p>
+
+        <div class="affiliate-grid">
+          <a href="https://amzn.to/3MrwsMz" target="_blank" rel="noopener noreferrer sponsored" class="affiliate-item">
+            <span class="affiliate-item-icon" aria-hidden="true">💿</span>
+            <div class="affiliate-item-info">
+              <div class="affiliate-item-name">Samsung T7 Portable SSD (1TB)</div>
+              <div class="affiliate-item-desc">1,050MB/s · USB 3.2 · Fits in pocket</div>
+            </div>
+            <span class="affiliate-item-tag">Best Value</span>
+          </a>
+
+          <a href="https://amzn.to/3Mftfjl" target="_blank" rel="noopener noreferrer sponsored" class="affiliate-item">
+            <span class="affiliate-item-icon" aria-hidden="true">🔌</span>
+            <div class="affiliate-item-info">
+              <div class="affiliate-item-name">Lexar 128GB USB-C Drive</div>
+              <div class="affiliate-item-desc">Dual USB-A/C · Metal swivel design</div>
+            </div>
+            <span class="affiliate-item-tag">Compact</span>
+          </a>
+
+          <a href="https://amzn.to/4aBnKW6" target="_blank" rel="noopener noreferrer sponsored" class="affiliate-item">
+            <span class="affiliate-item-icon" aria-hidden="true">💻</span>
+            <div class="affiliate-item-info">
+              <div class="affiliate-item-name">Amazon Basics Laptop Stand</div>
+              <div class="affiliate-item-desc">Ergonomic · Adjustable · Up to 17.3"</div>
+            </div>
+            <span class="affiliate-item-tag">Posture Fix</span>
+          </a>
+
+          <a href="https://amzn.to/4pqDwYB" target="_blank" rel="noopener noreferrer sponsored" class="affiliate-item">
+            <span class="affiliate-item-icon" aria-hidden="true">⌨️</span>
+            <div class="affiliate-item-info">
+              <div class="affiliate-item-name">Rii Ultra-Slim USB Keyboard</div>
+              <div class="affiliate-item-desc">Compact · Mac & PC · Quiet keys</div>
+            </div>
+            <span class="affiliate-item-tag">$15 Budget</span>
+          </a>
+
+          <a href="https://amzn.to/48oWb0L" target="_blank" rel="noopener noreferrer sponsored" class="affiliate-item">
+            <span class="affiliate-item-icon" aria-hidden="true">🔧</span>
+            <div class="affiliate-item-info">
+              <div class="affiliate-item-name">192pc Cable Management Kit</div>
+              <div class="affiliate-item-desc">Sleeves + clips + ties · Desk cleanup</div>
+            </div>
+            <span class="affiliate-item-tag">Satisfying</span>
+          </a>
+        </div>
+
+        <p class="affiliate-disclosure">
+          As an Amazon Associate I earn from qualifying purchases. Thanks for supporting.
+        </p>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="reviewModal" aria-labelledby="modal-title" aria-describedby="modal-desc">
+    <div class="modal-content">
+      <h2 id="modal-title" class="modal-title">Review Matches</h2>
+      <div id="modal-desc" class="modal-body">
+        Found roughly <strong id="modalCount" style="color:#fff">...</strong> conversations for:
+        <code id="modalQuery" class="modal-query">...</code>
+        Proceed with cleaning this batch, or skip it?
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button id="modalSkipBtn" class="modal-btn" type="button">Skip This Rule</button>
+      <button id="modalProceedBtn" class="modal-btn primary" type="button" autofocus>Proceed</button>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="alert" aria-live="assertive"></div>
+
+  <script src="progress.js"></script>
+</body>
+</html>

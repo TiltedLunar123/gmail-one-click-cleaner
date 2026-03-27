@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Bulk Delete Gmail Emails – Gmail One-Click Cleaner",
+  "short_name": "Gmail Cleaner",
+  "version": "3.5.0",
+  "version_name": "3.5.0 – Bug Fixes & UX Improvements",
+  "description": "Free up Gmail storage fast. Bulk delete old emails, large attachments, & promotions. The #1 inbox cleaner for Gmail.",
+  "minimum_chrome_version": "110",
+  "permissions": ["activeTab", "scripting", "tabs", "storage"],
+  "host_permissions": ["https://mail.google.com/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Gmail One-Click Cleaner",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "options_page": "options.html"
+}

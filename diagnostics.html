@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gmail One-Click Cleaner – Diagnostics</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Diagnostics and debugging tools for Gmail One-Click Cleaner extension" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="color-scheme" content="dark" />
+
+  <style>
+    :root {
+      /* Palette */
+      --bg-deep: #0f172a;
+      --bg-surface: rgba(30, 41, 59, 0.7);
+      --bg-surface-hover: rgba(51, 65, 85, 0.6);
+      --bg-terminal: #020617;
+
+      --primary: #6366f1; /* Indigo 500 */
+      --primary-hover: #4f46e5; /* Indigo 600 */
+      --primary-glow: rgba(99, 102, 241, 0.5);
+
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-highlight: rgba(255, 255, 255, 0.15);
+      --border-focus: rgba(99, 102, 241, 0.6);
+
+      --success: #10b981;
+      --success-bg: rgba(16, 185, 129, 0.15);
+      --success-border: rgba(16, 185, 129, 0.3);
+
+      --danger: #ef4444;
+      --danger-bg: rgba(239, 68, 68, 0.15);
+      --danger-border: rgba(239, 68, 68, 0.3);
+
+      --warning: #f59e0b;
+      --warning-bg: rgba(245, 158, 11, 0.15);
+      --warning-border: rgba(245, 158, 11, 0.3);
+
+      --info: #0ea5e9;
+      --info-bg: rgba(14, 165, 233, 0.15);
+      --info-border: rgba(14, 165, 233, 0.3);
+
+      --radius-lg: 16px;
+      --radius-md: 8px;
+      --radius-sm: 4px;
+      --radius-full: 9999px;
+
+      --font-sans: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+      --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      --shadow-glow: 0 0 20px var(--primary-glow);
+    }
+
+    *,
+    *::before,
+    *::after { box-sizing: border-box; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background-color: var(--bg-deep);
+      background-image:
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.15) 0px, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .skip-link {
+      position: absolute;
+      top: -100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--primary);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      text-decoration: none;
+      font-weight: 600;
+      z-index: 1000;
+      transition: top var(--transition-fast);
+    }
+
+    .skip-link:focus { top: 10px; }
+
+    .noscript-warning {
+      background: var(--warning-bg);
+      border: 1px solid var(--warning-border);
+      color: #fcd34d;
+      padding: 16px 20px;
+      margin: 20px;
+      border-radius: var(--radius-md);
+      text-align: center;
+    }
+
+    .wrap {
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 0 20px 40px;
+    }
+
+    .page-header { margin-bottom: 32px; }
+
+    .title-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .title-row h1 {
+      margin: 0;
+      font-size: clamp(20px, 4vw, 24px);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(to right, #fff, #cbd5e1);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .badge,
+    .badge-secondary {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .badge {
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      color: #c7d2fe;
+      box-shadow: 0 0 10px rgba(99, 102, 241, 0.15);
+    }
+
+    .badge-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+    }
+
+    .page-description {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin: 0;
+      line-height: 1.6;
+      max-width: 720px;
+    }
+
+    .card {
+      background: var(--bg-surface);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-md);
+      transition:
+        transform var(--transition-normal),
+        border-color var(--transition-normal),
+        box-shadow var(--transition-normal);
+      contain: layout style;
+    }
+
+    .card:hover { border-color: var(--border-highlight); }
+
+    .card:focus-within {
+      border-color: var(--border-focus);
+      box-shadow: var(--shadow-md), 0 0 0 2px var(--border-focus);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .card-header h2 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #e2e8f0;
+    }
+
+    .card-header h2 .icon { font-size: 18px; opacity: 0.8; }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      padding: 4px 12px;
+      border-radius: var(--radius-full);
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+    }
+
+    .pill strong {
+      font-weight: 700;
+      color: #fff;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+
+    .tag-primary {
+      background: rgba(99, 102, 241, 0.15);
+      border-color: rgba(99, 102, 241, 0.3);
+      color: #a5b4fc;
+    }
+
+    .tag-success {
+      background: var(--success-bg);
+      border-color: var(--success-border);
+      color: #6ee7b7;
+    }
+
+    .tag-info {
+      background: var(--info-bg);
+      border-color: var(--info-border);
+      color: #7dd3fc;
+    }
+
+    .tag-warning {
+      background: var(--warning-bg);
+      border-color: var(--warning-border);
+      color: #fcd34d;
+    }
+
+    .tag-danger {
+      background: var(--danger-bg);
+      border-color: var(--danger-border);
+      color: #fca5a5;
+    }
+
+    .tag-live::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      margin-right: 6px;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .env-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      font-size: 13px;
+    }
+
+    .env-item {
+      padding: 12px 14px;
+      border-radius: var(--radius-md);
+      background: rgba(15, 23, 42, 0.4);
+      border: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition:
+        background var(--transition-fast),
+        border-color var(--transition-fast);
+    }
+
+    .env-item:hover {
+      background: rgba(15, 23, 42, 0.6);
+      border-color: var(--border-highlight);
+    }
+
+    .env-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .env-value {
+      font-size: 13px;
+      color: #e2e8f0;
+      word-break: break-all;
+      font-family: var(--font-mono);
+    }
+
+    .env-value.loading {
+      background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.05) 25%,
+        rgba(255, 255, 255, 0.1) 50%,
+        rgba(255, 255, 255, 0.05) 75%
+      );
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: var(--radius-sm);
+      min-height: 1.3em;
+      color: transparent;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    button:focus-visible,
+    a:focus-visible {
+      outline: 2px solid var(--border-focus);
+      outline-offset: 2px;
+    }
+
+    button,
+    .button-link {
+      appearance: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      text-decoration: none;
+      transition:
+        transform var(--transition-fast),
+        box-shadow var(--transition-fast),
+        background var(--transition-fast),
+        border-color var(--transition-fast),
+        opacity var(--transition-fast);
+      position: relative;
+      overflow: hidden;
+
+      background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+      border: 1px solid transparent;
+      color: #fff;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.1) inset;
+    }
+
+    button::before,
+    .button-link::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
+      opacity: 0;
+      transition: opacity var(--transition-fast);
+    }
+
+    button:hover:not(:disabled)::before,
+    .button-link:hover::before { opacity: 1; }
+
+    button:hover:not(:disabled),
+    .button-link:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px var(--primary-glow), 0 0 0 1px rgba(255,255,255,0.2) inset;
+    }
+
+    button:active:not(:disabled),
+    .button-link:active { transform: translateY(0); }
+
+    button:disabled {
+      background: var(--bg-surface-hover);
+      color: var(--text-muted);
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+
+    button.loading { pointer-events: none; color: transparent; }
+
+    button.loading::after {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .btn-ghost,
+    .button-link.btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border-highlight);
+      color: #cbd5e1;
+      box-shadow: none;
+    }
+
+    .btn-ghost::before,
+    .button-link.btn-ghost::before { display: none; }
+
+    .btn-ghost:hover:not(:disabled),
+    .button-link.btn-ghost:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.3);
+      color: #fff;
+      box-shadow: none;
+      transform: translateY(-1px);
+    }
+
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+    .btn-icon { padding: 8px; min-width: 36px; }
+
+    .table-container {
+      overflow-x: auto;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      padding: 10px 12px;
+      text-align: left;
+      background: rgba(15, 23, 42, 0.4);
+      border-bottom: 1px solid var(--border-subtle);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-subtle);
+      color: #cbd5e1;
+      vertical-align: middle;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    tbody tr { transition: background var(--transition-fast); }
+    tbody tr:hover { background: rgba(255, 255, 255, 0.03); }
+
+    .table-empty {
+      text-align: center;
+      padding: 32px 20px;
+      color: var(--text-muted);
+    }
+
+    .table-empty-icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+      opacity: 0.5;
+    }
+
+    .small { font-size: 12px; }
+    .mono { font-family: var(--font-mono); }
+
+    .log-container { margin-top: 16px; position: relative; }
+
+    .log-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      gap: 8px;
+    }
+
+    .log-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .log-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+
+    #log {
+      padding: 16px;
+      border-radius: var(--radius-md);
+      background: var(--bg-terminal);
+      border: 1px solid var(--border-subtle);
+      min-height: 100px;
+      max-height: 300px;
+      white-space: pre-wrap;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: #22d3ee;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+      overflow-y: auto;
+      scroll-behavior: smooth;
+      scrollbar-width: thin;
+      scrollbar-color: #334155 transparent;
+    }
+
+    #log::-webkit-scrollbar { width: 8px; }
+    #log::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    #log::-webkit-scrollbar-thumb:hover { background: #475569; }
+    #log::-webkit-scrollbar-track { background: transparent; }
+
+    #log:empty::before {
+      content: "// Waiting for logs...";
+      color: #475569;
+      font-style: italic;
+    }
+
+    .muted { color: var(--text-muted); }
+    .text-success { color: #6ee7b7; }
+    .text-danger { color: #fca5a5; }
+    .text-warning { color: #fcd34d; }
+
+    ol.muted li { margin-bottom: 6px; }
+
+    kbd {
+      display: inline-block;
+      padding: 2px 6px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      color: #e2e8f0;
+    }
+
+    code {
+      font-family: var(--font-mono);
+      font-size: 0.9em;
+      background: rgba(99, 102, 241, 0.1);
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+      color: #a5b4fc;
+    }
+
+    [data-tooltip] { position: relative; }
+
+    [data-tooltip]::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%) translateY(-4px);
+      padding: 6px 10px;
+      background: #1e293b;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      color: var(--text-main);
+      white-space: nowrap;
+      opacity: 0;
+      visibility: hidden;
+      transition:
+        opacity var(--transition-fast),
+        visibility var(--transition-fast);
+      z-index: 100;
+      pointer-events: none;
+    }
+
+    [data-tooltip]:hover::after,
+    [data-tooltip]:focus::after {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .toast-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .toast {
+      background: var(--bg-surface);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 12px 16px;
+      font-size: 13px;
+      color: var(--text-main);
+      box-shadow: var(--shadow-lg);
+      transform: translateX(calc(100% + 20px));
+      opacity: 0;
+      transition: all var(--transition-normal);
+      max-width: 340px;
+    }
+
+    .toast.show {
+      transform: translateX(0);
+      opacity: 1;
+    }
+
+    .toast.toast-success { border-left: 3px solid var(--success); }
+    .toast.toast-error { border-left: 3px solid var(--danger); }
+    .toast.toast-warning { border-left: 3px solid var(--warning); }
+    .toast.toast-info { border-left: 3px solid var(--info); }
+
+    .inline-note {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle);
+      background: rgba(15, 23, 42, 0.35);
+      color: #cbd5e1;
+      font-size: 12px;
+    }
+
+    @media (max-width: 768px) {
+      .wrap { margin: 20px auto; padding: 0 16px 30px; }
+      .grid { grid-template-columns: 1fr; }
+      .card-header { flex-direction: column; align-items: flex-start; }
+      .btn-row { width: 100%; }
+      button, .button-link { width: 100%; }
+      .title-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+      .env-grid { grid-template-columns: 1fr; }
+      .toast-container { left: 16px; right: 16px; bottom: 16px; }
+      .toast { max-width: none; }
+    }
+
+    @media print {
+      body { background: #fff; color: #000; }
+      .card { background: #fff; border: 1px solid #ccc; box-shadow: none; break-inside: avoid; }
+      .btn-row, .log-container, .skip-link, .toast-container,
+      .button-link[href*="buymeacoffee"], .button-link[href*="cash.app"] { display: none !important; }
+      .tag, .badge { border: 1px solid #ccc; background: #f5f5f5; color: #333; }
+    }
+
+    @media (prefers-contrast: high) {
+      :root {
+        --border-subtle: rgba(255, 255, 255, 0.3);
+        --border-highlight: rgba(255, 255, 255, 0.5);
+      }
+      .card { border-width: 2px; }
+      button, .button-link { border-width: 2px; }
+    }
+  </style>
+</head>
+
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <noscript>
+    <div class="noscript-warning">
+      <strong>JavaScript Required</strong><br />
+      This diagnostics page requires JavaScript to function. Please enable JavaScript in your browser settings.
+    </div>
+  </noscript>
+
+  <div class="wrap">
+    <header class="page-header">
+      <div class="title-row">
+        <h1 id="main-content" tabindex="-1">Gmail One-Click Cleaner Diagnostics</h1>
+        <span class="badge" aria-label="Version 3.5.0">v3.5.0</span>
+        <span class="badge-secondary" id="diagVersionBadge" aria-label="Runtime snapshot">runtime snapshot</span>
+      </div>
+
+      <p class="page-description">
+        See which Gmail tab the extension will use, verify permissions, and review the last run.
+        This helps debug cases where the popup cannot find or attach to Gmail, or where large runs pause/stop early.
+        All checks run locally in your browser.
+      </p>
+    </header>
+
+    <main>
+      <!-- ENV -->
+      <section class="card" aria-labelledby="env-heading">
+        <div class="card-header">
+          <h2 id="env-heading"><span class="icon" aria-hidden="true">🔧</span> Environment</h2>
+          <span id="envStatusTag" class="tag tag-primary" role="status">ready</span>
+        </div>
+
+        <div class="env-grid" role="list" aria-label="Environment information">
+          <div class="env-item" role="listitem">
+            <div class="env-label" id="browser-label">Browser</div>
+            <div class="env-value loading" id="envBrowser" aria-labelledby="browser-label">Loading...</div>
+          </div>
+
+          <div class="env-item" role="listitem">
+            <div class="env-label" id="platform-label">Platform</div>
+            <div class="env-value loading" id="envPlatform" aria-labelledby="platform-label">Loading...</div>
+          </div>
+
+          <div class="env-item" role="listitem">
+            <div class="env-label" id="extension-label">Extension / Content</div>
+            <div class="env-value loading" id="envExtension" aria-labelledby="extension-label">Loading...</div>
+          </div>
+
+          <div class="env-item" role="listitem">
+            <div class="env-label" id="perms-label">Permissions</div>
+            <div class="env-value loading" id="envPerms" aria-labelledby="perms-label">Loading...</div>
+          </div>
+
+          <!-- NEW (v3.3): service worker / MV3 health -->
+          <div class="env-item" role="listitem">
+            <div class="env-label" id="sw-label">Service worker</div>
+            <div class="env-value loading" id="envServiceWorker" aria-labelledby="sw-label">Loading...</div>
+          </div>
+
+          <!-- NEW (v3.3): cleaning tab strategy -->
+          <div class="env-item" role="listitem">
+            <div class="env-label" id="pick-label">Tab strategy</div>
+            <div class="env-value loading" id="envTabStrategy" aria-labelledby="pick-label">Loading...</div>
+          </div>
+        </div>
+
+        <div class="inline-note" role="note">
+          v3.3 defaults to safer search guards (ex: skip starred, important, and user-labeled mail when enabled in settings).
+        </div>
+      </section>
+
+      <!-- GMAIL TABS -->
+      <section class="card" aria-labelledby="tabs-heading">
+        <div class="card-header">
+          <h2 id="tabs-heading"><span class="icon" aria-hidden="true">📧</span> Gmail tabs in this browser</h2>
+          <div class="pill" aria-live="polite">
+            <strong><span id="gmailTabCount">0</span></strong>
+            <span>open tabs</span>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div>
+            <div class="table-container">
+              <table aria-label="Gmail tabs list">
+                <thead>
+                  <tr>
+                    <th scope="col">ID</th>
+                    <th scope="col">Win</th>
+                    <th scope="col">Active</th>
+                    <th scope="col" class="mono">URL</th>
+                  </tr>
+                </thead>
+                <tbody id="gmailTabTableBody">
+                  <tr>
+                    <td colspan="4" class="table-empty">
+                      <div class="table-empty-icon" aria-hidden="true">📋</div>
+                      <div>No data yet. Click "Scan tabs" to begin.</div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- NEW: chosen + dedicated cleaning tab status -->
+            <div class="inline-note" aria-label="Tab selection details">
+              <div class="env-label" style="margin-bottom: 6px;">Selection detail</div>
+              <div class="mono" style="color:#a5b4fc; font-size:12px; line-height:1.6;">
+                <div><span class="muted">Chosen tab:</span> <span id="chosenTabTextInline">Not computed yet.</span></div>
+                <div><span class="muted">Cleaner tab:</span> <span id="cleanerTabTextInline">Not computed yet.</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; justify-content:space-between; gap:16px;">
+            <div>
+              <div class="env-label" id="chosen-tab-label">Tab the popup will pick</div>
+              <div
+                class="env-value"
+                id="chosenTabText"
+                style="padding: 10px 0; font-size: 14px; color: #a5b4fc;"
+                aria-labelledby="chosen-tab-label"
+                role="status"
+                aria-live="polite"
+              >
+                Not computed yet.
+              </div>
+
+              <div class="env-label" id="cleaner-tab-label" style="margin-top: 8px;">Dedicated cleaning tab</div>
+              <div
+                class="env-value"
+                id="cleanerTabText"
+                style="padding: 6px 0 0; font-size: 13px; color: #cbd5e1;"
+                aria-labelledby="cleaner-tab-label"
+                role="status"
+                aria-live="polite"
+              >
+                Not computed yet.
+              </div>
+
+              <div class="inline-note" style="margin-top: 10px;">
+                If enabled, the extension can run cleanups in a dedicated Gmail tab to avoid hijacking your active inbox tab.
+              </div>
+            </div>
+
+            <div>
+              <div class="btn-row">
+                <button id="scanTabsBtn" type="button" aria-describedby="scan-description">
+                  <span aria-hidden="true">🔍</span> Scan tabs
+                </button>
+                <button id="testInjectBtn" class="btn-ghost" type="button" aria-describedby="inject-description">
+                  <span aria-hidden="true">💉</span> Test inject
+                </button>
+                <!-- NEW (v3.3): optional ping SW -->
+                <button id="pingSwBtn" class="btn-ghost" type="button" aria-describedby="ping-description">
+                  <span aria-hidden="true">📡</span> Ping SW
+                </button>
+              </div>
+
+              <p id="scan-description" class="muted" style="font-size: 12px; margin-top: 12px;">
+                Picker logic: prefer the active Gmail tab in the current window.
+                If a dedicated cleaning tab is enabled, that one is preferred for runs.
+              </p>
+
+              <p id="inject-description" class="sr-only">
+                Tests injecting the content script into the selected Gmail tab.
+              </p>
+
+              <p id="ping-description" class="sr-only">
+                Checks whether the extension service worker responds.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="log-container">
+          <div class="log-header">
+            <span class="log-title">Activity log</span>
+            <div class="log-actions">
+              <button
+                id="copyLogBtn"
+                type="button"
+                class="btn-ghost btn-sm"
+                data-tooltip="Copy log to clipboard"
+                aria-label="Copy log to clipboard"
+              >
+                📋 Copy
+              </button>
+              <button
+                id="clearLogBtn"
+                type="button"
+                class="btn-ghost btn-sm"
+                data-tooltip="Clear log"
+                aria-label="Clear log"
+              >
+                🗑️ Clear
+              </button>
+            </div>
+          </div>
+
+          <div
+            id="log"
+            class="mono"
+            role="log"
+            aria-live="off"
+            aria-label="Diagnostic activity log"
+          ></div>
+        </div>
+      </section>
+
+      <!-- LAST RUN -->
+      <section class="card" aria-labelledby="lastrun-heading">
+        <div class="card-header">
+          <h2 id="lastrun-heading"><span class="icon" aria-hidden="true">📊</span> Last run summary</h2>
+          <span id="lastRunBucketTag" class="tag tag-primary" role="status">no runs</span>
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <div
+            id="lastRunSummary"
+            style="font-size: 16px; font-weight: 500; margin-bottom: 6px; color: #fff;"
+            role="status"
+            aria-live="polite"
+          >
+            No cleanup runs recorded yet in this browser.
+          </div>
+          <div id="lastRunMeta" class="muted mono" aria-label="Last run metadata"></div>
+        </div>
+
+        <div class="btn-row" id="lastRunButtons" aria-label="Last run actions"></div>
+      </section>
+
+      <!-- HISTORY -->
+      <section class="card" aria-labelledby="history-heading">
+        <div class="card-header">
+          <h2 id="history-heading"><span class="icon" aria-hidden="true">📜</span> Cleanup history</h2>
+          <span class="tag tag-primary">last 10 runs</span>
+        </div>
+
+        <div class="table-container">
+          <table aria-label="Cleanup history">
+            <thead>
+              <tr>
+                <th scope="col">Date</th>
+                <th scope="col">Mode</th>
+                <th scope="col">Count</th>
+                <th scope="col">Queries</th>
+                <th scope="col">Freed MB</th>
+              </tr>
+            </thead>
+            <tbody id="runHistoryTableBody">
+              <tr>
+                <td colspan="5" class="table-empty">
+                  <div class="table-empty-icon" aria-hidden="true">⏳</div>
+                  <div>Loading history...</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="muted" style="margin-top: 12px; font-size: 12px;">
+          <span aria-hidden="true">ℹ️</span> History is stored locally in your browser and not synced across devices.
+        </p>
+      </section>
+
+      <!-- DEBUG -->
+      <section class="card" aria-labelledby="debug-heading">
+        <div class="card-header">
+          <h2 id="debug-heading"><span class="icon" aria-hidden="true">🐛</span> Debug mode & console logs</h2>
+          <span class="tag tag-info">advanced</span>
+        </div>
+
+        <p class="muted" style="margin-bottom: 12px;">
+          The cleaner can emit structured debug logs (prefixed with <code>[GmailCleaner]</code>) to your browser console
+          to help track down why a run paused, skipped, throttled, or stopped early.
+        </p>
+
+        <ol class="muted" style="margin: 0 0 12px 18px; font-size: 13px;">
+          <li>Open Gmail in a tab and start a run from the popup.</li>
+          <li>
+            Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>J</kbd> (Windows/Linux) or
+            <kbd>Cmd</kbd>+<kbd>Option</kbd>+<kbd>J</kbd> (macOS) to open DevTools.
+          </li>
+          <li>Filter the console by <code>[GmailCleaner]</code> to see timing, query, and error details.</li>
+        </ol>
+
+        <p class="muted" style="font-size: 12px;">
+          <span aria-hidden="true">🔒</span> Logs never leave your browser.
+        </p>
+      </section>
+
+      <!-- SUPPORT -->
+      <section class="card" aria-labelledby="support-heading">
+        <div class="card-header">
+          <h2 id="support-heading"><span class="icon" aria-hidden="true">💝</span> Support this inbox saver</h2>
+          <span class="tag tag-success">optional</span>
+        </div>
+
+        <p class="muted" style="margin-bottom: 16px;">
+          Gmail One-Click Cleaner is built and maintained by a solo developer. Everything runs on your device and never
+          uploads your Gmail or diagnostics data to any server. If this tool helped you, a small tip helps keep it fast,
+          safe, and updated.
+        </p>
+
+        <div class="btn-row" role="group" aria-label="Tip options">
+          <a
+            class="button-link"
+            href="https://cash.app/$judeh1l"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Tip $3 via Cash App (opens in new tab)"
+          >
+            💵 Tip $3
+          </a>
+
+          <a
+            class="button-link"
+            href="https://cash.app/$judeh1l"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Tip $5 via Cash App (opens in new tab)"
+          >
+            💵 Tip $5
+          </a>
+
+          <a
+            class="button-link"
+            href="https://cash.app/$judeh1l"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Tip $10 via Cash App (opens in new tab)"
+          >
+            💵 Tip $10
+          </a>
+
+          <a
+            class="button-link btn-ghost"
+            href="https://www.buymeacoffee.com/judeh1l"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Buy me a coffee (opens in new tab)"
+          >
+            ☕ Buy me a coffee
+          </a>
+        </div>
+
+        <p class="muted" style="margin-top: 12px; font-size: 12px;">
+          Totally optional, but appreciated.
+        </p>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast-container" role="region" aria-label="Notifications" aria-live="polite"></div>
+
+  <script src="diagnostics.js"></script>
+</body>
+</html>

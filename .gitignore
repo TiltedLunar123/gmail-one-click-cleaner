@@ -1,0 +1,29 @@
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Archives (source should be committed directly, not as zips)
+*.zip
+*.tar.gz
+*.rar
+
+# Node (if tooling is added later)
+node_modules/
+package-lock.json
+
+# Build output
+dist/
+build/
+*.crx
+*.pem
+
+# Logs
+*.log
