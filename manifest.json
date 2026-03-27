@@ -4,7 +4,7 @@
   "short_name": "Gmail Cleaner",
   "version": "4.0.0",
   "version_name": "4.0.0 – 10 Major Improvements",
-  "description": "Free up Gmail storage fast. Bulk delete old emails, large attachments, & promotions. Now with scheduled cleanups, stats dashboard, undo system, multi-account support & more.",
+  "description": "Free up Gmail storage fast. Bulk delete old emails, large attachments & promotions with scheduled cleanups, stats & undo.",
   "minimum_chrome_version": "110",
   "permissions": ["activeTab", "scripting", "tabs", "storage", "alarms"],
   "host_permissions": ["https://mail.google.com/*"],
