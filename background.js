@@ -178,9 +178,9 @@
     if (!msg?.type) return;
 
     switch (msg.type) {
-      // Forward progress messages to all extension pages
+      // Progress messages from content script already reach all extension
+      // pages via chrome.runtime.sendMessage — no re-broadcast needed.
       case "gmailCleanerProgress":
-        broadcastToExtensionPages(msg, sender.tab?.id);
         break;
 
       // Stats recording
@@ -248,7 +248,6 @@
         // Clean up active run state when cleanup finishes
         chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: null }).catch(() => {});
         chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_RUN]: null }).catch(() => {});
-        broadcastToExtensionPages(msg, sender.tab?.id);
         break;
 
       default:

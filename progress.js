@@ -12,8 +12,8 @@
     TOAST_DURATION_MS: 3000,
     TIP_THRESHOLD_COUNT: 50,
     RECONNECT_TIMEOUT_MS: 5000,
-    AUTO_RECONNECT_INTERVAL_MS: 15000,
-    AUTO_RECONNECT_STALE_MS: 20000,
+    AUTO_RECONNECT_INTERVAL_MS: 30000,
+    AUTO_RECONNECT_STALE_MS: 60000,
     MAX_AUTO_RECONNECT_ATTEMPTS: 3
   });
 
@@ -716,13 +716,15 @@
 
     const { phase, status, detail, percent, stats } = message;
 
-    // Status
+    // Status — show spinner for all active (non-terminal) phases
+    const isActivePhase = phase && ![PHASES.DONE, PHASES.CANCELLED, PHASES.ERROR].includes(phase);
     if (status) {
-      if (phase === PHASES.QUERY || phase === PHASES.TAG) setStatusLoading(status);
+      if (isActivePhase) setStatusLoading(status);
       else setStatus(status);
 
       appendLog(status + (detail ? ` — ${detail}` : ""), LOG_LEVELS.INFO);
     } else if (detail) {
+      if (isActivePhase && !status) setStatusLoading(detail);
       appendLog(detail, LOG_LEVELS.INFO);
     }
 

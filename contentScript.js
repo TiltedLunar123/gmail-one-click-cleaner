@@ -177,7 +177,7 @@
     };
   };
 
-  const safeSend = debounce((msg) => {
+  const _debouncedSend = debounce((msg) => {
     try {
       if (hasChromeRuntime()) {
         chrome.runtime.sendMessage({
@@ -191,6 +191,15 @@
       logError(e, "safeSend");
     }
   }, 50);
+
+  const safeSend = (msg) => {
+    // Phase-changing and done messages must not be debounced away
+    if (msg.phase && msg.phase !== "debug") {
+      safeSendImmediate(msg);
+    } else {
+      _debouncedSend(msg);
+    }
+  };
 
   const safeSendImmediate = (msg) => {
     try {
