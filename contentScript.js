@@ -92,22 +92,19 @@
     }
   }
 
-  const hasChromeRuntime = (() => {
-    let cached = null;
-    return () => {
-      if (cached !== null) return cached;
-      try {
-        cached = (
-          typeof chrome !== "undefined" &&
-          chrome?.runtime &&
-          typeof chrome.runtime.sendMessage === "function"
-        );
-      } catch {
-        cached = false;
-      }
-      return cached;
-    };
-  })();
+  const hasChromeRuntime = () => {
+    try {
+      // Don't cache: chrome.runtime can become invalid after extension
+      // update/reload. Accessing chrome.runtime.id throws if invalidated.
+      return (
+        typeof chrome !== "undefined" &&
+        !!chrome.runtime?.id &&
+        typeof chrome.runtime.sendMessage === "function"
+      );
+    } catch {
+      return false;
+    }
+  };
 
   function hasChromeStorage(type = "sync") {
     try {
@@ -1383,9 +1380,10 @@
     const sizeMatch = lower.match(/larger:(\d+)(m|k|b)?/);
     if (sizeMatch) {
       let val = parseFloat(sizeMatch[1]);
-      const unit = (sizeMatch[2] || "b");
+      const unit = (sizeMatch[2] || "m");
 
-      if (unit === "k") val = val / 1024;
+      if (unit === "m") { /* already in MB */ }
+      else if (unit === "k") val = val / 1024;
       else if (unit === "b") val = val / (1024 * 1024);
 
       return val;

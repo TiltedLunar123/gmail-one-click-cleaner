@@ -613,7 +613,7 @@ document.addEventListener("DOMContentLoaded", () => {
         pill.textContent = tab.title ? tab.title.replace(/ - Gmail.*$/, "").slice(0, 25) : "Account " + tab.account;
         pill.dataset.tabId = tab.id;
         pill.addEventListener("click", () => {
-          elements.accountSelector.querySelectorAll(".account-pill").forEach(p => p.classList.remove("active"));
+          elements.accountSelector.querySelectorAll(".account-pill").forEach(pill => pill.classList.remove("active"));
           pill.classList.add("active");
           state.currentGmailTabId = tab.id;
         });
@@ -1227,7 +1227,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     elements.pinHintClose?.addEventListener("click", dismissPinHint);
 
-    elements.ratingBtn?.addEventListener("click", dismissRatingPrompt);
+    elements.ratingBtn?.addEventListener("click", async () => {
+      await tabsCreate({
+        url: "https://chromewebstore.google.com/detail/bmcfpljakkpcbinhgiahncpcbhmihgpc/reviews",
+        active: true
+      });
+      dismissRatingPrompt();
+      setTimeout(safeClosePopup, 150);
+    });
     elements.ratingDismiss?.addEventListener("click", dismissRatingPrompt);
 
     // Make star row clickable + keyboard-accessible (optional)

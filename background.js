@@ -258,16 +258,11 @@
 
   async function broadcastToExtensionPages(msg, excludeTabId) {
     try {
-      // Get all extension tabs (progress page, stats page, etc.)
-      const extensionUrl = chrome.runtime.getURL("");
-      const tabs = await chrome.tabs.query({ url: extensionUrl + "*" });
-      for (const tab of tabs) {
-        if (tab.id && tab.id !== excludeTabId) {
-          chrome.tabs.sendMessage(tab.id, msg).catch(() => {});
-        }
-      }
+      // Extension pages (progress, stats, etc.) listen via chrome.runtime.onMessage,
+      // not content script messaging. Use runtime.sendMessage to reach them.
+      chrome.runtime.sendMessage(msg).catch(() => {});
     } catch {
-      // Ignore errors when no extension tabs are open
+      // Ignore errors when no extension pages are listening
     }
   }
 

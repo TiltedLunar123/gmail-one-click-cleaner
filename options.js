@@ -861,6 +861,8 @@
     setupEventListeners();
     await loadData();
     updateAllCounts();
+    renderCustomRules();
+    renderSchedules();
     console.log("[Gmail Cleaner] Options page ready.");
   };
 
@@ -976,8 +978,6 @@
     });
   }
 
-  renderCustomRules();
-
   // =========================
   // Scheduled Cleanups
   // =========================
@@ -1091,5 +1091,4 @@
     });
   }
 
-  renderSchedules();
 })();
