@@ -15,9 +15,8 @@ Desktop.ini
 *.tar.gz
 *.rar
 
-# Node (if tooling is added later)
+# Node
 node_modules/
-package-lock.json
 
 # Build output
 dist/

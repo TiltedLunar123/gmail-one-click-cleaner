@@ -66,79 +66,17 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   // =========================
-  // Utilities
+  // Utilities (delegating to GCC shared)
   // =========================
 
-  const $ = (id) => document.getElementById(id);
-  const $$ = (sel) => document.querySelectorAll(sel);
-
-  const hasChrome = () => {
-    try {
-      return typeof chrome !== "undefined" && !!chrome.runtime;
-    } catch {
-      return false;
-    }
-  };
-
-  const hasChromeStorage = (area = "local") => {
-    try {
-      return hasChrome() && chrome.storage && chrome.storage[area] && typeof chrome.storage[area].get === "function";
-    } catch {
-      return false;
-    }
-  };
-
-  const hasChromeTabs = () => {
-    try {
-      return hasChrome() && !!chrome.tabs;
-    } catch {
-      return false;
-    }
-  };
-
-  const hasChromeScripting = () => {
-    try {
-      return hasChrome() && !!chrome.scripting;
-    } catch {
-      return false;
-    }
-  };
+  const $ = GCC.$;
+  const $$ = GCC.$$;
 
   const log = (level, ...args) => {
     const prefix = "[Gmail Cleaner Popup]";
     if (level === "error") console.error(prefix, ...args);
     else if (level === "warn") console.warn(prefix, ...args);
     else if (state.debugMode) console.log(prefix, ...args);
-  };
-
-  // Promisify chrome.* callback APIs
-  const p = (fn, ...args) =>
-    new Promise((resolve, reject) => {
-      try {
-        fn(...args, (result) => {
-          const err = chrome?.runtime?.lastError;
-          if (err) reject(err);
-          else resolve(result);
-        });
-      } catch (e) {
-        reject(e);
-      }
-    });
-
-  const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
-
-  const formatBytes = (bytes) => {
-    const b = Number(bytes || 0);
-    if (!Number.isFinite(b) || b <= 0) return "0 MB";
-    const units = ["B", "KB", "MB", "GB", "TB"];
-    let i = 0;
-    let v = b;
-    while (v >= 1024 && i < units.length - 1) {
-      v /= 1024;
-      i++;
-    }
-    const rounded = i === 0 ? Math.round(v) : Math.round(v * 10) / 10;
-    return `${rounded} ${units[i]}`;
   };
 
   const safeClosePopup = () => {
@@ -148,13 +86,13 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   // =========================
-  // Chrome wrappers
+  // Chrome wrappers (with popup-specific logging)
   // =========================
 
   const storageGet = async (area, keys) => {
-    if (!hasChromeStorage(area)) return {};
+    if (!GCC.hasChromeStorage(area)) return {};
     try {
-      return await p(chrome.storage[area].get.bind(chrome.storage[area]), keys);
+      return await GCC.promisify(chrome.storage[area].get.bind(chrome.storage[area]), keys);
     } catch (e) {
       log("warn", `storage.${area}.get failed`, e);
       return {};
@@ -162,18 +100,18 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const storageSet = async (area, obj) => {
-    if (!hasChromeStorage(area)) return;
+    if (!GCC.hasChromeStorage(area)) return;
     try {
-      await p(chrome.storage[area].set.bind(chrome.storage[area]), obj);
+      await GCC.promisify(chrome.storage[area].set.bind(chrome.storage[area]), obj);
     } catch (e) {
       log("warn", `storage.${area}.set failed`, e);
     }
   };
 
   const tabsQuery = async (queryInfo) => {
-    if (!hasChromeTabs()) return [];
+    if (!GCC.hasChromeTabs()) return [];
     try {
-      return await p(chrome.tabs.query.bind(chrome.tabs), queryInfo);
+      return await GCC.promisify(chrome.tabs.query.bind(chrome.tabs), queryInfo);
     } catch (e) {
       log("error", "tabs.query failed", e);
       return [];
@@ -181,9 +119,9 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const tabsCreate = async (createProps) => {
-    if (!hasChromeTabs()) return null;
+    if (!GCC.hasChromeTabs()) return null;
     try {
-      return await p(chrome.tabs.create.bind(chrome.tabs), createProps);
+      return await GCC.promisify(chrome.tabs.create.bind(chrome.tabs), createProps);
     } catch (e) {
       log("error", "tabs.create failed", e);
       return null;
@@ -191,9 +129,9 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const tabsUpdate = async (tabId, updateProps) => {
-    if (!hasChromeTabs()) return null;
+    if (!GCC.hasChromeTabs()) return null;
     try {
-      return await p(chrome.tabs.update.bind(chrome.tabs), tabId, updateProps);
+      return await GCC.promisify(chrome.tabs.update.bind(chrome.tabs), tabId, updateProps);
     } catch (e) {
       log("warn", "tabs.update failed", e);
       return null;
@@ -201,9 +139,9 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const tabsSendMessage = async (tabId, message) => {
-    if (!hasChromeTabs()) return null;
+    if (!GCC.hasChromeTabs()) return null;
     try {
-      return await p(chrome.tabs.sendMessage.bind(chrome.tabs), tabId, message);
+      return await GCC.promisify(chrome.tabs.sendMessage.bind(chrome.tabs), tabId, message);
     } catch (e) {
       log("warn", "tabs.sendMessage failed", e);
       throw e;
@@ -211,8 +149,8 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const scriptingExecuteScript = async (details) => {
-    if (!hasChromeScripting()) throw new Error("Chrome scripting API not available");
-    return await p(chrome.scripting.executeScript.bind(chrome.scripting), details);
+    if (!GCC.hasChromeScripting()) throw new Error("Chrome scripting API not available");
+    return await GCC.promisify(chrome.scripting.executeScript.bind(chrome.scripting), details);
   };
 
   // =========================
@@ -276,45 +214,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const originalSub = runSubSpan?.textContent || "Items are tagged before action";
 
   // =========================
-  // Toasts
+  // Toasts (delegating to GCC.showToast with popup's container)
   // =========================
-
-  const TOAST_ICONS = Object.freeze({
-    success: "✅",
-    error: "❌",
-    warning: "⚠️",
-    info: "ℹ️"
-  });
 
   const showToast = (message, type = "info", duration = CONFIG.TOAST_DURATION_MS) => {
     const container = elements.toastContainer;
     if (!container) {
       log("warn", `[toast:${type}]`, message);
-      return;
+      return null;
     }
-
-    const toast = document.createElement("div");
-    toast.className = `toast toast-${type}`;
-    toast.setAttribute("role", "alert");
-
-    const icon = document.createElement("span");
-    icon.className = "toast-icon";
-    icon.setAttribute("aria-hidden", "true");
-    icon.textContent = TOAST_ICONS[type] || TOAST_ICONS.info;
-
-    const text = document.createElement("span");
-    text.textContent = message;
-
-    toast.appendChild(icon);
-    toast.appendChild(text);
-    container.appendChild(toast);
-
-    requestAnimationFrame(() => toast.classList.add("show"));
-
-    window.setTimeout(() => {
-      toast.classList.remove("show");
-      window.setTimeout(() => toast.remove(), 250);
-    }, duration);
+    return GCC.showToast(message, type, duration, container);
   };
 
   // =========================
@@ -398,7 +307,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const showProgress = (percent = 0) => {
     if (!elements.progressBar) return;
-    const pcent = clamp(Number(percent || 0), 0, 100);
+    const pcent = GCC.clamp(Number(percent || 0), 0, 100);
     elements.progressBar.classList.add("show");
     elements.progressBar.setAttribute("aria-valuenow", String(pcent));
     if (elements.progressBarInner) elements.progressBarInner.style.width = `${pcent}%`;
@@ -412,7 +321,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const updateProgress = (percent) => {
     if (!elements.progressBar) return;
-    const pcent = clamp(Number(percent || 0), 0, 100);
+    const pcent = GCC.clamp(Number(percent || 0), 0, 100);
     elements.progressBar.setAttribute("aria-valuenow", String(pcent));
     if (elements.progressBarInner) elements.progressBarInner.style.width = `${pcent}%`;
   };
@@ -428,7 +337,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const showResultSummary = ({ count = 0, freedBytes = 0, action = "trash" } = {}) => {
     if (!elements.resultSummary) return;
     if (elements.resultCount) elements.resultCount.textContent = String(Math.max(0, Number(count || 0)));
-    if (elements.resultSize) elements.resultSize.textContent = formatBytes(freedBytes);
+    if (elements.resultSize) elements.resultSize.textContent = GCC.formatBytes(freedBytes);
     const note = elements.resultSummary.querySelector("span[style]");
     if (note) note.textContent = action === "archive" ? "(all archived to All Mail)" : "(all moved to Trash)";
     elements.resultSummary.classList.add("show");
@@ -566,7 +475,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // =========================
 
   const findGmailTab = async () => {
-    if (!hasChromeTabs()) return null;
+    if (!GCC.hasChromeTabs()) return null;
 
     // Multi-account: if user selected a specific tab, use it
     if (state.currentGmailTabId) {
@@ -595,7 +504,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // =========================
 
   const loadGmailAccounts = async () => {
-    if (!hasChrome() || !chrome.runtime?.sendMessage) return;
+    if (!GCC.hasChrome() || !chrome.runtime?.sendMessage) return;
     try {
       const resp = await new Promise((resolve) => {
         chrome.runtime.sendMessage({ type: "gmailCleanerListGmailTabs" }, resolve);
@@ -629,7 +538,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // =========================
 
   const loadWhitelistSuggestions = async () => {
-    if (!hasChrome() || !chrome.runtime?.sendMessage || !elements.wlSuggestions) return;
+    if (!GCC.hasChrome() || !chrome.runtime?.sendMessage || !elements.wlSuggestions) return;
     try {
       const resp = await new Promise((resolve) => {
         chrome.runtime.sendMessage({ type: "gmailCleanerGetWhitelistSuggestions" }, resolve);
@@ -708,7 +617,7 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const findProgressTab = async (gmailTabId) => {
-    if (!hasChromeTabs() || !hasChrome()) return null;
+    if (!GCC.hasChromeTabs() || !GCC.hasChrome()) return null;
     try {
       const base = chrome.runtime.getURL("progress.html");
       const tabs = await tabsQuery({ url: `${base}*` });
@@ -1113,7 +1022,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // =========================
 
   const setupRuntimeMessages = () => {
-    if (!hasChrome() || !chrome.runtime?.onMessage?.addListener) return;
+    if (!GCC.hasChrome() || !chrome.runtime?.onMessage?.addListener) return;
 
     chrome.runtime.onMessage.addListener((msg) => {
       try {
@@ -1125,7 +1034,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // { type: "gmailCleanerError", message }
         // { type: "gmailCleanerCanceled" }
         if (msg.type === "gmailCleanerProgress") {
-          const pct = clamp(Number(msg.percent ?? 0), 0, 100);
+          const pct = GCC.clamp(Number(msg.percent ?? 0), 0, 100);
           showProgress(pct);
           updateProgress(pct);
           if (msg.message) setStatus(String(msg.message), STATUS_TYPES.RUNNING);
@@ -1138,14 +1047,23 @@ document.addEventListener("DOMContentLoaded", () => {
           resetRunButton();
 
           const action = msg.action === "archive" ? "archive" : "trash";
+          const count = Number(msg.count || 0);
           showResultSummary({
-            count: Number(msg.count || 0),
+            count,
             freedBytes: Number(msg.freedBytes || 0),
             action
           });
 
           showSuccessCtas();
           setStatus("cleanup complete", STATUS_TYPES.SUCCESS, true);
+
+          // Post-cleanup undo toast
+          GCC.showToast(
+            `Cleanup complete! View recovery log in Stats to undo.`,
+            "success",
+            8000,
+            elements.toastContainer
+          );
 
           state.isRunning = false;
           state.currentGmailTabId = null;

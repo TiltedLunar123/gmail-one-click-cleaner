@@ -1,0 +1,35 @@
+{
+  "env": {
+    "browser": true,
+    "es2022": true,
+    "webextensions": true
+  },
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "script"
+  },
+  "rules": {
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "no-undef": "error",
+    "eqeqeq": ["error", "always"],
+    "no-var": "error",
+    "prefer-const": "warn",
+    "no-implicit-globals": "error",
+    "no-eval": "error",
+    "no-implied-eval": "error",
+    "no-new-func": "error",
+    "curly": ["warn", "multi-line"],
+    "no-throw-literal": "error",
+    "no-self-compare": "error",
+    "no-template-curly-in-string": "warn"
+  },
+  "globals": {
+    "GCC": "readonly",
+    "chrome": "readonly"
+  },
+  "ignorePatterns": [
+    "build.js",
+    "browser-polyfill.js",
+    "dist/"
+  ]
+}

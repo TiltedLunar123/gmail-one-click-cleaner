@@ -7,6 +7,7 @@
   <meta name="theme-color" content="#0f172a" />
   <meta name="color-scheme" content="dark" />
   <meta name="referrer" content="no-referrer" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; script-src 'self'" />
   <link rel="stylesheet" href="shared.css" />
 
   <style>
@@ -356,6 +357,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <script src="browser-polyfill.js"></script>
+  <script src="shared.js"></script>
   <script src="stats.js"></script>
 </body>
 </html>

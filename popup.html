@@ -8,6 +8,7 @@
   <meta name="theme-color" content="#020617" />
   <meta name="color-scheme" content="dark" />
   <meta name="referrer" content="no-referrer" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self' https://fonts.gstatic.com; script-src 'self'" />
   <link rel="stylesheet" href="shared.css" />
 
   <!-- Optional; extension CSP may block remote font CSS anyway -->
@@ -91,15 +92,6 @@
         radial-gradient(900px 420px at 85% 95%, rgba(168, 85, 247, 0.16), transparent 55%),
         linear-gradient(180deg, var(--bg), var(--bg2));
       background-attachment: fixed;
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after {
-        transition-duration: 0.01ms !important;
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-      }
-      :root { scroll-behavior: auto; }
     }
 
     ::selection { background: rgba(99, 102, 241, 0.28); color: #fff; }
@@ -1666,6 +1658,7 @@
   ></div>
 
   <script src="browser-polyfill.js"></script>
+  <script src="shared.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

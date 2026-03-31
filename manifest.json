@@ -30,7 +30,7 @@
   "options_page": "options.html",
   "web_accessible_resources": [
     {
-      "resources": ["shared.css", "browser-polyfill.js"],
+      "resources": ["shared.css", "shared.js", "browser-polyfill.js"],
       "matches": ["<all_urls>"]
     }
   ]

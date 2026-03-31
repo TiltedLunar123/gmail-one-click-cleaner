@@ -1,12 +1,25 @@
 # Gmail One-Click Cleaner
 
-[![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-v3.5.0-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-v4.0.0-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-blue.svg)]()
 
 A Chrome extension that bulk-cleans Gmail in one click. Run configurable cleanup rules (promotions, social, newsletters, large attachments, etc.) with a live progress dashboard, dry-run mode, review mode, and safety guardrails.
 
-> Works with Chrome and Chromium browsers (Brave, Edge, etc.)
+> Works with Chrome, Edge, Brave, and Firefox.
+
+## Screenshots
+
+> **TODO:** Add screenshots of the popup, progress dashboard, and stats page here.
+>
+> Recommended: A GIF showing a dry-run cleanup in action.
+>
+> Place images in a `screenshots/` folder and reference them like:
+> ```markdown
+> ![Popup](screenshots/popup.png)
+> ![Progress Dashboard](screenshots/progress.png)
+> ![Statistics](screenshots/stats.png)
+> ```
 
 ---
 
@@ -68,16 +81,23 @@ Search **"Gmail One-Click Cleaner"** in the [Chrome Web Store](https://chromeweb
 
 ```
 gmail-one-click-cleaner/
-├── manifest.json        # Chrome extension manifest (MV3)
-├── popup.html/js        # Extension popup UI and logic
-├── contentScript.js     # Gmail DOM automation (injected into Gmail tab)
-├── progress.html/js     # Live progress dashboard
-├── options.html/js      # Rules & settings page
-├── diagnostics.html/js  # Troubleshooting tools
-├── icons/               # Extension icons (16, 32, 48, 128)
-├── CHANGELOG.md         # Version history
-├── SECURITY.md          # Security policy and permissions docs
-└── LICENSE              # MIT License
+├── manifest.json         # Chrome extension manifest (MV3)
+├── shared.css            # Design tokens & shared component styles
+├── shared.js             # Common JS utilities (GCC namespace)
+├── background.js         # Service worker (alarms, messaging, stats)
+├── contentScript.js      # Gmail DOM automation (injected into Gmail tab)
+├── popup.html/js         # Extension popup UI and logic
+├── progress.html/js      # Live progress dashboard
+├── options.html/js       # Rules & settings page
+├── diagnostics.html/js   # Troubleshooting tools
+├── stats.html/js         # Statistics dashboard
+├── browser-polyfill.js   # Cross-browser compatibility shim
+├── build.js              # Build script (copy, minify, zip)
+├── icons/                # Extension icons (16, 32, 48, 128)
+├── CHANGELOG.md          # Version history
+├── CONTRIBUTING.md       # Contribution guidelines
+├── SECURITY.md           # Security policy and permissions docs
+└── LICENSE               # MIT License
 ```
 
 ---
@@ -95,12 +115,7 @@ See [SECURITY.md](SECURITY.md) for the full security policy and permissions brea
 
 ## Contributing
 
-1. Fork the repo
-2. Create a feature branch (`git checkout -b feature/my-feature`)
-3. Commit your changes
-4. Push and open a Pull Request
-
-Please open an issue first for major changes so we can discuss the approach.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, project architecture, and guidelines.
 
 ---
 

@@ -61,205 +61,44 @@
   });
 
   // =========================
-  // Utility Functions
-  // =========================
-
-  const getEl = (id) => document.getElementById(id);
-
-  const qs = (selector) => {
-    try {
-      return document.querySelector(selector);
-    } catch {
-      return null;
-    }
-  };
-
-  const truncate = (str, maxLength = CONFIG.MAX_URL_LENGTH) => {
-    if (typeof str !== "string") return "";
-    return str.length > maxLength ? str.slice(0, maxLength - 3) + "..." : str;
-  };
-
-  const escapeHtml = (str) => {
-    if (typeof str !== "string") return "";
-    const div = document.createElement("div");
-    div.textContent = str;
-    return div.innerHTML;
-  };
-
-  const formatNumber = (num) => {
-    if (typeof num !== "number" || !Number.isFinite(num)) return "0";
-    return num.toLocaleString();
-  };
-
-  const formatDate = (timestamp) => {
-    if (typeof timestamp !== "number" || !Number.isFinite(timestamp)) {
-      return "(time not recorded)";
-    }
-    try {
-      return new Date(timestamp).toLocaleString();
-    } catch {
-      return "(invalid date)";
-    }
-  };
-
-  const hasChromeRuntime = () => {
-    try {
-      return typeof chrome !== "undefined" && !!chrome.runtime;
-    } catch {
-      return false;
-    }
-  };
-
-  const hasChromeTabs = () => {
-    try {
-      return typeof chrome !== "undefined" && !!chrome.tabs;
-    } catch {
-      return false;
-    }
-  };
-
-  const hasChromeStorage = (type = "sync") => {
-    try {
-      return (
-        typeof chrome !== "undefined" &&
-        chrome?.storage?.[type] &&
-        typeof chrome.storage[type].get === "function"
-      );
-    } catch {
-      return false;
-    }
-  };
-
-  const hasChromeScripting = () => {
-    try {
-      return typeof chrome !== "undefined" && !!chrome.scripting;
-    } catch {
-      return false;
-    }
-  };
-
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-  // =========================
-  // Promisified Chrome APIs (compat-safe)
-  // =========================
-
-  const tabsQuery = (queryInfo) =>
-    new Promise((resolve, reject) => {
-      try {
-        chrome.tabs.query(queryInfo, (tabs) => {
-          const err = chrome.runtime?.lastError;
-          if (err) return reject(new Error(err.message || "tabs.query failed"));
-          resolve(Array.isArray(tabs) ? tabs : []);
-        });
-      } catch (e) {
-        reject(e);
-      }
-    });
-
-  const storageGet = (area, keys) =>
-    new Promise((resolve, reject) => {
-      try {
-        chrome.storage[area].get(keys, (result) => {
-          const err = chrome.runtime?.lastError;
-          if (err) return reject(new Error(err.message || "storage.get failed"));
-          resolve(result || {});
-        });
-      } catch (e) {
-        reject(e);
-      }
-    });
-
-  const executeScript = (details) =>
-    new Promise((resolve, reject) => {
-      try {
-        chrome.scripting.executeScript(details, (results) => {
-          const err = chrome.runtime?.lastError;
-          if (err) return reject(new Error(err.message || "executeScript failed"));
-          resolve(Array.isArray(results) ? results : []);
-        });
-      } catch (e) {
-        reject(e);
-      }
-    });
-
-  const sendRuntimeMessage = (message) =>
-    new Promise((resolve, reject) => {
-      try {
-        chrome.runtime.sendMessage(message, (resp) => {
-          const err = chrome.runtime?.lastError;
-          if (err) return reject(new Error(err.message || "sendMessage failed"));
-          resolve(resp);
-        });
-      } catch (e) {
-        reject(e);
-      }
-    });
-
-  // =========================
   // DOM Element Cache
   // =========================
 
   const elements = {
-    envBrowser: getEl(SELECTORS.envBrowser),
-    envPlatform: getEl(SELECTORS.envPlatform),
-    envExtension: getEl(SELECTORS.envExtension),
-    envPerms: getEl(SELECTORS.envPerms),
-    envServiceWorker: getEl(SELECTORS.envServiceWorker),
-    envTabStrategy: getEl(SELECTORS.envTabStrategy),
-    envStatusTag: getEl(SELECTORS.envStatusTag),
+    envBrowser: GCC.$(SELECTORS.envBrowser),
+    envPlatform: GCC.$(SELECTORS.envPlatform),
+    envExtension: GCC.$(SELECTORS.envExtension),
+    envPerms: GCC.$(SELECTORS.envPerms),
+    envServiceWorker: GCC.$(SELECTORS.envServiceWorker),
+    envTabStrategy: GCC.$(SELECTORS.envTabStrategy),
+    envStatusTag: GCC.$(SELECTORS.envStatusTag),
 
-    tabCount: getEl(SELECTORS.tabCount),
-    tabTableBody: getEl(SELECTORS.tabTableBody),
+    tabCount: GCC.$(SELECTORS.tabCount),
+    tabTableBody: GCC.$(SELECTORS.tabTableBody),
 
-    chosenTabText: getEl(SELECTORS.chosenTabText),
-    chosenTabTextInline: getEl(SELECTORS.chosenTabTextInline),
-    cleanerTabText: getEl(SELECTORS.cleanerTabText),
-    cleanerTabTextInline: getEl(SELECTORS.cleanerTabTextInline),
+    chosenTabText: GCC.$(SELECTORS.chosenTabText),
+    chosenTabTextInline: GCC.$(SELECTORS.chosenTabTextInline),
+    cleanerTabText: GCC.$(SELECTORS.cleanerTabText),
+    cleanerTabTextInline: GCC.$(SELECTORS.cleanerTabTextInline),
 
-    scanTabsBtn: getEl(SELECTORS.scanTabsBtn),
-    testInjectBtn: getEl(SELECTORS.testInjectBtn),
-    pingSwBtn: getEl(SELECTORS.pingSwBtn),
+    scanTabsBtn: GCC.$(SELECTORS.scanTabsBtn),
+    testInjectBtn: GCC.$(SELECTORS.testInjectBtn),
+    pingSwBtn: GCC.$(SELECTORS.pingSwBtn),
 
-    log: getEl(SELECTORS.log),
-    diagVersionBadge: getEl(SELECTORS.diagVersionBadge),
+    log: GCC.$(SELECTORS.log),
+    diagVersionBadge: GCC.$(SELECTORS.diagVersionBadge),
 
-    lastRunSummary: getEl(SELECTORS.lastRunSummary),
-    lastRunMeta: getEl(SELECTORS.lastRunMeta),
-    lastRunBucketTag: getEl(SELECTORS.lastRunBucketTag),
-    lastRunButtons: getEl(SELECTORS.lastRunButtons),
+    lastRunSummary: GCC.$(SELECTORS.lastRunSummary),
+    lastRunMeta: GCC.$(SELECTORS.lastRunMeta),
+    lastRunBucketTag: GCC.$(SELECTORS.lastRunBucketTag),
+    lastRunButtons: GCC.$(SELECTORS.lastRunButtons),
 
-    runHistoryTableBody: getEl(SELECTORS.runHistoryTableBody),
+    runHistoryTableBody: GCC.$(SELECTORS.runHistoryTableBody),
 
-    copyLogBtn: getEl(SELECTORS.copyLogBtn),
-    clearLogBtn: getEl(SELECTORS.clearLogBtn),
+    copyLogBtn: GCC.$(SELECTORS.copyLogBtn),
+    clearLogBtn: GCC.$(SELECTORS.clearLogBtn),
 
-    toastContainer: qs(SELECTORS.toastContainer)
-  };
-
-  // =========================
-  // Toast Notifications
-  // =========================
-
-  const showToast = (message, type = "info", duration = CONFIG.TOAST_DURATION_MS) => {
-    const container = elements.toastContainer;
-    if (!container) return;
-
-    const toast = document.createElement("div");
-    toast.className = `toast toast-${type}`;
-    toast.textContent = message;
-    toast.setAttribute("role", "alert");
-
-    container.appendChild(toast);
-
-    requestAnimationFrame(() => toast.classList.add("show"));
-
-    setTimeout(() => {
-      toast.classList.remove("show");
-      setTimeout(() => {
-        if (toast.parentNode) toast.parentNode.removeChild(toast);
-      }, 250);
-    }, duration);
+    toastContainer: GCC.qs(SELECTORS.toastContainer)
   };
 
   // =========================
@@ -312,12 +151,12 @@
     if (!elements.log) return;
     elements.log.replaceChildren();
     logHistory.length = 0;
-    showToast("Log cleared", "info");
+    GCC.showToast("Log cleared", "info");
   };
 
   const copyLog = async () => {
     if (logHistory.length === 0) {
-      showToast("No logs to copy", "warning");
+      GCC.showToast("No logs to copy", "warning");
       return;
     }
 
@@ -325,7 +164,7 @@
 
     try {
       await navigator.clipboard.writeText(content);
-      showToast("Log copied to clipboard", "success");
+      GCC.showToast("Log copied to clipboard", "success");
       return;
     } catch {
       // fallback
@@ -340,9 +179,9 @@
       textarea.select();
       document.execCommand("copy");
       document.body.removeChild(textarea);
-      showToast("Log copied to clipboard", "success");
+      GCC.showToast("Log copied to clipboard", "success");
     } catch {
-      showToast("Failed to copy log", "error");
+      GCC.showToast("Failed to copy log", "error");
     }
   };
 
@@ -406,7 +245,7 @@
 
   const getManifestInfo = () => {
     try {
-      if (!hasChromeRuntime()) return null;
+      if (!GCC.hasChrome()) return null;
       const manifest = chrome.runtime.getManifest();
       return {
         name: manifest.name || "Gmail One-Click Cleaner",
@@ -419,7 +258,7 @@
 
   const getPermissions = () => {
     try {
-      if (!hasChromeRuntime()) return [];
+      if (!GCC.hasChrome()) return [];
       const manifest = chrome.runtime.getManifest();
       const permissions = Array.isArray(manifest.permissions) ? manifest.permissions : [];
       const hostPermissions = Array.isArray(manifest.host_permissions) ? manifest.host_permissions : [];
@@ -489,9 +328,9 @@
     }
 
     // Overall env status
-    const okRuntime = hasChromeRuntime();
-    const okTabs = hasChromeTabs();
-    const okScript = hasChromeScripting();
+    const okRuntime = GCC.hasChrome();
+    const okTabs = GCC.hasChromeTabs();
+    const okScript = GCC.hasChromeScripting();
 
     if (!okRuntime) {
       setEnvStatus("runtime missing", "danger");
@@ -509,7 +348,7 @@
   // =========================
 
   const pingServiceWorker = async (quiet = false) => {
-    if (!hasChromeRuntime()) return { ok: false, detail: "runtime unavailable" };
+    if (!GCC.hasChrome()) return { ok: false, detail: "runtime unavailable" };
 
     const pingMsg = {
       type: "__gcc_diagnostics_ping__",
@@ -519,9 +358,9 @@
 
     try {
       const resp = await Promise.race([
-        sendRuntimeMessage(pingMsg),
+        GCC.sendMessage(pingMsg),
         (async () => {
-          await sleep(CONFIG.SW_PING_TIMEOUT_MS);
+          await GCC.sleep(CONFIG.SW_PING_TIMEOUT_MS);
           throw new Error("timeout");
         })()
       ]);
@@ -546,7 +385,7 @@
 
   const detectTabStrategy = async () => {
     // default behavior: active tab in current window
-    if (!hasChromeStorage("sync")) {
+    if (!GCC.hasChromeStorage("sync")) {
       return { strategy: "active", enabled: false, source: "default" };
     }
 
@@ -562,7 +401,7 @@
       "dedicatedGmailTab"
     ];
 
-    const res = await storageGet("sync", keys).catch(() => ({}));
+    const res = await GCC.storageGet("sync", keys).catch(() => ({}));
 
     let enabled = null;
     let source = "default";
@@ -634,7 +473,7 @@
     const sizeBucket = stats.sizeBucket || "tiny";
     const totalQueries = typeof stats.totalQueries === "number" ? stats.totalQueries : "?";
     const actionWord = getActionWord(stats);
-    const finishedText = formatDate(stats.finishedAt ?? null);
+    const finishedText = GCC.formatDate(stats.finishedAt ?? null);
 
     let freedMbText = "";
     if (typeof stats.totalFreedMb === "number" && stats.mode !== "dry") {
@@ -645,7 +484,7 @@
     }
 
     if (elements.lastRunSummary) {
-      elements.lastRunSummary.textContent = `Last run: ${mode}, ${formatNumber(runCount)} conversations ${actionWord}.`;
+      elements.lastRunSummary.textContent = `Last run: ${mode}, ${GCC.formatNumber(runCount)} conversations ${actionWord}.`;
     }
 
     if (elements.lastRunMeta) {
@@ -686,9 +525,9 @@
   };
 
   const renderLastRunFromStorage = async () => {
-    if (!hasChromeStorage("sync")) return;
+    if (!GCC.hasChromeStorage("sync")) return;
     try {
-      const result = await storageGet("sync", ["lastRunStats"]);
+      const result = await GCC.storageGet("sync", ["lastRunStats"]);
       applyLastRunToDom(result?.lastRunStats ?? null);
     } catch (err) {
       console.warn("[Diagnostics] Failed to load last run stats:", err);
@@ -705,7 +544,7 @@
 
     const dateCell = document.createElement("td");
     dateCell.className = "mono small";
-    dateCell.textContent = formatDate(run.finishedAt ?? null);
+    dateCell.textContent = GCC.formatDate(run.finishedAt ?? null);
 
     const modeCell = document.createElement("td");
     const modeTag = document.createElement("span");
@@ -715,7 +554,7 @@
 
     const countCell = document.createElement("td");
     countCell.className = "mono";
-    countCell.textContent = formatNumber(count);
+    countCell.textContent = GCC.formatNumber(count);
 
     const queriesCell = document.createElement("td");
     queriesCell.className = "mono";
@@ -765,14 +604,14 @@
   const renderRunHistory = async () => {
     if (!elements.runHistoryTableBody) return;
 
-    if (!hasChromeStorage("local")) {
+    if (!GCC.hasChromeStorage("local")) {
       elements.runHistoryTableBody.replaceChildren();
       elements.runHistoryTableBody.appendChild(createEmptyHistoryRow("Storage unavailable"));
       return;
     }
 
     try {
-      const result = await storageGet("local", ["runHistory"]);
+      const result = await GCC.storageGet("local", ["runHistory"]);
       const history = Array.isArray(result?.runHistory) ? result.runHistory : [];
 
       elements.runHistoryTableBody.replaceChildren();
@@ -803,24 +642,24 @@
   const isGmailUrl = (url) => typeof url === "string" && url.startsWith("https://mail.google.com/");
 
   const findGmailTab = async () => {
-    if (!hasChromeTabs()) {
+    if (!GCC.hasChromeTabs()) {
       addLog("chrome.tabs is not available in this context.", "error");
       return null;
     }
 
     try {
-      const activeTabs = await tabsQuery({ active: true, currentWindow: true });
+      const activeTabs = await GCC.promisify(chrome.tabs.query.bind(chrome.tabs), { active: true, currentWindow: true });
       const activeTab = activeTabs?.[0] || null;
 
       if (activeTab?.id && isGmailUrl(activeTab.url)) return activeTab;
 
-      const tabsInWindow = await tabsQuery({ url: "https://mail.google.com/*", currentWindow: true });
+      const tabsInWindow = await GCC.promisify(chrome.tabs.query.bind(chrome.tabs), { url: "https://mail.google.com/*", currentWindow: true });
       if (tabsInWindow?.length) {
         const active = tabsInWindow.find((t) => t.active);
         return active || tabsInWindow[0];
       }
 
-      const allTabs = await tabsQuery({ url: "https://mail.google.com/*" });
+      const allTabs = await GCC.promisify(chrome.tabs.query.bind(chrome.tabs), { url: "https://mail.google.com/*" });
       if (!allTabs?.length) return null;
 
       const activeAnywhere = allTabs.find((t) => t.active);
@@ -866,7 +705,7 @@
     }
 
     const urlCell = document.createElement("td");
-    urlCell.textContent = truncate(tab.url || "(unknown)");
+    urlCell.textContent = GCC.truncate(tab.url || "(unknown)", CONFIG.MAX_URL_LENGTH);
     urlCell.className = "mono";
     urlCell.title = tab.url || "";
 
@@ -900,11 +739,11 @@
 
   const setChosenAndCleanerText = (chosen, cleaner) => {
     const chosenText = chosen?.id
-      ? `Tab ${chosen.id} in window ${chosen.windowId} – ${truncate(chosen.url || "", 100)}`
+      ? `Tab ${chosen.id} in window ${chosen.windowId} – ${GCC.truncate(chosen.url || "", 100)}`
       : "None – not computed yet.";
 
     const cleanerText = cleaner?.id
-      ? `Tab ${cleaner.id} in window ${cleaner.windowId} – ${truncate(cleaner.url || "", 100)}`
+      ? `Tab ${cleaner.id} in window ${cleaner.windowId} – ${GCC.truncate(cleaner.url || "", 100)}`
       : "None – not computed yet.";
 
     if (elements.chosenTabText) elements.chosenTabText.textContent = chosenText;
@@ -915,9 +754,9 @@
   };
 
   const scanTabs = async () => {
-    if (!hasChromeTabs()) {
+    if (!GCC.hasChromeTabs()) {
       setLog("chrome.tabs is not available in this context.", "error");
-      showToast("Tab API unavailable", "error");
+      GCC.showToast("Tab API unavailable", "error");
       return;
     }
 
@@ -927,7 +766,7 @@
     addLog("Scanning for Gmail tabs...", "info");
 
     try {
-      const tabs = await tabsQuery({ url: "https://mail.google.com/*" });
+      const tabs = await GCC.promisify(chrome.tabs.query.bind(chrome.tabs), { url: "https://mail.google.com/*" });
 
       if (elements.tabCount) elements.tabCount.textContent = String(tabs.length);
 
@@ -955,7 +794,7 @@
         if (elements.cleanerTabTextInline) elements.cleanerTabTextInline.textContent = "none";
 
         addLog("No Gmail tabs found.", "warning");
-        showToast("No Gmail tabs found", "warning");
+        GCC.showToast("No Gmail tabs found", "warning");
         return;
       }
 
@@ -969,7 +808,7 @@
           elements.chosenTabText.className = "env-value mono text-danger";
         }
         addLog("Gmail tabs exist, but tab detection returned null.", "error");
-        showToast("Tab detection failed", "error");
+        GCC.showToast("Tab detection failed", "error");
         return;
       }
 
@@ -987,21 +826,21 @@
         "info"
       );
 
-      showToast(`Found ${tabs.length} Gmail tab(s)`, "success");
+      GCC.showToast(`Found ${tabs.length} Gmail tab(s)`, "success");
       setButtonLoading(elements.testInjectBtn, false);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       addLog(`Failed to query tabs: ${message}`, "error");
-      showToast("Tab scan failed", "error");
+      GCC.showToast("Tab scan failed", "error");
     } finally {
       setButtonLoading(elements.scanTabsBtn, false);
     }
   };
 
   const testInject = async () => {
-    if (!hasChromeScripting() || !hasChromeTabs() || !hasChromeRuntime()) {
+    if (!GCC.hasChromeScripting() || !GCC.hasChromeTabs() || !GCC.hasChrome()) {
       setLog("chrome.scripting is not available in this context.", "error");
-      showToast("Scripting API unavailable", "error");
+      GCC.showToast("Scripting API unavailable", "error");
       return;
     }
 
@@ -1012,11 +851,11 @@
       const tab = await findGmailTab();
       if (!tab?.id) {
         addLog("No Gmail tab available for injection.", "warning");
-        showToast("No Gmail tab available", "warning");
+        GCC.showToast("No Gmail tab available", "warning");
         return;
       }
 
-      const results = await executeScript({
+      const results = await GCC.promisify(chrome.scripting.executeScript.bind(chrome.scripting), {
         target: { tabId: tab.id },
         func: () => {
           const now = new Date().toISOString();
@@ -1035,15 +874,15 @@
       if (payload) {
         addLog(`Inject succeeded into tab ${tab.id}:`, "success");
         addLog(JSON.stringify(payload, null, 2), "info");
-        showToast(payload.attached ? "Content script already attached" : "Inject successful", "success");
+        GCC.showToast(payload.attached ? "Content script already attached" : "Inject successful", "success");
       } else {
         addLog(`Inject completed but returned no data for tab ${tab.id}`, "warning");
-        showToast("Inject completed (no data)", "warning");
+        GCC.showToast("Inject completed (no data)", "warning");
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       addLog(`Inject failed: ${message}`, "error");
-      showToast("Inject failed", "error");
+      GCC.showToast("Inject failed", "error");
     } finally {
       setButtonLoading(elements.testInjectBtn, false);
     }
@@ -1063,10 +902,10 @@
       const res = await pingServiceWorker(false);
       if (res.ok) {
         addLog("Service worker responded (pong).", "success");
-        showToast("Service worker responsive", "success");
+        GCC.showToast("Service worker responsive", "success");
       } else {
         addLog(`No service worker response: ${res.detail}`, "warning");
-        showToast("No service worker response", "warning");
+        GCC.showToast("No service worker response", "warning");
       }
       setButtonLoading(elements.pingSwBtn, false);
     });
@@ -1074,7 +913,7 @@
     elements.copyLogBtn?.addEventListener("click", () => copyLog().catch(console.error));
     elements.clearLogBtn?.addEventListener("click", clearLog);
 
-    if (hasChromeRuntime() && chrome.runtime?.onMessage) {
+    if (GCC.hasChrome() && chrome.runtime?.onMessage) {
       chrome.runtime.onMessage.addListener((msg) => {
         if (msg?.type !== "gmailCleanerProgress") return;
         if (msg.phase === "done" && msg.stats) {

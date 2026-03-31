@@ -6,7 +6,8 @@
   "scripts": {
     "build": "node build.js",
     "build:prod": "node build.js --minify",
-    "lint": "eslint *.js --ignore-pattern build.js --ignore-pattern browser-polyfill.js",
+    "lint": "eslint *.js",
+    "watch": "node build.js && echo Watching... && node -e \"require('fs').watch('.',{recursive:false},(e,f)=>{if(f&&!f.startsWith('dist')){console.log('Changed:',f);require('child_process').execFileSync('node',['build.js'],{stdio:'inherit'})}});setInterval(()=>{},86400000)\"",
     "zip": "node build.js --zip",
     "clean": "node -e \"const fs=require('fs'); ['dist','gmail-one-click-cleaner.zip'].forEach(f=>{try{fs.rmSync(f,{recursive:true})}catch{}})\""
   },

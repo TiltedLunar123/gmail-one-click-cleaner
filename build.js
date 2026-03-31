@@ -18,6 +18,7 @@ const FILES = [
   "manifest.json",
   "browser-polyfill.js",
   "shared.css",
+  "shared.js",
   "background.js",
   "popup.html",
   "popup.js",

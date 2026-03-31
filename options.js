@@ -46,7 +46,7 @@
         );
       }
     }
-    await chrome.storage.sync.set(data);
+    await GCC.storageSet("sync", data);
   }
 
   // Keep these in sync with the content script defaults.
@@ -101,124 +101,16 @@
   // Utility Functions
   // =========================
 
-  /** @param {string} id */
-  const $ = (id) => document.getElementById(id);
-
-  /** @param {string} selector */
-  const qs = (selector) => {
-    try {
-      return document.querySelector(selector);
-    } catch {
-      return null;
-    }
-  };
-
-  /** @template T @param {T} obj @returns {T} */
-  const clone = (obj) => {
-    if (typeof structuredClone === "function") {
-      try {
-        return structuredClone(obj);
-      } catch {
-        // fall through
-      }
-    }
-    try {
-      return JSON.parse(JSON.stringify(obj));
-    } catch {
-      return obj;
-    }
-  };
-
-  /** @template {(...args:any[])=>any} T @param {T} fn @param {number} delay @returns {T} */
-  const debounce = (fn, delay) => {
-    let timeoutId = null;
-    return /** @type {T} */ ((...args) => {
-      if (timeoutId) clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => fn(...args), delay);
-    });
-  };
-
-  const hasSyncStorage = () => {
-    try {
-      return (
-        typeof chrome !== "undefined" &&
-        !!chrome?.storage?.sync &&
-        typeof chrome.storage.sync.get === "function" &&
-        typeof chrome.storage.sync.set === "function"
-      );
-    } catch {
-      return false;
-    }
-  };
-
-  const storageGet = (keys) =>
-    new Promise((resolve) => {
-      chrome.storage.sync.get(keys, resolve);
-    });
-
-  const storageSet = (obj) =>
-    new Promise((resolve, reject) => {
-      chrome.storage.sync.set(obj, () => {
-        if (chrome.runtime?.lastError) reject(new Error(chrome.runtime.lastError.message));
-        else resolve();
-      });
-    });
-
   const getDateStamp = () => new Date().toISOString().slice(0, 10);
 
   const safeConfirmLabel = (s) => String(s || "").replace(/[\r\n\t]/g, " ").trim();
 
   // =========================
-  // Toast Notifications
+  // Screen Reader Status
   // =========================
 
-  /** @typedef {"success"|"error"|"warning"|"info"} ToastType */
-
-  const TOAST_ICONS = Object.freeze({
-    success: "✅",
-    error: "❌",
-    warning: "⚠️",
-    info: "ℹ️"
-  });
-
-  /**
-   * @param {string} message
-   * @param {ToastType} [type="info"]
-   * @param {number} [duration]
-   */
-  const showToast = (message, type = "info", duration = CONFIG.TOAST_DURATION_MS) => {
-    const container = qs(".toast-container");
-    if (!container) {
-      console.log(`[Toast ${type}] ${message}`);
-      return;
-    }
-
-    const toast = document.createElement("div");
-    toast.className = `toast toast-${type}`;
-    toast.setAttribute("role", "alert");
-
-    const icon = document.createElement("span");
-    icon.className = "toast-icon";
-    icon.setAttribute("aria-hidden", "true");
-    icon.textContent = TOAST_ICONS[type] || TOAST_ICONS.info;
-
-    const text = document.createElement("span");
-    text.textContent = message;
-
-    toast.appendChild(icon);
-    toast.appendChild(text);
-    container.appendChild(toast);
-
-    requestAnimationFrame(() => toast.classList.add("show"));
-
-    setTimeout(() => {
-      toast.classList.remove("show");
-      setTimeout(() => toast.parentNode && toast.parentNode.removeChild(toast), 300);
-    }, duration);
-  };
-
   const srStatus = (msg) => {
-    const el = $("srStatus");
+    const el = GCC.$("srStatus");
     if (el) el.textContent = msg || "";
   };
 
@@ -288,7 +180,7 @@
   // =========================
 
   const updateUnsavedIndicator = () => {
-    const indicator = $("unsavedIndicator");
+    const indicator = GCC.$("unsavedIndicator");
     if (!indicator) return;
 
     indicator.classList.toggle("show", !!state.hasUnsavedChanges);
@@ -327,8 +219,8 @@
   };
 
   const updateCountFor = (textareaId, countElId) => {
-    const ta = $(textareaId);
-    const el = $(countElId);
+    const ta = GCC.$(textareaId);
+    const el = GCC.$(countElId);
     if (!ta || !el) return;
 
     const n = countLines(ta.value);
@@ -366,7 +258,7 @@
    * @returns {{ light: string[]; normal: string[]; deep: string[] }}
    */
   const normalizeRules = (rules) => {
-    if (!rules || typeof rules !== "object") return clone(DEFAULT_RULES);
+    if (!rules || typeof rules !== "object") return GCC.clone(DEFAULT_RULES);
 
     const out = { light: [], normal: [], deep: [] };
 
@@ -375,7 +267,7 @@
       out[key] = uniqTrimmed(source).slice(0, CONFIG.MAX_RULES_PER_CATEGORY);
     }
 
-    // Ensure Normal exists (your “recommended” baseline)
+    // Ensure Normal exists (your "recommended" baseline)
     if (out.normal.length === 0) out.normal = uniqTrimmed(DEFAULT_RULES.normal);
 
     return out;
@@ -416,7 +308,7 @@
    */
   const renderRules = (rules) => {
     RULE_KEYS.forEach((key) => {
-      const el = $(key);
+      const el = GCC.$(key);
       if (el) el.value = (rules[key] || []).join("\n");
     });
     updateAllCounts();
@@ -426,10 +318,10 @@
    * @param {{ debugMode?: boolean; whitelist?: string[] }} settings
    */
   const renderSettings = (settings) => {
-    const debugEl = $("debugMode");
+    const debugEl = GCC.$("debugMode");
     if (debugEl) debugEl.checked = Boolean(settings.debugMode);
 
-    const whitelistEl = $("whitelist");
+    const whitelistEl = GCC.$("whitelist");
     if (whitelistEl) {
       const normalizedWhitelist = normalizeWhitelist(settings.whitelist);
       whitelistEl.value = normalizedWhitelist.join("\n");
@@ -439,7 +331,7 @@
 
   /** @param {string} id */
   const readLines = (id) => {
-    const el = $(id);
+    const el = GCC.$(id);
     if (!el || !el.value) return [];
     return uniqTrimmed(
       el.value.split("\n").map((s) => String(s || "").trim()).filter(Boolean)
@@ -454,7 +346,7 @@
     const rules = { light: [], normal: [], deep: [] };
     RULE_KEYS.forEach((key) => (rules[key] = readLines(key)));
 
-    const debugEl = $("debugMode");
+    const debugEl = GCC.$("debugMode");
     const debugMode = debugEl ? debugEl.checked : false;
 
     const whitelist = normalizeWhitelist(readLines("whitelist"));
@@ -468,16 +360,16 @@
 
   const loadData = async () => {
     try {
-      if (!hasSyncStorage()) {
+      if (!GCC.hasChromeStorage("sync")) {
         console.warn("[Gmail Cleaner] Sync storage not available, using defaults.");
-        renderRules(clone(DEFAULT_RULES));
+        renderRules(GCC.clone(DEFAULT_RULES));
         renderSettings({ debugMode: false, whitelist: [] });
         state.initialData = collectAllData();
         clearUnsaved();
         return;
       }
 
-      const data = await storageGet([STORAGE_KEYS.RULES, STORAGE_KEYS.DEBUG_MODE, STORAGE_KEYS.WHITELIST]);
+      const data = await GCC.storageGet("sync", [STORAGE_KEYS.RULES, STORAGE_KEYS.DEBUG_MODE, STORAGE_KEYS.WHITELIST]);
 
       const normalizedRules = normalizeRules(data[STORAGE_KEYS.RULES]);
       renderRules(normalizedRules);
@@ -492,8 +384,8 @@
       srStatus("Settings loaded.");
     } catch (err) {
       console.error("[Gmail Cleaner] Failed to load settings:", err);
-      showToast("Failed to load settings", "error");
-      renderRules(clone(DEFAULT_RULES));
+      GCC.showToast("Failed to load settings", "error");
+      renderRules(GCC.clone(DEFAULT_RULES));
       renderSettings({ debugMode: false, whitelist: [] });
       state.initialData = collectAllData();
       clearUnsaved();
@@ -532,7 +424,7 @@
     if (state.saving) return;
     state.saving = true;
 
-    const btn = /** @type {HTMLButtonElement|null} */ ($("save"));
+    const btn = /** @type {HTMLButtonElement|null} */ (GCC.$("save"));
     setButtonLoading(btn, true, "Saving...");
     srStatus("Saving settings...");
 
@@ -541,12 +433,12 @@
       const validation = validateData(data);
 
       if (!validation.valid) {
-        showToast(validation.errors[0], "warning");
+        GCC.showToast(validation.errors[0], "warning");
         console.warn("[Gmail Cleaner] Validation errors:", validation.errors);
         // still allow save, but warn
       }
 
-      if (!hasSyncStorage()) throw new Error("Chrome sync storage is not available");
+      if (!GCC.hasChromeStorage("sync")) throw new Error("Chrome sync storage is not available");
 
       await safeSyncSet({
         [STORAGE_KEYS.RULES]: normalizeRules(data.rules),
@@ -558,14 +450,14 @@
       clearUnsaved();
 
       if (!opts.silent) {
-        showToast(opts.successToast || "Settings saved successfully!", "success");
+        GCC.showToast(opts.successToast || "Settings saved successfully!", "success");
         showButtonSuccess(btn);
       }
 
       srStatus("Settings saved.");
     } catch (err) {
       console.error("[Gmail Cleaner] Failed to save:", err);
-      showToast(`Failed to save: ${err?.message || "Unknown error"}`, "error");
+      GCC.showToast(`Failed to save: ${err?.message || "Unknown error"}`, "error");
       srStatus("Failed to save settings.");
     } finally {
       setButtonLoading(btn, false);
@@ -581,18 +473,18 @@
     const textareas = ["light", "normal", "deep", "whitelist"];
     const checkboxes = ["debugMode"];
 
-    const onPotentialChange = debounce(() => {
+    const onPotentialChange = GCC.debounce(() => {
       updateAllCounts();
       hasDataChanged() ? markUnsaved() : clearUnsaved();
     }, CONFIG.DEBOUNCE_DELAY_MS);
 
     textareas.forEach((id) => {
-      const el = $(id);
+      const el = GCC.$(id);
       if (el) el.addEventListener("input", onPotentialChange);
     });
 
     checkboxes.forEach((id) => {
-      const el = $(id);
+      const el = GCC.$(id);
       if (el) el.addEventListener("change", () => (hasDataChanged() ? markUnsaved() : clearUnsaved()));
     });
 
@@ -610,7 +502,7 @@
 
   const showConfirmDialog = () =>
     new Promise((resolve) => {
-      const dialog = /** @type {HTMLDialogElement|null} */ ($("confirmDialog"));
+      const dialog = /** @type {HTMLDialogElement|null} */ (GCC.$("confirmDialog"));
 
       if (!dialog || typeof dialog.showModal !== "function") {
         resolve(
@@ -622,8 +514,8 @@
         return;
       }
 
-      const cancelBtn = $("dialogCancelBtn");
-      const confirmBtn = $("dialogConfirmBtn");
+      const cancelBtn = GCC.$("dialogCancelBtn");
+      const confirmBtn = GCC.$("dialogConfirmBtn");
 
       const cleanup = () => {
         cancelBtn?.removeEventListener("click", onCancel);
@@ -650,14 +542,14 @@
     const confirmed = await showConfirmDialog();
     if (!confirmed) return;
 
-    renderRules(clone(DEFAULT_RULES));
+    renderRules(GCC.clone(DEFAULT_RULES));
     renderSettings({ debugMode: false, whitelist: [] });
     markUnsaved();
 
     await saveData(null, { silent: true });
     clearUnsaved();
 
-    showToast("Settings restored to defaults", "success");
+    GCC.showToast("Settings restored to defaults", "success");
     srStatus("Defaults restored.");
   };
 
@@ -666,7 +558,7 @@
   // =========================
 
   const exportConfig = async () => {
-    const btn = /** @type {HTMLButtonElement|null} */ ($("exportBtn"));
+    const btn = /** @type {HTMLButtonElement|null} */ (GCC.$("exportBtn"));
     setButtonLoading(btn, true);
 
     try {
@@ -696,11 +588,11 @@
         URL.revokeObjectURL(url);
       }, 100);
 
-      showToast("Configuration exported successfully", "success");
+      GCC.showToast("Configuration exported successfully", "success");
       srStatus("Configuration exported.");
     } catch (err) {
       console.error("[Gmail Cleaner] Export failed:", err);
-      showToast(`Export failed: ${err?.message || "Unknown error"}`, "error");
+      GCC.showToast(`Export failed: ${err?.message || "Unknown error"}`, "error");
       srStatus("Export failed.");
     } finally {
       setButtonLoading(btn, false);
@@ -708,7 +600,7 @@
   };
 
   const triggerImport = () => {
-    const fileInput = /** @type {HTMLInputElement|null} */ ($("importFile"));
+    const fileInput = /** @type {HTMLInputElement|null} */ (GCC.$("importFile"));
     if (!fileInput) return;
     fileInput.value = "";
     fileInput.click();
@@ -744,7 +636,7 @@
     const file = fileInput.files?.[0];
     if (!file) return;
 
-    const btn = /** @type {HTMLButtonElement|null} */ ($("importBtn"));
+    const btn = /** @type {HTMLButtonElement|null} */ (GCC.$("importBtn"));
     setButtonLoading(btn, true);
     srStatus("Importing configuration...");
 
@@ -773,10 +665,10 @@
         return;
       }
 
-      if (!hasSyncStorage()) throw new Error("Chrome sync storage is not available");
+      if (!GCC.hasChromeStorage("sync")) throw new Error("Chrome sync storage is not available");
 
       // Save backup of current settings before overwriting
-      const backup = await storageGet(null);
+      const backup = await GCC.storageGet("sync", null);
 
       try {
         await safeSyncSet({
@@ -788,24 +680,24 @@
         await loadData();
         clearUnsaved();
 
-        showToast("Configuration imported successfully!", "success");
+        GCC.showToast("Configuration imported successfully!", "success");
         srStatus("Configuration imported.");
       } catch (importErr) {
         // Rollback to backup
         try {
-          await chrome.storage.sync.set(backup);
+          await GCC.storageSet("sync", backup);
           await loadData();
-          showToast("Import failed, settings restored: " + importErr.message, "error");
+          GCC.showToast("Import failed, settings restored: " + importErr.message, "error");
         } catch {
-          showToast("Import failed and rollback failed: " + importErr.message, "error");
+          GCC.showToast("Import failed and rollback failed: " + importErr.message, "error");
         }
         srStatus("Import failed.");
       }
     } catch (err) {
       console.error("[Gmail Cleaner] Import error:", err);
 
-      if (err instanceof SyntaxError) showToast("Invalid JSON file format", "error");
-      else showToast(`Import failed: ${err?.message || "Unknown error"}`, "error");
+      if (err instanceof SyntaxError) GCC.showToast("Invalid JSON file format", "error");
+      else GCC.showToast(`Import failed: ${err?.message || "Unknown error"}`, "error");
 
       srStatus("Import failed.");
     } finally {
@@ -826,7 +718,7 @@
       }
 
       if (e.key === "Escape") {
-        const dialog = /** @type {HTMLDialogElement|null} */ ($("confirmDialog"));
+        const dialog = /** @type {HTMLDialogElement|null} */ (GCC.$("confirmDialog"));
         if (dialog && dialog.open) dialog.close("cancel");
       }
     });
@@ -837,19 +729,19 @@
   // =========================
 
   const setupEventListeners = () => {
-    const saveBtn = $("save");
+    const saveBtn = GCC.$("save");
     saveBtn?.addEventListener("click", (e) => saveData(e));
 
-    const restoreBtn = $("restoreDefaultsBtn");
+    const restoreBtn = GCC.$("restoreDefaultsBtn");
     restoreBtn?.addEventListener("click", restoreDefaults);
 
-    const exportBtn = $("exportBtn");
+    const exportBtn = GCC.$("exportBtn");
     exportBtn?.addEventListener("click", exportConfig);
 
-    const importBtn = $("importBtn");
+    const importBtn = GCC.$("importBtn");
     importBtn?.addEventListener("click", triggerImport);
 
-    const fileInput = $("importFile");
+    const fileInput = GCC.$("importFile");
     fileInput?.addEventListener("change", handleImportFile);
 
     setupChangeListeners();
@@ -879,25 +771,25 @@
   const CUSTOM_RULES_KEY = "customRules";
 
   async function loadCustomRules() {
-    if (!hasSyncStorage()) return [];
+    if (!GCC.hasChromeStorage("sync")) return [];
     try {
-      const result = await storageGet(CUSTOM_RULES_KEY);
+      const result = await GCC.storageGet("sync", CUSTOM_RULES_KEY);
       return result?.[CUSTOM_RULES_KEY] || [];
     } catch { return []; }
   }
 
   async function saveCustomRules(rules) {
-    if (!hasSyncStorage()) return;
+    if (!GCC.hasChromeStorage("sync")) return;
     try {
       await safeSyncSet({ [CUSTOM_RULES_KEY]: rules }, "custom rules");
     } catch (err) {
-      showToast(err.message, "error");
+      GCC.showToast(err.message, "error");
       throw err;
     }
   }
 
   async function renderCustomRules() {
-    const container = $("customRulesList");
+    const container = GCC.$("customRulesList");
     if (!container) return;
 
     const rules = await loadCustomRules();
@@ -943,7 +835,7 @@
         allRules.splice(idx, 1);
         await saveCustomRules(allRules);
         renderCustomRules();
-        showToast("Rule removed", "success");
+        GCC.showToast("Rule removed", "success");
       });
 
       row.appendChild(query);
@@ -953,28 +845,28 @@
     });
   }
 
-  const addCustomRuleBtn = $("addCustomRuleBtn");
-  const newCustomQuery = $("newCustomQuery");
-  const newCustomAction = $("newCustomAction");
+  const addCustomRuleBtn = GCC.$("addCustomRuleBtn");
+  const newCustomQuery = GCC.$("newCustomQuery");
+  const newCustomAction = GCC.$("newCustomAction");
 
   if (addCustomRuleBtn) {
     addCustomRuleBtn.addEventListener("click", async () => {
       const query = (newCustomQuery?.value || "").trim();
       if (!query) {
-        showToast("Enter a Gmail search query", "warning");
+        GCC.showToast("Enter a Gmail search query", "warning");
         return;
       }
       const action = newCustomAction?.value || "delete";
       const rules = await loadCustomRules();
       if (rules.length >= 20) {
-        showToast("Maximum 20 custom rules", "warning");
+        GCC.showToast("Maximum 20 custom rules", "warning");
         return;
       }
       rules.push({ query, action, createdAt: Date.now() });
       await saveCustomRules(rules);
       if (newCustomQuery) newCustomQuery.value = "";
       renderCustomRules();
-      showToast("Custom rule added", "success");
+      GCC.showToast("Custom rule added", "success");
     });
   }
 
@@ -992,7 +884,7 @@
   });
 
   async function renderSchedules() {
-    const container = $("schedulesList");
+    const container = GCC.$("schedulesList");
     if (!container) return;
 
     const resp = await sendSwMessage({ type: "gmailCleanerGetSchedules" });
@@ -1045,7 +937,7 @@
         schedule.enabled = !schedule.enabled;
         await sendSwMessage({ type: "gmailCleanerSaveSchedule", schedule });
         renderSchedules();
-        showToast(schedule.enabled ? "Schedule enabled" : "Schedule disabled", "info");
+        GCC.showToast(schedule.enabled ? "Schedule enabled" : "Schedule disabled", "info");
       });
 
       const deleteBtn = document.createElement("button");
@@ -1056,7 +948,7 @@
       deleteBtn.addEventListener("click", async () => {
         await sendSwMessage({ type: "gmailCleanerDeleteSchedule", scheduleId: schedule.id });
         renderSchedules();
-        showToast("Schedule removed", "success");
+        GCC.showToast("Schedule removed", "success");
       });
 
       row.appendChild(info);
@@ -1066,12 +958,12 @@
     });
   }
 
-  const addScheduleBtn = $("addScheduleBtn");
+  const addScheduleBtn = GCC.$("addScheduleBtn");
   if (addScheduleBtn) {
     addScheduleBtn.addEventListener("click", async () => {
-      const interval = $("scheduleInterval")?.value || "10080";
-      const intensity = $("scheduleIntensity")?.value || "light";
-      const minAge = $("scheduleAge")?.value || "3m";
+      const interval = GCC.$("scheduleInterval")?.value || "10080";
+      const intensity = GCC.$("scheduleIntensity")?.value || "light";
+      const minAge = GCC.$("scheduleAge")?.value || "3m";
 
       const schedule = {
         id: "sched_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
@@ -1087,7 +979,7 @@
 
       await sendSwMessage({ type: "gmailCleanerSaveSchedule", schedule });
       renderSchedules();
-      showToast("Schedule created", "success");
+      GCC.showToast("Schedule created", "success");
     });
   }
 

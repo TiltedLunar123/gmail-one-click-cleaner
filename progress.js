@@ -142,56 +142,6 @@
   // Utility Functions
   // =========================
 
-  const hasChromeRuntime = () => {
-    try {
-      return typeof chrome !== "undefined" && !!chrome.runtime;
-    } catch {
-      return false;
-    }
-  };
-
-  const hasChromeTabs = () => {
-    try {
-      return hasChromeRuntime() && !!chrome.tabs;
-    } catch {
-      return false;
-    }
-  };
-
-  const hasChromeScripting = () => {
-    try {
-      return hasChromeRuntime() && !!chrome.scripting;
-    } catch {
-      return false;
-    }
-  };
-
-  const hasChromeStorage = (type = "sync") => {
-    try {
-      return (
-        typeof chrome !== "undefined" &&
-        chrome?.storage?.[type] &&
-        typeof chrome.storage[type].get === "function"
-      );
-    } catch {
-      return false;
-    }
-  };
-
-  // Promisify chrome.* callback APIs
-  const p = (fn, ...args) =>
-    new Promise((resolve, reject) => {
-      try {
-        fn(...args, (result) => {
-          const err = chrome?.runtime?.lastError;
-          if (err) reject(err);
-          else resolve(result);
-        });
-      } catch (e) {
-        reject(e);
-      }
-    });
-
   const getTimestamp = () => {
     const now = new Date();
     return now.toLocaleTimeString("en-US", {
@@ -228,12 +178,15 @@
   // =========================
   // Toast Notifications (single element)
   // =========================
+  // NOTE: progress.js uses a single #toast element pattern,
+  // NOT the .toast-container pattern from shared.js.
+  // This local implementation is intentionally kept.
 
   const TOAST_ICONS = Object.freeze({
-    success: "✅",
-    error: "❌",
-    warning: "⚠️",
-    info: "ℹ️"
+    success: "\u2705",
+    error: "\u274C",
+    warning: "\u26A0\uFE0F",
+    info: "\u2139\uFE0F"
   });
 
   const showToast = (message, type = "info", duration = CONFIG.TOAST_DURATION_MS) => {
@@ -605,14 +558,14 @@
       appendLog("Cannot send review signal: Gmail tab ID missing", LOG_LEVELS.ERROR);
       return;
     }
-    if (!hasChromeTabs()) {
+    if (!GCC.hasChromeTabs()) {
       appendLog("Cannot send review signal: chrome.tabs unavailable", LOG_LEVELS.ERROR);
       return;
     }
 
     try {
       const type = signal === "resume" ? "gmailCleanerResume" : "gmailCleanerSkip";
-      await p(chrome.tabs.sendMessage.bind(chrome.tabs), gmailTabId, { type });
+      await GCC.promisify(chrome.tabs.sendMessage.bind(chrome.tabs), gmailTabId, { type });
 
       appendLog(`Review decision: ${signal.toUpperCase()}`, LOG_LEVELS.SUCCESS);
       setPhaseTag(PHASES.QUERY);
@@ -629,11 +582,11 @@
   // =========================
 
   const saveStatsToStorage = async (stats) => {
-    if (!hasChromeStorage("sync")) return;
+    if (!GCC.hasChromeStorage("sync")) return;
     try {
       const finishedAt = Date.now();
       const statsToSave = { ...stats, finishedAt };
-      await p(chrome.storage.sync.set.bind(chrome.storage.sync), { lastRunStats: statsToSave });
+      await GCC.promisify(chrome.storage.sync.set.bind(chrome.storage.sync), { lastRunStats: statsToSave });
     } catch (err) {
       log("warn", "Failed to save stats to storage:", err);
     }
@@ -641,9 +594,9 @@
 
   const getLastConfig = async () => {
     // session first
-    if (hasChromeStorage("session")) {
+    if (GCC.hasChromeStorage("session")) {
       try {
-        const result = await p(chrome.storage.session.get.bind(chrome.storage.session), "lastConfig");
+        const result = await GCC.promisify(chrome.storage.session.get.bind(chrome.storage.session), "lastConfig");
         if (result?.lastConfig) return result.lastConfig;
       } catch {
         // fall through
@@ -651,9 +604,9 @@
     }
 
     // local fallback
-    if (hasChromeStorage("local")) {
+    if (GCC.hasChromeStorage("local")) {
       try {
-        const result = await p(chrome.storage.local.get.bind(chrome.storage.local), "lastConfig");
+        const result = await GCC.promisify(chrome.storage.local.get.bind(chrome.storage.local), "lastConfig");
         return result?.lastConfig || null;
       } catch {
         // ignore
@@ -784,7 +737,7 @@
       showToast("cannot cancel: no tab id", "error");
       return;
     }
-    if (!hasChromeTabs()) {
+    if (!GCC.hasChromeTabs()) {
       appendLog("Cannot cancel: chrome.tabs unavailable.", LOG_LEVELS.ERROR);
       showToast("cannot cancel: tabs unavailable", "error");
       return;
@@ -794,7 +747,7 @@
     appendLog("Sending cancel signal...", LOG_LEVELS.INFO);
 
     try {
-      await p(chrome.tabs.sendMessage.bind(chrome.tabs), gmailTabId, { type: "gmailCleanerCancel" });
+      await GCC.promisify(chrome.tabs.sendMessage.bind(chrome.tabs), gmailTabId, { type: "gmailCleanerCancel" });
       appendLog(`Cancel signal sent to Gmail tab ${gmailTabId}.`, LOG_LEVELS.SUCCESS);
       showToast("cancel sent", "info");
     } catch (err) {
@@ -811,7 +764,7 @@
       showToast("cannot reconnect: no tab id", "error");
       return;
     }
-    if (!hasChromeTabs()) {
+    if (!GCC.hasChromeTabs()) {
       appendLog("Cannot reconnect: chrome.tabs unavailable.", LOG_LEVELS.ERROR);
       showToast("cannot reconnect: tabs unavailable", "error");
       return;
@@ -860,7 +813,7 @@
       showToast("cannot re-inject: no tab id", "error");
       return;
     }
-    if (!hasChromeScripting()) {
+    if (!GCC.hasChromeScripting()) {
       appendLog("Cannot re-inject: chrome.scripting unavailable.", LOG_LEVELS.ERROR);
       showToast("cannot re-inject: scripting unavailable", "error");
       return;
@@ -872,7 +825,7 @@
 
     try {
       // Clear the duplicate-injection guard so the script can re-attach
-      await p(chrome.scripting.executeScript.bind(chrome.scripting), {
+      await GCC.promisify(chrome.scripting.executeScript.bind(chrome.scripting), {
         target: { tabId: gmailTabId },
         func: () => { window.GCC_ATTACHED = false; }
       });
@@ -880,7 +833,7 @@
       const cfg = await getLastConfig();
 
       if (cfg) {
-        await p(chrome.scripting.executeScript.bind(chrome.scripting), {
+        await GCC.promisify(chrome.scripting.executeScript.bind(chrome.scripting), {
           target: { tabId: gmailTabId },
           func: (config) => {
             window.GMAIL_CLEANER_CONFIG = config || window.GMAIL_CLEANER_CONFIG || {};
@@ -889,7 +842,7 @@
         });
       }
 
-      await p(chrome.scripting.executeScript.bind(chrome.scripting), {
+      await GCC.promisify(chrome.scripting.executeScript.bind(chrome.scripting), {
         target: { tabId: gmailTabId },
         files: ["contentScript.js"]
       });
@@ -1013,7 +966,7 @@
     }
 
     // Step 2: Re-inject the content script
-    if (!hasChromeScripting()) {
+    if (!GCC.hasChromeScripting()) {
       appendLog("Auto-reconnect: scripting unavailable, cannot re-inject.", LOG_LEVELS.ERROR);
       state.isReconnecting = false;
       return;
@@ -1021,7 +974,7 @@
 
     try {
       // Clear the duplicate-injection guard so the script can re-attach
-      await p(chrome.scripting.executeScript.bind(chrome.scripting), {
+      await GCC.promisify(chrome.scripting.executeScript.bind(chrome.scripting), {
         target: { tabId: gmailTabId },
         func: () => { window.GCC_ATTACHED = false; }
       });
@@ -1029,7 +982,7 @@
       const cfg = await getLastConfig();
 
       if (cfg) {
-        await p(chrome.scripting.executeScript.bind(chrome.scripting), {
+        await GCC.promisify(chrome.scripting.executeScript.bind(chrome.scripting), {
           target: { tabId: gmailTabId },
           func: (config) => {
             window.GMAIL_CLEANER_CONFIG = config || window.GMAIL_CLEANER_CONFIG || {};
@@ -1038,7 +991,7 @@
         });
       }
 
-      await p(chrome.scripting.executeScript.bind(chrome.scripting), {
+      await GCC.promisify(chrome.scripting.executeScript.bind(chrome.scripting), {
         target: { tabId: gmailTabId },
         files: ["contentScript.js"]
       });
@@ -1097,7 +1050,7 @@
 
     setupKeyboardShortcuts();
 
-    if (hasChromeRuntime() && chrome.runtime.onMessage) {
+    if (GCC.hasChrome() && chrome.runtime.onMessage) {
       chrome.runtime.onMessage.addListener((msg) => {
         try {
           handleProgressMessage(msg);
