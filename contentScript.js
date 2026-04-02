@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "4.0.0";
+  const GCC_CONTENT_VERSION = "4.1.0";
 
   // =========================
   // Timing & behavior constants
@@ -216,6 +216,7 @@
     }
   };
 
+  // Atomic-style guard: set flag immediately to prevent race between check and set
   if (window.GCC_ATTACHED) {
     safeSendImmediate({
       phase: "boot",
@@ -225,7 +226,7 @@
     });
     return;
   }
-  window.GCC_ATTACHED = true;
+  window.GCC_ATTACHED = Date.now(); // Truthy + timestamp for debugging
 
   const cleanup = () => {
     window.GCC_ATTACHED = false;
@@ -818,6 +819,8 @@
       debugLog("Double-click guard triggered, skipping click");
       return { success: false, reason: "double-click-guard" };
     }
+    // Set timestamp immediately to prevent concurrent calls from passing the guard
+    lastMasterCheckboxClickTime = now;
 
     const { element: checkbox, score } = findMasterCheckbox();
 
@@ -843,7 +846,6 @@
 
     try {
       checkbox.click();
-      lastMasterCheckboxClickTime = now;
 
       // Poll for state change instead of fixed sleep
       const stateChanged = await waitFor(
@@ -2045,7 +2047,9 @@
                 }
               });
             }
-          } catch {}
+          } catch (e) {
+            debugLog("Failed to record undo entry", { error: e?.message });
+          }
 
           debugLog("Live pass completed", {
             query,
@@ -2434,7 +2438,9 @@
         if (hasChromeRuntime()) {
           chrome.runtime.sendMessage({ type: "gmailCleanerDone" });
         }
-      } catch {}
+      } catch (e) {
+        debugLog("Failed to send done message to background", { error: e?.message });
+      }
     }
   }
 

@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "4.0.0";
+  const SW_VERSION = "4.1.0";
 
   // =========================
   // Storage Keys
@@ -122,7 +122,17 @@
           return;
         }
 
-        const gmailTab = gmailTabs[0];
+        // Prefer active Gmail tab, fall back to first
+        const gmailTab = gmailTabs.find(t => t.active) || gmailTabs[0];
+
+        // Verify tab is still valid before using it
+        try {
+          await chrome.tabs.get(gmailTab.id);
+        } catch {
+          console.log("[GCC SW] Selected Gmail tab no longer valid, skipping");
+          return;
+        }
+
         const config = {
           intensity: schedule.intensity || "light",
           dryRun: false,
@@ -176,6 +186,16 @@
 
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (!msg?.type) return;
+
+    // Validate sender: only accept messages from this extension or Gmail tabs
+    const isExtensionPage = sender.id === chrome.runtime.id && !sender.tab;
+    const isGmailTab = sender.tab?.url?.startsWith("https://mail.google.com/");
+    const isContentScript = sender.id === chrome.runtime.id && sender.tab;
+
+    if (!isExtensionPage && !isGmailTab && !isContentScript) {
+      console.warn("[GCC SW] Rejected message from unexpected sender:", sender);
+      return;
+    }
 
     switch (msg.type) {
       // Progress messages from content script already reach all extension
@@ -246,8 +266,10 @@
 
       case "gmailCleanerDone":
         // Clean up active run state when cleanup finishes
-        chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: null }).catch(() => {});
-        chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_RUN]: null }).catch(() => {});
+        chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: null })
+          .catch(e => console.warn("[GCC SW] session clear on done failed:", e));
+        chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_RUN]: null })
+          .catch(e => console.warn("[GCC SW] local clear on done failed:", e));
         break;
 
       default:
@@ -255,13 +277,18 @@
     }
   });
 
-  async function broadcastToExtensionPages(msg, excludeTabId) {
+  async function broadcastToExtensionPages(msg) {
     try {
       // Extension pages (progress, stats, etc.) listen via chrome.runtime.onMessage,
       // not content script messaging. Use runtime.sendMessage to reach them.
-      chrome.runtime.sendMessage(msg).catch(() => {});
-    } catch {
-      // Ignore errors when no extension pages are listening
+      chrome.runtime.sendMessage(msg).catch(() => {
+        // Expected when no extension pages are listening
+      });
+    } catch (e) {
+      // Expected when no extension pages are listening
+      if (e?.message && !e.message.includes("Could not establish connection")) {
+        console.warn("[GCC SW] broadcastToExtensionPages unexpected error:", e);
+      }
     }
   }
 
@@ -340,7 +367,8 @@
         categoryBreakdown: {},
         dailyStats: {}
       };
-    } catch {
+    } catch (e) {
+      console.error("[GCC SW] getStats failed:", e);
       return null;
     }
   }
@@ -398,7 +426,8 @@
     try {
       const result = await chrome.storage.local.get(STORAGE_KEYS.UNDO_LOG);
       return result?.[STORAGE_KEYS.UNDO_LOG] || [];
-    } catch {
+    } catch (e) {
+      console.error("[GCC SW] getUndoLog failed:", e);
       return [];
     }
   }
@@ -419,7 +448,8 @@
     try {
       const result = await chrome.storage.sync.get(STORAGE_KEYS.SCHEDULES);
       return result?.[STORAGE_KEYS.SCHEDULES] || [];
-    } catch {
+    } catch (e) {
+      console.error("[GCC SW] getSchedules failed:", e);
       return [];
     }
   }
@@ -501,7 +531,8 @@
         .slice(0, 20);
 
       return scored;
-    } catch {
+    } catch (e) {
+      console.error("[GCC SW] getWhitelistSuggestions failed:", e);
       return [];
     }
   }
@@ -521,7 +552,8 @@
         windowId: t.windowId,
         account: extractAccountFromUrl(t.url)
       }));
-    } catch {
+    } catch (e) {
+      console.error("[GCC SW] listGmailTabs failed:", e);
       return [];
     }
   }
@@ -530,7 +562,8 @@
     try {
       const match = url.match(/\/mail\/u\/(\d+)/);
       return match ? parseInt(match[1], 10) : 0;
-    } catch {
+    } catch (e) {
+      console.error("[GCC SW] extractAccountFromUrl failed:", e);
       return 0;
     }
   }

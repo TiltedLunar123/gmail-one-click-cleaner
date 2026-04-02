@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "4.0.0";
+  const POPUP_VERSION = "4.1.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -82,7 +82,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const safeClosePopup = () => {
     try {
       window.close();
-    } catch {}
+    } catch {
+      // Expected: window.close() can fail in some browser contexts
+    }
   };
 
   // =========================
@@ -483,7 +485,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const tabs = await tabsQuery({ url: `${CONFIG.GMAIL_URL}*` });
         const selected = tabs.find(t => t.id === state.currentGmailTabId);
         if (selected) return selected;
-      } catch {}
+      } catch (e) {
+        log("warn", "findGmailTab selected tab lookup failed", e);
+      }
     }
 
     const active = await tabsQuery({ active: true, currentWindow: true });
@@ -627,7 +631,9 @@ document.addEventListener("DOMContentLoaded", () => {
           const u = new URL(t.url);
           const id = u.searchParams.get("gmailTabId");
           if (String(id) === String(gmailTabId)) return t;
-        } catch {}
+        } catch {
+          // Invalid URL - skip this tab
+        }
       }
     } catch (e) {
       log("warn", "findProgressTab failed", e);
@@ -723,6 +729,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const runCleanup = async () => {
     if (state.isRunning) return;
+
+    // Check for existing active run to prevent duplicate cleanups
+    const existingRun = await getActiveRun();
+    if (existingRun) {
+      showToast("a cleanup is already running", "warning");
+      setStatus("cleanup already in progress", STATUS_TYPES.WARNING, true);
+      return;
+    }
 
     // Warn on deep intensity
     const intensity = elements.intensityEl?.value || "normal";

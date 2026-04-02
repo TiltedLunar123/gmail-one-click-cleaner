@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const DIAGNOSTICS_VERSION = "4.0.0";
+  const DIAGNOSTICS_VERSION = "4.1.0";
 
   const CONFIG = Object.freeze({
     MAX_URL_LENGTH: 120,
@@ -673,7 +673,7 @@
 
   const computeCleanerTabCandidate = (tabs, chosenTab, strategy) => {
     // If dedicated strategy is enabled, prefer a non-active Gmail tab in the same window.
-    if (strategy?.strategy === "dedicated" && chosenTab?.windowId != null) {
+    if (strategy?.strategy === "dedicated" && chosenTab?.windowId !== undefined && chosenTab?.windowId !== null) {
       const sameWindow = tabs.filter((t) => t.windowId === chosenTab.windowId);
       const nonActive = sameWindow.find((t) => !t.active && isGmailUrl(t.url));
       return nonActive || chosenTab || null;

@@ -1,6 +1,7 @@
 // stats.js — Statistics Dashboard Logic
 // Depends on shared.js (GCC namespace)
 
+(() => {
 "use strict";
 
 // =========================
@@ -255,3 +256,4 @@ if (document.readyState === "loading") {
 } else {
   init();
 }
+})();

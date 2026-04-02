@@ -66,7 +66,8 @@ const GCC = (() => {
     if (!hasChromeStorage(area)) return {};
     try {
       return await promisify(chrome.storage[area].get.bind(chrome.storage[area]), keys);
-    } catch {
+    } catch (e) {
+      console.warn(`[GCC] storageGet(${area}) failed:`, e?.message || e);
       return {};
     }
   };
@@ -239,11 +240,12 @@ const GCC = (() => {
   // Security Helpers
   // =========================
 
+  const HTML_ESCAPE_MAP = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+  const HTML_ESCAPE_RE = /[&<>"']/g;
+
   const escapeHtml = (str) => {
     if (typeof str !== "string") return "";
-    const div = document.createElement("div");
-    div.textContent = str;
-    return div.innerHTML;
+    return str.replace(HTML_ESCAPE_RE, (ch) => HTML_ESCAPE_MAP[ch]);
   };
 
   // =========================
@@ -262,7 +264,7 @@ const GCC = (() => {
 
   const clone = (obj) => {
     if (typeof structuredClone === "function") {
-      try { return structuredClone(obj); } catch { /* fall through */ }
+      try { return structuredClone(obj); } catch { /* structuredClone may fail on non-cloneable objects, fall through */ }
     }
     try { return JSON.parse(JSON.stringify(obj)); } catch { return obj; }
   };
@@ -285,9 +287,10 @@ const GCC = (() => {
         const shift = binding.shift ?? false;
         const key = binding.key;
 
-        if (e.key === key &&
-            (ctrl ? (e.ctrlKey || e.metaKey) : true) &&
-            (shift ? e.shiftKey : true)) {
+        const ctrlMatch = ctrl ? (e.ctrlKey || e.metaKey) : !(e.ctrlKey || e.metaKey);
+        const shiftMatch = shift ? e.shiftKey : !e.shiftKey;
+
+        if (e.key === key && ctrlMatch && shiftMatch) {
           e.preventDefault();
           binding.handler(e);
           return;

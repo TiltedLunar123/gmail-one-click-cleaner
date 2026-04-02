@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const PROGRESS_VERSION = "4.0.0";
+  const PROGRESS_VERSION = "4.1.0";
 
   const CONFIG = Object.freeze({
     MAX_LOG_ENTRIES: 300,
@@ -153,7 +153,7 @@
   };
 
   const formatDuration = (ms) => {
-    if (ms == null || ms < 0) return "–";
+    if (ms === null || ms === undefined || ms < 0) return "–";
     const sec = ms / 1000;
     return sec.toFixed(sec >= 10 ? 0 : 1) + "s";
   };
