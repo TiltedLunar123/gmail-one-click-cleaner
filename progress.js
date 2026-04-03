@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const PROGRESS_VERSION = "4.1.0";
+  const PROGRESS_VERSION = "4.2.0";
 
   const CONFIG = Object.freeze({
     MAX_LOG_ENTRIES: 300,
