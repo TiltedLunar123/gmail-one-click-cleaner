@@ -18,14 +18,14 @@
       --bg-input-focus: rgba(15, 23, 42, 0.8);
       --border-highlight: rgba(255, 255, 255, 0.15);
       --primary-glow: rgba(99, 102, 241, 0.4);
+
+      /* Aliases — map to shared.css design tokens */
+      --transition-fast: var(--t-fast) var(--ease);
+      --transition-normal: var(--t-normal) var(--ease);
+      --radius-full: var(--radius-pill);
     }
 
     html { scroll-behavior: smooth; }
-
-    @keyframes fadeInUp {
-      from { opacity: 0; transform: translateY(12px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
 
     body {
       margin: 0;
@@ -371,7 +371,6 @@
       animation: spin 0.8s linear infinite;
     }
 
-    @keyframes spin { to { transform: rotate(360deg); } }
 
     @keyframes saveSuccess {
       0% { transform: scale(1); }
@@ -710,10 +709,6 @@
       animation: pulse 2s ease-in-out infinite;
     }
 
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(0.8); }
-    }
 
     .shortcut-hint {
       font-size: 11px;

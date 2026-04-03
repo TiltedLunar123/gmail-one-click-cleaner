@@ -96,11 +96,7 @@
 
     ::selection { background: rgba(99, 102, 241, 0.28); color: #fff; }
 
-    /* Entrance animations */
-    @keyframes fadeInUp {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
+    /* Entrance animations (fadeInUp from shared.css) */
     .card > * { animation: fadeInUp 0.35s var(--ease) both; }
     .card > :nth-child(1) { animation-delay: 0.02s; }
     .card > :nth-child(2) { animation-delay: 0.05s; }
@@ -684,7 +680,6 @@
       animation: spin 0.8s linear infinite;
       z-index: 3;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
 
     .primary.success {
       background: linear-gradient(135deg, var(--good), #059669);
@@ -749,10 +744,6 @@
       transition: width var(--t-slow);
       border-radius: var(--r-pill);
       will-change: width;
-    }
-    @keyframes shimmer {
-      0% { background-position: 100% 0%; }
-      100% { background-position: -100% 0%; }
     }
 
     /* Quick actions */

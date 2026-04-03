@@ -21,6 +21,12 @@
       --danger-hover: #dc2626;
       --danger-glow: rgba(239, 68, 68, 0.4);
       --amazon: #ff9900;
+
+      /* Aliases — map to shared.css design tokens */
+      --transition-fast: var(--t-fast) var(--ease);
+      --transition-slow: var(--t-slow) var(--ease);
+      --transition-normal: var(--t-normal) var(--ease);
+      --radius-full: var(--radius-pill);
     }
 
     html { scroll-behavior: smooth; }
@@ -137,10 +143,6 @@
       animation: pulse 2s ease-in-out infinite;
     }
 
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(0.8); }
-    }
 
     .status-row {
       margin-bottom: 16px;
@@ -162,21 +164,7 @@
       gap: 8px;
     }
 
-    .spinner {
-      display: inline-block;
-      width: 16px;
-      height: 16px;
-      border: 2px solid var(--border-subtle);
-      border-top-color: var(--primary);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      flex-shrink: 0;
-      will-change: transform;
-    }
-
     .spinner[hidden] { display: none; }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
 
     .status-hint {
       font-size: 12px;
@@ -219,10 +207,6 @@
       animation: none;
     }
 
-    @keyframes shimmer {
-      0% { background-position: 100% 0%; }
-      100% { background-position: -100% 0%; }
-    }
 
     #percentText {
       width: 48px;
