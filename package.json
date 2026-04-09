@@ -9,11 +9,15 @@
     "lint": "eslint *.js",
     "watch": "node build.js && echo Watching... && node -e \"require('fs').watch('.',{recursive:false},(e,f)=>{if(f&&!f.startsWith('dist')){console.log('Changed:',f);require('child_process').execFileSync('node',['build.js'],{stdio:'inherit'})}});setInterval(()=>{},86400000)\"",
     "zip": "node build.js --zip",
-    "clean": "node -e \"const fs=require('fs'); ['dist','gmail-one-click-cleaner.zip'].forEach(f=>{try{fs.rmSync(f,{recursive:true})}catch{}})\""
+    "clean": "node -e \"const fs=require('fs'); ['dist','gmail-one-click-cleaner.zip'].forEach(f=>{try{fs.rmSync(f,{recursive:true})}catch{}})\""  ,
+    "test": "jest --verbose",
+    "test:ci": "jest --ci --coverage"
   },
   "devDependencies": {
     "esbuild": "^0.20.0",
-    "eslint": "^8.56.0"
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
   },
   "engines": {
     "node": ">=18"

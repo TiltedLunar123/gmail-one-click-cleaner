@@ -30,6 +30,8 @@
   "ignorePatterns": [
     "build.js",
     "browser-polyfill.js",
-    "dist/"
+    "jest.config.js",
+    "dist/",
+    "tests/"
   ]
 }

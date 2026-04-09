@@ -1,27 +1,13 @@
 # Gmail One-Click Cleaner
 
-[![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-v4.0.0-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/)
+[![CI](https://github.com/TiltedLunar123/gmail-one-click-cleaner/actions/workflows/ci.yml/badge.svg)](https://github.com/TiltedLunar123/gmail-one-click-cleaner/actions/workflows/ci.yml)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-v4.2.0-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-blue.svg)]()
 
 A Chrome extension that bulk-cleans Gmail in one click. Run configurable cleanup rules (promotions, social, newsletters, large attachments, etc.) with a live progress dashboard, dry-run mode, review mode, and safety guardrails.
 
 > Works with Chrome, Edge, Brave, and Firefox.
-
-## Screenshots
-
-> **TODO:** Add screenshots of the popup, progress dashboard, and stats page here.
->
-> Recommended: A GIF showing a dry-run cleanup in action.
->
-> Place images in a `screenshots/` folder and reference them like:
-> ```markdown
-> ![Popup](screenshots/popup.png)
-> ![Progress Dashboard](screenshots/progress.png)
-> ![Statistics](screenshots/stats.png)
-> ```
-
----
 
 ## Features
 
@@ -93,6 +79,9 @@ gmail-one-click-cleaner/
 ├── stats.html/js         # Statistics dashboard
 ├── browser-polyfill.js   # Cross-browser compatibility shim
 ├── build.js              # Build script (copy, minify, zip)
+├── jest.config.js        # Test configuration
+├── tests/                # Unit & integration tests
+├── .github/workflows/    # CI pipeline (lint, test, build)
 ├── icons/                # Extension icons (16, 32, 48, 128)
 ├── CHANGELOG.md          # Version history
 ├── CONTRIBUTING.md       # Contribution guidelines
