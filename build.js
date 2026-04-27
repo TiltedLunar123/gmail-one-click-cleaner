@@ -84,11 +84,7 @@ for (const dir of DIRS) {
     continue;
   }
 
-  fs.mkdirSync(destDir, { recursive: true });
-  const entries = fs.readdirSync(srcDir);
-  for (const entry of entries) {
-    fs.copyFileSync(path.join(srcDir, entry), path.join(destDir, entry));
-  }
+  fs.cpSync(srcDir, destDir, { recursive: true });
   console.log("Copied: " + dir + "/");
 }
 
