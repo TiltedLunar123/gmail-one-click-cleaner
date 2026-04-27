@@ -509,6 +509,7 @@
           break;
 
         default:
+          sendResponse({ ok: false, error: "Unknown message type" });
           break;
       }
     });
