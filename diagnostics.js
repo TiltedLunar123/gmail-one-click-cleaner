@@ -351,7 +351,7 @@
     if (!GCC.hasChrome()) return { ok: false, detail: "runtime unavailable" };
 
     const pingMsg = {
-      type: "__gcc_diagnostics_ping__",
+      type: "gmailCleanerSwPing",
       ts: Date.now(),
       v: DIAGNOSTICS_VERSION
     };
@@ -367,9 +367,7 @@
 
       const ok =
         resp &&
-        (resp.ok === true ||
-          resp.type === "__gcc_diagnostics_pong__" ||
-          resp.pong === true);
+        (resp.ok === true || resp.pong === true);
 
       return { ok: !!ok, detail: ok ? "pong" : "unexpected response" };
     } catch (e) {
