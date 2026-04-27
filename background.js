@@ -232,17 +232,15 @@
         return true;
 
       case "gmailCleanerSaveSchedule":
-        saveSchedule(msg.schedule).then(() => {
-          restoreScheduledAlarms();
-          sendResponse({ ok: true });
-        });
+        saveSchedule(msg.schedule)
+          .then(() => restoreScheduledAlarms())
+          .then(() => sendResponse({ ok: true }));
         return true;
 
       case "gmailCleanerDeleteSchedule":
-        deleteSchedule(msg.scheduleId).then(() => {
-          restoreScheduledAlarms();
-          sendResponse({ ok: true });
-        });
+        deleteSchedule(msg.scheduleId)
+          .then(() => restoreScheduledAlarms())
+          .then(() => sendResponse({ ok: true }));
         return true;
 
       // Whitelist suggestions
