@@ -346,21 +346,7 @@
       await navigator.clipboard.writeText(content);
       showToast("log copied", "success");
     } catch {
-      const textarea = document.createElement("textarea");
-      textarea.value = content;
-      textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
-      document.body.appendChild(textarea);
-      textarea.select();
-
-      try {
-        document.execCommand("copy");
-        showToast("log copied", "success");
-      } catch {
-        showToast("failed to copy", "error");
-      }
-
-      document.body.removeChild(textarea);
+      showToast("failed to copy", "error");
     }
   };
 

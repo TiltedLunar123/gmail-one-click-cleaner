@@ -165,21 +165,6 @@
     try {
       await navigator.clipboard.writeText(content);
       GCC.showToast("Log copied to clipboard", "success");
-      return;
-    } catch {
-      // fallback
-    }
-
-    try {
-      const textarea = document.createElement("textarea");
-      textarea.value = content;
-      textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
-      GCC.showToast("Log copied to clipboard", "success");
     } catch {
       GCC.showToast("Failed to copy log", "error");
     }
