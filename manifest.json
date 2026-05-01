@@ -28,6 +28,9 @@
     "128": "icons/icon128.png"
   },
   "options_page": "options.html",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'"
+  },
   "web_accessible_resources": [
     {
       "resources": ["shared.css", "shared.js", "browser-polyfill.js"],
