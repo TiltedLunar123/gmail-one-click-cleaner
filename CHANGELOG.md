@@ -3,6 +3,21 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## Unreleased
+
+- Pinned the extension-page Content Security Policy explicitly in the manifest
+  (`script-src 'self'; object-src 'none'`). MV3's default already enforces it,
+  but writing it down keeps the policy reviewable.
+- Removed the deprecated `document.execCommand("copy")` clipboard fallback in
+  the diagnostics and progress views. Both pages now rely on the async
+  Clipboard API and surface a "failed to copy" toast on error.
+- Replaced the duplicated `formatNumber` in `progress.js` with the shared
+  helper from `shared.js`. Local `formatDuration` and `formatMB` stay because
+  they intentionally render compact values for the chip layout.
+- Harmonized the "Find in Gmail" link in the stats undo log to
+  `rel="noopener noreferrer"` so every external/new-tab anchor in the
+  extension matches.
+
 ## 4.0.0
 
 - **Background Service Worker**
