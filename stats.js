@@ -207,7 +207,7 @@ async function loadUndoLog() {
       className: "btn btn-sm",
       href: findUrl,
       target: "_blank",
-      rel: "noopener",
+      rel: "noopener noreferrer",
       textContent: "Find in Gmail"
     });
 
