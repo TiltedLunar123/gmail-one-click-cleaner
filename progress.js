@@ -152,16 +152,17 @@
     });
   };
 
+  // formatDuration and formatMB intentionally diverge from GCC.formatDuration /
+  // GCC.formatMb in shared.js: this view shows compact "12s" / "1.5s" durations
+  // and a bare numeric MB value (the " MB" unit is rendered separately in the
+  // chip layout). Do not collapse them without updating the chip rendering.
   const formatDuration = (ms) => {
     if (ms === null || ms === undefined || ms < 0) return "–";
     const sec = ms / 1000;
     return sec.toFixed(sec >= 10 ? 0 : 1) + "s";
   };
 
-  const formatNumber = (num) => {
-    if (typeof num !== "number" || !Number.isFinite(num)) return "0";
-    return num.toLocaleString();
-  };
+  const formatNumber = GCC.formatNumber;
 
   const formatMB = (mb) => {
     const n = Number(mb);
