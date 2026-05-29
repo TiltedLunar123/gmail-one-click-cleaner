@@ -10,6 +10,21 @@ cleanups actually clean past the first screen, fixes affected counts,
 and adds one-click category targeting.
 
 ### Fixed
+- **Deletion actually deletes on current Gmail.** Two compounding bugs
+  are fixed. (1) The toolbar Delete / Archive are Closure buttons that
+  only react to a real pointer/mouse press, so the engine's plain
+  `element.click()` was a silent no-op: rows looked selected but nothing
+  reached Trash. A full `pointerdown` / `mousedown` / `mouseup` / `click`
+  sequence (`fireMouseSequence`) now drives the action buttons, the
+  bulk-confirm dialog, the "select all matching" link, and the overflow
+  menu. Row and master checkboxes keep their plain `click()`; they
+  respond to the click event and a `mousedown` there can double-toggle
+  the selection. (2) `openSearch` accepted the page as loaded the instant
+  the grid had any row, which during Gmail's in-place hash transition was
+  the previous query's leftover rows, so the engine acted on a stale page
+  and raced through every query in seconds selecting nothing. It now
+  waits for the result list to turn over to the new query (or settle
+  empty). Verified live: a deep run moved 179 conversations to Trash.
 - **Tag-before-delete works on current Gmail again.** Gmail moved the
   "Label as" control into the toolbar's "More email options" overflow
   menu, so the old toolbar-only finder never found it and

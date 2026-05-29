@@ -13,6 +13,10 @@
     WAIT_DEFAULT_INTERVAL: 200,
     WAIT_TOOLBAR_TIMEOUT: 8000,
     WAIT_SEARCH_TIMEOUT: 20000,
+    // Beat after a hash navigation before we start sampling results, so
+    // the poll doesn't read the previous query's rows that Gmail leaves
+    // painted for the first frame of the in-place transition.
+    SEARCH_TRANSITION_DELAY: 400,
     POST_ACTION_DELAY_MS: 800,
     BETWEEN_PASS_SLEEP_MS: 650,
     LABEL_DIALOG_TIMEOUT: 5000,
@@ -1250,8 +1254,8 @@
     safeSend({ phase: "debug", detail: `Clicking: "${linkText.substring(0, 60)}"` });
 
     try {
-      // Try clicking the element itself
-      link.click();
+      // Closure link: needs the real pointer/mouse sequence, not .click().
+      fireMouseSequence(link);
 
       await sleep(TIMING.SELECT_ALL_SETTLE_DELAY);
 
@@ -1364,7 +1368,7 @@
 
       if (isConfirmButton) {
         try {
-          btn.click();
+          fireMouseSequence(btn);
           await sleep(TIMING.DOM_SETTLE_DELAY);
           debugLog("Clicked OK on bulk confirmation dialog", { buttonText: text });
           safeSend({ phase: "debug", detail: "Confirmed bulk action dialog" });
@@ -1378,7 +1382,7 @@
     const primaryBtn = qs("button[name='ok'], button.J-at1-auR", dialog);
     if (primaryBtn) {
       try {
-        primaryBtn.click();
+        fireMouseSequence(primaryBtn);
         await sleep(TIMING.DOM_SETTLE_DELAY);
         debugLog("Clicked fallback primary button on dialog");
         return true;
@@ -1718,6 +1722,28 @@
     const currentHash = location.hash;
     const targetHash = hash;
 
+    // Identity of the result list currently on screen, captured BEFORE we
+    // navigate. Gmail swaps search results in place on a hash change and
+    // leaves the previous query's rows painted for a beat, so "the grid
+    // has rows" is true on the very first frame and is NOT proof the new
+    // query loaded. The old check returned on those leftover rows, so the
+    // engine acted on a stale / mid-transition page: every query resolved
+    // in well under a second and selected nothing. We compare against this
+    // signature to wait until the list has actually turned over.
+    const listSignature = () => {
+      const main = qs(SELECTORS.main);
+      const grid = main ? qs(SELECTORS.grid, main) : null;
+      const rows = grid ? qsa('tr[role="row"]', grid) : [];
+      const first = rows[0];
+      const id = first
+        ? (first.getAttribute("data-legacy-thread-id")
+            || first.getAttribute("id")
+            || getTextContent(first).slice(0, 60))
+        : "";
+      return { count: rows.length, id };
+    };
+    const before = listSignature();
+
     if (!location.href.startsWith(base)) {
       location.href = base + hash;
     } else if (currentHash === targetHash) {
@@ -1729,37 +1755,49 @@
       location.hash = hash;
     }
 
-    // 5.0.5: also accept Gmail's empty-state UI as a valid "search
-    // settled" signal. Before this fix, any query that legitimately
-    // returned zero matches (very common with `larger:20M` once the
-    // global guards strip starred / important / unread / user-labeled
-    // mail) would never satisfy `rows.length > 0`, time out at 20 s,
-    // and retry 6 times, pinning the run for ~2 minutes on a query
-    // that should resolve immediately. `td.TC` is Gmail's empty-state
-    // container; it only appears after the search has actually
-    // finished and produced zero results, so it's safe to treat as
-    // "loaded". `hasNoResults()` downstream then records the query
-    // cleanly with count=0.
+    // Let Gmail begin tearing down the previous result set before we start
+    // sampling, so the poll below doesn't latch onto the stale rows still
+    // on screen for the first frame after the hash change.
+    await sleep(TIMING.SEARCH_TRANSITION_DELAY);
+
+    let lastSig = null;
+    let stableTicks = 0;
+
+    // Accept the page as loaded when, after the transition delay:
+    //  - Gmail's empty-state container (td.TC) is present (zero matches), or
+    //  - the grid shows data rows AND the list has stopped changing. A list
+    //    that turned over from the previous query (different first row or
+    //    row count) settles after one stable tick; one that still looks
+    //    identical to the previous query (overlapping same-category rules,
+    //    or Gmail slow to transition) needs a longer stable streak so we
+    //    never mistake un-cleared stale rows for the freshly loaded set.
+    //    `td.TC` keeps legitimately-empty queries (common once the global
+    //    guards strip starred / important / unread / user-labeled mail)
+    //    resolving immediately instead of timing out.
     const ok = await waitFor(
       () => {
         const main = qs(SELECTORS.main);
         if (!main) return false;
 
+        if (qs("td.TC", main)) return true;
+
         const grid = qs(SELECTORS.grid, main);
-        if (grid) {
-          const rows = qsa("tr", grid);
-          if (rows.length > 0) return true;
-          // Empty grid is ambiguous (loading vs no results). Only
-          // treat as settled when the empty-state container is
-          // present too.
-          if (qs("td.TC", main)) return true;
+        if (!grid) return false;
+
+        const sig = listSignature();
+        if (sig.count === 0) {
+          lastSig = sig;
+          stableTicks = 0;
           return false;
         }
 
-        // No grid yet, fall back to the list container or the empty
-        // state UI on its own (some Gmail layouts skip the table).
-        if (qs("td.TC", main)) return true;
-        return qs(SELECTORS.listContainer, main);
+        const stable = lastSig && sig.id === lastSig.id && sig.count === lastSig.count;
+        stableTicks = stable ? stableTicks + 1 : 0;
+        lastSig = sig;
+
+        const turnedOver = sig.id !== before.id || sig.count !== before.count;
+        if (turnedOver) return stableTicks >= 1;
+        return stableTicks >= 3;
       },
       {
         timeout: TIMING.WAIT_SEARCH_TIMEOUT,
@@ -1804,6 +1842,52 @@
     }
   }
 
+  // Gmail's toolbar action controls (Delete, Archive, the bulk-confirm
+  // dialog buttons, the "select all matching" link, the overflow menu)
+  // are Closure widgets that react to a real pointer/mouse press, not to
+  // a synthetic element.click(). A plain .click() flips nothing in their
+  // handlers, so the action is a silent no-op: that is the root cause of
+  // the "selects rows but never deletes" bug (verified on the live 2026
+  // Gmail DOM: selecting a row works via .click(), but clicking Delete
+  // the same way does nothing, while a full pointerdown/mousedown/
+  // mouseup/click sequence does move the message to Trash). Row
+  // checkboxes deliberately keep their plain .click(); they respond to
+  // the click event, and adding mousedown there can toggle twice and
+  // cancel the selection.
+  function fireMouseSequence(el) {
+    if (!el) return false;
+    let rect;
+    try {
+      rect = el.getBoundingClientRect();
+    } catch {
+      rect = { left: 0, top: 0, width: 0, height: 0 };
+    }
+    const base = {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      view: window,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2,
+      button: 0
+    };
+    const PointerCtor = typeof PointerEvent === "function" ? PointerEvent : MouseEvent;
+    const pointerBits = { pointerId: 1, pointerType: "mouse", isPrimary: true };
+    const send = (type, Ctor, extra) => {
+      try {
+        el.dispatchEvent(new Ctor(type, { ...base, ...extra }));
+      } catch (e) {
+        debugLog("fireMouseSequence event failed", { type, error: e?.message });
+      }
+    };
+    send("pointerdown", PointerCtor, { ...pointerBits, buttons: 1 });
+    send("mousedown", MouseEvent, { buttons: 1 });
+    send("pointerup", PointerCtor, { ...pointerBits, buttons: 0 });
+    send("mouseup", MouseEvent, { buttons: 0 });
+    send("click", MouseEvent, { buttons: 0 });
+    return true;
+  }
+
   // Captures a short label snapshot from an element so progress logs
   // can show which exact button we picked. Helps diagnose cases where
   // findButtonByTokens scored the wrong control.
@@ -1821,7 +1905,7 @@
     if (btn) {
       const label = describeButton(btn);
       try {
-        btn.click();
+        fireMouseSequence(btn);
         debugLog("Clicked delete button", { label });
         safeSend({ phase: "debug", detail: `Clicked delete button: "${label}"` });
         return true;
@@ -1841,7 +1925,7 @@
     if (btn) {
       const label = describeButton(btn);
       try {
-        btn.click();
+        fireMouseSequence(btn);
         debugLog("Clicked archive button", { label });
         safeSend({ phase: "debug", detail: `Clicked archive button: "${label}"` });
         return true;
@@ -1866,19 +1950,19 @@
 
     const direct = findLabelButton();
     if (direct) {
-      try { direct.click(); } catch (e) { debugLog("Direct label click threw", { error: e?.message }); }
+      try { fireMouseSequence(direct); } catch (e) { debugLog("Direct label click threw", { error: e?.message }); }
       const input = await getInput();
       if (input) return input;
     }
 
     const more = findMoreOptionsButton();
     if (more) {
-      try { more.click(); } catch (e) { debugLog("More-options click threw", { error: e?.message }); }
+      try { fireMouseSequence(more); } catch (e) { debugLog("More-options click threw", { error: e?.message }); }
       const menu = await waitForElement(["div[role='menu']"], { timeout: TIMING.LABEL_DIALOG_TIMEOUT });
       if (menu) {
         const item = findLabelMenuItemIn(menu);
         if (item) {
-          try { item.click(); } catch (e) { debugLog("Label menuitem click threw", { error: e?.message }); }
+          try { fireMouseSequence(item); } catch (e) { debugLog("Label menuitem click threw", { error: e?.message }); }
           const input = await getInput();
           if (input) return input;
         }
