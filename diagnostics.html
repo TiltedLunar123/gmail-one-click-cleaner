@@ -5,16 +5,16 @@
   <title>Gmail One-Click Cleaner - Diagnostics</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="Diagnostics and debugging tools for Gmail One-Click Cleaner extension" />
-  <meta name="theme-color" content="#0f172a" />
+  <meta name="theme-color" content="#06090f" />
   <meta name="color-scheme" content="dark" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'" />
   <link rel="stylesheet" href="shared.css" />
 
   <style>
     :root {
-      --bg-terminal: #020617;
+      --bg-terminal: #06090f;
       --border-highlight: rgba(255, 255, 255, 0.15);
-      --primary-glow: rgba(99, 102, 241, 0.5);
+      --primary-glow: rgba(34, 211, 238, 0.5);
       --shadow-glow: 0 0 20px var(--primary-glow);
     }
 
@@ -25,8 +25,8 @@
       min-height: 100vh;
       background-color: var(--bg-deep);
       background-image:
-        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
-        radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.15) 0px, transparent 50%);
+        radial-gradient(at 0% 0%, rgba(34, 211, 238, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.15) 0px, transparent 50%);
       background-attachment: fixed;
       color: var(--text-main);
       font-family: var(--font-sans);
@@ -55,7 +55,7 @@
       left: 50%;
       transform: translateX(-50%);
       background: var(--primary);
-      color: #fff;
+      color: var(--on-primary);
       padding: 8px 16px;
       border-radius: var(--radius-sm);
       text-decoration: none;
@@ -97,7 +97,7 @@
       font-size: clamp(20px, 4vw, 24px);
       font-weight: 700;
       letter-spacing: -0.02em;
-      background: linear-gradient(to right, #fff, #cbd5e1);
+      background: linear-gradient(135deg, var(--text-main), var(--primary));
       -webkit-background-clip: text;
       background-clip: text;
       -webkit-text-fill-color: transparent;
@@ -116,10 +116,10 @@
     }
 
     .badge {
-      background: rgba(99, 102, 241, 0.2);
-      border: 1px solid rgba(99, 102, 241, 0.4);
-      color: #c7d2fe;
-      box-shadow: 0 0 10px rgba(99, 102, 241, 0.15);
+      background: rgba(34, 211, 238, 0.2);
+      border: 1px solid rgba(34, 211, 238, 0.4);
+      color: #a5f3fc;
+      box-shadow: 0 0 10px rgba(34, 211, 238, 0.15);
     }
 
     .badge-secondary {
@@ -177,10 +177,10 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      color: #e2e8f0;
+      color: var(--text-secondary);
     }
 
-    .card-header h2 .icon { font-size: 18px; opacity: 0.8; }
+    .card-header h2 .icon { display: inline-flex; align-items: center; opacity: 0.9; color: var(--primary); }
 
     .pill {
       display: inline-flex;
@@ -189,14 +189,14 @@
       font-size: 12px;
       padding: 4px 12px;
       border-radius: var(--radius-pill);
-      background: rgba(15, 23, 42, 0.6);
+      background: rgba(17, 26, 36, 0.6);
       border: 1px solid var(--border-subtle);
       color: var(--text-muted);
     }
 
     .pill strong {
       font-weight: 700;
-      color: #fff;
+      color: var(--text-main);
       font-variant-numeric: tabular-nums;
     }
 
@@ -214,9 +214,9 @@
     }
 
     .tag-primary {
-      background: rgba(99, 102, 241, 0.15);
-      border-color: rgba(99, 102, 241, 0.3);
-      color: #a5b4fc;
+      background: rgba(34, 211, 238, 0.15);
+      border-color: rgba(34, 211, 238, 0.3);
+      color: #67e8f9;
     }
 
     .tag-success {
@@ -270,7 +270,7 @@
     .env-item {
       padding: 12px 14px;
       border-radius: var(--radius-md);
-      background: rgba(15, 23, 42, 0.4);
+      background: rgba(17, 26, 36, 0.4);
       border: 1px solid var(--border-subtle);
       display: flex;
       flex-direction: column;
@@ -281,7 +281,7 @@
     }
 
     .env-item:hover {
-      background: rgba(15, 23, 42, 0.6);
+      background: rgba(17, 26, 36, 0.6);
       border-color: var(--border-highlight);
     }
 
@@ -295,7 +295,7 @@
 
     .env-value {
       font-size: 13px;
-      color: #e2e8f0;
+      color: var(--text-secondary);
       word-break: break-all;
       font-family: var(--font-mono);
     }
@@ -355,9 +355,10 @@
       position: relative;
       overflow: hidden;
 
-      background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+      background: linear-gradient(135deg, var(--primary-strong), var(--primary));
       border: 1px solid transparent;
-      color: #fff;
+      color: var(--on-primary);
+      font-weight: 600;
       box-shadow: 0 2px 4px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.1) inset;
     }
 
@@ -409,7 +410,7 @@
     .button-link.btn-ghost {
       background: transparent;
       border: 1px solid var(--border-highlight);
-      color: #cbd5e1;
+      color: var(--text-secondary);
       box-shadow: none;
     }
 
@@ -420,7 +421,7 @@
     .button-link.btn-ghost:hover {
       background: rgba(255, 255, 255, 0.05);
       border-color: rgba(255, 255, 255, 0.3);
-      color: #fff;
+      color: var(--text-main);
       box-shadow: none;
       transform: translateY(-1px);
     }
@@ -448,7 +449,7 @@
       color: var(--text-muted);
       padding: 10px 12px;
       text-align: left;
-      background: rgba(15, 23, 42, 0.4);
+      background: rgba(17, 26, 36, 0.4);
       border-bottom: 1px solid var(--border-subtle);
       position: sticky;
       top: 0;
@@ -458,7 +459,7 @@
     td {
       padding: 10px 12px;
       border-bottom: 1px solid var(--border-subtle);
-      color: #cbd5e1;
+      color: var(--text-secondary);
       vertical-align: middle;
     }
 
@@ -474,9 +475,10 @@
     }
 
     .table-empty-icon {
-      font-size: 32px;
+      display: flex;
+      justify-content: center;
       margin-bottom: 8px;
-      opacity: 0.5;
+      opacity: 0.55;
     }
 
     .small { font-size: 12px; }
@@ -543,19 +545,19 @@
       padding: 2px 6px;
       font-family: var(--font-mono);
       font-size: 11px;
-      background: rgba(15, 23, 42, 0.6);
+      background: rgba(17, 26, 36, 0.6);
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-sm);
-      color: #e2e8f0;
+      color: var(--text-secondary);
     }
 
     code {
       font-family: var(--font-mono);
       font-size: 0.9em;
-      background: rgba(99, 102, 241, 0.1);
+      background: rgba(34, 211, 238, 0.1);
       padding: 2px 6px;
       border-radius: var(--radius-sm);
-      color: #a5b4fc;
+      color: #67e8f9;
     }
 
     [data-tooltip] { position: relative; }
@@ -567,7 +569,7 @@
       left: 50%;
       transform: translateX(-50%) translateY(-4px);
       padding: 6px 10px;
-      background: #1e293b;
+      background: #141d27;
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-sm);
       font-size: 12px;
@@ -628,10 +630,30 @@
       padding: 10px 12px;
       border-radius: var(--radius-md);
       border: 1px solid var(--border-subtle);
-      background: rgba(15, 23, 42, 0.35);
-      color: #cbd5e1;
+      background: rgba(17, 26, 36, 0.35);
+      color: var(--text-secondary);
       font-size: 12px;
     }
+
+    /* Light-theme adjustments: lift inset panels off dark and darken the
+       accent text on tags/badges. The #log stays a deliberate dark console. */
+    html[data-theme="light"] .pill,
+    html[data-theme="light"] .env-item,
+    html[data-theme="light"] th,
+    html[data-theme="light"] .inline-note { background: var(--bg-surface-2); }
+    html[data-theme="light"] .env-item:hover,
+    html[data-theme="light"] tbody tr:hover { background: var(--bg-surface-hover); }
+    html[data-theme="light"] .btn-ghost { color: var(--text-secondary); }
+    html[data-theme="light"] .badge,
+    html[data-theme="light"] .tag-primary { color: var(--primary); }
+    html[data-theme="light"] .tag-success,
+    html[data-theme="light"] .text-success { color: #047857; }
+    html[data-theme="light"] .tag-info { color: #0369a1; }
+    html[data-theme="light"] .tag-warning,
+    html[data-theme="light"] .text-warning { color: #b45309; }
+    html[data-theme="light"] .tag-danger,
+    html[data-theme="light"] .text-danger { color: #b91c1c; }
+    html[data-theme="light"] code { color: var(--primary); background: rgba(14, 116, 144, 0.08); }
 
     @media (max-width: 768px) {
       .wrap { margin: 20px auto; padding: 0 16px 30px; }
@@ -698,7 +720,7 @@
       <!-- ENV -->
       <section class="card" aria-labelledby="env-heading">
         <div class="card-header">
-          <h2 id="env-heading"><span class="icon" aria-hidden="true">🔧</span> Environment</h2>
+          <h2 id="env-heading"><span class="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76Z"/></svg></span> Environment</h2>
           <span id="envStatusTag" class="tag tag-primary" role="status">ready</span>
         </div>
 
@@ -744,7 +766,7 @@
       <!-- GMAIL TABS -->
       <section class="card" aria-labelledby="tabs-heading">
         <div class="card-header">
-          <h2 id="tabs-heading"><span class="icon" aria-hidden="true">📧</span> Gmail tabs in this browser</h2>
+          <h2 id="tabs-heading"><span class="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 6.5 8.5 6 8.5-6"/></svg></span> Gmail tabs in this browser</h2>
           <div class="pill" aria-live="polite">
             <strong><span id="gmailTabCount">0</span></strong>
             <span>open tabs</span>
@@ -766,7 +788,7 @@
                 <tbody id="gmailTabTableBody">
                   <tr>
                     <td colspan="4" class="table-empty">
-                      <div class="table-empty-icon" aria-hidden="true">📋</div>
+                      <div class="table-empty-icon" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h5l1.5 3h5L21 12"/><path d="M5 5h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg></div>
                       <div>No data yet. Click "Scan tabs" to begin.</div>
                     </td>
                   </tr>
@@ -777,7 +799,7 @@
             <!-- NEW: chosen + dedicated cleaning tab status -->
             <div class="inline-note" aria-label="Tab selection details">
               <div class="env-label" style="margin-bottom: 6px;">Selection detail</div>
-              <div class="mono" style="color:#a5b4fc; font-size:12px; line-height:1.6;">
+              <div class="mono" style="color:var(--primary); font-size:12px; line-height:1.6;">
                 <div><span class="muted">Chosen tab:</span> <span id="chosenTabTextInline">Not computed yet.</span></div>
                 <div><span class="muted">Cleaner tab:</span> <span id="cleanerTabTextInline">Not computed yet.</span></div>
               </div>
@@ -790,7 +812,7 @@
               <div
                 class="env-value"
                 id="chosenTabText"
-                style="padding: 10px 0; font-size: 14px; color: #a5b4fc;"
+                style="padding: 10px 0; font-size: 14px; color: var(--primary);"
                 aria-labelledby="chosen-tab-label"
                 role="status"
                 aria-live="polite"
@@ -802,7 +824,7 @@
               <div
                 class="env-value"
                 id="cleanerTabText"
-                style="padding: 6px 0 0; font-size: 13px; color: #cbd5e1;"
+                style="padding: 6px 0 0; font-size: 13px; color: var(--text-secondary);"
                 aria-labelledby="cleaner-tab-label"
                 role="status"
                 aria-live="polite"
@@ -818,14 +840,14 @@
             <div>
               <div class="btn-row">
                 <button id="scanTabsBtn" type="button" aria-describedby="scan-description">
-                  <span aria-hidden="true">🔍</span> Scan tabs
+                  <span aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span> Scan tabs
                 </button>
                 <button id="testInjectBtn" class="btn-ghost" type="button" aria-describedby="inject-description">
-                  <span aria-hidden="true">💉</span> Test inject
+                  <span aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></svg></span> Test inject
                 </button>
                 <!-- NEW (v3.3): optional ping SW -->
                 <button id="pingSwBtn" class="btn-ghost" type="button" aria-describedby="ping-description">
-                  <span aria-hidden="true">📡</span> Ping SW
+                  <span aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/></svg></span> Ping SW
                 </button>
               </div>
 
@@ -856,7 +878,7 @@
                 data-tooltip="Copy log to clipboard"
                 aria-label="Copy log to clipboard"
               >
-                📋 Copy
+                <span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span> Copy
               </button>
               <button
                 id="clearLogBtn"
@@ -865,7 +887,7 @@
                 data-tooltip="Clear log"
                 aria-label="Clear log"
               >
-                🗑️ Clear
+                <span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></span> Clear
               </button>
             </div>
           </div>
@@ -883,14 +905,14 @@
       <!-- LAST RUN -->
       <section class="card" aria-labelledby="lastrun-heading">
         <div class="card-header">
-          <h2 id="lastrun-heading"><span class="icon" aria-hidden="true">📊</span> Last run summary</h2>
+          <h2 id="lastrun-heading"><span class="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></span> Last run summary</h2>
           <span id="lastRunBucketTag" class="tag tag-primary" role="status">no runs</span>
         </div>
 
         <div style="margin-bottom: 12px;">
           <div
             id="lastRunSummary"
-            style="font-size: 16px; font-weight: 500; margin-bottom: 6px; color: #fff;"
+            style="font-size: 16px; font-weight: 500; margin-bottom: 6px; color: var(--text-main);"
             role="status"
             aria-live="polite"
           >
@@ -905,7 +927,7 @@
       <!-- HISTORY -->
       <section class="card" aria-labelledby="history-heading">
         <div class="card-header">
-          <h2 id="history-heading"><span class="icon" aria-hidden="true">📜</span> Cleanup history</h2>
+          <h2 id="history-heading"><span class="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 11a9 9 0 1 0 2.6-6.4L3 8"/><path d="M12 8v4l3 2"/></svg></span> Cleanup history</h2>
           <span class="tag tag-primary">last 10 runs</span>
         </div>
 
@@ -923,7 +945,7 @@
             <tbody id="runHistoryTableBody">
               <tr>
                 <td colspan="5" class="table-empty">
-                  <div class="table-empty-icon" aria-hidden="true">⏳</div>
+                  <div class="table-empty-icon" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
                   <div>Loading history...</div>
                 </td>
               </tr>
@@ -932,14 +954,14 @@
         </div>
 
         <p class="muted" style="margin-top: 12px; font-size: 12px;">
-          <span aria-hidden="true">ℹ️</span> History is stored locally in your browser and not synced across devices.
+          <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>History is stored locally in your browser and not synced across devices.
         </p>
       </section>
 
       <!-- DEBUG -->
       <section class="card" aria-labelledby="debug-heading">
         <div class="card-header">
-          <h2 id="debug-heading"><span class="icon" aria-hidden="true">🐛</span> Debug mode & console logs</h2>
+          <h2 id="debug-heading"><span class="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="6" width="8" height="13" rx="4"/><path d="M12 6V4M9 3l1.5 2M15 3l-1.5 2M8 10H4m16 0h-4M8 14H3.5m16.5 0h-4M8.5 18l-2 2m11-2 2 2"/></svg></span> Debug mode &amp; console logs</h2>
           <span class="tag tag-info">advanced</span>
         </div>
 
@@ -958,14 +980,14 @@
         </ol>
 
         <p class="muted" style="font-size: 12px;">
-          <span aria-hidden="true">🔒</span> Logs never leave your browser.
+          <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Logs never leave your browser.
         </p>
       </section>
 
       <!-- SUPPORT -->
       <section class="card" aria-labelledby="support-heading">
         <div class="card-header">
-          <h2 id="support-heading"><span class="icon" aria-hidden="true">💝</span> Support this inbox saver</h2>
+          <h2 id="support-heading"><span class="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 20s-7-4.4-9.3-8.5C1 8.3 2.6 5 5.8 5c2 0 3.3 1.2 4.2 2.4C10.9 6.2 12.2 5 14.2 5c3.2 0 4.8 3.3 3.1 6.5C19 15.6 12 20 12 20Z"/></svg></span> Support this inbox saver</h2>
           <span class="tag tag-success">optional</span>
         </div>
 
@@ -983,7 +1005,7 @@
             rel="noopener noreferrer"
             aria-label="Tip $3 via Cash App (opens in new tab)"
           >
-            💵 Tip $3
+            <span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 6.5c0-2-2.2-3-5-3s-5 1-5 3.2c0 4.8 10 2.8 10 7.6 0 2.2-2.2 3.2-5 3.2s-5-1-5-3"/></svg></span> Tip $3
           </a>
 
           <a
@@ -993,7 +1015,7 @@
             rel="noopener noreferrer"
             aria-label="Tip $5 via Cash App (opens in new tab)"
           >
-            💵 Tip $5
+            <span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 6.5c0-2-2.2-3-5-3s-5 1-5 3.2c0 4.8 10 2.8 10 7.6 0 2.2-2.2 3.2-5 3.2s-5-1-5-3"/></svg></span> Tip $5
           </a>
 
           <a
@@ -1003,7 +1025,7 @@
             rel="noopener noreferrer"
             aria-label="Tip $10 via Cash App (opens in new tab)"
           >
-            💵 Tip $10
+            <span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 6.5c0-2-2.2-3-5-3s-5 1-5 3.2c0 4.8 10 2.8 10 7.6 0 2.2-2.2 3.2-5 3.2s-5-1-5-3"/></svg></span> Tip $10
           </a>
 
           <a
@@ -1013,7 +1035,7 @@
             rel="noopener noreferrer"
             aria-label="Buy me a coffee (opens in new tab)"
           >
-            ☕ Buy me a coffee
+            <span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M17 9h2.5a2.5 2.5 0 0 1 0 5H17"/><path d="M7 2.5v2M11 2.5v2"/></svg></span> Buy me a coffee
           </a>
         </div>
 

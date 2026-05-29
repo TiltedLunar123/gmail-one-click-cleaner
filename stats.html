@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <title>Gmail One-Click Cleaner - Statistics</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#0f172a" />
+  <meta name="theme-color" content="#06090f" />
   <meta name="color-scheme" content="dark" />
   <meta name="referrer" content="no-referrer" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'" />
@@ -17,8 +17,8 @@
       min-height: 100vh;
       background-color: var(--bg-deep);
       background-image:
-        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
-        radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.15) 0px, transparent 50%);
+        radial-gradient(at 0% 0%, rgba(34, 211, 238, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.15) 0px, transparent 50%);
       background-attachment: fixed;
       color: var(--text-main);
       font-family: var(--font-sans);
@@ -32,8 +32,9 @@
     h1 {
       margin: 0 0 8px;
       font-size: clamp(20px, 4vw, 28px);
-      font-weight: 700;
-      background: linear-gradient(to right, #fff, #cbd5e1);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--text-main), var(--primary));
       -webkit-background-clip: text;
       background-clip: text;
       -webkit-text-fill-color: transparent;
@@ -58,10 +59,13 @@
     }
 
     .stat-value {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
       font-size: 32px;
       font-weight: 700;
       line-height: 1.2;
-      background: linear-gradient(135deg, var(--primary), #a78bfa);
+      background: linear-gradient(135deg, var(--primary), #38bdf8);
       -webkit-background-clip: text;
       background-clip: text;
       -webkit-text-fill-color: transparent;
@@ -108,7 +112,7 @@
       flex: 1;
       min-width: 8px;
       max-width: 24px;
-      background: linear-gradient(to top, var(--primary), #a78bfa);
+      background: linear-gradient(to top, var(--primary), #38bdf8);
       border-radius: 3px 3px 0 0;
       transition: height var(--t-slow) var(--ease);
       position: relative;
@@ -182,6 +186,8 @@
     }
 
     .category-count {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
       font-weight: 600;
       color: var(--primary);
     }
@@ -196,7 +202,7 @@
 
     .category-bar-fill {
       height: 100%;
-      background: linear-gradient(90deg, var(--primary), #a78bfa);
+      background: linear-gradient(90deg, var(--primary), #38bdf8);
       border-radius: 3px;
       transition: width var(--t-slow) var(--ease);
     }
@@ -272,7 +278,7 @@
   <main id="main" class="page">
     <header class="animate-in" style="display:flex; align-items:center; gap:12px; justify-content:space-between; flex-wrap:wrap;">
       <div style="display:flex; align-items:center; gap:12px;">
-        <img src="icons/icon48.png" alt="Gmail Cleaner" width="36" height="36" style="border-radius:10px; box-shadow: 0 4px 12px -4px rgba(99,102,241,0.5);" />
+        <img src="icons/icon48.png" alt="Gmail Cleaner" width="38" height="38" style="border-radius:10px; box-shadow: 0 6px 16px -6px rgba(34, 211, 238, 0.5);" />
         <div>
           <h1>Cleanup Statistics</h1>
           <p class="subtitle">Track your inbox hygiene over time</p>

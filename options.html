@@ -5,7 +5,7 @@
   <title>Gmail One-Click Cleaner - Rules & Settings</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="Configure cleanup rules and settings for Gmail One-Click Cleaner extension" />
-  <meta name="theme-color" content="#0f172a" />
+  <meta name="theme-color" content="#06090f" />
   <meta name="color-scheme" content="dark" />
   <meta name="referrer" content="no-referrer" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'" />
@@ -13,13 +13,9 @@
 
   <style>
     :root {
-      --bg-surface-hover: rgba(51, 65, 85, 0.6);
-      --bg-input: rgba(15, 23, 42, 0.6);
-      --bg-input-focus: rgba(15, 23, 42, 0.8);
       --border-highlight: rgba(255, 255, 255, 0.15);
-      --primary-glow: rgba(99, 102, 241, 0.4);
 
-      /* Aliases: map to shared.css design tokens */
+      /* Aliases: map to shared.css design tokens (palette lives in shared.css) */
       --transition-fast: var(--t-fast) var(--ease);
       --transition-normal: var(--t-normal) var(--ease);
       --radius-full: var(--radius-pill);
@@ -33,8 +29,8 @@
       min-height: 100vh;
       background-color: var(--bg-deep);
       background-image:
-        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
-        radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.15) 0px, transparent 50%);
+        radial-gradient(at 0% 0%, rgba(34, 211, 238, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.15) 0px, transparent 50%);
       background-attachment: fixed;
       color: var(--text-main);
       font-family: var(--font-sans);
@@ -51,7 +47,7 @@
       left: 50%;
       transform: translateX(-50%);
       background: var(--primary);
-      color: white;
+      color: var(--on-primary);
       padding: 8px 16px;
       border-radius: var(--radius-sm);
       text-decoration: none;
@@ -90,9 +86,9 @@
     h1 {
       margin: 0 0 8px 0;
       font-size: clamp(20px, 4vw, 24px);
-      font-weight: 700;
-      letter-spacing: -0.01em;
-      background: linear-gradient(to right, #fff, #cbd5e1);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--text-main), var(--primary));
       -webkit-background-clip: text;
       background-clip: text;
       -webkit-text-fill-color: transparent;
@@ -102,15 +98,17 @@
       margin: 0;
       font-size: 16px;
       font-weight: 600;
-      color: #e2e8f0;
+      color: var(--text-secondary);
       display: flex;
       align-items: center;
       gap: 8px;
     }
 
     h2 .icon {
-      font-size: 18px;
-      opacity: 0.8;
+      display: inline-flex;
+      align-items: center;
+      opacity: 0.9;
+      color: var(--primary);
     }
 
     .subtitle {
@@ -134,7 +132,7 @@
       padding: 16px;
       font-size: 13px;
       color: var(--text-muted);
-      background: rgba(15, 23, 42, 0.4);
+      background: rgba(17, 26, 36, 0.4);
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-md);
       line-height: 1.6;
@@ -146,7 +144,7 @@
       background: rgba(255, 255, 255, 0.1);
       padding: 2px 6px;
       border-radius: var(--radius-sm);
-      color: #e2e8f0;
+      color: var(--text-secondary);
     }
 
     section {
@@ -179,10 +177,10 @@
     .hint code {
       font-family: var(--font-mono);
       font-size: 11px;
-      background: rgba(99, 102, 241, 0.1);
+      background: rgba(34, 211, 238, 0.1);
       padding: 2px 6px;
       border-radius: var(--radius-sm);
-      color: #a5b4fc;
+      color: #67e8f9;
     }
 
     .divider {
@@ -209,7 +207,7 @@
       font-family: var(--font-mono);
       font-size: 13px;
       line-height: 1.5;
-      color: #e2e8f0;
+      color: var(--text-secondary);
       background: var(--bg-input);
       resize: vertical;
       transition:
@@ -223,7 +221,7 @@
     textarea:focus {
       outline: none;
       border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15), 0 0 16px -4px rgba(99, 102, 241, 0.1);
+      box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.15), 0 0 16px -4px rgba(34, 211, 238, 0.1);
       background: var(--bg-input-focus);
     }
 
@@ -244,7 +242,7 @@
       color: #64748b;
       pointer-events: none;
       user-select: none;
-      background: rgba(15, 23, 42, 0.55);
+      background: rgba(17, 26, 36, 0.55);
       border: 1px solid rgba(255, 255, 255, 0.06);
       padding: 2px 6px;
       border-radius: 9999px;
@@ -275,9 +273,9 @@
     }
 
     .pill-normal {
-      background: rgba(99, 102, 241, 0.15);
-      border-color: rgba(99, 102, 241, 0.3);
-      color: #a5b4fc;
+      background: rgba(34, 211, 238, 0.15);
+      border-color: rgba(34, 211, 238, 0.3);
+      color: #67e8f9;
     }
 
     .pill-deep {
@@ -332,12 +330,12 @@
     }
 
     #save {
-      background: linear-gradient(135deg, var(--primary), var(--primary-hover));
-      color: white;
+      background: linear-gradient(135deg, var(--primary-strong), var(--primary));
+      color: var(--on-primary);
       box-shadow: 0 4px 12px var(--primary-glow);
       padding: 10px 28px;
       font-size: 14px;
-      font-weight: 600;
+      font-weight: 700;
     }
 
     #save:hover:not(:disabled) {
@@ -388,7 +386,7 @@
     #importBtn {
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid var(--border-subtle);
-      color: #cbd5e1;
+      color: var(--text-secondary);
     }
 
     .button-link.secondary:hover,
@@ -396,18 +394,18 @@
     #importBtn:hover:not(:disabled) {
       background: rgba(255, 255, 255, 0.1);
       border-color: var(--border-highlight);
-      color: #fff;
+      color: var(--text-main);
       transform: translateY(-1px);
     }
 
     .button-link:not(.secondary) {
-      background: rgba(99, 102, 241, 0.15);
-      border: 1px solid rgba(99, 102, 241, 0.4);
-      color: #c7d2fe;
+      background: rgba(34, 211, 238, 0.15);
+      border: 1px solid rgba(34, 211, 238, 0.4);
+      color: var(--primary);
     }
 
     .button-link:not(.secondary):hover {
-      background: rgba(99, 102, 241, 0.25);
+      background: rgba(34, 211, 238, 0.25);
       transform: translateY(-1px);
     }
 
@@ -461,7 +459,7 @@
       height: 18px;
       border: 1px solid #475569;
       border-radius: var(--radius-sm);
-      background-color: rgba(15, 23, 42, 0.5);
+      background-color: rgba(17, 26, 36, 0.5);
       cursor: pointer;
       margin-top: 2px;
       position: relative;
@@ -541,7 +539,7 @@
       margin: 0;
       font-size: 14px;
       font-weight: 600;
-      color: #e2e8f0;
+      color: var(--text-secondary);
       display: flex;
       align-items: center;
       gap: 6px;
@@ -618,7 +616,7 @@
     .toast-info { border-left: 3px solid var(--info); }
 
     dialog#confirmDialog {
-      background: #1e293b;
+      background: #141d27;
       color: var(--text-main);
       border: 1px solid var(--border-highlight);
       border-radius: var(--radius-lg);
@@ -661,7 +659,7 @@
       justify-content: flex-end;
       gap: 12px;
       padding: 16px 24px;
-      background: rgba(15, 23, 42, 0.3);
+      background: rgba(17, 26, 36, 0.3);
       border-top: 1px solid var(--border-subtle);
     }
 
@@ -721,7 +719,7 @@
       padding: 2px 5px;
       font-family: var(--font-mono);
       font-size: 10px;
-      background: rgba(15, 23, 42, 0.6);
+      background: rgba(17, 26, 36, 0.6);
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-sm);
       color: #94a3b8;
@@ -845,14 +843,14 @@
       border-radius: var(--radius-pill);
       font-size: 11px;
       font-weight: 600;
-      background: rgba(99, 102, 241, 0.10);
-      border: 1px solid rgba(99, 102, 241, 0.30);
+      background: rgba(34, 211, 238, 0.10);
+      border: 1px solid rgba(34, 211, 238, 0.30);
       color: var(--primary);
       cursor: pointer;
       font-family: inherit;
       transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
     }
-    .template-chip:hover { background: rgba(99, 102, 241, 0.20); transform: translateY(-1px); }
+    .template-chip:hover { background: rgba(34, 211, 238, 0.20); transform: translateY(-1px); }
     .template-chip:active { transform: translateY(0); }
 
     /* Custom rule rows with drag-and-drop affordances */
@@ -861,14 +859,14 @@
       align-items: center;
       gap: var(--space-2);
       padding: 8px 12px;
-      background: rgba(15, 23, 42, 0.4);
+      background: rgba(17, 26, 36, 0.4);
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-sm);
       transition: border-color var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease);
     }
     [data-theme="light"] .custom-rule-row { background: rgba(255, 255, 255, 0.6); }
     .custom-rule-row.dragging { opacity: 0.4; }
-    .custom-rule-row.drop-target { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.18); }
+    .custom-rule-row.drop-target { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.18); }
 
     .drag-handle {
       color: var(--text-dim);
@@ -994,7 +992,7 @@
       </header>
 
       <div class="audit-note" role="note">
-        <span aria-hidden="true">ℹ️</span>
+        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
         In live runs (not Dry-Run), matching conversations are first tagged with labels like
         <code>GmailCleaner - Promotions</code> or <code>GmailCleaner - Big attachments</code>
         so you can search and audit them later. In Safe Mode, rules that include
@@ -1005,7 +1003,7 @@
 
       <section aria-labelledby="light-heading">
         <div class="section-header">
-          <h2 id="light-heading"><span class="icon" aria-hidden="true">🌱</span> Light</h2>
+          <h2 id="light-heading"><span class="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg></span> Light</h2>
           <span class="pill pill-light">Safest / minimal</span>
         </div>
         <p class="hint" id="light-description">
@@ -1027,7 +1025,7 @@
 
       <section aria-labelledby="normal-heading">
         <div class="section-header">
-          <h2 id="normal-heading"><span class="icon" aria-hidden="true">⚖️</span> Normal</h2>
+          <h2 id="normal-heading"><span class="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h13M19 6h2M3 12h3M9 12h12M3 18h9M15 18h6"/><circle cx="17.5" cy="6" r="1.9"/><circle cx="7.5" cy="12" r="1.9"/><circle cx="13.5" cy="18" r="1.9"/></svg></span> Normal</h2>
           <span class="pill pill-normal">Recommended</span>
         </div>
         <p class="hint" id="normal-description">
@@ -1049,7 +1047,7 @@
 
       <section aria-labelledby="deep-heading">
         <div class="section-header">
-          <h2 id="deep-heading"><span class="icon" aria-hidden="true">🔥</span> Deep</h2>
+          <h2 id="deep-heading"><span class="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c1 4 5 5.2 5 9.5a5 5 0 0 1-10 0c0-1.6.5-2.7 1.2-3.4.4 1.1 1.4 1.7 2 1.7C9 8 11 5.2 12 2Z"/></svg></span> Deep</h2>
           <span class="pill pill-deep">Aggressive</span>
         </div>
         <p class="hint" id="deep-description">
@@ -1071,7 +1069,7 @@
 
       <section class="divider" aria-labelledby="whitelist-heading">
         <div class="section-header" style="margin-top: 0">
-          <h2 id="whitelist-heading"><span class="icon" aria-hidden="true">🛡️</span> Global Whitelist (Never Delete)</h2>
+          <h2 id="whitelist-heading"><span class="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 5.6v5.2c0 4.2 2.9 7 7 8.4 4.1-1.4 7-4.2 7-8.4V5.6L12 3Z"/><path d="M9 12l2 2 4-4.2"/></svg></span> Global Whitelist (Never Delete)</h2>
           <span class="pill pill-protection">Protection</span>
         </div>
         <p class="hint" id="whitelist-description">
@@ -1095,17 +1093,17 @@
 
       <section class="divider" aria-labelledby="backup-heading">
         <div class="section-header" style="margin-top: 0">
-          <h2 id="backup-heading"><span class="icon" aria-hidden="true">💾</span> Backup & Restore</h2>
+          <h2 id="backup-heading"><span class="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h18M5.5 13 3.8 6.6A2 2 0 0 1 5.7 5h12.6a2 2 0 0 1 1.9 1.6L18.5 13"/><rect x="3" y="13" width="18" height="6" rx="2"/><path d="M7 16h.01M11 16h.01"/></svg></span> Backup &amp; Restore</h2>
         </div>
         <p class="hint">
           Export your current rules and whitelist to a file (JSON) to back them up or move to another browser.
         </p>
         <div class="actions-row" role="group" aria-label="Backup and restore actions">
           <button id="exportBtn" class="button-link secondary" type="button" aria-describedby="export-hint">
-            <span aria-hidden="true">📤</span> Export Config
+            <span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 9l5-5 5 5"/><path d="M12 4v12"/></svg></span> Export Config
           </button>
           <button id="importBtn" class="button-link secondary" type="button" aria-describedby="import-hint">
-            <span aria-hidden="true">📥</span> Import Config
+            <span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 11l5 5 5-5"/><path d="M12 16V4"/></svg></span> Import Config
           </button>
           <input
             type="file"
@@ -1121,7 +1119,7 @@
 
       <section class="divider" aria-labelledby="advanced-heading">
         <div class="section-header" style="margin-top: 0">
-          <h2 id="advanced-heading"><span class="icon" aria-hidden="true">⚙️</span> Advanced Settings</h2>
+          <h2 id="advanced-heading"><span class="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/></svg></span> Advanced Settings</h2>
         </div>
 
         <div class="setting-row">
@@ -1148,7 +1146,7 @@
 
     <!-- Custom Rules Editor -->
     <section class="card" style="margin-top: 24px; animation: fadeInUp 0.35s cubic-bezier(0.4,0,0.2,1) both; animation-delay: 0.15s;" aria-labelledby="customRulesTitle">
-      <h2 id="customRulesTitle"><span class="icon" aria-hidden="true">✏️</span> Custom Rules</h2>
+      <h2 id="customRulesTitle"><span class="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z"/></svg></span> Custom Rules</h2>
       <p style="font-size: 13px; color: var(--text-muted); margin: 8px 0 16px;">
         Create your own Gmail search queries. These run alongside the built-in intensity rules.
         Drag rules to reorder. Click a template chip below to add a starter.
@@ -1175,7 +1173,7 @@
             <option value="label">Label only</option>
           </select>
         </div>
-        <button type="button" id="addCustomRuleBtn" style="padding: 8px 16px; background: var(--primary); border: none; border-radius: var(--radius-md); color: #fff; font-weight: 600; font-size: 13px; cursor: pointer; white-space: nowrap;">
+        <button type="button" id="addCustomRuleBtn" style="padding: 8px 16px; background: var(--primary); border: none; border-radius: var(--radius-md); color: var(--on-primary); font-weight: 600; font-size: 13px; cursor: pointer; white-space: nowrap;">
           + Add Rule
         </button>
       </div>
@@ -1183,7 +1181,7 @@
 
     <!-- Scheduled Cleanups -->
     <section class="card" style="margin-top: 24px; animation: fadeInUp 0.35s cubic-bezier(0.4,0,0.2,1) both; animation-delay: 0.2s;" aria-labelledby="schedulesTitle">
-      <h2 id="schedulesTitle"><span class="icon" aria-hidden="true">📅</span> Scheduled Cleanups</h2>
+      <h2 id="schedulesTitle"><span class="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="16" rx="2.5"/><path d="M3.5 9h17M8 3v3m8-3v3"/><path d="M7 13h2M11 13h2M15 13h2M7 16.5h2M11 16.5h2"/></svg></span> Scheduled Cleanups</h2>
       <p style="font-size: 13px; color: var(--text-muted); margin: 8px 0 16px;">
         Automatically run cleanup on a schedule. Requires Gmail to be open in a tab.
       </p>
@@ -1226,7 +1224,7 @@
             <option value="1y">1 year</option>
           </select>
         </div>
-        <button type="button" id="addScheduleBtn" style="padding: 8px 16px; background: var(--primary); border: none; border-radius: var(--radius-md); color: #fff; font-weight: 600; font-size: 13px; cursor: pointer; white-space: nowrap;">
+        <button type="button" id="addScheduleBtn" style="padding: 8px 16px; background: var(--primary); border: none; border-radius: var(--radius-md); color: var(--on-primary); font-weight: 600; font-size: 13px; cursor: pointer; white-space: nowrap;">
           + Add Schedule
         </button>
       </div>
@@ -1240,7 +1238,7 @@
             rel="noopener noreferrer"
             aria-label="Open diagnostics page (opens in new tab)"
           >
-            <span aria-hidden="true">🔧</span> Open diagnostics
+            <span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76Z"/></svg></span> Open diagnostics
           </a>
 
           <button
@@ -1267,7 +1265,7 @@
       <aside class="support-card" aria-labelledby="support-heading">
         <div class="support-header">
           <p id="support-heading" class="support-title">
-            <span aria-hidden="true">💝</span> Support this inbox cleaner
+            <span class="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 20s-7-4.4-9.3-8.5C1 8.3 2.6 5 5.8 5c2 0 3.3 1.2 4.2 2.4C10.9 6.2 12.2 5 14.2 5c3.2 0 4.8 3.3 3.1 6.5C19 15.6 12 20 12 20Z"/></svg></span> Support this inbox cleaner
           </p>
           <span class="support-tag">optional</span>
         </div>
@@ -1284,7 +1282,7 @@
             rel="noopener noreferrer"
             aria-label="Buy me a coffee (opens in new tab)"
           >
-            <span aria-hidden="true">☕</span> Buy me a coffee
+            <span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M17 9h2.5a2.5 2.5 0 0 1 0 5H17"/><path d="M7 2.5v2M11 2.5v2"/></svg></span> Buy me a coffee
           </a>
           <a
             class="button-link secondary"
@@ -1293,7 +1291,7 @@
             rel="noopener noreferrer"
             aria-label="Tip via Cash App (opens in new tab)"
           >
-            <span aria-hidden="true">💵</span> Tip via Cash App
+            <span aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 6.5c0-2-2.2-3-5-3s-5 1-5 3.2c0 4.8 10 2.8 10 7.6 0 2.2-2.2 3.2-5 3.2s-5-1-5-3"/></svg></span> Tip via Cash App
           </a>
         </div>
         <p class="support-note">Totally optional, but genuinely appreciated.</p>

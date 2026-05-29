@@ -5,7 +5,7 @@
   <title>Gmail One-Click Cleaner - Progress</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="Gmail One-Click Cleaner progress dashboard - watch your Gmail cleanup in real-time" />
-  <meta name="theme-color" content="#0f172a" />
+  <meta name="theme-color" content="#06090f" />
   <meta name="color-scheme" content="dark" />
   <meta name="referrer" content="no-referrer" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'" />
@@ -13,9 +13,9 @@
 
   <style>
     :root {
-      --bg-terminal: #020617;
+      --bg-terminal: #06090f;
       --border-highlight: rgba(255, 255, 255, 0.15);
-      --primary-glow: rgba(99, 102, 241, 0.5);
+      --primary-glow: rgba(34, 211, 238, 0.5);
       --success-glow: rgba(16, 185, 129, 0.4);
       --warning-glow: rgba(245, 158, 11, 0.4);
       --danger-hover: #dc2626;
@@ -36,8 +36,8 @@
       min-height: 100vh;
       background-color: var(--bg-deep);
       background-image:
-        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
-        radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.15) 0px, transparent 50%);
+        radial-gradient(at 0% 0%, rgba(34, 211, 238, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.15) 0px, transparent 50%);
       background-attachment: fixed;
       color: var(--text-main);
       font-family: var(--font-sans);
@@ -95,9 +95,9 @@
     h1 {
       margin: 0 0 8px 0;
       font-size: clamp(18px, 4vw, 22px);
-      font-weight: 700;
-      letter-spacing: -0.01em;
-      background: linear-gradient(to right, #fff, #cbd5e1);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--text-main), var(--primary));
       -webkit-background-clip: text;
       background-clip: text;
       -webkit-text-fill-color: transparent;
@@ -112,7 +112,7 @@
     }
 
     .header-copy strong {
-      color: #e2e8f0;
+      color: var(--text-secondary);
       font-weight: 600;
     }
 
@@ -157,7 +157,7 @@
       flex: 1;
       font-size: 15px;
       font-weight: 500;
-      color: #fff;
+      color: var(--text-main);
       min-height: 24px;
       display: flex;
       align-items: center;
@@ -184,7 +184,7 @@
       flex: 1;
       height: 12px;
       border-radius: var(--radius-full);
-      background: rgba(15, 23, 42, 0.6);
+      background: rgba(17, 26, 36, 0.6);
       border: 1px solid var(--border-subtle);
       overflow: hidden;
       box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
@@ -198,7 +198,7 @@
       background-size: 200% 100%;
       animation: shimmer 2s linear infinite;
       transition: width var(--transition-slow);
-      box-shadow: 0 0 12px rgba(99, 102, 241, 0.5);
+      box-shadow: 0 0 12px rgba(34, 211, 238, 0.5);
       position: relative;
     }
 
@@ -214,7 +214,7 @@
       font-family: var(--font-mono);
       font-size: 13px;
       font-weight: 600;
-      color: #e2e8f0;
+      color: var(--text-secondary);
       font-variant-numeric: tabular-nums;
     }
 
@@ -316,9 +316,9 @@
     }
 
     .ghost-btn[aria-pressed="true"] {
-      background: rgba(99, 102, 241, 0.15);
-      border-color: rgba(99, 102, 241, 0.4);
-      color: #a5b4fc;
+      background: rgba(34, 211, 238, 0.15);
+      border-color: rgba(34, 211, 238, 0.4);
+      color: #67e8f9;
     }
 
     .meta {
@@ -336,13 +336,13 @@
       display: inline-flex;
       align-items: center;
       border-radius: 4px;
-      border: 1px solid rgba(99, 102, 241, 0.3);
+      border: 1px solid rgba(34, 211, 238, 0.3);
       padding: 2px 8px;
       font-size: 11px;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: #c7d2fe;
-      background: rgba(99, 102, 241, 0.1);
+      color: #a5f3fc;
+      background: rgba(34, 211, 238, 0.1);
       transition: all var(--transition-fast);
     }
 
@@ -412,18 +412,18 @@
       text-transform: uppercase;
       font-size: 10px;
       letter-spacing: 0.05em;
-      background: rgba(15, 23, 42, 0.6);
+      background: rgba(17, 26, 36, 0.6);
       position: sticky;
       top: 0;
     }
 
     #summaryTable td {
-      color: #cbd5e1;
-      background: rgba(15, 23, 42, 0.3);
+      color: var(--text-secondary);
+      background: rgba(17, 26, 36, 0.3);
       transition: background var(--transition-fast);
     }
 
-    #summaryTable tbody tr:hover td { background: rgba(15, 23, 42, 0.5); }
+    #summaryTable tbody tr:hover td { background: rgba(17, 26, 36, 0.5); }
 
     #summaryTable tbody tr:last-child td { border-bottom: none; }
 
@@ -459,7 +459,7 @@
     .logs-actions { display: flex; gap: 4px; align-items: center; }
 
     .log-filter {
-      background: rgba(15, 23, 42, 0.6);
+      background: rgba(17, 26, 36, 0.6);
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-sm);
       padding: 4px 8px;
@@ -574,7 +574,7 @@
       display: inline-block;
       padding: 2px 7px;
       border-radius: 4px;
-      background: rgba(15, 23, 42, 0.6);
+      background: rgba(17, 26, 36, 0.6);
       border: 1px solid var(--border-subtle);
       font-size: 10px;
       font-family: var(--font-mono);
@@ -649,7 +649,8 @@
       transform: translateY(-2px);
     }
 
-    .affiliate-item-icon { font-size: 24px; flex-shrink: 0; }
+    .affiliate-item-icon { display: inline-flex; flex-shrink: 0; color: var(--amazon); }
+    .affiliate-title-icon { display: inline-flex; color: var(--amazon); }
 
     .affiliate-item-info { flex: 1; min-width: 0; }
 
@@ -690,7 +691,7 @@
       color: var(--text-muted);
       text-align: center;
       padding: 16px;
-      background: rgba(99, 102, 241, 0.03);
+      background: rgba(34, 211, 238, 0.03);
       border-radius: var(--radius-md);
       animation: fadeIn 0.5s ease-out;
     }
@@ -701,7 +702,7 @@
     }
 
     #tipPrompt a {
-      color: #a5b4fc;
+      color: #67e8f9;
       text-decoration: none;
       font-weight: 500;
       transition: color var(--transition-fast);
@@ -716,7 +717,7 @@
     .muted { color: var(--text-muted); }
 
     dialog#reviewModal {
-      background: #1e293b;
+      background: #141d27;
       color: var(--text-main);
       border: 1px solid var(--border-highlight);
       border-radius: var(--radius-lg);
@@ -763,7 +764,7 @@
       padding: 8px 12px;
       border-radius: var(--radius-sm);
       border: 1px solid var(--border-subtle);
-      color: #a5b4fc;
+      color: #67e8f9;
       margin: 12px 0 0 0;
       word-break: break-all;
       font-size: 12px;
@@ -773,7 +774,7 @@
       display: flex;
       justify-content: flex-end;
       gap: 12px;
-      background: rgba(15, 23, 42, 0.3);
+      background: rgba(17, 26, 36, 0.3);
       padding: 16px 24px;
       border-top: 1px solid var(--border-subtle);
     }
@@ -798,13 +799,14 @@
     .modal-btn.primary {
       background: var(--primary);
       border-color: transparent;
-      color: #fff;
-      box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+      color: var(--on-primary);
+      font-weight: 700;
+      box-shadow: 0 2px 8px rgba(34, 211, 238, 0.4);
     }
 
     .modal-btn.primary:hover {
       background: var(--primary-hover);
-      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.5);
+      box-shadow: 0 4px 12px rgba(34, 211, 238, 0.5);
     }
 
     .toast {
@@ -830,6 +832,17 @@
     .toast.success { border-left: 3px solid var(--success); }
     .toast.warning { border-left: 3px solid var(--warning); }
     .toast.error { border-left: 3px solid var(--danger); }
+
+    /* Light-theme adjustments: lift the data panels off dark; the activity
+       log (#details) stays a deliberate dark console in both themes. */
+    html[data-theme="light"] .bar { background: var(--bg-input); }
+    html[data-theme="light"] .log-filter { background: var(--bg-input); }
+    html[data-theme="light"] #summaryTable th { background: var(--bg-input); }
+    html[data-theme="light"] #summaryTable td { background: var(--bg-surface-2); }
+    html[data-theme="light"] #summaryTable tbody tr:hover td { background: var(--bg-surface-hover); }
+    html[data-theme="light"] .ghost-btn:hover:not(:disabled),
+    html[data-theme="light"] .icon-btn:hover { color: var(--text-main); }
+    html[data-theme="light"] #tipPrompt a { color: var(--primary); }
 
     @media (max-width: 640px) {
       .wrap { margin: 20px auto; padding: 0 16px 20px; }
@@ -988,7 +1001,7 @@
       <section class="affiliate-section" id="affiliateSection" aria-labelledby="affiliate-title">
         <div class="affiliate-header">
           <div class="affiliate-title">
-            <span class="affiliate-title-icon" aria-hidden="true">💾</span>
+            <span class="affiliate-title-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h18M5.5 13 3.8 6.6A2 2 0 0 1 5.7 5h12.6a2 2 0 0 1 1.9 1.6L18.5 13"/><rect x="3" y="13" width="18" height="6" rx="2"/><path d="M7 16h.01M11 16h.01"/></svg></span>
             <span id="affiliate-title">Jude's cheap storage & setup picks</span>
           </div>
           <span class="affiliate-amazon-badge">Amazon</span>
@@ -999,7 +1012,7 @@
 
         <div class="affiliate-grid">
           <a href="https://amzn.to/3MrwsMz" target="_blank" rel="noopener noreferrer sponsored" class="affiliate-item">
-            <span class="affiliate-item-icon" aria-hidden="true">💿</span>
+            <span class="affiliate-item-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><circle cx="12" cy="13" r="3"/><path d="M8 4v4h6V4"/></svg></span>
             <div class="affiliate-item-info">
               <div class="affiliate-item-name">Samsung T7 Portable SSD (1TB)</div>
               <div class="affiliate-item-desc">1,050MB/s · USB 3.2 · Fits in pocket</div>
@@ -1008,7 +1021,7 @@
           </a>
 
           <a href="https://amzn.to/3Mftfjl" target="_blank" rel="noopener noreferrer sponsored" class="affiliate-item">
-            <span class="affiliate-item-icon" aria-hidden="true">🔌</span>
+            <span class="affiliate-item-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="8.5" y="8" width="7" height="13" rx="1.5"/><path d="M10.5 8V4.5h3V8"/><path d="M11 12h2M11 15h2"/></svg></span>
             <div class="affiliate-item-info">
               <div class="affiliate-item-name">Lexar 128GB USB-C Drive</div>
               <div class="affiliate-item-desc">Dual USB-A/C · Metal swivel design</div>
@@ -1017,7 +1030,7 @@
           </a>
 
           <a href="https://amzn.to/4aBnKW6" target="_blank" rel="noopener noreferrer sponsored" class="affiliate-item">
-            <span class="affiliate-item-icon" aria-hidden="true">💻</span>
+            <span class="affiliate-item-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="11" rx="2"/><path d="M2 20h20"/></svg></span>
             <div class="affiliate-item-info">
               <div class="affiliate-item-name">Amazon Basics Laptop Stand</div>
               <div class="affiliate-item-desc">Ergonomic · Adjustable · Up to 17.3"</div>
@@ -1026,7 +1039,7 @@
           </a>
 
           <a href="https://amzn.to/4pqDwYB" target="_blank" rel="noopener noreferrer sponsored" class="affiliate-item">
-            <span class="affiliate-item-icon" aria-hidden="true">⌨️</span>
+            <span class="affiliate-item-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/></svg></span>
             <div class="affiliate-item-info">
               <div class="affiliate-item-name">Rii Ultra-Slim USB Keyboard</div>
               <div class="affiliate-item-desc">Compact · Mac & PC · Quiet keys</div>
@@ -1035,7 +1048,7 @@
           </a>
 
           <a href="https://amzn.to/48oWb0L" target="_blank" rel="noopener noreferrer sponsored" class="affiliate-item">
-            <span class="affiliate-item-icon" aria-hidden="true">🔧</span>
+            <span class="affiliate-item-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76Z"/></svg></span>
             <div class="affiliate-item-info">
               <div class="affiliate-item-name">192pc Cable Management Kit</div>
               <div class="affiliate-item-desc">Sleeves + clips + ties · Desk cleanup</div>
