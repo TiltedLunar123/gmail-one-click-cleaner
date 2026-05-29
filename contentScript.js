@@ -919,6 +919,20 @@
     // Set timestamp immediately to prevent concurrent calls from passing the guard
     lastMasterCheckboxClickTime = now;
 
+    // Per-row selection first: clicking each row's own checkbox is what
+    // populates Gmail's internal selection model, which the Delete
+    // handler reads. A single click on the master checkbox only paints
+    // the visual checked state on current Gmail builds, so rows look
+    // selected (extractSelectedCount reports a number) while Gmail's
+    // model stays empty and Delete is a no-op. Rows are unchecked right
+    // after a search, so per-row clicks land as real selections. Fall
+    // through to the master only when this finds nothing to click.
+    const perRowCount = await selectAllVisibleRowsIndividually();
+    if (perRowCount > 0) {
+      safeSend({ phase: "debug", detail: `Selected ${perRowCount} rows individually` });
+      return { success: true, reason: "per-row" };
+    }
+
     const { element: checkbox, score } = findMasterCheckbox();
 
     if (!checkbox) {
@@ -1148,8 +1162,14 @@
       bannerAreas.push(...qsa(selector, mainRoot));
     }
 
-    // If we found banner areas, search within them first
-    const searchRoots = bannerAreas.length > 0 ? [...bannerAreas, mainRoot] : [mainRoot];
+    // The "select all matching" link only ever lives in the selection
+    // banner, never in the conversation rows. Scanning the whole list
+    // root walks thousands of spans and calls getComputedStyle on every
+    // text match, which thrashes layout for tens of seconds on a large
+    // result page. Restrict the scan to the banner areas; if those
+    // selectors miss, the specific-selector fallback below still runs,
+    // and a genuine miss just means we delete the visible page per pass.
+    const searchRoots = bannerAreas;
 
     for (const root of searchRoots) {
       // Look for spans and links
@@ -2433,6 +2453,12 @@
     let queryDeletedCount = 0;
     let hasReviewedThisQuery = false;
 
+    // Each query is a fresh selection context. Reset the master-checkbox
+    // double-click guard so a fast-completing previous query cannot block
+    // this query's first checkbox click; the 500ms guard only needs to
+    // stop rapid re-clicks within one selection, not across queries.
+    lastMasterCheckboxClickTime = 0;
+
     const mbPerEmail = estimateMbPerEmail(guardedQuery);
 
     debugLog("Processing query", {
@@ -3011,6 +3037,13 @@
       }
     } finally {
       RUNNING = false;
+      // Clear the attach guard so the next Start (or re-inject) is not
+      // blocked. The flag marks a run in progress; once main() exits the
+      // page can accept a fresh run without a manual re-inject. It stays
+      // set for the whole run, so concurrent injection is still blocked.
+      try {
+        if (typeof window !== "undefined") window.GCC_ATTACHED = false;
+      } catch {}
       // Notify background to clean up ACTIVE_RUN state and trigger an
       // opt-in completion notification (5.0).
       try {

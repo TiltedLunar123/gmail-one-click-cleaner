@@ -447,6 +447,15 @@
     try {
       const result = await chrome.storage.local.get(STORAGE_KEYS.STATS);
       const stats = result?.[STORAGE_KEYS.STATS] || {};
+      // Write back a complete stats shape so a topSenders-only object
+      // never reaches recordStats, which would throw on categoryBreakdown.
+      stats.totalRuns = stats.totalRuns || 0;
+      stats.totalDeleted = stats.totalDeleted || 0;
+      stats.totalArchived = stats.totalArchived || 0;
+      stats.totalFreedMb = stats.totalFreedMb || 0;
+      stats.history = Array.isArray(stats.history) ? stats.history : [];
+      stats.categoryBreakdown = stats.categoryBreakdown || {};
+      stats.dailyStats = stats.dailyStats || {};
       const map = Object.create(null);
       for (const entry of stats.topSenders || []) {
         if (entry?.sender) map[entry.sender] = { count: entry.count || 0, lastSeen: entry.lastSeen || 0 };
@@ -505,15 +514,19 @@
   async function recordStats(data) {
     try {
       const result = await chrome.storage.local.get(STORAGE_KEYS.STATS);
-      const stats = result?.[STORAGE_KEYS.STATS] || {
-        totalRuns: 0,
-        totalDeleted: 0,
-        totalArchived: 0,
-        totalFreedMb: 0,
-        history: [],
-        categoryBreakdown: {},
-        dailyStats: {}
-      };
+      // recordSenderHits can persist a stats object holding only
+      // topSenders before the first full run finishes, so a loaded
+      // object may be missing the fields below. Backfill each one rather
+      // than trusting the stored shape, or categoryBreakdown[cat] throws
+      // on a partial object.
+      const stats = result?.[STORAGE_KEYS.STATS] || {};
+      stats.totalRuns = stats.totalRuns || 0;
+      stats.totalDeleted = stats.totalDeleted || 0;
+      stats.totalArchived = stats.totalArchived || 0;
+      stats.totalFreedMb = stats.totalFreedMb || 0;
+      stats.history = Array.isArray(stats.history) ? stats.history : [];
+      stats.categoryBreakdown = stats.categoryBreakdown || {};
+      stats.dailyStats = stats.dailyStats || {};
 
       stats.totalRuns++;
       stats.totalDeleted += data.deleted || 0;
