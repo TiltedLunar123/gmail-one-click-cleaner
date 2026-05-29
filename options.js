@@ -18,7 +18,9 @@
   const STORAGE_KEYS = Object.freeze({
     RULES: "rules",
     DEBUG_MODE: "debugMode",
-    WHITELIST: "whitelist"
+    WHITELIST: "whitelist",
+    CUSTOM_RULES: "customRules",
+    SCHEDULES: "schedules"
   });
 
   const RULE_KEYS = Object.freeze(["light", "normal", "deep"]);
@@ -557,6 +559,53 @@
   // Import / Export
   // =========================
 
+  // Export format history:
+  //   1 = rules + debugMode + whitelist only (pre-6.0 backups)
+  //   2 = adds customRules + schedules so a backup is complete
+  const EXPORT_FORMAT_VERSION = 2;
+
+  const normalizeCustomRules = (rules) => {
+    if (!Array.isArray(rules)) return [];
+    return rules.filter(
+      (r) => r && typeof r === "object" && typeof r.query === "string" && r.query.trim() !== ""
+    );
+  };
+
+  const normalizeSchedules = (schedules) => {
+    if (!Array.isArray(schedules)) return [];
+    return schedules.filter((s) => s && typeof s === "object" && typeof s.id === "string" && s.id !== "");
+  };
+
+  const buildExportPayload = (current, extras = {}) => ({
+    formatVersion: EXPORT_FORMAT_VERSION,
+    rules: normalizeRules(current.rules),
+    debugMode: !!current.debugMode,
+    whitelist: normalizeWhitelist(current.whitelist),
+    customRules: normalizeCustomRules(extras.customRules),
+    schedules: normalizeSchedules(extras.schedules),
+    exportedAt: new Date().toISOString(),
+    version: OPTIONS_VERSION,
+    extensionName: "Gmail One-Click Cleaner"
+  });
+
+  // Only restore customRules/schedules when the backup actually carried
+  // them. An older (format 1) backup predates these keys, so writing []
+  // would silently wipe the user's current custom rules and schedules.
+  const buildImportWriteSet = (json) => {
+    const data = {
+      [STORAGE_KEYS.RULES]: normalizeRules(json.rules),
+      [STORAGE_KEYS.DEBUG_MODE]: !!json.debugMode,
+      [STORAGE_KEYS.WHITELIST]: normalizeWhitelist(json.whitelist)
+    };
+    if (Array.isArray(json.customRules)) {
+      data[STORAGE_KEYS.CUSTOM_RULES] = normalizeCustomRules(json.customRules);
+    }
+    if (Array.isArray(json.schedules)) {
+      data[STORAGE_KEYS.SCHEDULES] = normalizeSchedules(json.schedules);
+    }
+    return data;
+  };
+
   const exportConfig = async () => {
     const btn = /** @type {HTMLButtonElement|null} */ (GCC.$("exportBtn"));
     setButtonLoading(btn, true);
@@ -564,14 +613,18 @@
     try {
       const current = collectAllData();
 
-      const exportObj = {
-        rules: normalizeRules(current.rules),
-        debugMode: !!current.debugMode,
-        whitelist: normalizeWhitelist(current.whitelist),
-        exportedAt: new Date().toISOString(),
-        version: OPTIONS_VERSION,
-        extensionName: "Gmail One-Click Cleaner"
-      };
+      // customRules and schedules live only in sync storage (no editable
+      // textarea on this page), so read them directly for the backup.
+      let extras = { customRules: [], schedules: [] };
+      if (GCC.hasChromeStorage("sync")) {
+        const stored = await GCC.storageGet("sync", [STORAGE_KEYS.CUSTOM_RULES, STORAGE_KEYS.SCHEDULES]);
+        extras = {
+          customRules: stored?.[STORAGE_KEYS.CUSTOM_RULES] || [],
+          schedules: stored?.[STORAGE_KEYS.SCHEDULES] || []
+        };
+      }
+
+      const exportObj = buildExportPayload(current, extras);
 
       const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -627,6 +680,15 @@
 
     if (json.whitelist && !Array.isArray(json.whitelist)) errors.push("'whitelist' must be an array");
 
+    // customRules and schedules are optional (older backups lack them),
+    // but when present they must be arrays.
+    if (json.customRules !== undefined && !Array.isArray(json.customRules)) {
+      errors.push("'customRules' must be an array");
+    }
+    if (json.schedules !== undefined && !Array.isArray(json.schedules)) {
+      errors.push("'schedules' must be an array");
+    }
+
     return { valid: errors.length === 0, errors };
   };
 
@@ -649,6 +711,8 @@
 
       const ruleCount = RULE_KEYS.reduce((sum, key) => sum + (json.rules?.[key]?.length || 0), 0);
       const whitelistCount = Array.isArray(json.whitelist) ? json.whitelist.length : 0;
+      const customRuleCount = Array.isArray(json.customRules) ? json.customRules.length : 0;
+      const scheduleCount = Array.isArray(json.schedules) ? json.schedules.length : 0;
 
       const name = safeConfirmLabel(file.name);
 
@@ -656,6 +720,8 @@
         `Import configuration from "${name}"?\n\n` +
         `• ${ruleCount} total rules\n` +
         `• ${whitelistCount} whitelist entries\n` +
+        `• ${customRuleCount} custom rules\n` +
+        `• ${scheduleCount} scheduled cleanups\n` +
         `• Debug mode: ${json.debugMode ? "On" : "Off"}\n\n` +
         `This will replace your current settings.`;
 
@@ -671,11 +737,7 @@
       const backup = await GCC.storageGet("sync", null);
 
       try {
-        await safeSyncSet({
-          [STORAGE_KEYS.RULES]: normalizeRules(json.rules),
-          [STORAGE_KEYS.DEBUG_MODE]: !!json.debugMode,
-          [STORAGE_KEYS.WHITELIST]: normalizeWhitelist(json.whitelist)
-        }, "imported config");
+        await safeSyncSet(buildImportWriteSet(json), "imported config");
 
         await loadData();
         clearUnsaved();
@@ -774,7 +836,7 @@
   // Custom Rules Editor
   // =========================
 
-  const CUSTOM_RULES_KEY = "customRules";
+  const CUSTOM_RULES_KEY = STORAGE_KEYS.CUSTOM_RULES;
 
   async function loadCustomRules() {
     if (!GCC.hasChromeStorage("sync")) return [];
