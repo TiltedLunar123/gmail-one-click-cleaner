@@ -1385,7 +1385,7 @@
 
   /**
    * Detect Gmail's post-action "Conversation(s) moved to Trash. Undo."
-   * toast — strong positive evidence the action actually happened. We
+   * toast, strong positive evidence the action actually happened. We
    * look in alert/status regions for text containing "Undo" and one of
    * the action-result tokens.
    */
@@ -1409,7 +1409,7 @@
 
   /**
    * Wait for Gmail to process an action (list refresh, spinner, etc.).
-   * v5.0.6 requires positive evidence the action happened — a null
+   * v5.0.6 requires positive evidence the action happened, a null
    * selection count is no longer treated as success because
    * extractSelectedCount returns null both when "0 selected" AND when
    * Gmail's selection text drifts to a layout we don't recognise. The
@@ -1714,7 +1714,7 @@
     // returned zero matches (very common with `larger:20M` once the
     // global guards strip starred / important / unread / user-labeled
     // mail) would never satisfy `rows.length > 0`, time out at 20 s,
-    // and retry 6 times — pinning the run for ~2 minutes on a query
+    // and retry 6 times, pinning the run for ~2 minutes on a query
     // that should resolve immediately. `td.TC` is Gmail's empty-state
     // container; it only appears after the search has actually
     // finished and produced zero results, so it's safe to treat as
@@ -1736,7 +1736,7 @@
           return false;
         }
 
-        // No grid yet — fall back to the list container or the empty
+        // No grid yet, fall back to the list container or the empty
         // state UI on its own (some Gmail layouts skip the table).
         if (qs("td.TC", main)) return true;
         return qs(SELECTORS.listContainer, main);
@@ -1746,7 +1746,7 @@
         description: "Gmail search results",
         onTick: (elapsedMs) => {
           // Every ~5s of waiting, surface a progress beat so the
-          // user knows the script isn't dead — just waiting on
+          // user knows the script isn't dead, just waiting on
           // Gmail to render.
           if (elapsedMs > 0 && elapsedMs % 5000 < TIMING.WAIT_DEFAULT_INTERVAL) {
             safeSend({
@@ -2001,7 +2001,7 @@
    * @returns {number | null}
    */
   // 5.0.7: Gmail's current UI no longer surfaces "N selected" text
-  // anywhere inside div[role="main"] — verified by direct DOM
+  // anywhere inside div[role="main"], verified by direct DOM
   // inspection on the live app. The reliable selection signal is the
   // `x7` class Gmail adds to every selected `tr[role="row"]`. We
   // count those rows; if the grid isn't present we fall back to the
@@ -2049,7 +2049,7 @@
   // top-senders dashboard can rank inbox noisy senders.
   //
   // Selectors are Gmail's stable list classes; we fall back to generic
-  // role=row patterns if those drift. Best-effort — failure here must
+  // role=row patterns if those drift. Best-effort, failure here must
   // not block deletion.
 
   function sampleListRows({ maxSamples = 50 } = {}) {
@@ -2965,7 +2965,7 @@
       });
 
       // Issue #7: the end-of-run alert() also blocks the Gmail tab.
-      // Skip it for unattended scheduled runs — the desktop
+      // Skip it for unattended scheduled runs, the desktop
       // notification (if opted in) and the stats page surface the
       // outcome instead.
       if (!CONFIG.dryRun && stats.totalDeleted > 0 && !CONFIG.scheduled) {

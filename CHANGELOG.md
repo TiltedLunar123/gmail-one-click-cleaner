@@ -1,4 +1,4 @@
-# Changelog – Gmail One-Click Cleaner
+# Changelog - Gmail One-Click Cleaner
 
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
@@ -55,8 +55,8 @@ addressed:
 - A programmatic `.click()` on the master checkbox toggles the master's
   own `aria-checked` to `"true"` and Gmail applies a CSS rule that
   fills in blue checkmarks on every visible row. BUT the row-level
-  selection — `tr.x7` class, `[role="checkbox"][aria-checked="true"]`
-  — never gets populated.
+  selection (`tr.x7` class, `[role="checkbox"][aria-checked="true"]`)
+  never gets populated.
 - Gmail's delete handler reads from the real selection model. With it
   empty, the click on Delete is a no-op. We then reported "0 affected"
   for runs where nothing got deleted because nothing was actually
@@ -67,7 +67,7 @@ addressed:
 
 Also discovered the same way:
 - Gmail no longer surfaces "N selected" text anywhere inside
-  `div[role="main"]` in the current UI — that's why
+  `div[role="main"]` in the current UI, that's why
   `extractSelectedCount()` always returned `null` on real runs.
 - The Labels button has moved entirely into the "More email options"
   overflow menu (the toolbar never has a direct Labels button now).
@@ -87,7 +87,7 @@ Fixes:
 Tag-before-delete (the "Label button not found" warning) still goes
 through the old finder; that path is queued for a follow-up patch
 that opens the "More email options" menu first. Deletions now work
-correctly without the tag step — the undo log still records the
+correctly without the tag step, the undo log still records the
 metadata, just without the searchable label.
 
 ## 5.0.6 - Delete verification + accurate affected counts
@@ -97,7 +97,7 @@ anything." Two compounding bugs:
 
 1. `extractSelectedCount()` returns `null` when Gmail's "N selected"
    text drifts to a layout the function doesn't recognise.
-2. `waitForActionProcessing()` treated `null` as success — so the engine
+2. `waitForActionProcessing()` treated `null` as success, so the engine
    reported `0 affected` and moved on, regardless of whether the delete
    actually fired. Silent false-positive.
 
@@ -120,7 +120,7 @@ Fixes:
 - New helpers: `getGridRowCount()` and `findUndoToast()`.
 
 If Gmail genuinely refuses the click (UI state, focus, etc.), the
-engine now throws `TimeoutError` and the retry loop re-attempts —
+engine now throws `TimeoutError` and the retry loop re-attempts:
 better to fail loudly than silently lie about success.
 
 ## 5.0.5 - Empty-search fast path + still-waiting beats
@@ -128,7 +128,7 @@ better to fail loudly than silently lie about success.
 Diagnosed from another stuck-run log (query 1: `larger:20M` taking
 ~2 minutes before any retry, then retrying 6 times). `openSearch()`'s
 wait condition only returned true when the result grid contained at
-least one row — so any query that legitimately matched zero mail
+least one row, so any query that legitimately matched zero mail
 (very common once global guards strip starred / important / unread /
 user-labeled threads) sat for the full 20s wait, threw a
 TimeoutError, and retried 6 times before either skipping (5.0.2) or
@@ -230,16 +230,16 @@ features, and shipping a deep deglitch + test pass across the codebase.
 
 ### Issue fixes
 
-- **#22** — Popup intensity restore now persists the user's raw UI selection (preserves "Monthly") instead of round-tripping through a dead `=== "monthly"` branch. A legacy-format migration handles existing storage entries.
-- **#20** — `runCleanup` now uses an atomic-style "claim + verify" pattern (random `runId`, re-read after a micro-pause) before touching the Gmail tab, so two popups opened in parallel cannot both inject.
-- **#19** — `tabsSendMessage` failures are now classified (`tab_closed` vs `permission` vs `other`) and the cancel handler surfaces a specific message instead of always saying "tab unreachable". Reuses the new `GCC.classifyChromeError` helper.
-- **#17** — The stats page poller pauses on `visibilitychange` when the tab is hidden, resuming with an immediate refresh when the user returns. Generic `GCC.pollingInterval` helper is reusable for any future visibility-aware loop.
-- **#16** — `web_accessible_resources` removed from the manifest. `shared.css`, `shared.js`, and `browser-polyfill.js` were only ever needed by extension pages (which have direct access), so exposing them to `mail.google.com` was a fingerprinting vector with no upside.
-- **#10** — Schedule writes from the service worker now go through a quota-aware `safeSyncSet`. Oversized payloads throw a clear error and the save handler relays it back to the options page rather than silently truncating.
-- **#9** — Undo log entries now carry sampled message thread IDs and a sender count from the Gmail list view, recorded before each delete batch.
-- **#8** — Custom rule queries are now validated at two layers: the options-page editor refuses (and the engine quietly skips) any query that targets protected mail (`is:starred`, `is:important`, `in:sent`, `in:drafts`, etc.) without negation. Soft warning when `in:inbox` / `in:all` is used without an age qualifier.
-- **#7** — `confirm()` and end-of-run `alert()` are now skipped when `CONFIG.scheduled` is true. Scheduled runs that hit the soft cap or huge-run threshold decline cleanly and report via the progress log instead of hanging on a modal dialog.
-- **#6** — `runScheduledCleanup` checks the `ACTIVE_RUN` marker before injecting and claims its own marker for the duration. A manual cleanup in flight blocks the schedule rather than getting its `window.GMAIL_CLEANER_CONFIG` clobbered.
+- **#22** - Popup intensity restore now persists the user's raw UI selection (preserves "Monthly") instead of round-tripping through a dead `=== "monthly"` branch. A legacy-format migration handles existing storage entries.
+- **#20** - `runCleanup` now uses an atomic-style "claim + verify" pattern (random `runId`, re-read after a micro-pause) before touching the Gmail tab, so two popups opened in parallel cannot both inject.
+- **#19** - `tabsSendMessage` failures are now classified (`tab_closed` vs `permission` vs `other`) and the cancel handler surfaces a specific message instead of always saying "tab unreachable". Reuses the new `GCC.classifyChromeError` helper.
+- **#17** - The stats page poller pauses on `visibilitychange` when the tab is hidden, resuming with an immediate refresh when the user returns. Generic `GCC.pollingInterval` helper is reusable for any future visibility-aware loop.
+- **#16** - `web_accessible_resources` removed from the manifest. `shared.css`, `shared.js`, and `browser-polyfill.js` were only ever needed by extension pages (which have direct access), so exposing them to `mail.google.com` was a fingerprinting vector with no upside.
+- **#10** - Schedule writes from the service worker now go through a quota-aware `safeSyncSet`. Oversized payloads throw a clear error and the save handler relays it back to the options page rather than silently truncating.
+- **#9** - Undo log entries now carry sampled message thread IDs and a sender count from the Gmail list view, recorded before each delete batch.
+- **#8** - Custom rule queries are now validated at two layers: the options-page editor refuses (and the engine quietly skips) any query that targets protected mail (`is:starred`, `is:important`, `in:sent`, `in:drafts`, etc.) without negation. Soft warning when `in:inbox` / `in:all` is used without an age qualifier.
+- **#7** - `confirm()` and end-of-run `alert()` are now skipped when `CONFIG.scheduled` is true. Scheduled runs that hit the soft cap or huge-run threshold decline cleanly and report via the progress log instead of hanging on a modal dialog.
+- **#6** - `runScheduledCleanup` checks the `ACTIVE_RUN` marker before injecting and claims its own marker for the duration. A manual cleanup in flight blocks the schedule rather than getting its `window.GMAIL_CLEANER_CONFIG` clobbered.
 
 ### Internal / DX
 
@@ -448,7 +448,7 @@ features, and shipping a deep deglitch + test pass across the codebase.
   - New toggle in settings that logs key events (start, batches, errors) with a consistent prefix in the browser console.
   - Designed for bug reports and troubleshooting without changing how the cleaner itself behaves.
 
-> Note: 2.10.1–2.10.4 were internal / pre-release iterations. Their changes are folded into the 2.10.5 notes above.
+> Note: 2.10.1-2.10.4 were internal / pre-release iterations. Their changes are folded into the 2.10.5 notes above.
 
 ## 2.10.0
 
@@ -588,7 +588,7 @@ features, and shipping a deep deglitch + test pass across the codebase.
 
 ---
 
-## 2.0.0 – MV3 Rewrite
+## 2.0.0 - MV3 Rewrite
 
 - Migrated the extension to **Manifest V3**.
 - Re-architected the extension around:
@@ -599,7 +599,7 @@ features, and shipping a deep deglitch + test pass across the codebase.
 
 ---
 
-## 1.x – Initial Releases
+## 1.x - Initial Releases
 
 - First public release of **Gmail One-Click Cleaner**.
 - Core feature:

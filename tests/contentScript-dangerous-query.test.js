@@ -25,7 +25,7 @@ const queryHasDangerousToken = new Function(
    return queryHasDangerousToken;`
 )();
 
-describe("contentScript.js — queryHasDangerousToken", () => {
+describe("contentScript.js: queryHasDangerousToken", () => {
   test.each([
     "is:starred",
     "is:important older_than:1y",

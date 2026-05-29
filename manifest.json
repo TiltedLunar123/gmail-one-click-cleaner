@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Bulk Delete Gmail Emails – Gmail One-Click Cleaner",
+  "name": "Bulk Delete Gmail Emails - Gmail One-Click Cleaner",
   "short_name": "Gmail Cleaner",
   "version": "6.0.0",
   "version_name": "6.0.0 - Recovery overflow-menu fix, focused targets, accurate counts",

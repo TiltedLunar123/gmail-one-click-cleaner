@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// build.js — Simple build script for Gmail One-Click Cleaner
+// build.js: Simple build script for Gmail One-Click Cleaner
 // Copies files to dist/, optionally minifies JS, and creates a .zip
 
 const fs = require("fs");

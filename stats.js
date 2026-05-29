@@ -1,4 +1,4 @@
-// stats.js — Statistics Dashboard Logic
+// stats.js: Statistics Dashboard Logic
 // Depends on shared.js (GCC namespace)
 
 (() => {
@@ -317,7 +317,7 @@ async function init() {
     GCC.showToast("Log cleared", "success");
   });
 
-  // Auto-refresh every 30s — visibility-aware so we pause when the
+  // Auto-refresh every 30s, visibility-aware so we pause when the
   // stats tab is in the background (issue #17).
   GCC.pollingInterval(loadStats, 30000);
 }

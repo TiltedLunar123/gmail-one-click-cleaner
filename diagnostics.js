@@ -270,9 +270,9 @@
     const manifestInfo = getManifestInfo();
     if (elements.envExtension) {
       if (manifestInfo) {
-        elements.envExtension.textContent = `${manifestInfo.name} – v${manifestInfo.version}`;
+        elements.envExtension.textContent = `${manifestInfo.name} - v${manifestInfo.version}`;
       } else {
-        elements.envExtension.textContent = "Gmail One-Click Cleaner – (runtime unavailable)";
+        elements.envExtension.textContent = "Gmail One-Click Cleaner - (runtime unavailable)";
       }
       removeLoadingSkeleton(elements.envExtension);
     }
@@ -724,12 +724,12 @@
 
   const setChosenAndCleanerText = (chosen, cleaner) => {
     const chosenText = chosen?.id
-      ? `Tab ${chosen.id} in window ${chosen.windowId} – ${GCC.truncate(chosen.url || "", 100)}`
-      : "None – not computed yet.";
+      ? `Tab ${chosen.id} in window ${chosen.windowId} - ${GCC.truncate(chosen.url || "", 100)}`
+      : "None - not computed yet.";
 
     const cleanerText = cleaner?.id
-      ? `Tab ${cleaner.id} in window ${cleaner.windowId} – ${GCC.truncate(cleaner.url || "", 100)}`
-      : "None – not computed yet.";
+      ? `Tab ${cleaner.id} in window ${cleaner.windowId} - ${GCC.truncate(cleaner.url || "", 100)}`
+      : "None - not computed yet.";
 
     if (elements.chosenTabText) elements.chosenTabText.textContent = chosenText;
     if (elements.chosenTabTextInline) elements.chosenTabTextInline.textContent = chosen?.id ? `${chosen.id}` : "none";
@@ -768,11 +768,11 @@
 
       if (tabs.length === 0) {
         if (elements.chosenTabText) {
-          elements.chosenTabText.textContent = "None – no Gmail tabs detected.";
+          elements.chosenTabText.textContent = "None - no Gmail tabs detected.";
           elements.chosenTabText.className = "env-value mono text-warning";
         }
         if (elements.cleanerTabText) {
-          elements.cleanerTabText.textContent = "None – no Gmail tabs detected.";
+          elements.cleanerTabText.textContent = "None - no Gmail tabs detected.";
           elements.cleanerTabText.className = "env-value mono text-warning";
         }
         if (elements.chosenTabTextInline) elements.chosenTabTextInline.textContent = "none";
@@ -789,7 +789,7 @@
 
       if (!chosen) {
         if (elements.chosenTabText) {
-          elements.chosenTabText.textContent = "None – detection failed even though Gmail tabs exist.";
+          elements.chosenTabText.textContent = "None - detection failed even though Gmail tabs exist.";
           elements.chosenTabText.className = "env-value mono text-danger";
         }
         addLog("Gmail tabs exist, but tab detection returned null.", "error");

@@ -1,4 +1,4 @@
-// background.js — Service Worker (Manifest V3)
+// background.js: Service Worker (Manifest V3)
 // Handles: scheduled cleanups, messaging coordination, undo/backup, stats persistence
 
 (() => {
@@ -165,7 +165,7 @@
       const local = await chrome.storage.local.get(STORAGE_KEYS.ACTIVE_RUN);
       const run = sess?.[STORAGE_KEYS.ACTIVE_RUN] || local?.[STORAGE_KEYS.ACTIVE_RUN] || null;
       if (!run || typeof run !== "object" || !run.gmailTabId || !run.startedAt) return null;
-      // TTL guard: 2h — same as popup. Stale entries are cleared.
+      // TTL guard: 2h, same as popup. Stale entries are cleared.
       if (Date.now() - run.startedAt > 1000 * 60 * 60 * 2) {
         await chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_RUN]: null });
         await chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: null });
@@ -298,7 +298,7 @@
 
     switch (msg.type) {
       // Progress messages from content script already reach all extension
-      // pages via chrome.runtime.sendMessage — no re-broadcast needed.
+      // pages via chrome.runtime.sendMessage, no re-broadcast needed.
       case "gmailCleanerProgress":
         break;
 

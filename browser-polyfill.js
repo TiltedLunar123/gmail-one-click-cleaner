@@ -1,4 +1,4 @@
-// browser-polyfill.js — Minimal cross-browser compatibility shim
+// browser-polyfill.js: Minimal cross-browser compatibility shim
 // Enables Firefox (WebExtensions) and Edge support alongside Chrome
 // Based on webextension-polyfill patterns
 
@@ -8,7 +8,7 @@
   // If browser API already exists (Firefox), wrap it to match Chrome patterns
   // If only chrome exists (Chrome/Edge), create browser as alias
   if (typeof globalThis.browser !== "undefined" && globalThis.browser.runtime) {
-    // Firefox — browser API exists, ensure chrome also works
+    // Firefox: browser API exists, ensure chrome also works
     if (typeof globalThis.chrome === "undefined") {
       globalThis.chrome = globalThis.browser;
     }
@@ -16,11 +16,11 @@
   }
 
   if (typeof globalThis.chrome === "undefined" || !globalThis.chrome.runtime) {
-    // Neither API available — not in an extension context
+    // Neither API available, not in an extension context
     return;
   }
 
-  // Chrome/Edge — create promisified browser.* namespace
+  // Chrome/Edge: create promisified browser.* namespace
   const chrome = globalThis.chrome;
 
   function wrapAsyncMethod(api, method) {

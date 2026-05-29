@@ -26,7 +26,7 @@ const GCC = new Function("document", "window", "chrome",
   { runtime: { lastError: null }, storage: { local: { get: () => {} } } }
 );
 
-describe("shared.js — GCC utilities", () => {
+describe("shared.js: GCC utilities", () => {
 
   // ===========================
   // formatNumber
@@ -280,7 +280,7 @@ describe("shared.js — GCC utilities", () => {
 });
 
 // ===========================
-// sendMessage — needs its own GCC instances because the chrome
+// sendMessage needs its own GCC instances because the chrome
 // mock has to flip between configurations
 // ===========================
 
@@ -305,7 +305,7 @@ const buildGcc = (chromeStub) => {
   );
 };
 
-describe("shared.js — sendMessage failure shape", () => {
+describe("shared.js: sendMessage failure shape", () => {
   test("returns { error, code: 'no_chrome' } when chrome runtime is unavailable", async () => {
     const gcc = buildGcc(undefined);
     const resp = await gcc.sendMessage({ type: "anything" });

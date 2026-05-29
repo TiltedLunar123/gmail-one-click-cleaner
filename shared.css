@@ -1,5 +1,5 @@
 /* =========================================================
-   Gmail One-Click Cleaner — Shared Design Tokens & Base
+   Gmail One-Click Cleaner - Shared Design Tokens & Base
    Extracted from inline styles to reduce duplication
    ========================================================= */
 
@@ -165,7 +165,7 @@
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
   }
-  /* Spinners convey "system is busy" — they're state indicators, not
+  /* Spinners convey "system is busy", they're state indicators, not
      decoration. WCAG SC 2.3.3 / 2.2.2 specifically carve out
      non-essential animation; a loading spinner is essential context.
      Restore the rotation for both the standalone .spinner element and

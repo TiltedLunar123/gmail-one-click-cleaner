@@ -157,7 +157,7 @@
   // and a bare numeric MB value (the " MB" unit is rendered separately in the
   // chip layout). Do not collapse them without updating the chip rendering.
   const formatDuration = (ms) => {
-    if (ms === null || ms === undefined || ms < 0) return "–";
+    if (ms === null || ms === undefined || ms < 0) return "-";
     const sec = ms / 1000;
     return sec.toFixed(sec >= 10 ? 0 : 1) + "s";
   };
@@ -656,13 +656,13 @@
 
     const { phase, status, detail, percent, stats } = message;
 
-    // Status — show spinner for all active (non-terminal) phases
+    // Status: show spinner for all active (non-terminal) phases
     const isActivePhase = phase && ![PHASES.DONE, PHASES.CANCELLED, PHASES.ERROR].includes(phase);
     if (status) {
       if (isActivePhase) setStatusLoading(status);
       else setStatus(status);
 
-      appendLog(status + (detail ? ` — ${detail}` : ""), LOG_LEVELS.INFO);
+      appendLog(status + (detail ? ` - ${detail}` : ""), LOG_LEVELS.INFO);
     } else if (detail) {
       if (isActivePhase && !status) setStatusLoading(detail);
       appendLog(detail, LOG_LEVELS.INFO);
@@ -943,13 +943,13 @@
 
       if (response?.ok) {
         appendLog("Auto-reconnect: content script is alive.", LOG_LEVELS.SUCCESS);
-        setStatusLoading("Reconnected — waiting for progress…");
+        setStatusLoading("Reconnected, waiting for progress…");
         state.autoReconnectAttempts = 0;
         state.isReconnecting = false;
         return;
       }
     } catch {
-      // Ping failed — try re-injecting
+      // Ping failed, try re-injecting
     }
 
     // Step 2: Re-inject the content script
@@ -984,7 +984,7 @@
       });
 
       appendLog("Auto-reconnect: re-injected content script.", LOG_LEVELS.SUCCESS);
-      setStatusLoading("Re-injected — waiting for progress…");
+      setStatusLoading("Re-injected, waiting for progress…");
       showToast("auto-reconnected", "success");
     } catch (err) {
       appendLog(`Auto-reconnect failed: ${err?.message || err}`, LOG_LEVELS.ERROR);

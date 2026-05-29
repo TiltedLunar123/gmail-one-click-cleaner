@@ -60,7 +60,7 @@ beforeAll(() => {
     }
   };
 
-  // Load background.js — it's a self-executing IIFE that registers listeners
+  // Load background.js, it's a self-executing IIFE that registers listeners
   const fs = require("fs");
   const path = require("path");
   const code = fs.readFileSync(path.join(__dirname, "..", "background.js"), "utf-8");
@@ -77,7 +77,7 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
-describe("background.js — Service Worker", () => {
+describe("background.js: Service Worker", () => {
 
   test("registers all expected listeners on load", () => {
     expect(onInstalledCb).toBeDefined();

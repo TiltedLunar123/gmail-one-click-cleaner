@@ -1,4 +1,4 @@
-// shared.js — Common utilities for Gmail One-Click Cleaner extension pages
+// shared.js: Common utilities for Gmail One-Click Cleaner extension pages
 // Extracted from popup.js, options.js, diagnostics.js, progress.js, stats.js
 // to eliminate duplication across extension pages.
 

@@ -1,4 +1,4 @@
-# Security Policy – Gmail One-Click Cleaner
+# Security Policy - Gmail One-Click Cleaner
 
 Gmail One-Click Cleaner is a Chrome MV3 extension that automates **safe Gmail searches** and bulk cleanup actions. It does **not** exfiltrate email content, attachments, or credentials.
 

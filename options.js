@@ -188,8 +188,8 @@
     indicator.classList.toggle("show", !!state.hasUnsavedChanges);
 
     document.title = state.hasUnsavedChanges
-      ? "• Gmail One-Click Cleaner – Rules & Settings"
-      : "Gmail One-Click Cleaner – Rules & Settings";
+      ? "• Gmail One-Click Cleaner - Rules & Settings"
+      : "Gmail One-Click Cleaner - Rules & Settings";
   };
 
   const markUnsaved = () => {
@@ -990,7 +990,7 @@
   // Rule Templates Library (5.0)
   // =========================
   // Curated, safe-by-default Gmail queries the user can add with one
-  // click. Each template is just a starter — we still pass it through
+  // click. Each template is just a starter, we still pass it through
   // the same validator before saving.
 
   const RULE_TEMPLATES = [

@@ -29,7 +29,7 @@ const isValidWhitelistEntry = new Function(
   return isValidWhitelistEntry;`
 )();
 
-describe("contentScript.js — isValidWhitelistEntry", () => {
+describe("contentScript.js: isValidWhitelistEntry", () => {
   test.each([
     "person@example.com",
     "first.last@example.co.uk",

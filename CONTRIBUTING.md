@@ -63,11 +63,11 @@ build.js             # Build script (copy, minify, zip)
 ## Guidelines
 
 - **Open an issue first** for major changes so we can discuss the approach.
-- **Keep it simple** — this is a vanilla JS project with no bundler or framework. Keep it that way.
-- **Test manually** — Load the extension, open Gmail, and verify your changes work. Test with Dry-Run mode enabled for safe iteration.
-- **Follow existing patterns** — Use the `GCC` shared utilities rather than adding new standalone helpers.
-- **Security matters** — Never use `innerHTML` with user data. Use `textContent` or the `GCC.createEl()` helper. See [SECURITY.md](SECURITY.md).
-- **Lint before committing** — Run `npm run lint` and fix any issues.
+- **Keep it simple** - this is a vanilla JS project with no bundler or framework. Keep it that way.
+- **Test manually** - Load the extension, open Gmail, and verify your changes work. Test with Dry-Run mode enabled for safe iteration.
+- **Follow existing patterns** - Use the `GCC` shared utilities rather than adding new standalone helpers.
+- **Security matters** - Never use `innerHTML` with user data. Use `textContent` or the `GCC.createEl()` helper. See [SECURITY.md](SECURITY.md).
+- **Lint before committing** - Run `npm run lint` and fix any issues.
 
 ## Pull Request Process
 
