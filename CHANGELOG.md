@@ -25,6 +25,16 @@ and adds one-click category targeting.
   and raced through every query in seconds selecting nothing. It now
   waits for the result list to turn over to the new query (or settle
   empty). Verified live: a deep run moved 179 conversations to Trash.
+- **Tag-before-delete no longer stalls the run.** The recovery-label step
+  used to wait up to five seconds on every delete pass for a label input
+  that never appeared: Gmail's "Label as" is now a hover submenu inside
+  the "More email options" overflow (not a dialog), and the old code
+  grabbed the first (hidden) role=menu and looked for the input only
+  under role=dialog. It now opens the overflow with the pointer/mouse
+  sequence, resolves the menu that is actually on screen, hovers the
+  "Label as" submenu, and searches menu-scoped selectors for the input,
+  with the wait capped near a second so a miss skips fast. Deletion never
+  blocks on tagging.
 - **Tag-before-delete works on current Gmail again.** Gmail moved the
   "Label as" control into the toolbar's "More email options" overflow
   menu, so the old toolbar-only finder never found it and

@@ -19,7 +19,7 @@
     SEARCH_TRANSITION_DELAY: 400,
     POST_ACTION_DELAY_MS: 800,
     BETWEEN_PASS_SLEEP_MS: 650,
-    LABEL_DIALOG_TIMEOUT: 5000,
+    LABEL_DIALOG_TIMEOUT: 1200,
     KEYBOARD_ACTION_DELAY: 250,
     DOM_SETTLE_DELAY: 300,
     CHECKBOX_SETTLE_DELAY: 250,
@@ -634,6 +634,9 @@
     labelInputs: [
       "div[role='dialog'] input[aria-label*='Label as']",
       "div[role='dialog'] input[aria-label*='Apply one or more labels']",
+      "div[role='menu'] input[aria-label*='Label']",
+      "div[role='menu'] input[type='text']",
+      "input[aria-label*='Label as']",
       "div[role='dialog'] input[type='text']"
     ],
     noResultsIndicators: [
@@ -1888,6 +1891,66 @@
     return true;
   }
 
+  // Dispatch hover events so Gmail opens a hover-driven submenu. The
+  // "Label as" entry in the overflow menu is a submenu (aria-haspopup),
+  // not a direct control, so it expands on pointer-over rather than a
+  // click. This is the pointer-over half of a real mouse interaction.
+  function hoverElement(el) {
+    if (!el) return;
+    let rect;
+    try {
+      rect = el.getBoundingClientRect();
+    } catch {
+      rect = { left: 0, top: 0, width: 0, height: 0 };
+    }
+    const base = {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      view: window,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2
+    };
+    const PointerCtor = typeof PointerEvent === "function" ? PointerEvent : MouseEvent;
+    const send = (type, Ctor, extra) => {
+      try {
+        el.dispatchEvent(new Ctor(type, { ...base, ...extra }));
+      } catch (e) {
+        debugLog("hoverElement event failed", { type, error: e?.message });
+      }
+    };
+    send("pointerover", PointerCtor, { pointerId: 1, pointerType: "mouse", isPrimary: true });
+    send("mouseover", MouseEvent, {});
+    send("mouseenter", MouseEvent, {});
+    send("mousemove", MouseEvent, {});
+  }
+
+  function isElementVisible(el) {
+    if (!el) return false;
+    let rect;
+    try {
+      rect = el.getBoundingClientRect();
+    } catch {
+      return false;
+    }
+    if (rect.width <= 0 || rect.height <= 0) return false;
+    const style = window.getComputedStyle(el);
+    return style.display !== "none" && style.visibility !== "hidden";
+  }
+
+  // Find the visible Gmail menu with the most menu items. Gmail keeps
+  // several hidden role=menu nodes in the DOM (help menu, hover menus),
+  // so the first match is often the wrong one; we want the menu actually
+  // on screen, which is the overflow action menu we just opened.
+  function findVisibleMenu() {
+    const menus = qsa("div[role='menu']").filter(isElementVisible);
+    menus.sort(
+      (a, b) =>
+        qsa("[role^='menuitem']", b).length - qsa("[role^='menuitem']", a).length
+    );
+    return menus[0] || null;
+  }
+
   // Captures a short label snapshot from an element so progress logs
   // can show which exact button we picked. Helps diagnose cases where
   // findButtonByTokens scored the wrong control.
@@ -1958,11 +2021,20 @@
     const more = findMoreOptionsButton();
     if (more) {
       try { fireMouseSequence(more); } catch (e) { debugLog("More-options click threw", { error: e?.message }); }
-      const menu = await waitForElement(["div[role='menu']"], { timeout: TIMING.LABEL_DIALOG_TIMEOUT });
+      // Resolve the menu that actually opened on screen, not the first
+      // (often hidden) role=menu in the DOM.
+      const menu = await waitFor(findVisibleMenu, {
+        timeout: TIMING.LABEL_DIALOG_TIMEOUT,
+        interval: 80,
+        description: "overflow menu"
+      });
       if (menu) {
         const item = findLabelMenuItemIn(menu);
         if (item) {
-          try { fireMouseSequence(item); } catch (e) { debugLog("Label menuitem click threw", { error: e?.message }); }
+          // "Label as" is a hover submenu on current Gmail, not a direct
+          // control, so expand it by hovering and then look for the
+          // label search/create input inside.
+          hoverElement(item);
           const input = await getInput();
           if (input) return input;
         }
