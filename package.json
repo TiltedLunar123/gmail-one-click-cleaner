@@ -1,0 +1,26 @@
+{
+  "name": "gmail-one-click-cleaner",
+  "version": "6.0.0",
+  "private": true,
+  "description": "Free up Gmail storage fast. Bulk delete old emails, large attachments, & promotions.",
+  "scripts": {
+    "build": "node build.js",
+    "build:prod": "node build.js --minify",
+    "lint": "eslint *.js",
+    "watch": "node build.js && echo Watching... && node -e \"require('fs').watch('.',{recursive:false},(e,f)=>{if(f&&!f.startsWith('dist')){console.log('Changed:',f);require('child_process').execFileSync('node',['build.js'],{stdio:'inherit'})}});setInterval(()=>{},86400000)\"",
+    "zip": "node build.js --zip",
+    "clean": "node -e \"const fs=require('fs'); ['dist','gmail-one-click-cleaner.zip'].forEach(f=>{try{fs.rmSync(f,{recursive:true})}catch{}})\""  ,
+    "test": "jest --verbose",
+    "test:ci": "jest --ci --coverage"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.0",
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

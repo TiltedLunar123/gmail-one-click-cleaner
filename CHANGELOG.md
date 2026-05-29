@@ -1,0 +1,613 @@
+# Changelog – Gmail One-Click Cleaner
+
+All notable changes to this project will be documented in this file.
+This log tracks user-visible behavior, UI changes, and important internal fixes.
+
+## 6.0.0 - Recovery overflow-menu fix, focused targets, accurate counts
+
+The big one. Restores the recovery-by-label safety net, makes large
+cleanups actually clean past the first screen, fixes affected counts,
+and adds one-click category targeting.
+
+### Fixed
+- **Tag-before-delete works on current Gmail again.** Gmail moved the
+  "Label as" control into the toolbar's "More email options" overflow
+  menu, so the old toolbar-only finder never found it and
+  recovery-by-label silently never happened. The engine now opens the
+  overflow menu (with a keyboard-shortcut fallback) to reach it, and the
+  undo log's `taggingFailed` flag is honest instead of always `false`.
+- **Accurate affected counts.** A confirmed "all N conversations
+  selected" bulk delete uses the match total; a per-page delete uses the
+  visible selection it actually acted on. Fixes the over-counting that
+  inflated freed-MB and category stats on chunked runs.
+- **Popup completion UI is wired to the real messages.** The popup was
+  listening for done/cancelled/error message types the engine never
+  sends; it now reads the actual progress contract, so the result
+  summary, success actions, and recovery toast fire correctly.
+- **No more lost stats / undo / sender data.** The service worker's
+  read-modify-write storage handlers are serialized, so the rapid
+  per-pass messages no longer clobber one another.
+- **Scheduled cleanups stop drifting.** Alarms are anchored to the last
+  run plus the interval instead of resetting on every browser restart.
+- **Review mode can't hang forever.** If the progress tab is closed
+  without a response, the run skips that rule after a timeout.
+- **Diagnostics "content script attached" check** reads the correct flag,
+  so it reflects reality during a live run.
+
+### Added
+- **Focused targets.** One-click chips in the popup (Promotions, Big
+  attachments, Social & updates, No-reply) run a small, age-guarded rule
+  set for just that category instead of the full intensity sweep. All
+  global safety guards still apply.
+- **Layout-change telemetry.** If Gmail reshuffles its selection classes,
+  the engine warns instead of silently deleting nothing.
+
+### Removed
+- Dead Pro-tier lifetime-stats writer (the paid tier was dropped).
+
+## 5.0.7 - Per-row selection fallback (real fix for the silent-no-delete bug)
+
+Diagnosed by inspecting the live Gmail DOM against `mail.google.com`.
+The "selecting it then just not deleting anything" report turned out to
+be a far deeper Gmail behavior than the v5.0.6 verification fix
+addressed:
+
+- A programmatic `.click()` on the master checkbox toggles the master's
+  own `aria-checked` to `"true"` and Gmail applies a CSS rule that
+  fills in blue checkmarks on every visible row. BUT the row-level
+  selection — `tr.x7` class, `[role="checkbox"][aria-checked="true"]`
+  — never gets populated.
+- Gmail's delete handler reads from the real selection model. With it
+  empty, the click on Delete is a no-op. We then reported "0 affected"
+  for runs where nothing got deleted because nothing was actually
+  selected.
+- Verified: clicking each row's checkbox individually DOES populate
+  the real selection model (row gains `x7` class, checkbox
+  `aria-checked` flips to `"true"`).
+
+Also discovered the same way:
+- Gmail no longer surfaces "N selected" text anywhere inside
+  `div[role="main"]` in the current UI — that's why
+  `extractSelectedCount()` always returned `null` on real runs.
+- The Labels button has moved entirely into the "More email options"
+  overflow menu (the toolbar never has a direct Labels button now).
+
+Fixes:
+
+- `extractSelectedCount()` now counts `tr[role="row"].x7` inside the
+  result grid as the primary selection signal. Legacy text scrape
+  retained as fallback for older Gmail layouts.
+- `clickMasterCheckbox()` keeps clicking the master first (cheap;
+  works when Gmail's master is in a layout that does cascade), but
+  if the resulting selection count is 0, it falls through to
+  `selectAllVisibleRowsIndividually()` which iterates every visible
+  row's checkbox and clicks each. That populates Gmail's real
+  selection model, so the subsequent Delete click actually deletes.
+
+Tag-before-delete (the "Label button not found" warning) still goes
+through the old finder; that path is queued for a follow-up patch
+that opens the "More email options" menu first. Deletions now work
+correctly without the tag step — the undo log still records the
+metadata, just without the searchable label.
+
+## 5.0.6 - Delete verification + accurate affected counts
+
+Diagnosed from a user report: "it's selecting it then just not deleting
+anything." Two compounding bugs:
+
+1. `extractSelectedCount()` returns `null` when Gmail's "N selected"
+   text drifts to a layout the function doesn't recognise.
+2. `waitForActionProcessing()` treated `null` as success — so the engine
+   reported `0 affected` and moved on, regardless of whether the delete
+   actually fired. Silent false-positive.
+
+Fixes:
+
+- `waitForActionProcessing()` now requires **positive evidence** that
+  the action happened: selection count dropped from a known-positive
+  start, grid row count decreased, `hasNoResults()` settled, or
+  Gmail's "Undo" toast appeared. Returns `{ ok, signal, startRowCount,
+  endRowCount }` so callers know *which* signal fired and can derive
+  the affected count from row delta.
+- The affected count is now derived from the strongest available
+  signal: declared selection > row-count delta > `rowsBefore` when
+  page settled empty > 0. No more silent "0 affected" when rows
+  actually disappeared.
+- `tryDeleteAction` / `tryArchiveAction` log the button's
+  aria-label / tooltip / title when clicked, so the progress log
+  shows exactly which control was activated. If `findButtonByTokens`
+  ever scores the wrong element, the next log will say so.
+- New helpers: `getGridRowCount()` and `findUndoToast()`.
+
+If Gmail genuinely refuses the click (UI state, focus, etc.), the
+engine now throws `TimeoutError` and the retry loop re-attempts —
+better to fail loudly than silently lie about success.
+
+## 5.0.5 - Empty-search fast path + still-waiting beats
+
+Diagnosed from another stuck-run log (query 1: `larger:20M` taking
+~2 minutes before any retry, then retrying 6 times). `openSearch()`'s
+wait condition only returned true when the result grid contained at
+least one row — so any query that legitimately matched zero mail
+(very common once global guards strip starred / important / unread /
+user-labeled threads) sat for the full 20s wait, threw a
+TimeoutError, and retried 6 times before either skipping (5.0.2) or
+killing the run (≤5.0.1).
+
+- `openSearch()` now also accepts Gmail's empty-state container
+  (`td.TC`) as a valid "search settled" signal. Zero-match queries
+  now resolve in well under a second; `hasNoResults()` downstream
+  classifies them with `count=0` cleanly.
+- `waitFor()` accepts an optional `onTick` callback; `openSearch`
+  uses it to surface "Still waiting for search results (Ns)…" beats
+  every ~5s so the user has evidence the engine isn't dead while
+  Gmail is slow to render a heavy search.
+
+## 5.0.4 - Spinner stays animated under reduced motion
+
+The blanket `prefers-reduced-motion: reduce` rule in `shared.css`
+killed every animation on the page via
+`animation-iteration-count: 1 !important`, including the loading
+spinner. The spinner is a state indicator ("system is busy"), not
+decoration, so reduced motion shouldn't freeze it (WCAG carves out
+essential animation explicitly).
+
+Added a follow-up rule inside the same media query that re-enables
+the spin animation for `.spinner` (0.6s) and the primary-button
+busy spinner (`.primary.loading::after`, 0.8s). Higher specificity
+beats the universal selector under equal `!important`, so the
+override wins reliably.
+
+## 5.0.3 - CSP `data:` fix for inline SVG chevrons
+
+The meta CSP on every extension page declared `img-src 'self'`, which
+blocks `data:` URLs. The select-dropdown chevron (an inline
+`url("data:image/svg+xml,…")` background image in `popup.html` and
+`options.html`) tripped this on every render, producing a console
+error and dropping the down-arrow glyph on the rule-intensity / age
+selects.
+
+Added `data:` to `img-src` on all five extension pages. No new
+external origins; the directive still rejects any non-`data:` /
+non-self image source.
+
+## 5.0.2 - Per-query failure isolation
+
+Caught from another real-world log: in v5.0.0 / v5.0.1, when a single
+query exhausted its 6 retries, `processQuery()` re-threw the
+TimeoutError, which propagated up to `main()` and aborted the
+**entire** run on the first stubborn rule. A user with one slow
+search (`has:attachment larger:10M older_than:6m` matching too many
+results for Gmail's UI to render in time) lost all 11 queries.
+
+- After retries exhausted, the engine now classifies the failure as
+  per-query (not run-wide) for known-transient errors (RateLimit /
+  Timeout). The query is recorded as failed, a warning is emitted to
+  the progress log, and the next rule starts. Cancellation and
+  unexpected errors still abort the run.
+- The 5.0.1 wall-time budget still fires for slow retries; the new
+  exhausted-retries branch fires for fast retries that simply keep
+  failing.
+
+## 5.0.1 - Engine resilience
+
+Diagnosed from a real-world stuck-run progress log: a single Gmail
+search (`has:attachment larger:10M older_than:6m`) hit the action-
+processing timeout, the engine entered exponential backoff, and the
+log just said "Backoff 1758ms (timeout)" with no indication what was
+actually waiting or how many retries were left.
+
+- **Descriptive backoff messages.** The retry catch path now passes
+  the underlying error message into `backoff()`, so the log reads
+  "Backoff 3339ms (timeout: Action processing timed out (Gmail did
+  not refresh selection/results))" instead of bare "timeout".
+- **Per-query wall-time budget.** New `GUARDRAILS.QUERY_WALL_TIME_BUDGET_MS`
+  (5 minutes). If a single query has been retrying for that long it
+  gets abandoned with a clear warning and the run moves to the next
+  rule, so one bad query can't pin the whole run for 10+ minutes.
+- **Retry-counter progress.** Each retry now logs
+  "<label>: retry N/6 after timeout" so the user can see structured
+  progress through the retry budget instead of watching opaque
+  backoffs.
+
+## 5.0.0 - Extended Upgrade
+
+A major release closing every open GitHub issue, adding ten substantial new
+features, and shipping a deep deglitch + test pass across the codebase.
+
+### New features
+
+- **Light / dark / system theme.** Every extension page (popup, options, stats, progress, diagnostics) honours `prefers-color-scheme` automatically, with a manual switcher pill in each header. Choice persists across sessions.
+- **First-run onboarding wizard.** A two-step popup explains the safe-by-default flow and points new users at Dry Run, custom rules, and the `?` keyboard shortcut. Skippable; shown once per install.
+- **Custom rule template library.** Options page now has a chip row of curated safe queries (old promotions, large attachments, GitHub digests, Slack, LinkedIn, etc.) that add a custom rule with one click. Each template still passes through the same validator before persisting.
+- **Drag-and-drop rule reordering.** Custom rules can be reordered with a drag handle in the options page; order is preserved in sync storage.
+- **Snooze / vacation mode.** Pause all scheduled cleanups for N days from the options page. The popup surfaces a banner whenever snooze is active. Manual runs still work; only schedules are suppressed.
+- **Top senders dashboard.** The stats page now ranks the senders that showed up most often in your cleanups, with Search-in-Gmail and one-click "Protect" (add-to-whitelist) buttons per row. Sender samples are collected by the content script before each delete batch and aggregated by the service worker.
+- **Desktop completion notifications.** Optional opt-in toggle in the options page; when enabled, Chrome surfaces a system notification when a cleanup finishes so you don't have to keep the progress tab visible. New `notifications` permission, used only when the user enables it.
+- **Keyboard shortcut overlay.** Press `?` in the popup for a modal listing every shortcut. Esc closes any open modal first, then the popup.
+- **Auto-pause warning for large batches.** When a single delete batch exceeds 2,000 conversations, the engine emits a warning to the progress page before acting so the user can review.
+- **Sender + thread-id sampling for the undo log.** Each undo entry now carries a sample of message thread IDs and a sender count taken from the Gmail list view before deletion. Tag-label search is still the primary recovery path, but it is no longer the only one.
+
+### Issue fixes
+
+- **#22** — Popup intensity restore now persists the user's raw UI selection (preserves "Monthly") instead of round-tripping through a dead `=== "monthly"` branch. A legacy-format migration handles existing storage entries.
+- **#20** — `runCleanup` now uses an atomic-style "claim + verify" pattern (random `runId`, re-read after a micro-pause) before touching the Gmail tab, so two popups opened in parallel cannot both inject.
+- **#19** — `tabsSendMessage` failures are now classified (`tab_closed` vs `permission` vs `other`) and the cancel handler surfaces a specific message instead of always saying "tab unreachable". Reuses the new `GCC.classifyChromeError` helper.
+- **#17** — The stats page poller pauses on `visibilitychange` when the tab is hidden, resuming with an immediate refresh when the user returns. Generic `GCC.pollingInterval` helper is reusable for any future visibility-aware loop.
+- **#16** — `web_accessible_resources` removed from the manifest. `shared.css`, `shared.js`, and `browser-polyfill.js` were only ever needed by extension pages (which have direct access), so exposing them to `mail.google.com` was a fingerprinting vector with no upside.
+- **#10** — Schedule writes from the service worker now go through a quota-aware `safeSyncSet`. Oversized payloads throw a clear error and the save handler relays it back to the options page rather than silently truncating.
+- **#9** — Undo log entries now carry sampled message thread IDs and a sender count from the Gmail list view, recorded before each delete batch.
+- **#8** — Custom rule queries are now validated at two layers: the options-page editor refuses (and the engine quietly skips) any query that targets protected mail (`is:starred`, `is:important`, `in:sent`, `in:drafts`, etc.) without negation. Soft warning when `in:inbox` / `in:all` is used without an age qualifier.
+- **#7** — `confirm()` and end-of-run `alert()` are now skipped when `CONFIG.scheduled` is true. Scheduled runs that hit the soft cap or huge-run threshold decline cleanly and report via the progress log instead of hanging on a modal dialog.
+- **#6** — `runScheduledCleanup` checks the `ACTIVE_RUN` marker before injecting and claims its own marker for the duration. A manual cleanup in flight blocks the schedule rather than getting its `window.GMAIL_CLEANER_CONFIG` clobbered.
+
+### Internal / DX
+
+- New `GCC.theme`, `GCC.pollingInterval`, `GCC.safeSyncSet`, `GCC.validateGmailQuery`, `GCC.classifyChromeError`, `GCC.notify`, `GCC.downloadFile` utilities in `shared.js`.
+- `sanitizeConfig` propagates `scheduled`, `runId`, and `scheduleId` so the engine can identify itself in undo log entries and confirmation guards.
+- Background SW gained `gmailCleanerGetSnooze`, `gmailCleanerSetSnooze`, `gmailCleanerAddToWhitelist`, and `gmailCleanerRecordSenders` message handlers. Unknown message types now always respond instead of leaving the port open.
+- Test coverage extended (issue #14, partial): new pure-function tests for `validateGmailQuery`, `classifyChromeError`, `safeSyncSet`, `pollingInterval`, and the content script's `queryHasDangerousToken` defense-in-depth filter.
+
+### Folded-in 4.3.x cleanup (previously listed as Unreleased)
+
+- Defer-loaded the three script tags on every extension page so module-scope DOM reads always fire post-parse.
+- `GCC.sendMessage` resolves to `{ error, code }` on failure (codes: `no_chrome`, `send_failed`, `threw`).
+- Whitelist sanitizer in `contentScript.js` aligned with `options.js`; hand-written values like `"user+tag@domain"` (no TLD) drop cleanly.
+
+## 4.3.1
+
+- Removed dead `broadcastToExtensionPages()` helper from the service worker.
+  It was defined but never called; extension pages already receive progress
+  messages directly via `chrome.runtime.sendMessage`. No behavior change.
+- Fixed the stale `v4.0.0` version badge in the popup header. The badge now
+  reads its label from `chrome.runtime.getManifest()` at init, so future
+  version bumps cannot leave the visible chrome out of sync with the manifest.
+- Added the missing `aria-controls` link between the Safety & Guardrails
+  `<summary>` and its content panel in the popup. The other collapsible
+  sections (Reassurance, Affiliate) already had it; this brings Safety inline
+  for screen readers that surface the relationship.
+- Added a `tests/version.test.js` suite that asserts `manifest.json`,
+  `package.json`, every `*_VERSION` script constant, and the visible HTML
+  version badges all agree. Catches drift in CI before it ships.
+- Pinned the extension-page Content Security Policy explicitly in the manifest
+  (`script-src 'self'; object-src 'none'`). MV3's default already enforces it,
+  but writing it down keeps the policy reviewable.
+- Removed the deprecated `document.execCommand("copy")` clipboard fallback in
+  the diagnostics and progress views. Both pages now rely on the async
+  Clipboard API and surface a "failed to copy" toast on error.
+- Replaced the duplicated `formatNumber` in `progress.js` with the shared
+  helper from `shared.js`. Local `formatDuration` and `formatMB` stay because
+  they intentionally render compact values for the chip layout.
+- Harmonized the "Find in Gmail" link in the stats undo log to
+  `rel="noopener noreferrer"` so every external/new-tab anchor in the
+  extension matches.
+
+## 4.0.0
+
+- **Background Service Worker**
+  - Added persistent background service worker for messaging coordination, scheduling, and stats persistence.
+  - Extension no longer relies solely on popup staying open for script injection.
+
+- **Undo / Recovery System**
+  - Tracks all cleanup operations with query, label, count, and action type.
+  - Recovery log accessible from the new Statistics page with direct Gmail search links.
+  - Tagged emails can be found via Gmail label search for easy recovery within 30-day Trash window.
+
+- **Scheduled / Automatic Cleanups**
+  - Create daily, weekly, or monthly cleanup schedules via the Options page.
+  - Uses chrome.alarms API for reliable recurring execution.
+  - Schedules can be enabled/disabled or deleted individually.
+  - Requires Gmail to be open in at least one tab.
+
+- **Custom Rules Editor**
+  - Build your own Gmail search queries with per-rule action (delete, archive, label only).
+  - Custom rules run alongside built-in intensity presets.
+  - Manage up to 20 custom rules from the Options page.
+
+- **Multi-Account Support**
+  - Detects multiple Gmail tabs (different Google accounts).
+  - Account selector pills appear in the popup when multiple accounts are open.
+  - Choose which account to clean before starting.
+
+- **Statistics Dashboard**
+  - New dedicated stats page with overview cards (total runs, emails cleaned, space freed).
+  - 30-day daily activity bar chart.
+  - Category breakdown showing which rule categories cleaned the most.
+  - Full run history table with intensity, duration, and action type.
+  - Auto-refreshes every 30 seconds.
+
+- **Shared CSS & Build Pipeline**
+  - Extracted common design tokens and base styles into shared.css.
+  - Added package.json with build scripts (esbuild minification, zip packaging).
+  - Reduced CSS duplication across all extension pages.
+
+- **Smart Whitelist Suggestions**
+  - Tracks sender interactions (opens, replies) to suggest senders you engage with.
+  - Suggestion chips appear in the popup for one-click whitelist additions.
+  - Protects senders you actually read from being cleaned.
+
+- **Firefox & Edge Support**
+  - Added browser-polyfill.js shim for WebExtensions API compatibility.
+  - Promisifies Chrome callback APIs and creates browser.* namespace.
+  - Extension now works across Chrome, Edge, and Firefox with the same codebase.
+
+- **Build & Development Tooling**
+  - Added build.js script for dist packaging and optional JS minification.
+  - Added zip creation for Chrome Web Store submissions.
+  - Added package.json with lint and build scripts.
+
+## 3.5.0
+
+- **Bug Fixes & UX Improvements**
+  - Fixed invalid escape sequences in content script selectors.
+  - Improved error handling for edge cases during Gmail DOM automation.
+  - Refined rate-limit backoff and recovery logic.
+  - Minor UI polish across popup, progress, and options pages.
+
+## 3.4.0
+
+- **Safe Mode Subject Guard**
+  - Added subject-line protection for receipts, invoices, order confirmations, shipping notices, and refund emails when Safe Mode is enabled.
+- **Adaptive Throttling Improvements**
+  - Tuned rate-limit backoff parameters for more reliable long runs.
+  - Added de-escalation logic to recover faster after temporary Gmail errors.
+
+## 3.3.0
+
+- **Popup UX overhaul (clearer + safer starts)**
+  - Added a real button state machine (starting, running, success) with better status copy.
+  - Added toast notifications for key actions and failures.
+  - Added best-effort popup progress bar (so users get feedback before the popup auto-closes).
+  - Added “open gmail” helper when no Gmail tab is detected.
+  - Persisted last-used config more reliably (session + local fallback) so runs feel consistent.
+
+- **Active run detection + quick actions**
+  - Popup detects an already-running cleanup via an `activeRun` marker (with a best-effort TTL).
+  - Quick actions to **Cancel** or **Open Progress** when a run is active.
+
+- **Progress dashboard v2 (major UI + usability upgrade)**
+  - New glass-style Progress page with:
+    - Live phase tag + percent bar
+    - Activity log with timestamps + log levels
+    - Copy logs / Clear logs controls
+    - Per-query summary table with counts + duration
+    - Cleaner “done / cancelled / error” end states
+  - Added keyboard shortcuts:
+    - `Esc` cancels run (or skips review when a review modal is open)
+    - `Enter` proceeds in review modal
+    - `Ctrl/Cmd + C` copies logs (when no text is selected)
+
+- **Review Mode upgrades**
+  - Added a proper modal-based review prompt (Proceed / Skip per rule) from the Progress page.
+  - Progress page sends explicit signals back to the Gmail tab (`resume` / `skip`) for the current rule.
+
+- **Recovery tools (when Gmail reloads mid-run)**
+  - **Reconnect** button: pings the Gmail content script with a timeout and reports success/failure.
+  - **Re-inject** button: re-injects last config (if available) + content script to resume progress messaging.
+
+- **Share + support polish**
+  - Added “Share” flow (copy Web Store link to clipboard, fallback to opening the link).
+  - Tip intent tracking stored locally (user-initiated link clicks only).
+
+- **Internal hardening**
+  - More defensive Chrome API checks (tabs/storage/scripting availability).
+  - Better URL param parsing for `gmailTabId`.
+  - Log caps and DOM caps to prevent runaway memory usage in long runs.
+
+## 3.2.0
+
+- **New Preset: Monthly Light Clean**
+  - Added a "Recommended" quick-action button in the popup.
+  - Automatically configures the cleaner to **Safe Mode**, **Trash** action, and a **3-month** age limit.
+  - Designed for safe, repeated maintenance of old promotions and junk.
+
+- **Storage Freed Calculation**
+  - The cleaner now estimates the storage space released (in MB) during the run based on attachment flags and message types.
+  - The final result summary now displays: "Deleted X emails / freed Y MB".
+
+- **Smart UI & Onboarding Improvements**
+  - **Pin Hint:** Added a dismissible banner encouraging users to pin the extension for easy access.
+  - **Mini FAQ:** Added reassurance text in the popup explaining that items go to Trash (30-day safety net) and are not permanently deleted immediately.
+  - **Success Actions:** New completion screen with buttons to "Rate on Chrome Web Store" and "Share extension".
+  - **Soft Rating Prompt:** A gentle request for a 5-star rating appears after 2-3 successful runs.
+
+- **Affiliate & Support**
+  - Added "Jude’s cheap storage & setup picks" section in the Popup and Progress window to recommend physical storage solutions for users running out of digital space.
+
+## 3.0.0
+
+- **Major Feature: Review Mode**
+  - Added a "Review matches before action" toggle. When enabled, the cleaner pauses after finding results for a rule, allowing you to see exactly what will be deleted and choose to **Proceed** or **Skip** that specific query before any action is taken.
+
+- **Major Feature: Global Whitelist**
+  - Introduced a global exclusion list. You can now specify email addresses (e.g., family or work VIPs) that are automatically excluded from *all* rules, ensuring they are never archived or deleted.
+
+- **Cleanup History**
+  - The Diagnostics page now tracks your last 10 runs locally. You can review past performance, including the date, mode (Dry Run vs Live), Archive vs Delete setting, and total conversations affected.
+
+- **Core Improvements**
+  - Updated the automation engine to support interactive "Pause/Resume" signals for Review Mode.
+  - Migrated run stats storage to `chrome.storage.local` to support history tracking without hitting sync limits.
+
+## 2.10.5
+
+- Stability + clarity patch focused on safer runs and more honest feedback:
+  - Added a soft cap on how many conversations a single run will act on, with a confirmation step before continuing on very large inboxes.
+  - Improved handling of empty or failed Gmail searches so runs end with clear “nothing matched” or “search failed” messages instead of looking like a silent success.
+
+- More accurate progress and end-of-run reporting:
+  - Progress bar now reflects the number of conversations matched at the start of the run, not just rough batches.
+  - Tracked counts for “checked”, “labeled / archived”, and “skipped” threads and surfaced them in the end-of-run summary.
+  - Dry Run now ends with a “would have affected” summary so you can see what a real run would do without touching your inbox.
+
+- Better safety and recovery behavior:
+  - Hardened the content script boot sequence to avoid duplicate injection and to fail visibly if Gmail isn’t ready.
+  - Ensured runs cannot stay stuck in a “Running” state after errors, and that cancel / stop exits cleanly.
+
+- Optional Debug mode for advanced users:
+  - New toggle in settings that logs key events (start, batches, errors) with a consistent prefix in the browser console.
+  - Designed for bug reports and troubleshooting without changing how the cleaner itself behaves.
+
+> Note: 2.10.1–2.10.4 were internal / pre-release iterations. Their changes are folded into the 2.10.5 notes above.
+
+## 2.10.0
+
+- Added new safety guardrails and a non-destructive mode option:
+  - You can now choose to **archive** matching conversations instead of deleting them for extra-safe first runs.
+  - New global guardrail can skip **starred** and **Important** threads so they’re never touched by bulk cleanups.
+  - Added a “minimum age” dropdown so rule sets only act on mail older than 3, 6, or 12 months, even if a rule is looser.
+
+- Improved rule editing and testing on the Options page:
+  - Each rule set now includes a quick “open in Gmail” test action so you can preview what a query will match before running a cleanup.
+  - Clarified copy around what Light / Normal / Deep target and how Safe Mode further narrows the rules.
+
+- Internal configuration cleanup:
+  - Plumbed the new guardrail settings through popup → Gmail tab → content script so everything stays in sync.
+  - Kept all behavior **local-only** with no external servers required for these new features.
+
+## 2.9.8
+
+- Fixed issues when running in Brave and multi-Gmail setups:
+  - Improved detection of the “active” Gmail tab so cleanup runs against the right account.
+  - Reduced dependence on the extension docs / options tab being in focus.
+- Hardened content script messaging and reconnection behavior when Gmail reloads mid-run.
+- Small polish to the Progress window layout and copy.
+- Internal refactors to keep progress logic, rule sets, and UI wiring in sync.
+
+## 2.9.7
+
+- Added a richer Progress window:
+  - Live percent complete and current phase text.
+  - A summary table with per-query counts and durations.
+  - “Tags” area for showing current rule labels / hints.
+- Added **Reconnect** and **Re-inject** buttons to recover from:
+  - Gmail reloads
+  - Lost content script connections
+- Improved Cancel behavior:
+  - Cancels the current phase cleanly.
+  - Closes the progress session without leaving partial state.
+
+## 2.9.6
+
+- Introduced the **Tip / Support panel** in the Progress window:
+  - Optional section explaining how to support the project (e.g. small tips).
+  - Does not affect privacy or Gmail behavior.
+- Tuned the Progress UI styling:
+  - Darker background, softer card edges, and more readable text.
+  - Better spacing on small windows.
+
+## 2.9.5
+
+- Added optional “tag before trash” behavior in the cleanup flow:
+  - Before deleting, messages can be tagged with a dedicated Gmail label.
+  - This makes it easier to search the Trash by that label and verify results.
+- Internal changes to how rule metadata is passed from options → progress page.
+- Minor logging clean-up and more defensive checks for missing DOM elements.
+
+## 2.9.4
+
+- Expanded the **cleanup rule system**:
+  - Introduced three intensities: **Light**, **Normal**, **Aggressive**.
+  - Each intensity uses its own array of safe Gmail queries (large attachments, promos, social, newsletters, etc.).
+- Synced default rules between the options page and the run logic using a shared `DEFAULT_RULES` object.
+- Adjusted some default queries to be safer:
+  - Slightly older date thresholds for aggressive modes.
+  - Clearer focus on bulk, low-value categories.
+
+## 2.9.3
+
+- New Progress window UI (HTML/CSS refresh):
+  - Card-based layout with a single clear progress bar.
+  - Status line, details text, and compact controls.
+- Better error reporting when:
+  - No Gmail tab is found.
+  - The content script fails to attach.
+- Slight performance improvements in how the extension advances between queries.
+
+## 2.9.2
+
+- Improved options page:
+  - Cleaner descriptions of each rule set.
+  - Safer defaults for new users.
+- More robust handling of local storage:
+  - Defaults are applied if settings are missing or invalid.
+- Reduced redundant messages between popup → background → content scripts.
+
+## 2.9.1
+
+- Added **Safe Mode** toggle:
+  - Runs only the safest, least risky rule subset.
+  - Skips any “heavier” queries that might get too close to long-term history.
+- Improved **Dry Run** behavior:
+  - Ensures no destructive actions are taken when Dry Run is on.
+  - Still drives the UI and progress screen so users can see what would happen.
+
+## 2.9.0
+
+- Major internal refactor of the run logic:
+  - Centralized state management for phases, counts, and errors.
+  - Clear separation between “rules” and “execution engine”.
+- Better handling of Gmail rate limits and slower accounts:
+  - Slight randomized delays between operations.
+  - Reduced chance of hitting hard limits during long runs.
+
+---
+
+## 2.8.x
+
+- Added support for more Gmail categories (Updates, Forums) in some rule sets.
+- Tuned large-attachment filters (e.g. `larger:20M`, `has:attachment larger:10M older_than:6m`).
+- Fixed occasional issues where “Select all conversations” was not clicked properly on some layouts.
+- First iteration of the dark theme for the progress window.
+
+---
+
+## 2.7.x
+
+- Introduced **Dry Run** mode for the first time:
+  - Simulates the run without deleting messages.
+  - Helpful for sanity-checking rules on big, old inboxes.
+- Added basic error banners when Gmail layout does not match expected selectors.
+- Minor UI cleanup on popup text and buttons.
+
+---
+
+## 2.6.x
+
+- Improved handling when multiple Gmail accounts are open in the same browser session.
+- Early support for non-Chrome Chromium browsers (Brave, Edge, etc.).
+- Small optimizations to reduce flicker when switching between search queries.
+
+---
+
+## 2.5.x
+
+- More robust detection of key Gmail buttons (search results, select-all, delete).
+- Reduced chances of running with Gmail still loading or partially rendered.
+- Light performance tweaks and code organization.
+
+---
+
+## 2.0.0 – MV3 Rewrite
+
+- Migrated the extension to **Manifest V3**.
+- Re-architected the extension around:
+  - A service worker background script.
+  - `chrome.scripting` for injecting the Gmail automation.
+  - A dedicated Progress page to show run status.
+- Added configurable options for future rule tuning.
+
+---
+
+## 1.x – Initial Releases
+
+- First public release of **Gmail One-Click Cleaner**.
+- Core feature:
+  - Run a sequence of Gmail searches targeting bulk clutter:
+    - Promotions
+    - Social
+    - Newsletters / marketing
+    - Large attachments
+  - Select all results and delete in bulk.
+- Basic popup UI with a single **Run cleanup** button.
+- Simple, local-only behavior with no external servers.

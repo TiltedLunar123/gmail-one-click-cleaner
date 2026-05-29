@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Bulk Delete Gmail Emails – Gmail One-Click Cleaner",
+  "short_name": "Gmail Cleaner",
+  "version": "6.0.0",
+  "version_name": "6.0.0 - Recovery overflow-menu fix, focused targets, accurate counts",
+  "description": "Free up Gmail storage fast. Bulk delete old emails, large attachments & promotions with scheduled cleanups, stats & undo.",
+  "minimum_chrome_version": "110",
+  "permissions": ["activeTab", "scripting", "tabs", "storage", "alarms", "notifications"],
+  "host_permissions": ["https://mail.google.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Gmail One-Click Cleaner",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "options_page": "options.html",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'"
+  }
+}
