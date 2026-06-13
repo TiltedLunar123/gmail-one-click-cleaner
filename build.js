@@ -11,7 +11,11 @@ const shouldMinify = args.includes("--minify");
 const shouldZip = args.includes("--zip");
 
 const SRC = __dirname;
-const DIST = path.join(SRC, "dist");
+// Output dir defaults to ./dist but can be redirected (e.g. so tests can
+// build into an isolated temp dir without clobbering a real dist build).
+const DIST = process.env.GCC_DIST
+  ? path.resolve(process.env.GCC_DIST)
+  : path.join(SRC, "dist");
 
 // Files to include in the build
 const FILES = [
