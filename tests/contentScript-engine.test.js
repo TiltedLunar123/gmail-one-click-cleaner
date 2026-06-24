@@ -14,10 +14,13 @@ const path = require("path");
 
 const SRC = fs.readFileSync(path.join(__dirname, "..", "contentScript.js"), "utf-8");
 
-function loadEngine() {
+function loadEngine(config = {}) {
   window.GCC_ATTACHED = false;
   window.GCC_TEST_MODE = true;
-  window.GMAIL_CLEANER_CONFIG = {};
+  // The engine freezes CONFIG from window.GMAIL_CLEANER_CONFIG at load
+  // time, so inject the run config here when a test needs applyGlobalGuards
+  // to see specific guards.
+  window.GMAIL_CLEANER_CONFIG = config;
   window.alert = () => {};
   document.body.innerHTML = "";
   // Run the IIFE in a fresh function scope; it reads global window/chrome.
@@ -136,6 +139,79 @@ describe("contentScript engine internals", () => {
       const I = loadEngine();
       document.body.innerHTML = `<div role="main"><span>Promotions</span></div>`;
       expect(I.findAllConversationsSelectedIndicator()).toBe(false);
+    });
+  });
+
+  describe("sanitizeConfig protectKeywords (6.1 subject shield)", () => {
+    test("sanitizes + dedupes keywords, dropping blanks and operators", () => {
+      const I = loadEngine();
+      const out = I.sanitizeConfig({
+        protectKeywords: ["  tax ", "TAX", "", "OR", '"flight confirmation"']
+      });
+      expect(out.protectKeywords).toEqual(["tax", "flight confirmation"]);
+    });
+
+    test("defaults to an empty array when absent or wrong type", () => {
+      const I = loadEngine();
+      expect(I.sanitizeConfig({}).protectKeywords).toEqual([]);
+      expect(I.sanitizeConfig({ protectKeywords: 42 }).protectKeywords).toEqual([]);
+    });
+
+    test("caps at 25 entries", () => {
+      const I = loadEngine();
+      const many = Array.from({ length: 40 }, (_, i) => `kw${i}`);
+      expect(I.sanitizeConfig({ protectKeywords: many }).protectKeywords).toHaveLength(25);
+    });
+  });
+
+  describe("buildSubjectExclusion (engine copy)", () => {
+    test("quotes phrases only and returns '' when empty", () => {
+      const I = loadEngine();
+      expect(I.buildSubjectExclusion(["tax", "flight confirmation"]))
+        .toBe('-subject:(tax OR "flight confirmation")');
+      expect(I.buildSubjectExclusion([])).toBe("");
+    });
+  });
+
+  describe("applyGlobalGuards protected keywords", () => {
+    test("appends a -subject:(...) shield when keywords are configured", () => {
+      const I = loadEngine({
+        protectKeywords: ["tax", "flight confirmation"],
+        // turn the other guards off so the assertion is focused
+        guardSkipStarred: false,
+        guardSkipImportant: false,
+        guardSkipUnread: false,
+        guardSkipUserLabels: false
+      });
+      const guarded = I.applyGlobalGuards("category:promotions older_than:3m");
+      expect(guarded).toContain("category:promotions older_than:3m");
+      expect(guarded).toContain('-subject:(tax OR "flight confirmation")');
+    });
+
+    test("adds no shield clause when no keywords are configured", () => {
+      const I = loadEngine({
+        guardSkipStarred: false,
+        guardSkipImportant: false,
+        guardSkipUnread: false,
+        guardSkipUserLabels: false
+      });
+      const guarded = I.applyGlobalGuards("category:promotions older_than:3m");
+      expect(guarded).not.toContain("-subject:(");
+    });
+
+    test("coexists with the Safe-Mode subject guard as a separate clause", () => {
+      const I = loadEngine({
+        safeMode: true,
+        protectKeywords: ["lease"],
+        guardSkipStarred: false,
+        guardSkipImportant: false,
+        guardSkipUnread: false,
+        guardSkipUserLabels: false
+      });
+      const guarded = I.applyGlobalGuards("category:promotions older_than:3m");
+      // both the hardcoded receipt guard and the user keyword guard present
+      expect(guarded).toContain("-subject:(receipt");
+      expect(guarded).toContain("-subject:(lease)");
     });
   });
 

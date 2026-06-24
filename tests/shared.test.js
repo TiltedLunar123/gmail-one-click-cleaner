@@ -277,6 +277,68 @@ describe("shared.js: GCC utilities", () => {
       expect(fn).toHaveBeenCalledTimes(1);
     });
   });
+
+  // ===========================
+  // sanitizeProtectKeywords (6.1)
+  // ===========================
+
+  describe("sanitizeProtectKeywords", () => {
+    test("trims, drops blanks, and dedupes case-insensitively", () => {
+      expect(GCC.sanitizeProtectKeywords(["  tax ", "TAX", "", "   ", "invoice"]))
+        .toEqual(["tax", "invoice"]);
+    });
+
+    test("accepts a newline-delimited string", () => {
+      expect(GCC.sanitizeProtectKeywords("tax\n\ninvoice\n  receipt  "))
+        .toEqual(["tax", "invoice", "receipt"]);
+    });
+
+    test("strips query-breaking characters so a keyword can't escape the group", () => {
+      // quotes, parens, braces removed; a leading "-" (would flip to an
+      // exclusion) stripped; inner whitespace collapsed.
+      expect(GCC.sanitizeProtectKeywords(['"flight   confirmation"']))
+        .toEqual(["flight confirmation"]);
+      expect(GCC.sanitizeProtectKeywords(["-is:starred) OR from:(x"]))
+        .toEqual(["is:starred OR from: x"]);
+    });
+
+    test("drops bare boolean operators", () => {
+      expect(GCC.sanitizeProtectKeywords(["OR", "and", "tax"])).toEqual(["tax"]);
+    });
+
+    test("caps the list length", () => {
+      const many = Array.from({ length: 50 }, (_, i) => `kw${i}`);
+      expect(GCC.sanitizeProtectKeywords(many)).toHaveLength(GCC.MAX_PROTECT_KEYWORDS);
+    });
+
+    test("returns [] for non-array, non-string input", () => {
+      expect(GCC.sanitizeProtectKeywords(undefined)).toEqual([]);
+      expect(GCC.sanitizeProtectKeywords(null)).toEqual([]);
+      expect(GCC.sanitizeProtectKeywords(42)).toEqual([]);
+    });
+  });
+
+  // ===========================
+  // buildSubjectExclusion (6.1)
+  // ===========================
+
+  describe("buildSubjectExclusion", () => {
+    test("returns '' when there is nothing to protect", () => {
+      expect(GCC.buildSubjectExclusion([])).toBe("");
+      expect(GCC.buildSubjectExclusion(["", "  "])).toBe("");
+      expect(GCC.buildSubjectExclusion("nope".split(" "))).toBe("-subject:(nope)");
+    });
+
+    test("builds a single -subject:(...) clause, quoting phrases only", () => {
+      expect(GCC.buildSubjectExclusion(["tax", "flight confirmation", "invoice"]))
+        .toBe('-subject:(tax OR "flight confirmation" OR invoice)');
+    });
+
+    test("sanitizes before building", () => {
+      expect(GCC.buildSubjectExclusion(["  tax ", "TAX"]))
+        .toBe("-subject:(tax)");
+    });
+  });
 });
 
 // ===========================

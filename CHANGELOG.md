@@ -3,6 +3,35 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 6.1.0 - Protected keywords (subject shield)
+
+A content-based safety net to sit alongside the sender Whitelist. The
+hardcoded Safe-Mode subject guard (receipts, invoices, shipping) is now
+joined by a list **you** control.
+
+### Added
+- **Protected keywords.** A new "Protected Keywords (Never Delete)"
+  section on the Options page. Any word or phrase you list there protects
+  every message whose **subject** contains it from *every* rule, by
+  appending a single `-subject:(kw1 OR "two words" OR …)` clause to each
+  search. Where the Whitelist protects by sender, this protects by
+  subject content (e.g. `tax`, `invoice`, `"flight confirmation"`,
+  `lease`). It applies to manual *and* scheduled runs, in both live and
+  dry-run mode, and it coexists with Safe Mode's built-in subject guard
+  as a separate clause (both only ever *narrow* what a rule matches).
+- Keywords ride along in config Export/Import (backup format bumped to
+  v3; older v1/v2 backups import cleanly and never wipe existing
+  keywords).
+
+### Safety / internals
+- Keywords are sanitized at three layers (options page, popup, and a
+  defence-in-depth copy at the engine boundary): quoting, grouping, and
+  boolean operators are stripped so a keyword can never break out of the
+  `subject:( … )` group it is injected into; the list is trimmed,
+  deduped case-insensitively, and capped (25 keywords, 50 chars each).
+  The only failure mode is "protect more mail," which is the safe
+  direction. No new permissions.
+
 ## 6.0.0 - Recovery overflow-menu fix, focused targets, accurate counts
 
 The big one. Restores the recovery-by-label safety net, makes large

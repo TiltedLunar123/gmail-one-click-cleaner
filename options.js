@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const OPTIONS_VERSION = "6.0.0";
+  const OPTIONS_VERSION = "6.1.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -19,6 +19,7 @@
     RULES: "rules",
     DEBUG_MODE: "debugMode",
     WHITELIST: "whitelist",
+    PROTECT_KEYWORDS: "protectKeywords",
     CUSTOM_RULES: "customRules",
     SCHEDULES: "schedules"
   });
@@ -235,6 +236,7 @@
     updateCountFor("normal", "normalCount");
     updateCountFor("deep", "deepCount");
     updateCountFor("whitelist", "whitelistCount");
+    updateCountFor("protectKeywords", "protectKeywordsCount");
   };
 
   // =========================
@@ -305,6 +307,12 @@
       .slice(0, CONFIG.MAX_WHITELIST_ENTRIES);
   };
 
+  // 6.1: protected keywords (subject shield). Delegates to the shared
+  // sanitizer so the options page, popup, and engine all agree on the
+  // accepted shape (strips quoting/grouping/boolean operators, dedupes,
+  // caps count + length).
+  const normalizeProtectKeywords = (keywords) => GCC.sanitizeProtectKeywords(keywords);
+
   /**
    * @param {{ light?: string[]; normal?: string[]; deep?: string[] }} rules
    */
@@ -328,6 +336,11 @@
       const normalizedWhitelist = normalizeWhitelist(settings.whitelist);
       whitelistEl.value = normalizedWhitelist.join("\n");
     }
+
+    const protectEl = GCC.$("protectKeywords");
+    if (protectEl) {
+      protectEl.value = normalizeProtectKeywords(settings.protectKeywords).join("\n");
+    }
     updateAllCounts();
   };
 
@@ -341,7 +354,7 @@
   };
 
   /**
-   * @returns {{ rules: { light: string[]; normal: string[]; deep: string[] }; debugMode: boolean; whitelist: string[] }}
+   * @returns {{ rules: { light: string[]; normal: string[]; deep: string[] }; debugMode: boolean; whitelist: string[]; protectKeywords: string[] }}
    */
   const collectAllData = () => {
     /** @type {{light:string[]; normal:string[]; deep:string[]}} */
@@ -352,8 +365,9 @@
     const debugMode = debugEl ? debugEl.checked : false;
 
     const whitelist = normalizeWhitelist(readLines("whitelist"));
+    const protectKeywords = normalizeProtectKeywords(readLines("protectKeywords"));
 
-    return { rules, debugMode, whitelist };
+    return { rules, debugMode, whitelist, protectKeywords };
   };
 
   // =========================
@@ -365,20 +379,21 @@
       if (!GCC.hasChromeStorage("sync")) {
         console.warn("[Gmail Cleaner] Sync storage not available, using defaults.");
         renderRules(GCC.clone(DEFAULT_RULES));
-        renderSettings({ debugMode: false, whitelist: [] });
+        renderSettings({ debugMode: false, whitelist: [], protectKeywords: [] });
         state.initialData = collectAllData();
         clearUnsaved();
         return;
       }
 
-      const data = await GCC.storageGet("sync", [STORAGE_KEYS.RULES, STORAGE_KEYS.DEBUG_MODE, STORAGE_KEYS.WHITELIST]);
+      const data = await GCC.storageGet("sync", [STORAGE_KEYS.RULES, STORAGE_KEYS.DEBUG_MODE, STORAGE_KEYS.WHITELIST, STORAGE_KEYS.PROTECT_KEYWORDS]);
 
       const normalizedRules = normalizeRules(data[STORAGE_KEYS.RULES]);
       renderRules(normalizedRules);
 
       renderSettings({
         debugMode: Boolean(data[STORAGE_KEYS.DEBUG_MODE]),
-        whitelist: data[STORAGE_KEYS.WHITELIST] || []
+        whitelist: data[STORAGE_KEYS.WHITELIST] || [],
+        protectKeywords: data[STORAGE_KEYS.PROTECT_KEYWORDS] || []
       });
 
       state.initialData = collectAllData();
@@ -388,7 +403,7 @@
       console.error("[Gmail Cleaner] Failed to load settings:", err);
       GCC.showToast("Failed to load settings", "error");
       renderRules(GCC.clone(DEFAULT_RULES));
-      renderSettings({ debugMode: false, whitelist: [] });
+      renderSettings({ debugMode: false, whitelist: [], protectKeywords: [] });
       state.initialData = collectAllData();
       clearUnsaved();
       srStatus("Failed to load settings.");
@@ -445,7 +460,8 @@
       await safeSyncSet({
         [STORAGE_KEYS.RULES]: normalizeRules(data.rules),
         [STORAGE_KEYS.DEBUG_MODE]: !!data.debugMode,
-        [STORAGE_KEYS.WHITELIST]: normalizeWhitelist(data.whitelist)
+        [STORAGE_KEYS.WHITELIST]: normalizeWhitelist(data.whitelist),
+        [STORAGE_KEYS.PROTECT_KEYWORDS]: normalizeProtectKeywords(data.protectKeywords)
       }, "settings");
 
       state.initialData = collectAllData();
@@ -472,7 +488,7 @@
   // =========================
 
   const setupChangeListeners = () => {
-    const textareas = ["light", "normal", "deep", "whitelist"];
+    const textareas = ["light", "normal", "deep", "whitelist", "protectKeywords"];
     const checkboxes = ["debugMode"];
 
     const onPotentialChange = GCC.debounce(() => {
@@ -545,7 +561,7 @@
     if (!confirmed) return;
 
     renderRules(GCC.clone(DEFAULT_RULES));
-    renderSettings({ debugMode: false, whitelist: [] });
+    renderSettings({ debugMode: false, whitelist: [], protectKeywords: [] });
     markUnsaved();
 
     await saveData(null, { silent: true });
@@ -562,7 +578,8 @@
   // Export format history:
   //   1 = rules + debugMode + whitelist only (pre-6.0 backups)
   //   2 = adds customRules + schedules so a backup is complete
-  const EXPORT_FORMAT_VERSION = 2;
+  //   3 = adds protectKeywords (6.1 subject shield)
+  const EXPORT_FORMAT_VERSION = 3;
 
   const normalizeCustomRules = (rules) => {
     if (!Array.isArray(rules)) return [];
@@ -581,6 +598,7 @@
     rules: normalizeRules(current.rules),
     debugMode: !!current.debugMode,
     whitelist: normalizeWhitelist(current.whitelist),
+    protectKeywords: normalizeProtectKeywords(current.protectKeywords),
     customRules: normalizeCustomRules(extras.customRules),
     schedules: normalizeSchedules(extras.schedules),
     exportedAt: new Date().toISOString(),
@@ -597,6 +615,12 @@
       [STORAGE_KEYS.DEBUG_MODE]: !!json.debugMode,
       [STORAGE_KEYS.WHITELIST]: normalizeWhitelist(json.whitelist)
     };
+    // Only restore protectKeywords when the backup carried them. A format
+    // 1/2 backup predates the key, so writing [] would wipe the user's
+    // current keywords (same back-compat rule as customRules/schedules).
+    if (Array.isArray(json.protectKeywords)) {
+      data[STORAGE_KEYS.PROTECT_KEYWORDS] = normalizeProtectKeywords(json.protectKeywords);
+    }
     if (Array.isArray(json.customRules)) {
       data[STORAGE_KEYS.CUSTOM_RULES] = normalizeCustomRules(json.customRules);
     }
@@ -680,6 +704,11 @@
 
     if (json.whitelist && !Array.isArray(json.whitelist)) errors.push("'whitelist' must be an array");
 
+    // protectKeywords is optional (format 1/2 backups lack it).
+    if (json.protectKeywords !== undefined && !Array.isArray(json.protectKeywords)) {
+      errors.push("'protectKeywords' must be an array");
+    }
+
     // customRules and schedules are optional (older backups lack them),
     // but when present they must be arrays.
     if (json.customRules !== undefined && !Array.isArray(json.customRules)) {
@@ -711,6 +740,7 @@
 
       const ruleCount = RULE_KEYS.reduce((sum, key) => sum + (json.rules?.[key]?.length || 0), 0);
       const whitelistCount = Array.isArray(json.whitelist) ? json.whitelist.length : 0;
+      const protectKeywordCount = Array.isArray(json.protectKeywords) ? json.protectKeywords.length : 0;
       const customRuleCount = Array.isArray(json.customRules) ? json.customRules.length : 0;
       const scheduleCount = Array.isArray(json.schedules) ? json.schedules.length : 0;
 
@@ -720,6 +750,7 @@
         `Import configuration from "${name}"?\n\n` +
         `• ${ruleCount} total rules\n` +
         `• ${whitelistCount} whitelist entries\n` +
+        `• ${protectKeywordCount} protected keywords\n` +
         `• ${customRuleCount} custom rules\n` +
         `• ${scheduleCount} scheduled cleanups\n` +
         `• Debug mode: ${json.debugMode ? "On" : "Off"}\n\n` +

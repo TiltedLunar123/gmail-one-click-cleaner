@@ -19,6 +19,7 @@ A Chrome extension that bulk-cleans Gmail in one click. Run configurable cleanup
 ### Safety Guardrails
 - **Minimum Age** - Never touch emails newer than your chosen cutoff (3m, 6m, 1y, etc.)
 - **Global Whitelist** - Protect specific senders/domains from all rules
+- **Protected Keywords** - Protect any message whose *subject* contains your words/phrases (e.g. `tax`, `invoice`, `"flight confirmation"`) from every rule. Applies to manual and scheduled runs.
 - **Safe Mode** - Skips riskier categories (receipts, order confirmations, shipping updates)
 - **Skip Starred & Important** - Automatically excluded when enabled
 

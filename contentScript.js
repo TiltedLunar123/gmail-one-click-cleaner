@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "6.0.0";
+  const GCC_CONTENT_VERSION = "6.1.0";
 
   // =========================
   // Timing & behavior constants
@@ -323,6 +323,48 @@
       || WHITELIST_DOMAIN.test(trimmed);
   };
 
+  // Protected keywords (subject shield). Self-contained mirror of
+  // GCC.sanitizeProtectKeywords / GCC.buildSubjectExclusion from shared.js
+  // -- the content script is injected into Gmail and can't reference GCC,
+  // so (like the whitelist regexes above) we keep a defence-in-depth copy
+  // here. Strips the quoting / grouping / boolean operators that would let
+  // a keyword escape the `subject:( ... )` group it is injected into.
+  const MAX_PROTECT_KEYWORDS = 25;
+  const MAX_PROTECT_KEYWORD_LEN = 50;
+
+  function sanitizeProtectKeywords(input) {
+    const arr = Array.isArray(input)
+      ? input
+      : (typeof input === "string" ? input.split("\n") : []);
+    const out = [];
+    const seen = new Set();
+    for (const raw of arr) {
+      if (typeof raw !== "string") continue;
+      const cleaned = raw
+        .replace(/["(){}]/g, " ")
+        .replace(/\s+/g, " ")
+        .replace(/^[-\s]+/, "")
+        .trim()
+        .slice(0, MAX_PROTECT_KEYWORD_LEN)
+        .trim();
+      if (!cleaned) continue;
+      if (/^(or|and)$/i.test(cleaned)) continue;
+      const key = cleaned.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(cleaned);
+      if (out.length >= MAX_PROTECT_KEYWORDS) break;
+    }
+    return out;
+  }
+
+  function buildSubjectExclusion(keywords) {
+    const cleaned = sanitizeProtectKeywords(keywords);
+    if (cleaned.length === 0) return "";
+    const terms = cleaned.map((k) => (/\s/.test(k) ? `"${k}"` : k));
+    return `-subject:(${terms.join(" OR ")})`;
+  }
+
   const sanitizeConfig = (config) => {
     if (!config || typeof config !== "object") {
       config = {};
@@ -372,7 +414,12 @@
             .map((s) => (typeof s === "string" ? s.trim() : ""))
             .filter((s) => s && !queryHasDangerousToken(s))
             .slice(0, 25)
-        : []
+        : [],
+      // 6.1: global protected keywords. Any query gets a
+      // `-subject:( ... )` exclusion appended so matching mail is never
+      // touched. Sanitized here (defence-in-depth) so a hand-written
+      // storage value can't break out of the subject group.
+      protectKeywords: sanitizeProtectKeywords(config.protectKeywords)
     };
   };
 
@@ -1683,6 +1730,14 @@
         }
         parts.push(`-from:${trimmed}`);
       }
+    }
+
+    // 6.1: global protected-keyword shield. Appended as its own
+    // `-subject:( ... )` clause; it ANDs with any Safe-Mode subject guard
+    // (both narrow the match), so the two coexisting is correct.
+    if (Array.isArray(CONFIG.protectKeywords) && CONFIG.protectKeywords.length > 0) {
+      const exclusion = buildSubjectExclusion(CONFIG.protectKeywords);
+      if (exclusion) parts.push(exclusion);
     }
 
     return parts.join(" ").trim();
@@ -3248,6 +3303,8 @@
       findLabelMenuItemIn,
       findAllConversationsSelectedIndicator,
       queryHasDangerousToken,
+      sanitizeProtectKeywords,
+      buildSubjectExclusion,
       buildFinalStats
     };
   }

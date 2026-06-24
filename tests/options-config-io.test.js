@@ -20,7 +20,34 @@ const makeGCC = () => ({
   debounce: (fn) => fn,
   showToast: () => {},
   theme: { init: async () => {}, get: async () => "dark", set: async (v) => v },
-  validateGmailQuery: () => ({ valid: true, warnings: [] })
+  validateGmailQuery: () => ({ valid: true, warnings: [] }),
+  // Faithful mirror of shared.js GCC.sanitizeProtectKeywords so the
+  // export/import round-trip behaves like production.
+  sanitizeProtectKeywords: (input) => {
+    const arr = Array.isArray(input)
+      ? input
+      : (typeof input === "string" ? input.split("\n") : []);
+    const out = [];
+    const seen = new Set();
+    for (const raw of arr) {
+      if (typeof raw !== "string") continue;
+      const cleaned = raw
+        .replace(/["(){}]/g, " ")
+        .replace(/\s+/g, " ")
+        .replace(/^[-\s]+/, "")
+        .trim()
+        .slice(0, 50)
+        .trim();
+      if (!cleaned) continue;
+      if (/^(or|and)$/i.test(cleaned)) continue;
+      const key = cleaned.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(cleaned);
+      if (out.length >= 25) break;
+    }
+    return out;
+  }
 });
 
 const makeChrome = () => ({
@@ -45,7 +72,7 @@ function loadOptionsApi() {
   const factory = new Function(
     "GCC",
     "chrome",
-    `${body}\n; return { validateImport, buildExportPayload, buildImportWriteSet, normalizeCustomRules, normalizeSchedules, EXPORT_FORMAT_VERSION };`
+    `${body}\n; return { validateImport, buildExportPayload, buildImportWriteSet, normalizeCustomRules, normalizeSchedules, normalizeProtectKeywords, EXPORT_FORMAT_VERSION };`
   );
 
   return factory(makeGCC(), makeChrome());
@@ -75,7 +102,8 @@ const sampleSchedules = () => [
 const sampleCurrent = () => ({
   rules: { light: [], normal: ["category:promotions older_than:1y"], deep: [] },
   debugMode: true,
-  whitelist: ["user@example.com"]
+  whitelist: ["user@example.com"],
+  protectKeywords: ["tax", "flight confirmation"]
 });
 
 describe("options.js config export/import data layer", () => {
@@ -164,8 +192,13 @@ describe("options.js config export/import data layer", () => {
 
     test("stamps the bumped export format version", () => {
       const payload = api.buildExportPayload(sampleCurrent(), {});
-      expect(api.EXPORT_FORMAT_VERSION).toBe(2);
-      expect(payload.formatVersion).toBe(2);
+      expect(api.EXPORT_FORMAT_VERSION).toBe(3);
+      expect(payload.formatVersion).toBe(3);
+    });
+
+    test("includes sanitized protectKeywords (6.1 subject shield)", () => {
+      const payload = api.buildExportPayload(sampleCurrent(), {});
+      expect(payload.protectKeywords).toEqual(["tax", "flight confirmation"]);
     });
 
     test("defaults missing extras to empty arrays (no crash)", () => {
@@ -190,7 +223,7 @@ describe("options.js config export/import data layer", () => {
       expect(payload.rules.normal).toContain("category:promotions older_than:1y");
       expect(payload.whitelist).toEqual(["user@example.com"]);
       expect(payload.debugMode).toBe(true);
-      expect(payload.version).toBe("6.0.0");
+      expect(payload.version).toBe("6.1.0");
       expect(payload.extensionName).toBe("Gmail One-Click Cleaner");
     });
   });
@@ -237,6 +270,23 @@ describe("options.js config export/import data layer", () => {
       expect(result.errors).toContain("'schedules' must be an array");
     });
 
+    test("rejects protectKeywords that is not an array", () => {
+      const result = api.validateImport({
+        rules: { normal: ["x"] },
+        protectKeywords: "tax"
+      });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContain("'protectKeywords' must be an array");
+    });
+
+    test("accepts a backup that omits protectKeywords (format 1/2)", () => {
+      const result = api.validateImport({
+        rules: { normal: ["category:promotions older_than:1y"] }
+      });
+      expect(result.valid).toBe(true);
+      expect(result.errors).toEqual([]);
+    });
+
     test("still requires a rules object", () => {
       const result = api.validateImport({ customRules: [], schedules: [] });
       expect(result.valid).toBe(false);
@@ -270,6 +320,22 @@ describe("options.js config export/import data layer", () => {
       expect(writeSet).not.toHaveProperty("schedules");
     });
 
+    test("writes sanitized protectKeywords when the backup carries them", () => {
+      const writeSet = api.buildImportWriteSet({
+        rules: { normal: ["category:promotions older_than:1y"] },
+        protectKeywords: ["  tax  ", "tax", "invoice"]
+      });
+      // trimmed + case-insensitively deduped
+      expect(writeSet.protectKeywords).toEqual(["tax", "invoice"]);
+    });
+
+    test("omits protectKeywords for an older backup (does not wipe existing)", () => {
+      const writeSet = api.buildImportWriteSet({
+        rules: { normal: ["category:promotions older_than:1y"] }
+      });
+      expect(writeSet).not.toHaveProperty("protectKeywords");
+    });
+
     test("normalizes entries before writing", () => {
       const writeSet = api.buildImportWriteSet({
         rules: { normal: ["category:promotions older_than:1y"] },
@@ -288,6 +354,24 @@ describe("options.js config export/import data layer", () => {
       const writeSet = api.buildImportWriteSet(payload);
       expect(writeSet.customRules).toEqual(payload.customRules);
       expect(writeSet.schedules).toEqual(payload.schedules);
+      expect(writeSet.protectKeywords).toEqual(payload.protectKeywords);
+    });
+  });
+
+  // ===========================
+  // normalizeProtectKeywords (6.1)
+  // ===========================
+
+  describe("normalizeProtectKeywords", () => {
+    test("trims, dedupes case-insensitively, and drops blanks", () => {
+      expect(api.normalizeProtectKeywords(["  tax ", "TAX", "", "   ", "invoice"]))
+        .toEqual(["tax", "invoice"]);
+    });
+
+    test("returns [] for non-array, non-string input", () => {
+      expect(api.normalizeProtectKeywords(undefined)).toEqual([]);
+      expect(api.normalizeProtectKeywords(null)).toEqual([]);
+      expect(api.normalizeProtectKeywords(42)).toEqual([]);
     });
   });
 });
