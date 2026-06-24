@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "6.0.0";
+  const SW_VERSION = "6.1.0";
 
   // =========================
   // Storage Keys
@@ -16,6 +16,7 @@
     UNDO_LOG: "undoLog",
     ACTIVE_RUN: "activeRun",
     WHITELIST: "whitelist",
+    PROTECT_KEYWORDS: "protectKeywords",
     WHITELIST_SUGGESTIONS: "whitelistSuggestions",
     SNOOZE_UNTIL: "snoozeUntil",
     NOTIFY_ENABLED: "notifyOnComplete"
@@ -198,11 +199,17 @@
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const result = await chrome.storage.sync.get(STORAGE_KEYS.SCHEDULES);
+        const result = await chrome.storage.sync.get([STORAGE_KEYS.SCHEDULES, STORAGE_KEYS.PROTECT_KEYWORDS]);
         const schedules = result?.[STORAGE_KEYS.SCHEDULES] || [];
         const schedule = schedules.find(s => s.id === scheduleId);
 
         if (!schedule || !schedule.enabled) return;
+
+        // 6.1: scheduled runs honour the global protected-keyword shield.
+        // Passed raw; the engine's sanitizeConfig cleans + caps it.
+        const protectKeywords = Array.isArray(result?.[STORAGE_KEYS.PROTECT_KEYWORDS])
+          ? result[STORAGE_KEYS.PROTECT_KEYWORDS]
+          : [];
 
         // Find a Gmail tab
         const gmailTabs = await chrome.tabs.query({ url: "https://mail.google.com/*" });
@@ -246,6 +253,7 @@
           debugMode: false,
           reviewMode: false,
           whitelist: schedule.whitelist || [],
+          protectKeywords,
           version: SW_VERSION,
           scheduled: true,
           scheduleId,

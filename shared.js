@@ -470,6 +470,61 @@ const GCC = (() => {
   const AGE_REQUIRED_TOKENS = ["in:inbox", "in:all", "in:anywhere"];
   const AGE_QUALIFIERS = /\bolder_than:|newer_than:|after:|before:/i;
 
+  // =========================
+  // Protected keywords (subject shield)
+  // =========================
+  // A global, user-editable list of words/phrases that protect any
+  // matching message by SUBJECT from every cleanup rule -- the content
+  // complement to the sender whitelist. Mirrors the always-on Safe-Mode
+  // subject guard but under the user's control. We sanitize aggressively
+  // so a keyword can never break out of the `subject:( ... )` group it is
+  // injected into: strip the quoting / grouping / boolean operators Gmail
+  // would otherwise interpret, collapse whitespace, dedupe case-
+  // insensitively, cap length and count. The failure mode of this feature
+  // is always "protect more mail", which is the safe direction.
+
+  const MAX_PROTECT_KEYWORDS = 25;
+  const MAX_PROTECT_KEYWORD_LEN = 50;
+
+  const sanitizeProtectKeywords = (input) => {
+    const arr = Array.isArray(input)
+      ? input
+      : (typeof input === "string" ? input.split("\n") : []);
+    const out = [];
+    const seen = new Set();
+    for (const raw of arr) {
+      if (typeof raw !== "string") continue;
+      // Drop characters that would terminate or re-scope the subject group
+      // ( ) { } " and the leading - that would flip it to an exclusion.
+      const cleaned = raw
+        .replace(/["(){}]/g, " ")
+        .replace(/\s+/g, " ")
+        .replace(/^[-\s]+/, "")
+        .trim()
+        .slice(0, MAX_PROTECT_KEYWORD_LEN)
+        .trim();
+      if (!cleaned) continue;
+      // A bare boolean operator on its own is meaningless and dangerous.
+      if (/^(or|and)$/i.test(cleaned)) continue;
+      const key = cleaned.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(cleaned);
+      if (out.length >= MAX_PROTECT_KEYWORDS) break;
+    }
+    return out;
+  };
+
+  // Build a Gmail `-subject:( ... )` exclusion from sanitized keywords.
+  // Multi-word phrases are quoted so they match as a phrase; single words
+  // are left bare. Returns "" when there is nothing to protect.
+  const buildSubjectExclusion = (keywords) => {
+    const cleaned = sanitizeProtectKeywords(keywords);
+    if (cleaned.length === 0) return "";
+    const terms = cleaned.map((k) => (/\s/.test(k) ? `"${k}"` : k));
+    return `-subject:(${terms.join(" OR ")})`;
+  };
+
   const validateGmailQuery = (rawQuery) => {
     const errors = [];
     const warnings = [];
@@ -648,6 +703,9 @@ const GCC = (() => {
     SYNC_LIMIT_ITEM,
     SYNC_LIMIT_TOTAL,
     validateGmailQuery,
+    sanitizeProtectKeywords,
+    buildSubjectExclusion,
+    MAX_PROTECT_KEYWORDS,
     DANGEROUS_QUERY_TOKENS,
     AGE_REQUIRED_TOKENS,
     notify,

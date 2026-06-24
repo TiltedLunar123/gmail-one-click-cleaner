@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "6.0.0";
+  const POPUP_VERSION = "6.1.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -26,6 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
     LAST_UI: "lastUiSnapshot",
     DEBUG_MODE: "debugMode",
     WHITELIST: "whitelist",
+    PROTECT_KEYWORDS: "protectKeywords",
 
     TIP_INTENT: "lastTipIntentAt",
     TIP_SOURCE: "lastTipIntentSource",
@@ -438,6 +439,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const r = await storageGet("sync", STORAGE_KEYS.WHITELIST);
     const wl = r?.[STORAGE_KEYS.WHITELIST];
     return Array.isArray(wl) ? wl : [];
+  };
+
+  // 6.1: global protected keywords (subject shield). Sanitized here via
+  // the shared helper so the engine always receives a clean list.
+  const getProtectKeywords = async () => {
+    const r = await storageGet("sync", STORAGE_KEYS.PROTECT_KEYWORDS);
+    return GCC.sanitizeProtectKeywords(r?.[STORAGE_KEYS.PROTECT_KEYWORDS]);
   };
 
   // We persist the raw UI snapshot (preserves "monthly" as the user
@@ -877,6 +885,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const buildConfig = async () => {
     const whitelist = await getWhitelist();
+    const protectKeywords = await getProtectKeywords();
 
     let intensity = elements.intensityEl?.value || "normal";
     if (intensity === "monthly") intensity = "light";
@@ -891,6 +900,7 @@ document.addEventListener("DOMContentLoaded", () => {
       guardSkipImportant: elements.skipImportantEl?.checked ?? true,
       reviewMode: Boolean(elements.reviewModeEl?.checked),
       whitelist,
+      protectKeywords,
       debugMode: Boolean(state.debugMode),
       version: POPUP_VERSION,
       // 6.0: focused target preset, if one is active (one run only).

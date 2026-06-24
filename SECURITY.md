@@ -57,6 +57,7 @@ Inside Gmail, the extension:
 
 - Applies **local safety logic** before taking action:
   - **Whitelist:** If you set a Global Whitelist, the extension appends exclusions (example: `-from:email@domain.com`) to every query locally.
+  - **Protected Keywords:** If you list keywords, the extension appends a subject exclusion (example: `-subject:(tax OR "flight confirmation")`) to every query locally, so matching mail is never touched.
   - **Skip Starred / Important:** When enabled, the extension avoids acting on starred/important conversations.
   - **Safe Mode:** Skips riskier categories/rules (example: updates/receipts) depending on the rule set and toggles.
   - **Minimum Age:** Enforces a global cutoff (3m, 6m, etc.) so newer mail is not touched.
@@ -85,6 +86,7 @@ The extension stores small values using `chrome.storage` so your settings persis
 ### Sync Storage (may sync across your Chrome instances)
 - Rule sets / custom rules
 - Global Whitelist (emails/domains to protect)
+- Protected Keywords (subject words/phrases to protect)
 - Preferences (example: Debug Mode)
 - Lightweight counters (example: successful run count for showing the rating prompt)
 
