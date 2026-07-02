@@ -650,6 +650,110 @@ const GCC = (() => {
   };
 
   // =========================
+  // Pro license (7.0)
+  // =========================
+  // Lifetime Pro keys are minted server-side at purchase and verified
+  // HERE, locally, against the embedded public key. The extension never
+  // phones home: no activation server, no license pings, nothing. A key
+  // is three dot-separated parts: "GCC1.<payload b64url>.<sig b64url>"
+  // where sig is an ECDSA P-256 / SHA-256 signature (raw r||s) over the
+  // exact payload bytes.
+
+  const PRO = Object.freeze({
+    PRICE_LABEL: "$5 lifetime",
+    BUY_URL: "https://buy.stripe.com/fZubJ23jZe7U1MI7NFdUY00",
+    SUPPORT_URL: "https://github.com/TiltedLunar123/gmail-one-click-cleaner#pro",
+    STORAGE_KEY: "proLicense"
+  });
+
+  const LICENSE_PUBLIC_JWK = Object.freeze({
+    kty: "EC",
+    crv: "P-256",
+    x: "H__q7WFppVTV82Txv9zzk-D_uiTwt5qDda_wYvUlq_8",
+    y: "3o5uhLw4utuNyDMaGJrIY3Dgbw14PVPWlsMg68lpFhY"
+  });
+
+  const b64urlToBytes = (input) => {
+    const b64 = String(input).replace(/-/g, "+").replace(/_/g, "/");
+    const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+    const bin = atob(padded);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  };
+
+  // Parse without verifying: shape check + payload decode.
+  const parseLicenseKey = (rawKey) => {
+    const key = String(rawKey || "").trim();
+    const parts = key.split(".");
+    if (parts.length !== 3 || parts[0] !== "GCC1") {
+      return { ok: false, reason: "That does not look like a license key." };
+    }
+    if (!/^[A-Za-z0-9_-]+$/.test(parts[1]) || !/^[A-Za-z0-9_-]+$/.test(parts[2])) {
+      return { ok: false, reason: "The key contains invalid characters." };
+    }
+    let payload;
+    try {
+      payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(parts[1])));
+    } catch {
+      return { ok: false, reason: "The key payload is unreadable." };
+    }
+    if (!payload || payload.v !== 1 || payload.plan !== "pro") {
+      return { ok: false, reason: "The key payload is not a Pro license." };
+    }
+    return { ok: true, key, payloadPart: parts[1], sigPart: parts[2], payload };
+  };
+
+  // Full cryptographic verification. Returns { valid, reason, payload }.
+  // jwkOverride exists so the test suite can verify against an ephemeral
+  // keypair; production callers pass only the key.
+  const verifyLicense = async (rawKey, jwkOverride = null) => {
+    const parsed = parseLicenseKey(rawKey);
+    if (!parsed.ok) return { valid: false, reason: parsed.reason, payload: null };
+    try {
+      const pubKey = await crypto.subtle.importKey(
+        "jwk",
+        jwkOverride || LICENSE_PUBLIC_JWK,
+        { name: "ECDSA", namedCurve: "P-256" },
+        false,
+        ["verify"]
+      );
+      const valid = await crypto.subtle.verify(
+        { name: "ECDSA", hash: "SHA-256" },
+        pubKey,
+        b64urlToBytes(parsed.sigPart),
+        new TextEncoder().encode(parsed.payloadPart)
+      );
+      return valid
+        ? { valid: true, reason: "", payload: parsed.payload }
+        : { valid: false, reason: "The key signature is invalid.", payload: null };
+    } catch (e) {
+      return { valid: false, reason: "Verification failed: " + (e?.message || "unknown error"), payload: null };
+    }
+  };
+
+  // Read the stored key (sync storage, follows the user across devices)
+  // and verify it. Never throws.
+  const getLicenseState = async () => {
+    try {
+      const data = await storageGet("sync", [PRO.STORAGE_KEY]);
+      const key = data?.[PRO.STORAGE_KEY];
+      if (!key) return { active: false, key: "", payload: null };
+      const check = await verifyLicense(key);
+      return { active: check.valid, key: check.valid ? key : "", payload: check.payload };
+    } catch {
+      return { active: false, key: "", payload: null };
+    }
+  };
+
+  const license = Object.freeze({
+    PRO,
+    parse: parseLicenseKey,
+    verify: verifyLicense,
+    getState: getLicenseState
+  });
+
+  // =========================
   // Public API
   // =========================
 
@@ -710,6 +814,9 @@ const GCC = (() => {
     AGE_REQUIRED_TOKENS,
     notify,
     downloadFile,
-    classifyChromeError
+    classifyChromeError,
+
+    // New in 7.0
+    license
   });
 })();

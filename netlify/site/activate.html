@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Your Pro key - Gmail One-Click Cleaner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <meta name="color-scheme" content="dark" />
+  <style>
+    :root {
+      --bg: #06090f;
+      --surface: rgba(17, 26, 36, 0.75);
+      --border: rgba(148, 163, 184, 0.2);
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #22d3ee;
+      --ok: #6ee7b7;
+      --warn: #fcd34d;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: var(--bg);
+      background-image:
+        radial-gradient(at 0% 0%, rgba(34, 211, 238, 0.14) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.12) 0px, transparent 50%);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+    .card {
+      max-width: 560px;
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+    }
+    h1 { font-size: 20px; margin: 0 0 6px; }
+    .sub { color: var(--muted); font-size: 14px; margin: 0 0 22px; line-height: 1.55; }
+    .keybox {
+      display: none;
+      background: rgba(6, 9, 15, 0.8);
+      border: 1px solid rgba(34, 211, 238, 0.35);
+      border-radius: 10px;
+      padding: 14px;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 13px;
+      word-break: break-all;
+      line-height: 1.5;
+      color: var(--ok);
+    }
+    .row { display: flex; gap: 10px; margin-top: 14px; }
+    button {
+      font: inherit;
+      padding: 9px 16px;
+      border-radius: 8px;
+      border: 1px solid rgba(34, 211, 238, 0.4);
+      background: rgba(34, 211, 238, 0.12);
+      color: var(--text);
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:hover { background: rgba(34, 211, 238, 0.2); }
+    ol { color: var(--muted); font-size: 13.5px; line-height: 1.7; padding-left: 20px; }
+    ol strong { color: var(--text); }
+    .status { font-size: 14px; color: var(--muted); }
+    .status.error { color: var(--warn); }
+    .fineprint { margin-top: 20px; font-size: 12px; color: var(--muted); line-height: 1.5; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Thanks for going Pro!</h1>
+    <p class="sub">
+      Gmail One-Click Cleaner Pro is a lifetime license. Your key is issued
+      below; it is verified on your device and never phones home.
+    </p>
+
+    <p class="status" id="status">Fetching your license key...</p>
+    <div class="keybox" id="keybox"></div>
+    <div class="row" id="copyRow" style="display:none">
+      <button type="button" id="copyBtn">Copy key</button>
+    </div>
+
+    <ol>
+      <li>Right-click the extension icon and pick <strong>Options</strong> (or open the popup and hit <strong>Pro</strong>).</li>
+      <li>Scroll to <strong>Pro License</strong>, paste the key, click <strong>Activate</strong>.</li>
+      <li>Open the popup, run <strong>Scan for subscriptions</strong>, select the noise, unsubscribe.</li>
+    </ol>
+
+    <p class="fineprint">
+      Save this page's address: revisiting it always re-issues your key.
+      Trouble? Email
+      <a href="mailto:hilgendorfjude@gmail.com?subject=Gmail%20Cleaner%20Pro%20key">support</a>
+      with your Stripe receipt.
+    </p>
+  </main>
+
+  <script>
+    (function () {
+      var statusEl = document.getElementById("status");
+      var keybox = document.getElementById("keybox");
+      var copyRow = document.getElementById("copyRow");
+      var copyBtn = document.getElementById("copyBtn");
+
+      var sessionId = new URLSearchParams(location.search).get("session_id") || "";
+      if (!/^cs_(live|test)_[A-Za-z0-9]{10,240}$/.test(sessionId)) {
+        statusEl.textContent = "This page needs the link Stripe sent you to after checkout. Follow that link again, or email support with your receipt.";
+        statusEl.className = "status error";
+        return;
+      }
+
+      var attempts = 0;
+      function fetchKey() {
+        attempts += 1;
+        fetch("/.netlify/functions/get-key?session_id=" + encodeURIComponent(sessionId))
+          .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, status: res.status, data: data }; }); })
+          .then(function (r) {
+            if (r.ok && r.data.key) {
+              statusEl.textContent = "Your lifetime Pro key:";
+              keybox.textContent = r.data.key;
+              keybox.style.display = "block";
+              copyRow.style.display = "flex";
+              return;
+            }
+            if ((r.status === 502 || r.status === 503) && attempts < 3) {
+              statusEl.textContent = "Still working on it...";
+              setTimeout(fetchKey, 2500);
+              return;
+            }
+            statusEl.textContent = (r.data && r.data.error)
+              ? "Could not issue the key automatically: " + r.data.error + "."
+              : "Could not issue the key automatically. Your payment is safe; email support with your receipt.";
+            statusEl.className = "status error";
+          })
+          .catch(function () {
+            if (attempts < 3) { setTimeout(fetchKey, 2500); return; }
+            statusEl.textContent = "Network hiccup. Reload this page to try again.";
+            statusEl.className = "status error";
+          });
+      }
+      fetchKey();
+
+      copyBtn.addEventListener("click", function () {
+        navigator.clipboard.writeText(keybox.textContent).then(function () {
+          copyBtn.textContent = "Copied!";
+          setTimeout(function () { copyBtn.textContent = "Copy key"; }, 1500);
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

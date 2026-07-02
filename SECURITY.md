@@ -12,7 +12,7 @@ I aim to support the latest published Chrome Web Store release and the current d
 
 | Version | Status | Description |
 | :--- | :--- | :--- |
-| **3.5.x (Stable)** | ✅ Supported | Latest Web Store release (recommended) |
+| **7.0.x (Stable)** | ✅ Supported | Latest Web Store release (recommended) |
 | **Dev / Unpacked** | ⚠️ Best-effort | Current GitHub or local “Load unpacked” build |
 
 If you find a security issue in an older version, please confirm it still exists in the latest Stable or Dev build before reporting.
@@ -55,6 +55,18 @@ Inside Gmail, the extension:
 
 - Uses **Gmail’s own search syntax** (example: `category:promotions older_than:6m`) to target low-value mail.
 
+- **Subscription scan + bulk unsubscribe (7.0):** samples the sender
+  addresses behind subscription-style mail so the popup can list who is
+  filling your inbox (the scan is read-only and changes nothing). For
+  the senders you choose, the extension opens one of their messages and
+  clicks **Gmail’s own built-in Unsubscribe control** (the header
+  "Unsubscribe" link and its confirmation dialog). It never follows
+  unsubscribe links inside message bodies, which can point anywhere;
+  only Gmail’s native, list-unsubscribe-backed control is used. Sender
+  addresses are validated to a strict email shape before being placed
+  in a `from:(...)` search, so a crafted address can never break out of
+  the query.
+
 - Applies **local safety logic** before taking action:
   - **Whitelist:** If you set a Global Whitelist, the extension appends exclusions (example: `-from:email@domain.com`) to every query locally.
   - **Protected Keywords:** If you list keywords, the extension appends a subject exclusion (example: `-subject:(tax OR "flight confirmation")`) to every query locally, so matching mail is never touched.
@@ -89,6 +101,11 @@ The extension stores small values using `chrome.storage` so your settings persis
 - Protected Keywords (subject words/phrases to protect)
 - Preferences (example: Debug Mode)
 - Lightweight counters (example: successful run count for showing the rating prompt)
+- **Pro license key** (`proLicense`), if you bought Pro. It is a signed
+  token, not a password, and it carries no personal data (only a
+  version, the plan name `pro`, a short purchase-session tail, and a
+  timestamp). Storing it in sync means Pro follows you to your other
+  signed-in Chrome browsers.
 
 ### Local or Session Storage (device-only / ephemeral)
 - `lastConfig` (last-used popup toggles like Dry-Run, Review Mode, Safe Mode, min age, action type)
@@ -103,13 +120,23 @@ No email bodies, subjects, message IDs, attachment contents, or Gmail credential
 ## Network calls
 
 The extension does not “phone home” and does not use analytics trackers.
+It never contacts a server on its own, not on startup, not during a
+cleanup, and **not even to check your Pro license**. License keys are
+verified entirely offline: the extension carries the matching public
+key and checks the signature with the browser’s built-in WebCrypto. A
+valid key works with no network at all.
 
-External network navigations occur only when you click a link, for example:
-- Tips: Buy Me a Coffee, Cash App
-- Affiliate links: Amazon
-- Store/share links you choose to open
+External network activity happens only when **you** initiate it:
+- Opening the **Get Pro** checkout page (Stripe) from a button.
+- The post-checkout activation page (hosted at
+  `gmail-cleaner-pro.netlify.app`) fetching your key. This page is part
+  of the purchase flow, not the extension; the extension does not call
+  it. That page verifies your Stripe checkout session and returns a
+  signed key. No Gmail data is involved.
+- Store / share links you choose to open.
 
-These are normal browser navigations initiated by you (opened in a new tab).
+These are normal browser navigations or purchase-flow calls initiated by
+you. Your Gmail content is never part of any of them.
 
 ---
 

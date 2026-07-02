@@ -3,6 +3,66 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 7.0.0 - Subscription scan + bulk unsubscribe (Pro)
+
+Deleting hides old mail; unsubscribing stops new mail. This release adds
+a way to see every mailing list that emails you and unsubscribe from the
+ones you never read, in one pass, plus a one-time **$5 Pro** unlock to
+run it. **Everything that was free stays free forever.** No existing
+feature moved behind the paywall.
+
+### Added
+- **Subscription scan (free).** A new "Unsubscribe from mailing lists"
+  section in the popup. The scan runs a few read-only discovery searches
+  and samples the senders behind your subscription-style mail, then
+  lists them ranked by how much they send. It changes nothing: no mail
+  is moved, deleted, or altered. It is a plain inventory of who fills
+  your inbox.
+- **Bulk unsubscribe (Pro).** Select the senders you never read and
+  unsubscribe from all of them in a single pass. For each sender the
+  engine opens one of their messages and clicks **Gmail's own built-in
+  Unsubscribe control** (the header "Unsubscribe" link and its
+  confirmation dialog), which is backed by the sender's
+  List-Unsubscribe header. It never touches unsubscribe links inside
+  message bodies, which can point anywhere. Senders with no one-click
+  option are flagged "manual step needed" rather than guessed at. Capped
+  at 25 senders per run; re-run for more. Sender addresses are validated
+  to a strict email shape before going into a `from:(...)` search, so a
+  crafted address can never break out of the query.
+- **Pro license.** A one-time **$5 lifetime** purchase unlocks bulk
+  unsubscribe. Keys are verified **entirely on your device** with a
+  public key built into the extension (ECDSA P-256 via WebCrypto); the
+  extension never contacts a server to check a license, not even once.
+  A valid key works fully offline. Activate it from the popup's **Pro**
+  link or the Options page's new **Pro License** section. The key is a
+  signed token with no personal data, stored in Chrome sync so Pro
+  follows you to your other signed-in browsers.
+
+### Changed
+- **The popup and progress page now promote Pro instead of tips and
+  affiliate links.** The Buy-Me-a-Coffee / Cash App tip links and the
+  Amazon affiliate product section have been removed from the popup, the
+  progress dashboard, and the Options page. In their place is a single,
+  honest Pro upsell (hidden entirely once a license is active). One
+  product to support the extension, not a wall of outbound links.
+- Store listing title and description now mention **unsubscribe** so the
+  feature is discoverable by people searching for it.
+
+### Security / privacy
+- No new permissions. Bulk unsubscribe reuses the existing
+  `https://mail.google.com/*` host access and the same
+  pointer/mouse-driven clicking the cleanup engine already uses.
+- The "runs locally, nothing phones home" promise is preserved for the
+  extension itself. The only network calls in the whole flow are ones
+  **you** start: opening the Stripe checkout page, and the post-checkout
+  activation page fetching your key. Both are part of the purchase flow,
+  not the extension, and neither involves any Gmail data. See
+  [SECURITY.md](SECURITY.md) for the full breakdown.
+- The license-issuing service (a tiny Netlify function that verifies
+  your Stripe checkout session and returns a signed key) lives in
+  `netlify/` in this repo. It is **not** part of the shipped extension
+  and is excluded from the build.
+
 ## 6.1.0 - Protected keywords (subject shield)
 
 A content-based safety net to sit alongside the sender Whitelist. The

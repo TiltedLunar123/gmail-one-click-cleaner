@@ -9,16 +9,27 @@
     "sourceType": "script"
   },
   "rules": {
-    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "no-unused-vars": [
+      "warn",
+      {
+        "argsIgnorePattern": "^_"
+      }
+    ],
     "no-undef": "error",
-    "eqeqeq": ["error", "always"],
+    "eqeqeq": [
+      "error",
+      "always"
+    ],
     "no-var": "error",
     "prefer-const": "warn",
     "no-implicit-globals": "error",
     "no-eval": "error",
     "no-implied-eval": "error",
     "no-new-func": "error",
-    "curly": ["warn", "multi-line"],
+    "curly": [
+      "warn",
+      "multi-line"
+    ],
     "no-throw-literal": "error",
     "no-self-compare": "error",
     "no-template-curly-in-string": "warn"
@@ -32,6 +43,7 @@
     "browser-polyfill.js",
     "jest.config.js",
     "dist/",
-    "tests/"
+    "tests/",
+    "netlify/"
   ]
 }

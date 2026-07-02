@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "6.1.0";
+  const SW_VERSION = "7.0.0";
 
   // =========================
   // Storage Keys
@@ -19,7 +19,8 @@
     PROTECT_KEYWORDS: "protectKeywords",
     WHITELIST_SUGGESTIONS: "whitelistSuggestions",
     SNOOZE_UNTIL: "snoozeUntil",
-    NOTIFY_ENABLED: "notifyOnComplete"
+    NOTIFY_ENABLED: "notifyOnComplete",
+    SUBSCRIPTIONS: "subscriptionScan"
   });
 
   // chrome.storage.sync caps: 8KB per item, 102KB total. The options
@@ -391,6 +392,23 @@
         withStorageLock(() => recordSenderHits(msg.senders)).then(() => sendResponse({ ok: true }));
         return true;
 
+      // Subscriptions (7.0): persist the latest scan so the popup can
+      // render it any time, merging in statuses from earlier runs.
+      case "gmailCleanerSubscriptionScanResult":
+        withStorageLock(() => recordSubscriptionScan(msg.senders)).then(() => sendResponse({ ok: true }));
+        return true;
+
+      // Subscriptions (7.0): per-sender unsubscribe outcomes.
+      case "gmailCleanerRecordUnsubscribes":
+        withStorageLock(() => recordUnsubscribeResults(msg.results)).then(() => sendResponse({ ok: true }));
+        return true;
+
+      case "gmailCleanerGetSubscriptions":
+        chrome.storage.local.get(STORAGE_KEYS.SUBSCRIPTIONS)
+          .then((r) => sendResponse({ ok: true, scan: r?.[STORAGE_KEYS.SUBSCRIPTIONS] || null }))
+          .catch((err) => sendResponse({ ok: false, error: err?.message || "Failed" }));
+        return true;
+
       case "gmailCleanerDone":
         // Clean up active run state when cleanup finishes
         chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: null })
@@ -483,6 +501,83 @@
       await chrome.storage.local.set({ [STORAGE_KEYS.STATS]: stats });
     } catch (e) {
       console.error("[GCC SW] recordSenderHits failed:", e);
+    }
+  }
+
+  // =========================
+  // Subscriptions store (7.0)
+  // =========================
+  // One local-storage object: { updatedAt, senders: [{ email, name,
+  // count, status, statusAt }] }. A fresh scan replaces the sender list
+  // but keeps the unsubscribe status of senders it sees again, so "done"
+  // badges survive a re-scan. Statuses come from the content script:
+  // unsubscribed | manual | no_button | no_dialog | not_found | error.
+
+  async function recordSubscriptionScan(senders) {
+    if (!Array.isArray(senders)) return;
+    try {
+      const result = await chrome.storage.local.get(STORAGE_KEYS.SUBSCRIPTIONS);
+      const prev = result?.[STORAGE_KEYS.SUBSCRIPTIONS] || {};
+      const prevStatus = Object.create(null);
+      for (const entry of prev.senders || []) {
+        if (entry?.email && entry.status) {
+          prevStatus[entry.email] = { status: entry.status, statusAt: entry.statusAt || 0 };
+        }
+      }
+      const clean = [];
+      for (const raw of senders.slice(0, 200)) {
+        const email = String(raw?.email || "").trim().toLowerCase();
+        if (!email || email.length > 320 || !email.includes("@")) continue;
+        clean.push({
+          email,
+          name: String(raw?.name || "").slice(0, 120),
+          count: Math.max(1, Math.min(9999, Number(raw?.count) || 1)),
+          status: prevStatus[email]?.status || "",
+          statusAt: prevStatus[email]?.statusAt || 0
+        });
+      }
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.SUBSCRIPTIONS]: { updatedAt: Date.now(), senders: clean }
+      });
+    } catch (e) {
+      console.error("[GCC SW] recordSubscriptionScan failed:", e);
+    }
+  }
+
+  async function recordUnsubscribeResults(results) {
+    if (!Array.isArray(results) || results.length === 0) return;
+    try {
+      const result = await chrome.storage.local.get(STORAGE_KEYS.SUBSCRIPTIONS);
+      const scan = result?.[STORAGE_KEYS.SUBSCRIPTIONS] || { updatedAt: 0, senders: [] };
+      const byEmail = Object.create(null);
+      for (const entry of scan.senders || []) {
+        if (entry?.email) byEmail[entry.email] = entry;
+      }
+      let unsubscribedNow = 0;
+      for (const r of results) {
+        const email = String(r?.sender || "").trim().toLowerCase();
+        const status = String(r?.status || "").slice(0, 30);
+        if (!email || !status) continue;
+        if (status === "unsubscribed") unsubscribedNow += 1;
+        if (byEmail[email]) {
+          byEmail[email].status = status;
+          byEmail[email].statusAt = Date.now();
+        } else {
+          scan.senders = Array.isArray(scan.senders) ? scan.senders : [];
+          scan.senders.push({ email, name: "", count: 1, status, statusAt: Date.now() });
+        }
+      }
+      await chrome.storage.local.set({ [STORAGE_KEYS.SUBSCRIPTIONS]: scan });
+
+      // Lifetime counter rides on the stats object the dashboard reads.
+      if (unsubscribedNow > 0) {
+        const statsResult = await chrome.storage.local.get(STORAGE_KEYS.STATS);
+        const stats = statsResult?.[STORAGE_KEYS.STATS] || {};
+        stats.totalUnsubscribed = (Number(stats.totalUnsubscribed) || 0) + unsubscribedNow;
+        await chrome.storage.local.set({ [STORAGE_KEYS.STATS]: stats });
+      }
+    } catch (e) {
+      console.error("[GCC SW] recordUnsubscribeResults failed:", e);
     }
   }
 

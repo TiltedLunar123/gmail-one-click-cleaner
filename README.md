@@ -1,7 +1,7 @@
 # Gmail One-Click Cleaner
 
 [![CI](https://github.com/TiltedLunar123/gmail-one-click-cleaner/actions/workflows/ci.yml/badge.svg)](https://github.com/TiltedLunar123/gmail-one-click-cleaner/actions/workflows/ci.yml)
-[![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-v6.0.0-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-v7.0.0-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-blue.svg)]()
 
@@ -32,6 +32,19 @@ One-click chips to clean a single category instead of the full sweep. Each runs 
 - **Big attachments** - large messages and heavy attachments
 - **Social & updates** - social, updates, and forum categories
 - **No-reply** - newsletters and no-reply senders
+
+### Subscription Scan + Bulk Unsubscribe
+Deleting hides old mail; unsubscribing stops new mail. The scan finds every mailing list that emails you and lists the senders by volume.
+- **Scan (free)** - read-only. Samples the senders behind your subscription-style mail and shows who is filling your inbox. Changes nothing.
+- **Bulk unsubscribe (Pro)** - pick the senders you never read and unsubscribe from all of them in one pass. Drives **Gmail's own built-in Unsubscribe control**, never sketchy links inside message bodies. Senders with no one-click option are flagged for manual follow-up.
+
+## Pro
+
+Pro is a **one-time $5 purchase** (no subscription) that unlocks bulk unsubscribe. Everything that is free today stays free forever.
+
+- Your license key is verified **entirely on your device** with a built-in public key. The extension never contacts a server, not even to check the license.
+- The key is a signed token with no personal data. Stored in Chrome sync, so Pro follows you to your other signed-in browsers.
+- Buy Pro from the popup or the extension's Options page. Your key is shown right after checkout; revisiting that page re-issues it if you lose it.
 
 ### Progress Dashboard
 - Live progress bar with phase tracking
@@ -101,9 +114,10 @@ gmail-one-click-cleaner/
 
 ## Privacy & Data
 
-- **100% local** - All operations run in your browser. No external servers.
-- **No data collection** - No analytics, no tracking, no email content sent anywhere.
-- **Minimal permissions** - `activeTab`, `scripting`, `tabs`, `storage` + Gmail host access.
+- **Runs locally** - All cleanup, scanning, and unsubscribing happen in your browser against the Gmail UI. No email content is ever sent anywhere.
+- **No data collection** - No analytics, no tracking, no email content, subjects, or credentials leave your device.
+- **License stays offline** - Pro keys are verified on-device with a built-in public key. The extension never phones home, not even to check the license. The only network calls are ones you start: opening the Stripe checkout page and its post-purchase activation page (part of the purchase flow, not the extension). No Gmail data is involved in either.
+- **Minimal permissions** - `activeTab`, `scripting`, `tabs`, `storage`, `alarms`, `notifications` + Gmail host access. No new permissions were added for Pro.
 - **30-day safety net** - Gmail keeps Trash for ~30 days. Restore anything deleted by mistake.
 
 See [SECURITY.md](SECURITY.md) for the full security policy and permissions breakdown.

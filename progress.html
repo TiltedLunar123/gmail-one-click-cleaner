@@ -584,105 +584,6 @@
       white-space: nowrap;
     }
 
-    .affiliate-section {
-      margin-top: 24px;
-      padding-top: 20px;
-      border-top: 1px dashed var(--border-subtle);
-    }
-
-    .affiliate-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 12px;
-    }
-
-    .affiliate-title {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--text-muted);
-    }
-
-    .affiliate-amazon-badge {
-      padding: 3px 8px;
-      background: rgba(255, 153, 0, 0.15);
-      border: 1px solid rgba(255, 153, 0, 0.3);
-      border-radius: var(--radius-full);
-      font-size: 10px;
-      font-weight: 700;
-      color: var(--amazon);
-    }
-
-    .affiliate-pitch {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-bottom: 16px;
-      line-height: 1.5;
-    }
-
-    .affiliate-pitch strong { color: #fcd34d; }
-
-    .affiliate-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap: 12px;
-    }
-
-    .affiliate-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px;
-      background: rgba(255, 153, 0, 0.04);
-      border: 1px solid rgba(255, 153, 0, 0.12);
-      border-radius: var(--radius-sm);
-      text-decoration: none;
-      transition: all var(--transition-fast);
-    }
-
-    .affiliate-item:hover {
-      background: rgba(255, 153, 0, 0.1);
-      border-color: rgba(255, 153, 0, 0.3);
-      transform: translateY(-2px);
-    }
-
-    .affiliate-item-icon { display: inline-flex; flex-shrink: 0; color: var(--amazon); }
-    .affiliate-title-icon { display: inline-flex; color: var(--amazon); }
-
-    .affiliate-item-info { flex: 1; min-width: 0; }
-
-    .affiliate-item-name {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--text-main);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      margin-bottom: 2px;
-    }
-
-    .affiliate-item-desc { font-size: 11px; color: var(--text-muted); }
-
-    .affiliate-item-tag {
-      padding: 3px 8px;
-      background: rgba(16, 185, 129, 0.12);
-      border-radius: var(--radius-full);
-      font-size: 9px;
-      font-weight: 600;
-      color: #6ee7b7;
-      white-space: nowrap;
-    }
-
-    .affiliate-disclosure {
-      margin-top: 16px;
-      font-size: 10px;
-      color: var(--text-muted);
-      text-align: center;
-      opacity: 0.7;
-    }
 
     #tipPrompt {
       margin-top: 20px;
@@ -856,7 +757,6 @@
       .controls-secondary { justify-content: center; width: 100%; }
       .meta { flex-direction: column; align-items: flex-start; gap: 8px; }
       #summary { width: 100%; }
-      .affiliate-grid { grid-template-columns: 1fr; }
       dialog#reviewModal { margin: auto 16px; max-width: calc(100% - 32px); }
       .toast { left: 16px; right: 16px; bottom: 16px; }
     }
@@ -867,7 +767,6 @@
       .controls,
       .controls-secondary,
       #tipPrompt,
-      .affiliate-section,
       .skip-link { display: none !important; }
     }
   </style>
@@ -888,7 +787,7 @@
           </p>
         </div>
         <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
-          <span class="pill" id="versionPill" aria-label="Status: Live progress">v6.1.0</span>
+          <span class="pill" id="versionPill" aria-label="Status: Live progress">v7.0.0</span>
           <div class="theme-switcher" id="themeSwitcher" role="group" aria-label="Color theme">
             <button type="button" data-theme-value="system" aria-pressed="true">Auto</button>
             <button type="button" data-theme-value="light" aria-pressed="false">Light</button>
@@ -974,93 +873,25 @@
         </div>
       </details>
 
-      <aside id="tipPrompt" aria-label="Support the developer">
+      <aside id="tipPrompt" aria-label="Pro upgrade">
         <p style="margin: 0;">
-          Saved a chunk of time or storage on this run?
-          You can say thanks with a small tip:
+          Big cleanup? The same senders will refill your inbox.
+          <strong>Pro</strong> adds bulk unsubscribe so they stop at the
+          source: a one-time $5, no subscription.
           <a
-            href="https://www.buymeacoffee.com/judeh1l"
+            id="tipPromptBuy"
+            href="https://buy.stripe.com/fZubJ23jZe7U1MI7NFdUY00"
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Buy Jude a coffee (opens in new tab)"
+            referrerpolicy="no-referrer"
+            aria-label="Get Pro, five dollars lifetime (opens in new tab)"
           >
-            Buy Jude a coffee
+            Get Pro - $5 lifetime
           </a>
-          or
-          <a
-            href="https://cash.app/$judeh1l"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Tip via Cash App (opens in new tab)"
-          >
-            tip via Cash App
-          </a>.
+          (then scan for subscriptions from the extension popup).
         </p>
       </aside>
 
-      <section class="affiliate-section" id="affiliateSection" aria-labelledby="affiliate-title">
-        <div class="affiliate-header">
-          <div class="affiliate-title">
-            <span class="affiliate-title-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h18M5.5 13 3.8 6.6A2 2 0 0 1 5.7 5h12.6a2 2 0 0 1 1.9 1.6L18.5 13"/><rect x="3" y="13" width="18" height="6" rx="2"/><path d="M7 16h.01M11 16h.01"/></svg></span>
-            <span id="affiliate-title">Jude's cheap storage & setup picks</span>
-          </div>
-          <span class="affiliate-amazon-badge">Amazon</span>
-        </div>
-        <p class="affiliate-pitch">
-          Cleaned your inbox but <strong>still running low on storage?</strong> These budget picks helped me upgrade my setup:
-        </p>
-
-        <div class="affiliate-grid">
-          <a href="https://amzn.to/3MrwsMz" target="_blank" rel="noopener noreferrer sponsored" class="affiliate-item">
-            <span class="affiliate-item-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><circle cx="12" cy="13" r="3"/><path d="M8 4v4h6V4"/></svg></span>
-            <div class="affiliate-item-info">
-              <div class="affiliate-item-name">Samsung T7 Portable SSD (1TB)</div>
-              <div class="affiliate-item-desc">1,050MB/s · USB 3.2 · Fits in pocket</div>
-            </div>
-            <span class="affiliate-item-tag">Best Value</span>
-          </a>
-
-          <a href="https://amzn.to/3Mftfjl" target="_blank" rel="noopener noreferrer sponsored" class="affiliate-item">
-            <span class="affiliate-item-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="8.5" y="8" width="7" height="13" rx="1.5"/><path d="M10.5 8V4.5h3V8"/><path d="M11 12h2M11 15h2"/></svg></span>
-            <div class="affiliate-item-info">
-              <div class="affiliate-item-name">Lexar 128GB USB-C Drive</div>
-              <div class="affiliate-item-desc">Dual USB-A/C · Metal swivel design</div>
-            </div>
-            <span class="affiliate-item-tag">Compact</span>
-          </a>
-
-          <a href="https://amzn.to/4aBnKW6" target="_blank" rel="noopener noreferrer sponsored" class="affiliate-item">
-            <span class="affiliate-item-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="11" rx="2"/><path d="M2 20h20"/></svg></span>
-            <div class="affiliate-item-info">
-              <div class="affiliate-item-name">Amazon Basics Laptop Stand</div>
-              <div class="affiliate-item-desc">Ergonomic · Adjustable · Up to 17.3"</div>
-            </div>
-            <span class="affiliate-item-tag">Posture Fix</span>
-          </a>
-
-          <a href="https://amzn.to/4pqDwYB" target="_blank" rel="noopener noreferrer sponsored" class="affiliate-item">
-            <span class="affiliate-item-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/></svg></span>
-            <div class="affiliate-item-info">
-              <div class="affiliate-item-name">Rii Ultra-Slim USB Keyboard</div>
-              <div class="affiliate-item-desc">Compact · Mac & PC · Quiet keys</div>
-            </div>
-            <span class="affiliate-item-tag">$15 Budget</span>
-          </a>
-
-          <a href="https://amzn.to/48oWb0L" target="_blank" rel="noopener noreferrer sponsored" class="affiliate-item">
-            <span class="affiliate-item-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76Z"/></svg></span>
-            <div class="affiliate-item-info">
-              <div class="affiliate-item-name">192pc Cable Management Kit</div>
-              <div class="affiliate-item-desc">Sleeves + clips + ties · Desk cleanup</div>
-            </div>
-            <span class="affiliate-item-tag">Satisfying</span>
-          </a>
-        </div>
-
-        <p class="affiliate-disclosure">
-          As an Amazon Associate I earn from qualifying purchases. Thanks for supporting.
-        </p>
-      </section>
     </main>
   </div>
 
