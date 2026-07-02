@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "6.1.0";
+  const GCC_CONTENT_VERSION = "7.0.0";
 
   // =========================
   // Timing & behavior constants
@@ -419,7 +419,17 @@
       // `-subject:( ... )` exclusion appended so matching mail is never
       // touched. Sanitized here (defence-in-depth) so a hand-written
       // storage value can't break out of the subject group.
-      protectKeywords: sanitizeProtectKeywords(config.protectKeywords)
+      protectKeywords: sanitizeProtectKeywords(config.protectKeywords),
+      // 7.0: what this injection should do. "cleanup" (default) runs the
+      // rules engine; "subscriptionScan" / "unsubscribe" run the
+      // subscriptions engine instead. unsubSenders is re-sanitized at
+      // run start; keeping raw strings here is fine.
+      runKind: ["cleanup", "subscriptionScan", "unsubscribe"].includes(config.runKind)
+        ? config.runKind
+        : "cleanup",
+      unsubSenders: Array.isArray(config.unsubSenders)
+        ? config.unsubSenders.filter((s) => typeof s === "string").slice(0, 25)
+        : []
     };
   };
 
@@ -641,6 +651,20 @@
           sendResponse({ ok: true });
           break;
 
+        case "gmailCleanerScanSubscriptions":
+          debugLog("Received subscription scan message");
+          startSubscriptionScan();
+          sendResponse({ ok: true });
+          break;
+
+        case "gmailCleanerUnsubscribeSenders":
+          debugLog("Received unsubscribe message", {
+            count: Array.isArray(msg.senders) ? msg.senders.length : 0
+          });
+          startUnsubscribeRun(Array.isArray(msg.senders) ? msg.senders : []);
+          sendResponse({ ok: true });
+          break;
+
         case "gmailCleanerSkip":
           REVIEW_SIGNAL = "skip";
           sendResponse({ ok: true });
@@ -706,7 +730,29 @@
       "div[gh='tl'] > div.aeH",
       "div.ya",
       "div[role='complementary']"
-    ]
+    ],
+    // 7.0 subscriptions: the subject cell is the safest click target to
+    // open a conversation from the list (the sender cell can trigger the
+    // hover card, and the checkbox cell toggles selection instead).
+    subjectCell: [
+      "td.xY.a4W",
+      "td.a4W"
+    ],
+    // Signals that a conversation is open in reading view.
+    messageOpen: [
+      "div[role='main'] h2.hP",
+      "div[role='main'] div.adn",
+      "div[role='main'] div.ha"
+    ],
+    // Gmail's native header Unsubscribe control (rendered next to the
+    // sender for mail with List-Unsubscribe). span.Ca carries
+    // role='link' and the literal text "Unsubscribe" on current Gmail.
+    headerUnsubscribe: [
+      "div[role='main'] span.Ca"
+    ],
+    // Message body container: unsubscribe links inside it belong to the
+    // sender, not Gmail, and must never be driven by the engine.
+    messageBody: "div.a3s"
   });
 
   const getMainRoot = () => qs(SELECTORS.main) || document;
@@ -3077,6 +3123,421 @@
     return `Deleted ${stats.totalDeleted.toLocaleString()} emails / freed ${mbStr} MB (all in Trash).`;
   }
 
+  // =========================
+  // Subscriptions: scan + bulk unsubscribe (7.0)
+  // =========================
+  // Scan (free): sample the senders behind Gmail's subscription-style
+  // mail so the popup can show "who is filling this mailbox".
+  // Unsubscribe (Pro-gated in the popup): for each chosen sender, open
+  // one of their messages and drive Gmail's own header Unsubscribe
+  // control plus its confirmation dialog. The engine never touches
+  // unsubscribe links inside message bodies; those belong to the sender
+  // and can point anywhere.
+
+  const SUBSCRIPTIONS = Object.freeze({
+    SCAN_QUERIES: [
+      "\"unsubscribe\" newer_than:1y",
+      "category:promotions newer_than:1y",
+      "category:updates \"unsubscribe\" newer_than:1y"
+    ],
+    MAX_SENDERS: 200,
+    MAX_UNSUB_PER_RUN: 25,
+    ROW_SAMPLE_CAP: 100,
+    OPEN_MESSAGE_TIMEOUT: 12000,
+    UNSUB_DIALOG_TIMEOUT: 5000,
+    DIALOG_CLOSE_TIMEOUT: 4000,
+    BETWEEN_SENDERS_MS: 1200
+  });
+
+  // One entry per visible row (deliberately not deduped: the duplicate
+  // count is the volume signal the popup ranks senders by).
+  function sampleSubscriptionRows({ cap = SUBSCRIPTIONS.ROW_SAMPLE_CAP } = {}) {
+    const out = [];
+    try {
+      const rows = qsa('tr[role="row"]', getMainRoot());
+      const limit = Math.min(rows.length, cap);
+      for (let i = 0; i < limit; i++) {
+        const senderEl =
+          rows[i].querySelector("span[email]") ||
+          rows[i].querySelector("[email]");
+        if (!senderEl) continue;
+        const email = getAttr(senderEl, "email").toLowerCase();
+        if (!email || !email.includes("@")) continue;
+        out.push({
+          email,
+          name: getAttr(senderEl, "name") || getTextContent(senderEl)
+        });
+      }
+    } catch (e) {
+      debugLog("sampleSubscriptionRows failed", { error: e?.message });
+    }
+    return out;
+  }
+
+  // Strict email shape doubles as query-injection protection: anything
+  // that passes cannot break out of the from:(...) group it is placed in.
+  function sanitizeSenderList(input) {
+    if (!Array.isArray(input)) return [];
+    const out = [];
+    const seen = new Set();
+    for (const raw of input) {
+      if (typeof raw !== "string") continue;
+      const email = raw.trim().toLowerCase();
+      if (email.length > 320) continue;
+      if (!/^[a-z0-9!#$%&'*+/=?^_`{|}~.-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(email)) continue;
+      if (seen.has(email)) continue;
+      seen.add(email);
+      out.push(email);
+      if (out.length >= SUBSCRIPTIONS.MAX_UNSUB_PER_RUN) break;
+    }
+    return out;
+  }
+
+  // Gmail's native header Unsubscribe control in an open conversation.
+  // Primary: span.Ca (role=link, literal "Unsubscribe"). Fallback: any
+  // link/button in the reading view with that exact text that is not
+  // inside the message body and not a list-row inline action.
+  function findHeaderUnsubscribeControl() {
+    const main = getMainRoot();
+    for (const el of qsa(SELECTORS.headerUnsubscribe.join(", "), main)) {
+      if (/unsubscribe/i.test(getTextContent(el))) return el;
+    }
+    for (const el of qsa('[role="link"], [role="button"]', main)) {
+      if (!/^unsubscribe$/i.test(getTextContent(el))) continue;
+      if (el.closest(SELECTORS.messageBody)) continue;
+      if (el.closest('tr[role="row"]')) continue;
+      return el;
+    }
+    return null;
+  }
+
+  // Classify the confirmation dialog. Gmail shows either a direct
+  // confirm (Cancel / Unsubscribe buttons) or, for senders without
+  // one-click support, a "go to website" hand-off that a bulk run must
+  // not follow.
+  function resolveUnsubscribeDialog(dlg) {
+    const result = { confirmBtn: null, cancelBtn: null, kind: "unknown" };
+    if (!dlg) return result;
+    for (const btn of qsa('button, [role="button"]', dlg)) {
+      const text = getTextContent(btn);
+      if (/^unsubscribe$/i.test(text)) {
+        result.confirmBtn = btn;
+        result.kind = "confirm";
+      } else if (/^(cancel|no thanks|close|dismiss|got it)$/i.test(text)) {
+        result.cancelBtn = btn;
+      } else if (/(go to|visit).*(website|site)/i.test(text)) {
+        result.kind = "manual";
+      }
+    }
+    return result;
+  }
+
+  function dismissDialog(dlg) {
+    const { cancelBtn } = resolveUnsubscribeDialog(dlg);
+    if (cancelBtn) {
+      fireMouseSequence(cancelBtn);
+    } else {
+      dispatchKeyEvent("Escape", "Escape", { keyCode: 27 });
+    }
+  }
+
+  // Open a conversation from the current result list. Prefers an
+  // already-read row (class zE) so the run changes as little mailbox
+  // state as possible; opening an unread one only flips it to read.
+  async function openMessageFromCurrentList() {
+    const rows = qsa('tr[role="row"]', getMainRoot());
+    if (!rows.length || hasNoResults()) {
+      return { opened: false, reason: "no_results" };
+    }
+    const row = rows.find((r) => r.classList.contains("zE")) || rows[0];
+    const cell = qsFirst(SELECTORS.subjectCell, row);
+    fireMouseSequence(cell || row);
+    const opened = await waitFor(
+      () => qsFirst(SELECTORS.messageOpen),
+      { timeout: SUBSCRIPTIONS.OPEN_MESSAGE_TIMEOUT, description: "open conversation" }
+    );
+    if (!opened) return { opened: false, reason: "open_timeout" };
+    await sleep(TIMING.DOM_SETTLE_DELAY);
+    return { opened: true };
+  }
+
+  // Drive header Unsubscribe + confirm dialog on the open conversation.
+  async function unsubscribeCurrentMessage() {
+    const control = findHeaderUnsubscribeControl();
+    if (!control) return { status: "no_button" };
+
+    fireMouseSequence(control);
+
+    const dlg = await waitFor(
+      () => qsFirst(SELECTORS.bulkConfirmDialog),
+      { timeout: SUBSCRIPTIONS.UNSUB_DIALOG_TIMEOUT, description: "unsubscribe dialog" }
+    );
+    if (!dlg) return { status: "no_dialog" };
+
+    const { confirmBtn, kind } = resolveUnsubscribeDialog(dlg);
+    if (kind !== "confirm" || !confirmBtn) {
+      dismissDialog(dlg);
+      return { status: kind === "manual" ? "manual" : "unknown_dialog" };
+    }
+
+    fireMouseSequence(confirmBtn);
+    await waitFor(
+      () => !qsFirst(SELECTORS.bulkConfirmDialog),
+      { timeout: SUBSCRIPTIONS.DIALOG_CLOSE_TIMEOUT, description: "dialog close" }
+    );
+    return { status: "unsubscribed" };
+  }
+
+  async function subscriptionScan() {
+    if (RUNNING) {
+      debugLog("Run already in progress, ignoring scan request");
+      return;
+    }
+    RUNNING = true;
+    CANCELLED = false;
+    const originHash = location.hash;
+    const bySender = new Map();
+
+    try {
+      if (!isGmailTab()) {
+        alert("Gmail Cleaner: please run this from a Gmail tab.");
+        return;
+      }
+
+      safeSendImmediate({
+        runKind: "subscriptionScan",
+        phase: "starting",
+        status: "Scanning for subscriptions...",
+        detail: `${SUBSCRIPTIONS.SCAN_QUERIES.length} discovery searches.`,
+        percent: 0
+      });
+
+      const queries = SUBSCRIPTIONS.SCAN_QUERIES;
+      for (let i = 0; i < queries.length; i++) {
+        if (CANCELLED) throw new CancellationError("Scan cancelled by user");
+
+        safeSendImmediate({
+          runKind: "subscriptionScan",
+          phase: "running",
+          status: `Scanning (${i + 1}/${queries.length})...`,
+          detail: queries[i],
+          percent: Math.round((i / queries.length) * 100)
+        });
+
+        try {
+          await openSearch(queries[i]);
+        } catch (e) {
+          if (e instanceof CancellationError) throw e;
+          debugLog("Scan query failed, continuing", { query: queries[i], error: e?.message });
+          continue;
+        }
+
+        for (const entry of sampleSubscriptionRows()) {
+          const existing = bySender.get(entry.email);
+          if (existing) {
+            existing.count += 1;
+          } else {
+            bySender.set(entry.email, { email: entry.email, name: entry.name, count: 1 });
+          }
+        }
+      }
+
+      const senders = [...bySender.values()]
+        .sort((a, b) => b.count - a.count)
+        .slice(0, SUBSCRIPTIONS.MAX_SENDERS);
+
+      try {
+        if (hasChromeRuntime()) {
+          chrome.runtime.sendMessage({
+            type: "gmailCleanerSubscriptionScanResult",
+            senders
+          });
+        }
+      } catch (e) {
+        debugLog("Failed to send scan result to background", { error: e?.message });
+      }
+
+      safeSendImmediate({
+        runKind: "subscriptionScan",
+        phase: "done",
+        status: `Found ${senders.length} subscription senders.`,
+        detail: senders.length
+          ? "Pick the ones you never read and unsubscribe in one pass."
+          : "No subscription-style mail found in the last year.",
+        percent: 100,
+        done: true,
+        scanSenders: senders
+      });
+    } catch (e) {
+      if (e instanceof CancellationError) {
+        safeSendImmediate({
+          runKind: "subscriptionScan",
+          phase: "cancelled",
+          status: "Scan cancelled.",
+          detail: "Stopped by user.",
+          done: true,
+          percent: 100
+        });
+      } else {
+        logError(e, "subscription scan");
+        safeSendImmediate({
+          runKind: "subscriptionScan",
+          phase: "error",
+          status: "Scan failed.",
+          detail: e instanceof Error ? e.message : String(e),
+          done: true,
+          percent: 100
+        });
+      }
+    } finally {
+      RUNNING = false;
+      try {
+        if (typeof window !== "undefined") window.GCC_ATTACHED = false;
+      } catch {}
+      try {
+        if (originHash && location.hash !== originHash) location.hash = originHash;
+      } catch {}
+    }
+  }
+
+  async function unsubscribeRun(rawSenders) {
+    if (RUNNING) {
+      debugLog("Run already in progress, ignoring unsubscribe request");
+      return;
+    }
+    RUNNING = true;
+    CANCELLED = false;
+    const originHash = location.hash;
+    const senders = sanitizeSenderList(rawSenders);
+    const results = [];
+
+    try {
+      if (!isGmailTab()) {
+        alert("Gmail Cleaner: please run this from a Gmail tab.");
+        return;
+      }
+
+      if (!senders.length) {
+        safeSendImmediate({
+          runKind: "unsubscribe",
+          phase: "done",
+          status: "Nothing to unsubscribe.",
+          detail: "No valid sender addresses were provided.",
+          percent: 100,
+          done: true,
+          unsubResults: []
+        });
+        return;
+      }
+
+      safeSendImmediate({
+        runKind: "unsubscribe",
+        phase: "starting",
+        status: `Unsubscribing from ${senders.length} sender${senders.length === 1 ? "" : "s"}...`,
+        detail: "Driving Gmail's own Unsubscribe control for each sender.",
+        percent: 0
+      });
+
+      for (let i = 0; i < senders.length; i++) {
+        if (CANCELLED) throw new CancellationError("Unsubscribe run cancelled by user");
+        const email = senders[i];
+
+        safeSendImmediate({
+          runKind: "unsubscribe",
+          phase: "running",
+          status: `Unsubscribing (${i + 1}/${senders.length})...`,
+          detail: email,
+          percent: Math.round((i / senders.length) * 100)
+        });
+
+        let status = "error";
+        try {
+          await openSearch(`from:(${email})`);
+          const openResult = await openMessageFromCurrentList();
+          if (!openResult.opened) {
+            status = openResult.reason === "no_results" ? "not_found" : "error";
+          } else {
+            status = (await unsubscribeCurrentMessage()).status;
+          }
+        } catch (e) {
+          if (e instanceof CancellationError) throw e;
+          debugLog("Unsubscribe failed for sender", { email, error: e?.message });
+          status = "error";
+        }
+
+        results.push({ sender: email, status });
+        await sleep(SUBSCRIPTIONS.BETWEEN_SENDERS_MS);
+      }
+
+      try {
+        if (hasChromeRuntime()) {
+          chrome.runtime.sendMessage({
+            type: "gmailCleanerRecordUnsubscribes",
+            results
+          });
+        }
+      } catch (e) {
+        debugLog("Failed to send unsubscribe results to background", { error: e?.message });
+      }
+
+      const okCount = results.filter((r) => r.status === "unsubscribed").length;
+      safeSendImmediate({
+        runKind: "unsubscribe",
+        phase: "done",
+        status: `Unsubscribed from ${okCount} of ${results.length} senders.`,
+        detail: okCount === results.length
+          ? "All done. Their future mail stops at the source."
+          : "Some senders offer no one-click unsubscribe; those are marked for manual follow-up.",
+        percent: 100,
+        done: true,
+        unsubResults: results
+      });
+    } catch (e) {
+      if (e instanceof CancellationError) {
+        safeSendImmediate({
+          runKind: "unsubscribe",
+          phase: "cancelled",
+          status: "Unsubscribe run cancelled.",
+          detail: "Stopped by user.",
+          done: true,
+          percent: 100,
+          unsubResults: results
+        });
+      } else {
+        logError(e, "unsubscribe run");
+        safeSendImmediate({
+          runKind: "unsubscribe",
+          phase: "error",
+          status: "Unsubscribe run failed.",
+          detail: e instanceof Error ? e.message : String(e),
+          done: true,
+          percent: 100,
+          unsubResults: results
+        });
+      }
+    } finally {
+      RUNNING = false;
+      try {
+        if (typeof window !== "undefined") window.GCC_ATTACHED = false;
+      } catch {}
+      try {
+        if (originHash && location.hash !== originHash) location.hash = originHash;
+      } catch {}
+    }
+  }
+
+  function startSubscriptionScan() {
+    if (!RUNNING) {
+      subscriptionScan().catch((e) => logError(e, "startSubscriptionScan"));
+    }
+  }
+
+  function startUnsubscribeRun(senders) {
+    if (!RUNNING) {
+      unsubscribeRun(senders).catch((e) => logError(e, "startUnsubscribeRun"));
+    }
+  }
+
   async function main() {
     if (RUNNING) {
       debugLog("Run already in progress, ignoring start request");
@@ -3305,9 +3766,23 @@
       queryHasDangerousToken,
       sanitizeProtectKeywords,
       buildSubjectExclusion,
-      buildFinalStats
+      buildFinalStats,
+      SUBSCRIPTIONS,
+      sampleSubscriptionRows,
+      sanitizeSenderList,
+      findHeaderUnsubscribeControl,
+      resolveUnsubscribeDialog
     };
   }
 
-  startMain();
+  // Injection bootstrap: the popup / service worker injects config, then
+  // this file, and the run starts here. 7.0 routes by runKind so the
+  // subscriptions engine shares one injection path with cleanups.
+  if (CONFIG.runKind === "subscriptionScan") {
+    startSubscriptionScan();
+  } else if (CONFIG.runKind === "unsubscribe") {
+    startUnsubscribeRun(CONFIG.unsubSenders);
+  } else {
+    startMain();
+  }
 })();

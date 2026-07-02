@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "6.1.0";
+  const POPUP_VERSION = "7.0.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -27,9 +27,6 @@ document.addEventListener("DOMContentLoaded", () => {
     DEBUG_MODE: "debugMode",
     WHITELIST: "whitelist",
     PROTECT_KEYWORDS: "protectKeywords",
-
-    TIP_INTENT: "lastTipIntentAt",
-    TIP_SOURCE: "lastTipIntentSource",
 
     PIN_DISMISSED: "pinHintDismissed",
     ONBOARDED: "onboardedAt",
@@ -74,7 +71,15 @@ document.addEventListener("DOMContentLoaded", () => {
     // Transient (not persisted) -- cleared when the user touches the
     // intensity dropdown, since that means "use the full rule set".
     rulesOverride: null,
-    activePreset: null
+    activePreset: null,
+
+    // 7.0 subscriptions: license state + last scan, and which
+    // subscription run (if any) this popup instance is watching.
+    subs: {
+      licenseActive: false,
+      senders: [],
+      running: null
+    }
   };
 
   // 6.0: one-click category targets. Each runs a small, safe rule set
@@ -263,7 +268,26 @@ document.addEventListener("DOMContentLoaded", () => {
     kbdHelpClose: $("kbdHelpClose"),
     onboardingBackdrop: $("onboardingBackdrop"),
     onbNextBtn: $("onbNextBtn"),
-    onbSkipBtn: $("onbSkipBtn")
+    onbSkipBtn: $("onbSkipBtn"),
+
+    // 7.0 subscriptions
+    subsSection: $("subscriptionsSection"),
+    subsProPill: $("subsProPill"),
+    scanSubsBtn: $("scanSubsBtn"),
+    subsStatus: $("subsStatus"),
+    subsToolbar: $("subsToolbar"),
+    subsSelectAll: $("subsSelectAll"),
+    subsCount: $("subsCount"),
+    subsList: $("subsList"),
+    unsubBtn: $("unsubBtn"),
+    unsubBtnSub: $("unsubBtnSub"),
+    subsUpsell: $("subsUpsell"),
+    subsBuyLink: $("subsBuyLink"),
+    subsEnterKey: $("subsEnterKey"),
+    footerProBtn: $("footerProBtn"),
+    proPromo: $("proPromo"),
+    proPromoBuy: $("proPromoBuy"),
+    proPromoKey: $("proPromoKey")
   };
 
   const critical = ["runBtn", "statusEl", "intensityEl", "dryRunEl", "safeModeEl"];
@@ -1064,6 +1088,286 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   // =========================
+  // Subscriptions: scan + bulk unsubscribe (7.0)
+  // =========================
+  // The scan is free; executing unsubscribes is the Pro feature. The
+  // gate lives here in the UI: the engine itself is not license-aware.
+
+  const SUBS_STATUS_LABELS = Object.freeze({
+    unsubscribed: { text: "Unsubscribed", cls: "ok" },
+    manual: { text: "Manual step needed", cls: "warn" },
+    no_button: { text: "No 1-click option", cls: "warn" },
+    no_dialog: { text: "Unconfirmed", cls: "warn" },
+    unknown_dialog: { text: "Unconfirmed", cls: "warn" },
+    not_found: { text: "No mail found", cls: "warn" },
+    error: { text: "Failed", cls: "err" }
+  });
+
+  const setSubsStatus = (text) => {
+    if (elements.subsStatus) elements.subsStatus.textContent = text || "";
+  };
+
+  const refreshLicenseUi = async () => {
+    try {
+      const licenseState = await GCC.license.getState();
+      state.subs.licenseActive = licenseState.active;
+    } catch {
+      state.subs.licenseActive = false;
+    }
+    const active = state.subs.licenseActive;
+    if (elements.subsProPill) elements.subsProPill.hidden = !active;
+    if (elements.subsUpsell) elements.subsUpsell.hidden = active;
+    if (elements.unsubBtnSub) {
+      elements.unsubBtnSub.textContent = active
+        ? "Uses Gmail's own Unsubscribe control"
+        : "Pro · $5 lifetime";
+    }
+    if (elements.unsubBtn) elements.unsubBtn.classList.toggle("locked", !active);
+    if (elements.subsBuyLink) elements.subsBuyLink.href = GCC.license.PRO.BUY_URL;
+    if (elements.proPromoBuy) elements.proPromoBuy.href = GCC.license.PRO.BUY_URL;
+    if (elements.proPromo) elements.proPromo.hidden = active;
+  };
+
+  const getCheckedSubEmails = () =>
+    (elements.subsList
+      ? Array.from(elements.subsList.querySelectorAll("input[type='checkbox']:checked"))
+      : []
+    ).map((cb) => cb.getAttribute("data-email")).filter(Boolean);
+
+  const updateSubsCount = () => {
+    if (!elements.subsCount) return;
+    const total = state.subs.senders.length;
+    const checked = getCheckedSubEmails().length;
+    elements.subsCount.textContent = checked
+      ? `${checked} of ${total} selected`
+      : `${total} sender${total === 1 ? "" : "s"} found`;
+  };
+
+  const renderSubsList = () => {
+    if (!elements.subsList) return;
+    elements.subsList.textContent = "";
+    const senders = state.subs.senders;
+    const hasSenders = senders.length > 0;
+    if (elements.subsToolbar) elements.subsToolbar.hidden = !hasSenders;
+    if (elements.unsubBtn) elements.unsubBtn.hidden = !hasSenders;
+    if (!hasSenders) {
+      updateSubsCount();
+      return;
+    }
+
+    for (const sender of senders) {
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.setAttribute("data-email", sender.email);
+      checkbox.addEventListener("change", updateSubsCount);
+      if (sender.status === "unsubscribed") checkbox.disabled = true;
+
+      const name = document.createElement("span");
+      name.className = "subs-row-name";
+      name.textContent = sender.name || sender.email;
+
+      const email = document.createElement("span");
+      email.className = "subs-row-email";
+      email.textContent = sender.name ? sender.email : "";
+
+      const text = document.createElement("span");
+      text.className = "subs-row-text";
+      text.appendChild(name);
+      if (email.textContent) text.appendChild(email);
+
+      const label = document.createElement("label");
+      label.className = "subs-row-label";
+      label.appendChild(checkbox);
+      label.appendChild(text);
+
+      const row = document.createElement("div");
+      row.className = "subs-row";
+      row.setAttribute("role", "listitem");
+      row.appendChild(label);
+
+      const statusMeta = SUBS_STATUS_LABELS[sender.status];
+      if (statusMeta) {
+        const chip = document.createElement("span");
+        chip.className = `subs-row-status ${statusMeta.cls}`;
+        chip.textContent = statusMeta.text;
+        row.appendChild(chip);
+      } else {
+        const count = document.createElement("span");
+        count.className = "subs-row-count";
+        count.textContent = `${sender.count} email${sender.count === 1 ? "" : "s"}`;
+        row.appendChild(count);
+      }
+
+      elements.subsList.appendChild(row);
+    }
+    updateSubsCount();
+  };
+
+  const loadStoredSubscriptions = async () => {
+    if (!GCC.hasChrome() || !chrome.runtime?.sendMessage) return;
+    try {
+      const resp = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({ type: "gmailCleanerGetSubscriptions" }, resolve);
+      });
+      if (resp?.ok && resp.scan?.senders) {
+        state.subs.senders = resp.scan.senders;
+        renderSubsList();
+      }
+    } catch (e) {
+      log("warn", "loadStoredSubscriptions failed", e);
+    }
+  };
+
+  // Shared injection path for both subscription run kinds. Returns the
+  // Gmail tab id, or null when the run could not start.
+  const injectSubscriptionRun = async (runKind, unsubSenders = []) => {
+    const gmailTab = await findGmailTab();
+    if (!gmailTab) {
+      showToast("open Gmail in a tab first", "warning");
+      setSubsStatus("Open mail.google.com in a tab, then try again.");
+      return null;
+    }
+
+    try {
+      const [attached] = await scriptingExecuteScript({
+        target: { tabId: gmailTab.id },
+        func: () => !!window.GCC_ATTACHED
+      });
+      if (attached?.result === true) {
+        showToast("another run is already in progress", "warning");
+        return null;
+      }
+    } catch {
+      // Tab might not be ready; the injection below will surface real errors.
+    }
+
+    await scriptingExecuteScript({
+      target: { tabId: gmailTab.id },
+      func: (cfg) => {
+        window.GMAIL_CLEANER_CONFIG = cfg;
+      },
+      args: [{ runKind, unsubSenders, debugMode: state.debugMode }]
+    });
+    await scriptingExecuteScript({
+      target: { tabId: gmailTab.id },
+      files: ["contentScript.js"]
+    });
+    return gmailTab.id;
+  };
+
+  const handleScanSubscriptions = async () => {
+    if (state.subs.running) return;
+    try {
+      state.subs.running = "subscriptionScan";
+      if (elements.scanSubsBtn) elements.scanSubsBtn.disabled = true;
+      setSubsStatus("Scanning your mailbox for subscription senders...");
+      const tabId = await injectSubscriptionRun("subscriptionScan");
+      if (tabId === null) {
+        state.subs.running = null;
+        if (elements.scanSubsBtn) elements.scanSubsBtn.disabled = false;
+        return;
+      }
+    } catch (err) {
+      log("error", "scan start failed", err);
+      showToast(`scan failed: ${err?.message || "unknown error"}`, "error");
+      setSubsStatus("");
+      state.subs.running = null;
+      if (elements.scanSubsBtn) elements.scanSubsBtn.disabled = false;
+    }
+  };
+
+  const handleUnsubscribe = async () => {
+    if (state.subs.running) return;
+
+    if (!state.subs.licenseActive) {
+      if (elements.subsUpsell) elements.subsUpsell.hidden = false;
+      showToast("bulk unsubscribe is a Pro feature ($5, one-time)", "info");
+      return;
+    }
+
+    const emails = getCheckedSubEmails();
+    if (!emails.length) {
+      showToast("pick at least one sender first", "warning");
+      return;
+    }
+    const capped = emails.slice(0, 25);
+    if (emails.length > capped.length) {
+      showToast("running the first 25; re-run for the rest", "info");
+    }
+
+    try {
+      state.subs.running = "unsubscribe";
+      if (elements.unsubBtn) elements.unsubBtn.disabled = true;
+      if (elements.scanSubsBtn) elements.scanSubsBtn.disabled = true;
+      setSubsStatus(`Unsubscribing from ${capped.length} sender${capped.length === 1 ? "" : "s"}...`);
+      const tabId = await injectSubscriptionRun("unsubscribe", capped);
+      if (tabId === null) {
+        state.subs.running = null;
+        if (elements.unsubBtn) elements.unsubBtn.disabled = false;
+        if (elements.scanSubsBtn) elements.scanSubsBtn.disabled = false;
+      }
+    } catch (err) {
+      log("error", "unsubscribe start failed", err);
+      showToast(`unsubscribe failed: ${err?.message || "unknown error"}`, "error");
+      setSubsStatus("");
+      state.subs.running = null;
+      if (elements.unsubBtn) elements.unsubBtn.disabled = false;
+      if (elements.scanSubsBtn) elements.scanSubsBtn.disabled = false;
+    }
+  };
+
+  const finishSubsRun = () => {
+    state.subs.running = null;
+    if (elements.scanSubsBtn) elements.scanSubsBtn.disabled = false;
+    if (elements.unsubBtn) elements.unsubBtn.disabled = false;
+  };
+
+  // Progress messages from the subscriptions engine carry runKind; the
+  // main cleanup listener routes them here and returns early.
+  const handleSubsProgress = (msg) => {
+    const { runKind, phase, status, detail, done } = msg;
+
+    if (!done && phase !== "done") {
+      const line = [status, detail].filter(Boolean).join(" ");
+      if (line) setSubsStatus(line);
+      return;
+    }
+
+    if (phase === "error") {
+      setSubsStatus(`Failed: ${detail || "unknown error"}`);
+      showToast(runKind === "unsubscribe" ? "unsubscribe run failed" : "scan failed", "error");
+      finishSubsRun();
+      return;
+    }
+    if (phase === "cancelled") {
+      setSubsStatus("Stopped.");
+      finishSubsRun();
+      return;
+    }
+
+    if (runKind === "subscriptionScan" && Array.isArray(msg.scanSenders)) {
+      // Merge stored statuses (the service worker persists them) after a
+      // short beat; render the fresh list immediately for responsiveness.
+      state.subs.senders = msg.scanSenders;
+      renderSubsList();
+      setSubsStatus(status || "Scan complete.");
+      setTimeout(() => { loadStoredSubscriptions().catch(() => {}); }, 400);
+      showToast("subscription scan complete", "success");
+    } else if (runKind === "unsubscribe" && Array.isArray(msg.unsubResults)) {
+      const byEmail = Object.create(null);
+      for (const r of msg.unsubResults) byEmail[r.sender] = r.status;
+      for (const sender of state.subs.senders) {
+        if (byEmail[sender.email]) sender.status = byEmail[sender.email];
+      }
+      renderSubsList();
+      setSubsStatus(status || "Unsubscribe run complete.");
+      const okCount = msg.unsubResults.filter((r) => r.status === "unsubscribed").length;
+      showToast(`unsubscribed from ${okCount} sender${okCount === 1 ? "" : "s"}`, okCount ? "success" : "warning");
+    }
+    finishSubsRun();
+  };
+
+  // =========================
   // Quick actions
   // =========================
 
@@ -1167,28 +1471,8 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   // =========================
-  // Tip links + Share
+  // Share
   // =========================
-
-  const setupTipLinks = () => {
-    const tipLinks = $$('a[href*="buymeacoffee.com"], a[href*="cash.app"]');
-    tipLinks.forEach((link) => {
-      link.addEventListener("click", async (e) => {
-        e.preventDefault();
-
-        const url = link.href;
-        const source = url.includes("buymeacoffee.com") ? "buymeacoffee" : "cashapp";
-
-        await tabsCreate({ url, active: true });
-        await storageSet("local", {
-          [STORAGE_KEYS.TIP_INTENT]: Date.now(),
-          [STORAGE_KEYS.TIP_SOURCE]: source
-        });
-
-        setTimeout(safeClosePopup, 150);
-      });
-    });
-  };
 
   const setupShare = () => {
     if (!elements.shareBtn) return;
@@ -1278,6 +1562,13 @@ document.addEventListener("DOMContentLoaded", () => {
         // final summary in `stats`. (Older popup builds listened for
         // gmailCleanerDone/Canceled/Error types that are never sent.)
         if (msg.type !== "gmailCleanerProgress") return;
+
+        // 7.0: subscriptions engine messages carry runKind and have
+        // their own UI; keep them out of the cleanup progress logic.
+        if (msg.runKind) {
+          handleSubsProgress(msg);
+          return;
+        }
 
         const { phase, status, detail, percent, stats, done } = msg;
         const terminal = done || phase === "done" || phase === "cancelled" || phase === "error";
@@ -1519,7 +1810,24 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.openDiagnosticsBtn?.addEventListener("click", openDiagnostics);
     elements.openStatsBtn?.addEventListener("click", openStats);
 
-    setupTipLinks();
+    // 7.0 subscriptions
+    elements.scanSubsBtn?.addEventListener("click", handleScanSubscriptions);
+    elements.unsubBtn?.addEventListener("click", handleUnsubscribe);
+    elements.subsSelectAll?.addEventListener("change", () => {
+      const checked = !!elements.subsSelectAll.checked;
+      elements.subsList
+        ?.querySelectorAll("input[type='checkbox']:not(:disabled)")
+        .forEach((cb) => { cb.checked = checked; });
+      updateSubsCount();
+    });
+    const openProOptions = async () => {
+      await tabsCreate({ url: chrome.runtime.getURL("options.html#pro"), active: true });
+      setTimeout(safeClosePopup, 150);
+    };
+    elements.subsEnterKey?.addEventListener("click", openProOptions);
+    elements.proPromoKey?.addEventListener("click", openProOptions);
+    elements.footerProBtn?.addEventListener("click", openProOptions);
+
     setupShare();
     setupKeyboardShortcuts();
     setupRuntimeMessages();
@@ -1560,6 +1868,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     loadGmailAccounts();
     loadWhitelistSuggestions();
+
+    // 7.0 subscriptions: license badge + last scan (both best-effort).
+    refreshLicenseUi().catch((e) => log("warn", "license ui failed", e));
+    loadStoredSubscriptions().catch((e) => log("warn", "subs load failed", e));
 
     log("info", "ready");
   };

@@ -26,3 +26,9 @@ build/
 
 # Logs
 *.log
+
+# Local Netlify folder
+.netlify
+
+# Editor scratch copies
+*.bak

@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const OPTIONS_VERSION = "6.1.0";
+  const OPTIONS_VERSION = "7.0.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -1241,6 +1241,90 @@
       container.appendChild(row);
     });
   }
+
+  // =========================
+  // Pro license (7.0)
+  // =========================
+  // Keys are verified locally (GCC.license wraps WebCrypto + the
+  // embedded public key). Nothing here talks to a server.
+
+  const wireProSection = () => {
+    const keyInput = GCC.$("proKeyInput");
+    const activateBtn = GCC.$("proActivateBtn");
+    const removeBtn = GCC.$("proRemoveBtn");
+    const statusEl = GCC.$("proStatus");
+    const buyLink = GCC.$("proBuyLink");
+    if (!keyInput || !activateBtn || !statusEl) return;
+
+    if (buyLink) buyLink.href = GCC.license.PRO.BUY_URL;
+
+    const maskKey = (key) => {
+      const parts = String(key).split(".");
+      const sig = parts[2] || "";
+      return `GCC1.......${sig.slice(0, 6)}....`;
+    };
+
+    const renderState = async () => {
+      const licenseState = await GCC.license.getState();
+      if (licenseState.active) {
+        statusEl.textContent = `Pro is active on this browser (key ${maskKey(licenseState.key)}). Bulk unsubscribe is unlocked.`;
+        statusEl.style.color = "var(--success, #34d399)";
+        keyInput.style.display = "none";
+        activateBtn.style.display = "none";
+        if (removeBtn) removeBtn.style.display = "";
+      } else {
+        statusEl.textContent = "No Pro key on this browser yet.";
+        statusEl.style.color = "var(--text-muted)";
+        keyInput.style.display = "";
+        activateBtn.style.display = "";
+        if (removeBtn) removeBtn.style.display = "none";
+      }
+    };
+
+    activateBtn.addEventListener("click", async () => {
+      const raw = keyInput.value.trim();
+      if (!raw) {
+        GCC.showToast("Paste your license key first", "warning");
+        return;
+      }
+      activateBtn.disabled = true;
+      try {
+        const check = await GCC.license.verify(raw);
+        if (!check.valid) {
+          GCC.showToast(check.reason || "Invalid license key", "error");
+          return;
+        }
+        await GCC.safeSyncSet({ [GCC.license.PRO.STORAGE_KEY]: raw }, "license key");
+        keyInput.value = "";
+        GCC.showToast("Pro activated. Enjoy bulk unsubscribe!", "success");
+        await renderState();
+      } catch (err) {
+        GCC.showToast(`Activation failed: ${err?.message || "unknown error"}`, "error");
+      } finally {
+        activateBtn.disabled = false;
+      }
+    });
+
+    removeBtn?.addEventListener("click", async () => {
+      try {
+        await GCC.storageSet("sync", { [GCC.license.PRO.STORAGE_KEY]: "" });
+        GCC.showToast("Key removed from this browser", "info");
+        await renderState();
+      } catch (err) {
+        GCC.showToast(`Failed: ${err?.message || "unknown error"}`, "error");
+      }
+    });
+
+    renderState().catch(() => {});
+
+    // The popup deep-links here as options.html#pro.
+    if (location.hash === "#pro") {
+      document.getElementById("pro")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      keyInput.focus();
+    }
+  };
+
+  wireProSection();
 
   const addScheduleBtn = GCC.$("addScheduleBtn");
   if (addScheduleBtn) {

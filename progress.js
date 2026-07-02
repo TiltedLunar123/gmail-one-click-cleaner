@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const PROGRESS_VERSION = "6.1.0";
+  const PROGRESS_VERSION = "7.0.0";
 
   const CONFIG = Object.freeze({
     MAX_LOG_ENTRIES: 300,
@@ -457,6 +457,8 @@
     tbody.appendChild(fragment);
   };
 
+  // 7.0: the post-run prompt now pitches Pro (bulk unsubscribe), so it
+  // must stay hidden for users who already own a license.
   const maybeShowTipPrompt = (stats) => {
     if (!ui.tipPrompt || state.tipShown) return;
     if (!stats) return;
@@ -467,8 +469,12 @@
     const cleanedTotal = (stats.totalDeleted || 0) + (stats.totalArchived || 0);
     if (cleanedTotal < CONFIG.TIP_THRESHOLD_COUNT) return;
 
-    ui.tipPrompt.style.display = "block";
     state.tipShown = true;
+    GCC.license.getState().then((licenseState) => {
+      if (!licenseState.active && ui.tipPrompt) {
+        ui.tipPrompt.style.display = "block";
+      }
+    }).catch(() => {});
   };
 
   // =========================
@@ -649,6 +655,10 @@
     }
 
     if (message.type !== "gmailCleanerProgress") return;
+
+    // 7.0: subscriptions engine messages (runKind set) belong to the
+    // popup's subscriptions panel, not this cleanup dashboard.
+    if (message.runKind) return;
 
     // Track last message time for auto-reconnect
     state.lastMessageTime = Date.now();
