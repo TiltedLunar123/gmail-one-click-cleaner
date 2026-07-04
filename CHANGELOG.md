@@ -3,6 +3,24 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 7.0.1 - New brand icon
+
+### Changed
+- **New icon set.** Replaced the old icon (a Gmail logo with a broom
+  pasted on top) with an original mark: a cyan envelope sweeping clean
+  on a dark tile, matching the extension's own design system. Original
+  artwork also removes any trademark ambiguity with Google's Gmail
+  branding. The SVG sources live in `icons/` next to the PNGs; each
+  size (16, 32, 48) is tuned by hand so the toolbar icon stays legible.
+- Icon PNGs now carry an alpha channel, so the rounded tile sits
+  cleanly on both light and dark browser toolbars.
+
+### Fixed
+- The build no longer copies the SVG icon sources into `dist/` or the
+  store zip; Chrome only loads the PNGs.
+- Cleared 3 npm audit advisories in dev tooling (Babel, form-data,
+  js-yaml). Nothing that ships in the extension was affected.
+
 ## 7.0.0 - Subscription scan + bulk unsubscribe (Pro)
 
 Deleting hides old mail; unsubscribing stops new mail. This release adds

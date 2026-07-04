@@ -88,7 +88,12 @@ for (const dir of DIRS) {
     continue;
   }
 
-  fs.cpSync(srcDir, destDir, { recursive: true });
+  // SVG sources stay in the repo for future icon edits but have no
+  // business in the shipped extension; Chrome only loads the PNGs.
+  fs.cpSync(srcDir, destDir, {
+    recursive: true,
+    filter: (src) => !src.endsWith(".svg")
+  });
   console.log("Copied: " + dir + "/");
 }
 
