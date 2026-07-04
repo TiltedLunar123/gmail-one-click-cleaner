@@ -25,7 +25,11 @@ const SCRIPT_VERSIONS = [
 
 const HTML_BADGES = [
   ["progress.html", /id="versionPill"[^>]*>v([0-9.]+)</],
-  ["diagnostics.html", /aria-label="Version ([0-9.]+)">/]
+  ["diagnostics.html", /aria-label="Version ([0-9.]+)">/],
+  // The popup badge is synced from the manifest at runtime, but the
+  // static fallback drifted once (stuck at 6.0.0 through two releases)
+  // so it gets pinned here too.
+  ["popup.html", /id="versionBadge"[^>]*>v([0-9.]+)</]
 ];
 
 describe("version consistency", () => {
