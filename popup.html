@@ -196,9 +196,12 @@
       flex: 0 0 auto;
       overflow: hidden;
     }
+    /* The icon artwork is itself a rounded dark tile, so it fills the
+       mark edge-to-edge instead of floating inside it. */
     .app-mark img {
-      width: 26px;
-      height: 26px;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
       will-change: transform;
       transition: transform 0.25s var(--ease);
     }
@@ -938,7 +941,7 @@
     .status.status-success { color: #6ee7b7; }
     .status.status-error { color: #fca5a5; }
     .status.status-warning { color: #fcd34d; }
-    .status.status-running { color: #67e8f9; }
+    .status.status-running { color: #7bf1fd; }
 
     @keyframes statusPop {
       0% { transform: scale(0.95); opacity: 0.5; }
@@ -1379,7 +1382,7 @@
     }
     html[data-theme="light"] .primary {
       color: #04181d;
-      background: linear-gradient(135deg, #67e8f9, #22d3ee);
+      background: linear-gradient(135deg, #7bf1fd, #22d3ee);
     }
     html[data-theme="light"] .rating-prompt-text { color: #b45309; }
     html[data-theme="light"] .rating-star { color: #d97706; }
@@ -1590,7 +1593,7 @@
       <header class="card-header">
         <div class="header-left">
           <div class="app-mark" aria-hidden="true">
-            <img src="icons/icon32.png" alt="" width="26" height="26" style="image-rendering: -webkit-optimize-contrast;" />
+            <img src="icons/icon48.png" alt="" width="36" height="36" />
           </div>
           <h1 id="gcc-title">Gmail One-Click Cleaner</h1>
         </div>

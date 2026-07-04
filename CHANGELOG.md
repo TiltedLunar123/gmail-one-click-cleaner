@@ -3,6 +3,22 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 7.0.2 - Neon icon artwork
+
+### Changed
+- **Final icon artwork.** The interim vector icon from 7.0.1 is replaced
+  with the finished brand image: a neon cyan envelope with sweep lines
+  glowing on a dark tile. The 16px toolbar size crops in on the envelope
+  so it stays readable; corners are masked transparent at every size.
+  Full-resolution source lives in `assets/icon-source.png`.
+- The popup header mark now shows the icon tile edge-to-edge instead of
+  floating a small copy inside a second tile.
+- Highlight cyan (`--primary-strong` and its hardcoded echoes) nudged
+  from #67e8f9 to #7bf1fd to match the icon's neon core, dark theme
+  only; the light theme keeps its deeper teal for legibility.
+- The buy and activation pages at gmail-cleaner-pro.netlify.app now
+  carry the icon as their favicon (redeployed).
+
 ## 7.0.1 - New brand icon
 
 ### Changed

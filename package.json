@@ -1,6 +1,6 @@
 {
   "name": "gmail-one-click-cleaner",
-  "version": "7.0.1",
+  "version": "7.0.2",
   "private": true,
   "description": "Free up Gmail storage fast. Bulk delete old emails, large attachments, & promotions.",
   "scripts": {

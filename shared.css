@@ -17,7 +17,8 @@
   /* Brand cyan: bright accent paired with ink text on solid fills */
   --primary: #22d3ee;
   --primary-hover: #06b6d4;
-  --primary-strong: #67e8f9;
+  /* Matches the neon core of the icon artwork */
+  --primary-strong: #7bf1fd;
   --on-primary: #04181d;
   --primary-glow: rgba(34, 211, 238, 0.4);
 
