@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "7.1.0";
+  const SW_VERSION = "7.2.0";
 
   // =========================
   // Storage Keys
@@ -20,7 +20,9 @@
     WHITELIST_SUGGESTIONS: "whitelistSuggestions",
     SNOOZE_UNTIL: "snoozeUntil",
     NOTIFY_ENABLED: "notifyOnComplete",
-    SUBSCRIPTIONS: "subscriptionScan"
+    SUBSCRIPTIONS: "subscriptionScan",
+    STORAGE_XRAY: "storageXray",
+    XRAY_PENDING: "storageXrayPendingPurge"
   });
 
   // chrome.storage.sync caps: 8KB per item, 102KB total. The options
@@ -409,12 +411,38 @@
           .catch((err) => sendResponse({ ok: false, error: err?.message || "Failed" }));
         return true;
 
+      // Storage X-ray (7.2): persist the latest tiered size scan.
+      case "gmailCleanerStorageScanResult":
+        withStorageLock(() => recordStorageScan(msg.senders, msg.totalMb, msg.totalCount))
+          .then(() => sendResponse({ ok: true }));
+        return true;
+
+      case "gmailCleanerGetStorageScan":
+        chrome.storage.local.get(STORAGE_KEYS.STORAGE_XRAY)
+          .then((r) => sendResponse({ ok: true, scan: r?.[STORAGE_KEYS.STORAGE_XRAY] || null }))
+          .catch((err) => sendResponse({ ok: false, error: err?.message || "Failed" }));
+        return true;
+
+      // Storage X-ray (7.2): the popup registers which senders a purge
+      // run targets; gmailCleanerDone consumes it (the popup usually
+      // closes long before the run finishes).
+      case "gmailCleanerStorageXrayPurgeStarted":
+        withStorageLock(() => recordPendingStoragePurge(msg.runId, msg.senders))
+          .then(() => sendResponse({ ok: true }));
+        return true;
+
       case "gmailCleanerDone":
         // Clean up active run state when cleanup finishes
         chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: null })
           .catch(e => console.warn("[GCC SW] session clear on done failed:", e));
         chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_RUN]: null })
           .catch(e => console.warn("[GCC SW] local clear on done failed:", e));
+        // Storage X-ray (7.2): if this run was a registered purge, mark
+        // its senders in the stored scan.
+        if (msg.summary) {
+          withStorageLock(() => resolvePendingStoragePurge(msg.summary))
+            .catch((e) => console.warn("[GCC SW] purge resolve failed:", e?.message || e));
+        }
         // Surface a desktop notification if the user opted in.
         if (msg.summary) {
           maybeNotifyDone(msg.summary).catch((e) =>
@@ -578,6 +606,109 @@
       }
     } catch (e) {
       console.error("[GCC SW] recordUnsubscribeResults failed:", e);
+    }
+  }
+
+  // =========================
+  // Storage X-ray store (7.2)
+  // =========================
+  // One local-storage object: { updatedAt, totalMb, totalCount,
+  // senders: [{ email, name, count, estMb, status, statusAt }] }. A
+  // fresh scan replaces the list but keeps each sender's purge status,
+  // mirroring the subscriptions store. Purge marking is indirect: the
+  // popup registers { runId, senders } when it starts a purge run, and
+  // the engine's gmailCleanerDone (which carries runId, dryRun and the
+  // affected count) resolves it, because the popup closes long before
+  // the run finishes.
+
+  async function recordStorageScan(senders, totalMb, totalCount) {
+    if (!Array.isArray(senders)) return;
+    try {
+      const result = await chrome.storage.local.get(STORAGE_KEYS.STORAGE_XRAY);
+      const prev = result?.[STORAGE_KEYS.STORAGE_XRAY] || {};
+      const prevStatus = Object.create(null);
+      for (const entry of prev.senders || []) {
+        if (entry?.email && entry.status) {
+          prevStatus[entry.email] = { status: entry.status, statusAt: entry.statusAt || 0 };
+        }
+      }
+      const clean = [];
+      for (const raw of senders.slice(0, 100)) {
+        const email = String(raw?.email || "").trim().toLowerCase();
+        if (!email || email.length > 320 || !email.includes("@")) continue;
+        clean.push({
+          email,
+          name: String(raw?.name || "").slice(0, 120),
+          count: Math.max(1, Math.min(99999, Number(raw?.count) || 1)),
+          estMb: Math.max(0, Math.min(1024 * 1024, Math.round(Number(raw?.estMb) || 0))),
+          status: prevStatus[email]?.status || "",
+          statusAt: prevStatus[email]?.statusAt || 0
+        });
+      }
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.STORAGE_XRAY]: {
+          updatedAt: Date.now(),
+          totalMb: Math.max(0, Math.round(Number(totalMb) || 0)),
+          totalCount: Math.max(0, Math.round(Number(totalCount) || 0)),
+          senders: clean
+        }
+      });
+    } catch (e) {
+      console.error("[GCC SW] recordStorageScan failed:", e);
+    }
+  }
+
+  async function recordPendingStoragePurge(runId, senders) {
+    const id = String(runId || "");
+    const list = Array.isArray(senders)
+      ? senders.filter((s) => typeof s === "string").slice(0, 25)
+      : [];
+    if (!id || list.length === 0) return;
+    try {
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.XRAY_PENDING]: { runId: id, senders: list, startedAt: Date.now() }
+      });
+    } catch (e) {
+      console.error("[GCC SW] recordPendingStoragePurge failed:", e);
+    }
+  }
+
+  async function resolvePendingStoragePurge(summary) {
+    try {
+      const result = await chrome.storage.local.get(STORAGE_KEYS.XRAY_PENDING);
+      const pending = result?.[STORAGE_KEYS.XRAY_PENDING];
+      if (!pending?.runId) return;
+
+      // Stale guard: a pending marker beyond the popup's 2h run TTL is
+      // dead weight from an interrupted run.
+      const stale = Date.now() - (Number(pending.startedAt) || 0) > 1000 * 60 * 60 * 2;
+      if (String(summary?.runId || "") !== pending.runId) {
+        if (stale) await chrome.storage.local.set({ [STORAGE_KEYS.XRAY_PENDING]: null });
+        return;
+      }
+
+      // This run was the purge: consume the marker either way, but only
+      // mark senders when mail was actually affected for real.
+      await chrome.storage.local.set({ [STORAGE_KEYS.XRAY_PENDING]: null });
+      if (summary?.dryRun || !(Number(summary?.count) > 0)) return;
+
+      const scanResult = await chrome.storage.local.get(STORAGE_KEYS.STORAGE_XRAY);
+      const scan = scanResult?.[STORAGE_KEYS.STORAGE_XRAY];
+      if (!scan?.senders) return;
+      const targeted = new Set(pending.senders);
+      let touched = 0;
+      for (const entry of scan.senders) {
+        if (entry?.email && targeted.has(entry.email)) {
+          entry.status = "purged";
+          entry.statusAt = Date.now();
+          touched++;
+        }
+      }
+      if (touched > 0) {
+        await chrome.storage.local.set({ [STORAGE_KEYS.STORAGE_XRAY]: scan });
+      }
+    } catch (e) {
+      console.error("[GCC SW] resolvePendingStoragePurge failed:", e);
     }
   }
 

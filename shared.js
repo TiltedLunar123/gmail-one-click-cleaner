@@ -827,6 +827,82 @@ const GCC = (() => {
   });
 
   // =========================
+  // Storage X-ray (7.2)
+  // =========================
+  // Pure logic for the storage feature: the engine's tiered scan sends
+  // per-sender lower-bound MB estimates; these helpers rank them for
+  // display and build the Pro purge query. The purge is an ordinary
+  // cleanup run (rulesOverride), so every guard, the tag-before-delete
+  // safety net and the recovery log apply to it unchanged.
+
+  // Strict email shape doubles as query-injection protection: anything
+  // that passes cannot break out of the from:(...) group it is placed
+  // in. Mirrors the engine's unsubscribe sender validation.
+  const STORAGE_EMAIL_RE = /^[a-z0-9!#$%&'*+/=?^_`{|}~.-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
+
+  const STORAGE_XRAY_LIMITS = Object.freeze({
+    MAX_PURGE_PER_RUN: 25,
+    MAX_LIST: 100,
+    FREE_VISIBLE: 3,
+    // Matches the smallest scan tier so a purge only ever touches mail
+    // the X-ray actually counted.
+    PURGE_SIZE_FLOOR: "larger:5M",
+    VALID_AGES: Object.freeze(["", "6m", "1y", "2y"])
+  });
+
+  const sanitizeStorageEmails = (input) => {
+    if (!Array.isArray(input)) return [];
+    const out = [];
+    const seen = new Set();
+    for (const raw of input) {
+      if (typeof raw !== "string") continue;
+      const email = raw.trim().toLowerCase();
+      if (!email || email.length > 320) continue;
+      if (!STORAGE_EMAIL_RE.test(email)) continue;
+      if (seen.has(email)) continue;
+      seen.add(email);
+      out.push(email);
+      if (out.length >= STORAGE_XRAY_LIMITS.MAX_PURGE_PER_RUN) break;
+    }
+    return out;
+  };
+
+  // "" when nothing valid survives; callers must treat that as a no-op.
+  const buildStoragePurgeQuery = (emails, age = "") => {
+    const clean = sanitizeStorageEmails(emails);
+    if (clean.length === 0) return "";
+    const ageToken = STORAGE_XRAY_LIMITS.VALID_AGES.includes(age) && age
+      ? ` older_than:${age}`
+      : "";
+    return `from:(${clean.join(" OR ")}) ${STORAGE_XRAY_LIMITS.PURGE_SIZE_FLOOR}${ageToken}`;
+  };
+
+  // Normalize a stored/scanned sender list for display: shape-check,
+  // rank by estimated MB (count breaks ties), cap the list.
+  const rankStorageSenders = (senders) => {
+    if (!Array.isArray(senders)) return [];
+    return senders
+      .filter((s) => s && typeof s.email === "string" && STORAGE_EMAIL_RE.test(s.email))
+      .map((s) => ({
+        email: s.email,
+        name: typeof s.name === "string" ? s.name.slice(0, 120) : "",
+        count: Math.max(1, Math.min(99999, Number(s.count) || 1)),
+        estMb: Math.max(0, Math.min(1024 * 1024, Math.round(Number(s.estMb) || 0))),
+        status: typeof s.status === "string" ? s.status.slice(0, 30) : "",
+        statusAt: Number(s.statusAt) || 0
+      }))
+      .sort((a, b) => b.estMb - a.estMb || b.count - a.count)
+      .slice(0, STORAGE_XRAY_LIMITS.MAX_LIST);
+  };
+
+  const storageXray = Object.freeze({
+    LIMITS: STORAGE_XRAY_LIMITS,
+    sanitizeEmails: sanitizeStorageEmails,
+    buildPurgeQuery: buildStoragePurgeQuery,
+    rankSenders: rankStorageSenders
+  });
+
+  // =========================
   // Public API
   // =========================
 
@@ -895,6 +971,9 @@ const GCC = (() => {
     // New in 7.1
     detectBrowser,
     storeLinks,
-    gmailAccess
+    gmailAccess,
+
+    // New in 7.2
+    storageXray
   });
 })();

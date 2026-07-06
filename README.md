@@ -38,9 +38,14 @@ Deleting hides old mail; unsubscribing stops new mail. The scan finds every mail
 - **Scan (free)** - read-only. Samples the senders behind your subscription-style mail and shows who is filling your inbox. Changes nothing.
 - **Bulk unsubscribe (Pro)** - pick the senders you never read and unsubscribe from all of them in one pass. Drives **Gmail's own built-in Unsubscribe control**, never sketchy links inside message bodies. Senders with no one-click option are flagged for manual follow-up.
 
+### Storage X-ray
+When Google says your storage is full, the question is *what exactly is eating it*. The X-ray answers by sender.
+- **Scan (free)** - read-only. Walks Gmail's own size searches (`larger:25M`, then the 10 MB and 5 MB tiers) and attributes each large email its tier floor, so every number is a defensible "at least". Shows the total reclaimable estimate and your top three space hogs.
+- **Full list + purge (Pro)** - the complete ranked list with one-click purge for the senders you pick. A purge is a normal cleanup run: matches are tagged first, land in Trash (30-day safety net), respect your whitelist, protected keywords and every global guard, and show up in the recovery log. An age filter (default: older than 6 months) keeps recent mail out of it.
+
 ## Pro
 
-Pro is a **one-time $5 purchase** (no subscription) that unlocks bulk unsubscribe. Everything that is free today stays free forever.
+Pro is a **one-time $5 purchase** (no subscription) that unlocks bulk unsubscribe and the full Storage X-ray. Everything that is free today stays free forever. Compare: Google One storage starts at about $20 per year, forever.
 
 - Your license key is verified **entirely on your device** with a built-in public key. The extension never contacts a server, not even to check the license.
 - The key is a signed token with no personal data. Stored in Chrome sync, so Pro follows you to your other signed-in browsers.

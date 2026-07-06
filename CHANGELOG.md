@@ -3,6 +3,29 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 7.2.0 - Storage X-ray
+
+### Added
+- **Storage X-ray.** A new popup section that answers "what is eating
+  my Gmail storage" by sender. The free scan is read-only: it walks
+  Gmail's own size searches in tiers (25 MB, 10 MB, 5 MB), credits
+  each large email its tier floor, and reports a total reclaimable
+  estimate plus your top three space hogs. Every figure is a floor,
+  never a guess upward.
+- **Pro: full ranked list and one-click purge.** Pick the senders
+  worth evicting and purge their large mail in one run. The purge is
+  a standard cleanup under the hood (a `from:(...) larger:5M` rule),
+  so tag-before-delete, Trash's 30-day window, the whitelist,
+  protected keywords, dry run and the recovery log all apply
+  unchanged. An age filter (default 6 months) protects recent mail.
+  Purged senders keep a badge across rescans.
+- The Pro pitch now writes itself: $5 once versus about $20 every
+  year for more Google One storage.
+
+### Changed
+- Existing Pro keys unlock Storage X-ray automatically; one license
+  covers both Pro features.
+
 ## 7.1.0 - Firefox and Edge support
 
 ### Added

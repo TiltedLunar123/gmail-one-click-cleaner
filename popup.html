@@ -625,6 +625,63 @@
     .subs-upsell-links { display: flex; gap: 10px; margin-top: 4px; align-items: center; }
     .subs-upsell-links a { color: rgb(34, 211, 238); text-decoration: none; font-weight: 600; }
     .subs-upsell-links a:hover { text-decoration: underline; }
+
+    /* Storage X-ray (7.2): rides the subs-* component styles; only the
+       total banner, MB chip and the free-tier locked row are its own. */
+    .xray-total {
+      display: none;
+      align-items: baseline;
+      gap: 8px;
+      margin: 10px 0 6px;
+      padding: 10px 12px;
+      border-radius: var(--r-md);
+      background: linear-gradient(135deg, rgba(34, 211, 238, 0.12), rgba(16, 185, 129, 0.08));
+      border: 1px solid rgba(34, 211, 238, 0.25);
+    }
+    .xray-total.show { display: flex; }
+    .xray-total-mb { font-size: 16px; font-weight: 800; color: var(--primary-strong, #7bf1fd); white-space: nowrap; }
+    .xray-total-sub { font-size: 11px; color: var(--muted); }
+    .xray-mb {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--primary-strong, #7bf1fd);
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }
+    .xray-locked {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      margin-top: 6px;
+      border-radius: var(--r-md);
+      border: 1px dashed rgba(34, 211, 238, 0.35);
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+    .xray-locked-mb { color: var(--primary-strong, #7bf1fd); font-weight: 800; white-space: nowrap; }
+    .xray-age {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .xray-age.show { display: flex; }
+    .xray-age select {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px 8px;
+      font-size: 11px;
+    }
+    html[data-theme="light"] .xray-total-mb,
+    html[data-theme="light"] .xray-mb,
+    html[data-theme="light"] .xray-locked-mb { color: #0e7490; }
     .pro-pill {
       font-size: 10px;
       font-weight: 700;
@@ -1639,7 +1696,7 @@
           </div>
           <h1 id="gcc-title">Gmail One-Click Cleaner</h1>
         </div>
-        <span class="badge" id="versionBadge" aria-label="Version 7.1.0">v7.1.0</span>
+        <span class="badge" id="versionBadge" aria-label="Version 7.2.0">v7.2.0</span>
       </header>
 
       <p class="subtitle">
@@ -1785,6 +1842,82 @@
             <span class="subs-upsell-links">
               <a href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" id="subsBuyLink">Get Pro - $5 lifetime</a>
               <button type="button" class="linkish" id="subsEnterKey">I have a key</button>
+            </span>
+          </p>
+        </div>
+      </details>
+
+      <details class="section" id="storageXraySection">
+        <summary class="section-title" aria-controls="xrayContent">
+          <span class="section-title-left">
+            <span class="section-emoji" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v6c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-6"/><path d="M4.5 11.5v6c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-6"/></svg>
+            </span>
+            <span>Storage X-ray</span>
+          </span>
+          <span class="section-title-right">
+            <span class="pro-pill" id="xrayProPill" hidden>Pro active</span>
+            <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              aria-hidden="true">
+              <path d="M6 9l6 6 6-6"></path>
+            </svg>
+          </span>
+        </summary>
+
+        <div class="section-content" id="xrayContent">
+          <p class="subs-hint">
+            See exactly which senders are eating your Gmail storage. The scan
+            sizes up your large mail with Gmail's own search operators and
+            reports a floor estimate; Pro purges the hogs you pick. Purged mail
+            is tagged first and lands in Trash, so the 30-day safety net and
+            the recovery log apply as usual.
+          </p>
+
+          <button id="xrayScanBtn" class="subs-scan-btn" type="button">
+            <span class="label-main">Scan my storage</span>
+            <span class="label-sub">Free · read-only, changes nothing</span>
+          </button>
+
+          <div id="xrayStatus" class="subs-status" role="status" aria-live="polite"></div>
+
+          <div class="xray-total" id="xrayTotal" role="status">
+            <span class="xray-total-mb" id="xrayTotalMb"></span>
+            <span class="xray-total-sub" id="xrayTotalSub"></span>
+          </div>
+
+          <div class="subs-toolbar" id="xrayToolbar" hidden>
+            <label class="subs-selectall">
+              <input type="checkbox" id="xraySelectAll" />
+              <span>Select all</span>
+            </label>
+            <span class="subs-count" id="xrayCount"></span>
+          </div>
+
+          <div id="xrayList" class="subs-list" role="list" aria-label="Senders by storage used"></div>
+
+          <div class="xray-age" id="xrayAgeRow">
+            <span>Only purge mail older than</span>
+            <select id="xrayAge" aria-label="Minimum age for purged mail">
+              <option value="">any age</option>
+              <option value="6m" selected>6 months</option>
+              <option value="1y">1 year</option>
+              <option value="2y">2 years</option>
+            </select>
+          </div>
+
+          <button id="xrayPurgeBtn" class="subs-unsub-btn" type="button" hidden>
+            <span class="label-main">Purge selected</span>
+            <span class="label-sub" id="xrayPurgeBtnSub">Pro · $5 lifetime</span>
+          </button>
+
+          <p class="subs-upsell" id="xrayUpsell" hidden>
+            Google One wants $20 every year for more storage. Pro is $5 once:
+            unlock the full ranked list and purge the space hogs you pick,
+            together with bulk unsubscribe.
+            <span class="subs-upsell-links">
+              <a href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" id="xrayBuyLink">Get Pro - $5 lifetime</a>
+              <button type="button" class="linkish" id="xrayEnterKey">I have a key</button>
             </span>
           </p>
         </div>

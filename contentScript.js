@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "7.1.0";
+  const GCC_CONTENT_VERSION = "7.2.0";
 
   // =========================
   // Timing & behavior constants
@@ -422,9 +422,10 @@
       protectKeywords: sanitizeProtectKeywords(config.protectKeywords),
       // 7.0: what this injection should do. "cleanup" (default) runs the
       // rules engine; "subscriptionScan" / "unsubscribe" run the
-      // subscriptions engine instead. unsubSenders is re-sanitized at
-      // run start; keeping raw strings here is fine.
-      runKind: ["cleanup", "subscriptionScan", "unsubscribe"].includes(config.runKind)
+      // subscriptions engine. 7.2 adds "storageScan" (read-only size
+      // tiers). unsubSenders is re-sanitized at run start; keeping raw
+      // strings here is fine.
+      runKind: ["cleanup", "subscriptionScan", "unsubscribe", "storageScan"].includes(config.runKind)
         ? config.runKind
         : "cleanup",
       unsubSenders: Array.isArray(config.unsubSenders)
@@ -3538,6 +3539,173 @@
     }
   }
 
+  // =========================
+  // Storage X-ray: tiered size scan (7.2)
+  // =========================
+  // Read-only, like the subscription scan: walk size-tier searches and
+  // attribute each visible row the tier's floor MB. The result is a
+  // deliberate LOWER BOUND per sender ("at least this much"), built
+  // from Gmail's own larger:/smaller: operators; the scan never opens
+  // messages and never reads bodies. Purging is not a new run kind:
+  // the popup starts a normal cleanup whose rulesOverride is a
+  // from:(...) larger: query, so tagging, global guards, undo and
+  // stats all apply unchanged.
+
+  const STORAGE_XRAY = Object.freeze({
+    TIER_QUERIES: Object.freeze([
+      "larger:25M",
+      "larger:10M smaller:25M",
+      "larger:5M smaller:10M"
+    ]),
+    MAX_SENDERS: 100,
+    ROW_SAMPLE_CAP: 100
+  });
+
+  // Fold one page of sampled rows into the per-sender accumulator.
+  // Extracted pure so the DOM-fixture tests can drive it directly.
+  function foldStorageSample(bySender, entries, mbPerEmail) {
+    const mb = Number(mbPerEmail) || 0;
+    for (const entry of entries) {
+      const existing = bySender.get(entry.email);
+      if (existing) {
+        existing.count += 1;
+        existing.estMb += mb;
+      } else {
+        bySender.set(entry.email, {
+          email: entry.email,
+          name: entry.name,
+          count: 1,
+          estMb: mb
+        });
+      }
+    }
+    return bySender;
+  }
+
+  async function storageScan() {
+    if (RUNNING) {
+      debugLog("Run already in progress, ignoring storage scan request");
+      return;
+    }
+    RUNNING = true;
+    CANCELLED = false;
+    const originHash = location.hash;
+    const bySender = new Map();
+
+    try {
+      if (!isGmailTab()) {
+        alert("Gmail Cleaner: please run this from a Gmail tab.");
+        return;
+      }
+
+      safeSendImmediate({
+        runKind: "storageScan",
+        phase: "starting",
+        status: "Scanning for space hogs...",
+        detail: `${STORAGE_XRAY.TIER_QUERIES.length} size-tier searches.`,
+        percent: 0
+      });
+
+      const queries = STORAGE_XRAY.TIER_QUERIES;
+      for (let i = 0; i < queries.length; i++) {
+        if (CANCELLED) throw new CancellationError("Scan cancelled by user");
+
+        safeSendImmediate({
+          runKind: "storageScan",
+          phase: "running",
+          status: `Sizing up your mailbox (${i + 1}/${queries.length})...`,
+          detail: queries[i],
+          percent: Math.round((i / queries.length) * 100)
+        });
+
+        try {
+          await openSearch(queries[i]);
+        } catch (e) {
+          if (e instanceof CancellationError) throw e;
+          debugLog("Storage tier query failed, continuing", { query: queries[i], error: e?.message });
+          continue;
+        }
+
+        foldStorageSample(
+          bySender,
+          sampleSubscriptionRows({ cap: STORAGE_XRAY.ROW_SAMPLE_CAP }),
+          estimateMbPerEmail(queries[i])
+        );
+      }
+
+      const senders = [...bySender.values()]
+        .map((s) => ({ ...s, estMb: Math.round(s.estMb) }))
+        .sort((a, b) => b.estMb - a.estMb || b.count - a.count)
+        .slice(0, STORAGE_XRAY.MAX_SENDERS);
+      const totalMb = senders.reduce((sum, s) => sum + s.estMb, 0);
+      const totalCount = senders.reduce((sum, s) => sum + s.count, 0);
+
+      try {
+        if (hasChromeRuntime()) {
+          chrome.runtime.sendMessage({
+            type: "gmailCleanerStorageScanResult",
+            senders,
+            totalMb,
+            totalCount
+          });
+        }
+      } catch (e) {
+        debugLog("Failed to send storage scan result to background", { error: e?.message });
+      }
+
+      safeSendImmediate({
+        runKind: "storageScan",
+        phase: "done",
+        status: senders.length
+          ? `Found at least ${totalMb.toLocaleString()} MB in large mail.`
+          : "No large mail found.",
+        detail: senders.length
+          ? `${totalCount.toLocaleString()} large emails across ${senders.length} senders.`
+          : "Nothing bigger than 5 MB turned up.",
+        percent: 100,
+        done: true,
+        scanSenders: senders,
+        totalMb,
+        totalCount
+      });
+    } catch (e) {
+      if (e instanceof CancellationError) {
+        safeSendImmediate({
+          runKind: "storageScan",
+          phase: "cancelled",
+          status: "Scan cancelled.",
+          detail: "Stopped by user.",
+          done: true,
+          percent: 100
+        });
+      } else {
+        logError(e, "storage scan");
+        safeSendImmediate({
+          runKind: "storageScan",
+          phase: "error",
+          status: "Scan failed.",
+          detail: e instanceof Error ? e.message : String(e),
+          done: true,
+          percent: 100
+        });
+      }
+    } finally {
+      RUNNING = false;
+      try {
+        if (typeof window !== "undefined") window.GCC_ATTACHED = false;
+      } catch {}
+      try {
+        if (originHash && location.hash !== originHash) location.hash = originHash;
+      } catch {}
+    }
+  }
+
+  function startStorageScan() {
+    if (!RUNNING) {
+      storageScan().catch((e) => logError(e, "startStorageScan"));
+    }
+  }
+
   async function main() {
     if (RUNNING) {
       debugLog("Run already in progress, ignoring start request");
@@ -3771,7 +3939,10 @@
       sampleSubscriptionRows,
       sanitizeSenderList,
       findHeaderUnsubscribeControl,
-      resolveUnsubscribeDialog
+      resolveUnsubscribeDialog,
+      STORAGE_XRAY,
+      foldStorageSample,
+      estimateMbPerEmail
     };
   }
 
@@ -3782,6 +3953,8 @@
     startSubscriptionScan();
   } else if (CONFIG.runKind === "unsubscribe") {
     startUnsubscribeRun(CONFIG.unsubSenders);
+  } else if (CONFIG.runKind === "storageScan") {
+    startStorageScan();
   } else {
     startMain();
   }

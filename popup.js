@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "7.1.0";
+  const POPUP_VERSION = "7.2.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -84,6 +84,15 @@ document.addEventListener("DOMContentLoaded", () => {
     subs: {
       licenseActive: false,
       senders: [],
+      running: null
+    },
+
+    // 7.2 storage X-ray: last scan + totals. Pro gating reads
+    // state.subs.licenseActive (one license, one flag).
+    xray: {
+      senders: [],
+      totalMb: 0,
+      totalCount: 0,
       running: null
     }
   };
@@ -297,7 +306,26 @@ document.addEventListener("DOMContentLoaded", () => {
     footerProBtn: $("footerProBtn"),
     proPromo: $("proPromo"),
     proPromoBuy: $("proPromoBuy"),
-    proPromoKey: $("proPromoKey")
+    proPromoKey: $("proPromoKey"),
+
+    // 7.2 storage X-ray
+    xrayProPill: $("xrayProPill"),
+    xrayScanBtn: $("xrayScanBtn"),
+    xrayStatus: $("xrayStatus"),
+    xrayTotal: $("xrayTotal"),
+    xrayTotalMb: $("xrayTotalMb"),
+    xrayTotalSub: $("xrayTotalSub"),
+    xrayToolbar: $("xrayToolbar"),
+    xraySelectAll: $("xraySelectAll"),
+    xrayCount: $("xrayCount"),
+    xrayList: $("xrayList"),
+    xrayAgeRow: $("xrayAgeRow"),
+    xrayAge: $("xrayAge"),
+    xrayPurgeBtn: $("xrayPurgeBtn"),
+    xrayPurgeBtnSub: $("xrayPurgeBtnSub"),
+    xrayUpsell: $("xrayUpsell"),
+    xrayBuyLink: $("xrayBuyLink"),
+    xrayEnterKey: $("xrayEnterKey")
   };
 
   const critical = ["runBtn", "statusEl", "intensityEl", "dryRunEl", "safeModeEl"];
@@ -1165,6 +1193,17 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.subsBuyLink) elements.subsBuyLink.href = GCC.license.PRO.BUY_URL;
     if (elements.proPromoBuy) elements.proPromoBuy.href = GCC.license.PRO.BUY_URL;
     if (elements.proPromo) elements.proPromo.hidden = active;
+
+    // 7.2 storage X-ray shares the same license.
+    if (elements.xrayProPill) elements.xrayProPill.hidden = !active;
+    if (elements.xrayBuyLink) elements.xrayBuyLink.href = GCC.license.PRO.BUY_URL;
+    if (elements.xrayPurgeBtn) elements.xrayPurgeBtn.classList.toggle("locked", !active);
+    if (elements.xrayPurgeBtnSub) {
+      elements.xrayPurgeBtnSub.textContent = active
+        ? "Tagged first, then Trash - undo applies"
+        : "Pro · $5 once (Google One is $20 every year)";
+    }
+    renderXrayList();
   };
 
   const getCheckedSubEmails = () =>
@@ -1257,12 +1296,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  // Shared injection path for both subscription run kinds. Returns the
-  // Gmail tab id, or null when the run could not start.
-  const injectSubscriptionRun = async (runKind, unsubSenders = []) => {
+  // Shared injection path for the auxiliary run kinds (subscription
+  // scan / unsubscribe / storage scan). Returns the Gmail tab id, or
+  // null when the run could not start. setStatusFn receives the
+  // user-facing reason on refusal.
+  const injectEngineRun = async (config, setStatusFn) => {
     if (!(await GCC.gmailAccess.check())) {
       elements.gmailAccessBanner?.classList.add("show");
-      setSubsStatus("Allow Gmail access at the top of this popup first.");
+      setStatusFn("Allow Gmail access at the top of this popup first.");
       showToast("gmail access needed", "warning");
       return null;
     }
@@ -1270,7 +1311,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const gmailTab = await findGmailTab();
     if (!gmailTab) {
       showToast("open Gmail in a tab first", "warning");
-      setSubsStatus("Open mail.google.com in a tab, then try again.");
+      setStatusFn("Open mail.google.com in a tab, then try again.");
       return null;
     }
 
@@ -1292,7 +1333,7 @@ document.addEventListener("DOMContentLoaded", () => {
       func: (cfg) => {
         window.GMAIL_CLEANER_CONFIG = cfg;
       },
-      args: [{ runKind, unsubSenders, debugMode: state.debugMode }]
+      args: [config]
     });
     await scriptingExecuteScript({
       target: { tabId: gmailTab.id },
@@ -1300,6 +1341,9 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     return gmailTab.id;
   };
+
+  const injectSubscriptionRun = (runKind, unsubSenders = []) =>
+    injectEngineRun({ runKind, unsubSenders, debugMode: state.debugMode }, setSubsStatus);
 
   const handleScanSubscriptions = async () => {
     if (state.subs.running) return;
@@ -1411,6 +1455,329 @@ document.addEventListener("DOMContentLoaded", () => {
       showToast(`unsubscribed from ${okCount} sender${okCount === 1 ? "" : "s"}`, okCount ? "success" : "warning");
     }
     finishSubsRun();
+  };
+
+  // =========================
+  // Storage X-ray (7.2)
+  // =========================
+  // Scan is free and read-only; the full ranked list and the purge are
+  // Pro. The purge itself is an ordinary cleanup run whose rule set is
+  // a from:(...) larger: query built in GCC.storageXray, so every
+  // global guard, tag-before-delete and the recovery log apply.
+
+  const setXrayStatus = (text) => {
+    if (elements.xrayStatus) elements.xrayStatus.textContent = text || "";
+  };
+
+  const getCheckedXrayEmails = () =>
+    (elements.xrayList
+      ? Array.from(elements.xrayList.querySelectorAll("input[type='checkbox']:checked"))
+      : []
+    ).map((cb) => cb.getAttribute("data-email")).filter(Boolean);
+
+  const updateXrayCount = () => {
+    if (!elements.xrayCount) return;
+    const total = state.xray.senders.length;
+    const checked = getCheckedXrayEmails().length;
+    elements.xrayCount.textContent = checked
+      ? `${checked} of ${total} selected`
+      : `${total} sender${total === 1 ? "" : "s"} ranked`;
+  };
+
+  const renderXrayTotals = () => {
+    if (!elements.xrayTotal) return;
+    const { totalMb, totalCount } = state.xray;
+    if (!totalMb && !state.xray.senders.length) {
+      elements.xrayTotal.classList.remove("show");
+      return;
+    }
+    if (elements.xrayTotalMb) {
+      elements.xrayTotalMb.textContent = `≥ ${GCC.formatMb(totalMb)}`;
+    }
+    if (elements.xrayTotalSub) {
+      elements.xrayTotalSub.textContent =
+        `reclaimable across ${GCC.formatNumber(totalCount)} large email${totalCount === 1 ? "" : "s"}`;
+    }
+    elements.xrayTotal.classList.add("show");
+  };
+
+  const renderXrayList = () => {
+    if (!elements.xrayList) return;
+    elements.xrayList.textContent = "";
+    const active = state.subs.licenseActive;
+    const senders = state.xray.senders;
+    const hasSenders = senders.length > 0;
+
+    renderXrayTotals();
+    if (elements.xrayToolbar) elements.xrayToolbar.hidden = !hasSenders || !active;
+    if (elements.xrayPurgeBtn) elements.xrayPurgeBtn.hidden = !hasSenders;
+    if (elements.xrayAgeRow) elements.xrayAgeRow.classList.toggle("show", hasSenders && active);
+    if (elements.xrayUpsell && hasSenders && !active) elements.xrayUpsell.hidden = false;
+    if (!hasSenders) {
+      updateXrayCount();
+      return;
+    }
+
+    const freeCap = GCC.storageXray.LIMITS.FREE_VISIBLE;
+    const visible = active ? senders : senders.slice(0, freeCap);
+
+    for (const sender of visible) {
+      const text = document.createElement("span");
+      text.className = "subs-row-text";
+      const name = document.createElement("span");
+      name.className = "subs-row-name";
+      name.textContent = sender.name || sender.email;
+      text.appendChild(name);
+      if (sender.name) {
+        const email = document.createElement("span");
+        email.className = "subs-row-email";
+        email.textContent = sender.email;
+        text.appendChild(email);
+      }
+
+      const row = document.createElement("div");
+      row.className = "subs-row";
+      row.setAttribute("role", "listitem");
+
+      if (active) {
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.setAttribute("data-email", sender.email);
+        checkbox.addEventListener("change", updateXrayCount);
+        const label = document.createElement("label");
+        label.className = "subs-row-label";
+        label.appendChild(checkbox);
+        label.appendChild(text);
+        row.appendChild(label);
+      } else {
+        row.appendChild(text);
+      }
+
+      if (sender.status === "purged") {
+        const chip = document.createElement("span");
+        chip.className = "subs-row-status ok";
+        chip.textContent = "Purged";
+        row.appendChild(chip);
+      }
+
+      const mb = document.createElement("span");
+      mb.className = "xray-mb";
+      mb.textContent = `≥ ${GCC.formatMb(sender.estMb)}`;
+      row.appendChild(mb);
+
+      elements.xrayList.appendChild(row);
+    }
+
+    if (!active && senders.length > freeCap) {
+      const hidden = senders.slice(freeCap);
+      const hiddenMb = hidden.reduce((sum, s) => sum + (Number(s.estMb) || 0), 0);
+      const locked = document.createElement("div");
+      locked.className = "xray-locked";
+      const strong = document.createElement("span");
+      strong.className = "xray-locked-mb";
+      strong.textContent = `≥ ${GCC.formatMb(hiddenMb)}`;
+      locked.appendChild(document.createTextNode(`${hidden.length} more sender${hidden.length === 1 ? "" : "s"} holding `));
+      locked.appendChild(strong);
+      locked.appendChild(document.createTextNode(" - Pro unlocks the full list and one-click purge."));
+      elements.xrayList.appendChild(locked);
+    }
+
+    updateXrayCount();
+  };
+
+  const loadStoredStorageScan = async () => {
+    if (!GCC.hasChrome() || !chrome.runtime?.sendMessage) return;
+    try {
+      const resp = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({ type: "gmailCleanerGetStorageScan" }, resolve);
+      });
+      if (resp?.ok && resp.scan?.senders) {
+        state.xray.senders = GCC.storageXray.rankSenders(resp.scan.senders);
+        state.xray.totalMb = Number(resp.scan.totalMb) || 0;
+        state.xray.totalCount = Number(resp.scan.totalCount) || 0;
+        renderXrayList();
+      }
+    } catch (e) {
+      log("warn", "loadStoredStorageScan failed", e);
+    }
+  };
+
+  const handleScanStorage = async () => {
+    if (state.xray.running) return;
+    try {
+      state.xray.running = "storageScan";
+      if (elements.xrayScanBtn) elements.xrayScanBtn.disabled = true;
+      setXrayStatus("Sizing up your mailbox...");
+      const tabId = await injectEngineRun(
+        { runKind: "storageScan", debugMode: state.debugMode },
+        setXrayStatus
+      );
+      if (tabId === null) {
+        state.xray.running = null;
+        if (elements.xrayScanBtn) elements.xrayScanBtn.disabled = false;
+      }
+    } catch (err) {
+      log("error", "storage scan start failed", err);
+      showToast(`scan failed: ${err?.message || "unknown error"}`, "error");
+      setXrayStatus("");
+      state.xray.running = null;
+      if (elements.xrayScanBtn) elements.xrayScanBtn.disabled = false;
+    }
+  };
+
+  const finishXrayRun = () => {
+    state.xray.running = null;
+    if (elements.xrayScanBtn) elements.xrayScanBtn.disabled = false;
+  };
+
+  const handleXrayProgress = (msg) => {
+    const { phase, status, detail, done } = msg;
+
+    if (!done && phase !== "done") {
+      const line = [status, detail].filter(Boolean).join(" ");
+      if (line) setXrayStatus(line);
+      return;
+    }
+
+    if (phase === "error") {
+      setXrayStatus(`Failed: ${detail || "unknown error"}`);
+      showToast("storage scan failed", "error");
+      finishXrayRun();
+      return;
+    }
+    if (phase === "cancelled") {
+      setXrayStatus("Stopped.");
+      finishXrayRun();
+      return;
+    }
+
+    if (Array.isArray(msg.scanSenders)) {
+      state.xray.senders = GCC.storageXray.rankSenders(msg.scanSenders);
+      state.xray.totalMb = Number(msg.totalMb) || 0;
+      state.xray.totalCount = Number(msg.totalCount) || 0;
+      renderXrayList();
+      setXrayStatus(status || "Scan complete.");
+      setTimeout(() => { loadStoredStorageScan().catch(() => {}); }, 400);
+      showToast("storage scan complete", "success");
+    }
+    finishXrayRun();
+  };
+
+  // Purge = a normal cleanup run scoped by rulesOverride, so it walks
+  // the exact same path as the Run button: claim, progress tab, inject.
+  const handleXrayPurge = async () => {
+    if (state.isRunning || state.xray.running) return;
+
+    if (!state.subs.licenseActive) {
+      if (elements.xrayUpsell) elements.xrayUpsell.hidden = false;
+      showToast("purging is a Pro feature ($5, one-time)", "info");
+      return;
+    }
+
+    const emails = getCheckedXrayEmails();
+    if (!emails.length) {
+      showToast("pick at least one sender first", "warning");
+      return;
+    }
+
+    const age = elements.xrayAge?.value || "";
+    const purgeQuery = GCC.storageXray.buildPurgeQuery(emails, age);
+    if (!purgeQuery) {
+      showToast("no valid senders selected", "warning");
+      return;
+    }
+    const targeted = GCC.storageXray.sanitizeEmails(emails);
+
+    state.isRunning = true;
+    try {
+      if (!(await GCC.gmailAccess.check())) {
+        elements.gmailAccessBanner?.classList.add("show");
+        setXrayStatus("Allow Gmail access at the top of this popup first.");
+        showToast("gmail access needed", "warning");
+        state.isRunning = false;
+        return;
+      }
+
+      const gmailTab = await findGmailTab();
+      if (!gmailTab?.id) {
+        showOpenGmailHelper();
+        state.isRunning = false;
+        return;
+      }
+
+      const claim = await tryClaimRun(gmailTab.id);
+      if (!claim.ok) {
+        showToast("a cleanup is already running", "warning");
+        state.isRunning = false;
+        return;
+      }
+
+      const config = await buildConfig();
+      config.runId = claim.claim.runId;
+      config.rulesOverride = [purgeQuery];
+      // The purge query carries its own older_than; the global minimum
+      // age would stack a second, stricter filter on top.
+      config.minAge = null;
+
+      state.currentGmailTabId = gmailTab.id;
+      setXrayStatus(config.dryRun
+        ? "Dry run: counting what a purge would remove..."
+        : `Purging large mail from ${targeted.length} sender${targeted.length === 1 ? "" : "s"}...`);
+
+      // Register the target list so the background can mark rows
+      // purged when the run finishes (this popup will be long closed).
+      if (!config.dryRun) {
+        GCC.sendMessage({
+          type: "gmailCleanerStorageXrayPurgeStarted",
+          runId: config.runId,
+          senders: targeted
+        }).catch(() => {});
+      }
+
+      const progressUrl = chrome.runtime.getURL(`progress.html?gmailTabId=${gmailTab.id}`);
+      const existingProgress = await findProgressTab(gmailTab.id);
+      if (existingProgress?.id) await tabsUpdate(existingProgress.id, { active: true });
+      else await tabsCreate({ url: progressUrl, active: true });
+
+      let alreadyAttached = false;
+      try {
+        const [result] = await scriptingExecuteScript({
+          target: { tabId: gmailTab.id },
+          func: () => !!window.GCC_ATTACHED
+        });
+        alreadyAttached = result?.result === true;
+      } catch {
+        // Tab might not be ready, proceed with injection
+      }
+      if (alreadyAttached) {
+        showToast("cleanup already running", "warning");
+        await clearActiveRun();
+        state.isRunning = false;
+        return;
+      }
+
+      await scriptingExecuteScript({
+        target: { tabId: gmailTab.id },
+        func: (cfg) => { window.GMAIL_CLEANER_CONFIG = cfg; },
+        args: [config]
+      });
+      await scriptingExecuteScript({
+        target: { tabId: gmailTab.id },
+        files: ["contentScript.js"]
+      });
+
+      await bumpRunCount();
+      showToast(config.dryRun ? "purge dry run started" : "purge started", "success");
+      setTimeout(safeClosePopup, 200);
+    } catch (err) {
+      const msg = err?.message || String(err);
+      log("error", "handleXrayPurge error:", err);
+      setXrayStatus(`Failed to start: ${msg}`);
+      showToast(`purge failed: ${msg}`, "error");
+      await clearActiveRun();
+      state.isRunning = false;
+      state.currentGmailTabId = null;
+    }
   };
 
   // =========================
@@ -1611,8 +1978,12 @@ document.addEventListener("DOMContentLoaded", () => {
         // gmailCleanerDone/Canceled/Error types that are never sent.)
         if (msg.type !== "gmailCleanerProgress") return;
 
-        // 7.0: subscriptions engine messages carry runKind and have
+        // 7.0/7.2: auxiliary engine messages carry runKind and have
         // their own UI; keep them out of the cleanup progress logic.
+        if (msg.runKind === "storageScan") {
+          handleXrayProgress(msg);
+          return;
+        }
         if (msg.runKind) {
           handleSubsProgress(msg);
           return;
@@ -1677,6 +2048,10 @@ document.addEventListener("DOMContentLoaded", () => {
           state.isRunning = false;
           state.currentGmailTabId = null;
           clearActiveRun().catch(() => {});
+
+          // If this run was an X-ray purge, the background just marked
+          // the senders; refresh the stored scan so chips update.
+          setTimeout(() => { loadStoredStorageScan().catch(() => {}); }, 600);
         }
       } catch (e) {
         log("warn", "onMessage handler failed", e);
@@ -1882,6 +2257,17 @@ document.addEventListener("DOMContentLoaded", () => {
         .forEach((cb) => { cb.checked = checked; });
       updateSubsCount();
     });
+
+    // 7.2 storage X-ray
+    elements.xrayScanBtn?.addEventListener("click", handleScanStorage);
+    elements.xrayPurgeBtn?.addEventListener("click", handleXrayPurge);
+    elements.xraySelectAll?.addEventListener("change", () => {
+      const checked = !!elements.xraySelectAll.checked;
+      elements.xrayList
+        ?.querySelectorAll("input[type='checkbox']:not(:disabled)")
+        .forEach((cb) => { cb.checked = checked; });
+      updateXrayCount();
+    });
     const openProOptions = async () => {
       await tabsCreate({ url: chrome.runtime.getURL("options.html#pro"), active: true });
       setTimeout(safeClosePopup, 150);
@@ -1889,6 +2275,7 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.subsEnterKey?.addEventListener("click", openProOptions);
     elements.proPromoKey?.addEventListener("click", openProOptions);
     elements.footerProBtn?.addEventListener("click", openProOptions);
+    elements.xrayEnterKey?.addEventListener("click", openProOptions);
 
     // 7.1 Gmail host access grant (must run inside this click gesture)
     elements.gmailAccessBtn?.addEventListener("click", async () => {
@@ -1947,6 +2334,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // 7.0 subscriptions: license badge + last scan (both best-effort).
     refreshLicenseUi().catch((e) => log("warn", "license ui failed", e));
     loadStoredSubscriptions().catch((e) => log("warn", "subs load failed", e));
+    // 7.2 storage X-ray: last scan (best-effort).
+    loadStoredStorageScan().catch((e) => log("warn", "xray load failed", e));
 
     log("info", "ready");
   };
