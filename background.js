@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "7.0.2";
+  const SW_VERSION = "7.1.0";
 
   // =========================
   // Storage Keys
@@ -596,13 +596,15 @@
       const msg = summary?.dryRun
         ? "Dry run finished. No mail was touched."
         : `Estimated ~${summary?.freedMb || 0} MB freed. Open Stats for details.`;
+      // Keep to the four properties every browser accepts: Firefox
+      // rejects notification options it does not implement (priority,
+      // buttons, requireInteraction) with a type error.
       await new Promise((resolve) => {
         chrome.notifications.create("", {
           type: "basic",
           iconUrl: chrome.runtime.getURL("icons/icon128.png"),
           title,
-          message: msg,
-          priority: 1
+          message: msg
         }, () => resolve());
       });
     } catch (e) {

@@ -1,21 +1,23 @@
 #!/usr/bin/env node
-// build.js: Simple build script for Gmail One-Click Cleaner
-// Copies files to dist/, optionally minifies JS, and creates a .zip
+// build.js: Build script for Gmail One-Click Cleaner
+// Copies files into a per-browser dist directory, optionally minifies
+// JS, and creates store-ready zips.
+//
+// Targets:
+//   node build.js                     -> Chrome/Edge build in dist/
+//   node build.js --target=firefox    -> Firefox build in dist-firefox/
+//   node build.js --target=all        -> both
+//
+// Chrome and Edge share one artifact (Edge is Chromium and the Edge
+// Add-ons store accepts the same zip). Firefox needs a different
+// manifest: event-page background instead of a service worker, a gecko
+// add-on ID, and options_ui instead of options_page.
 
 const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
 
-const args = process.argv.slice(2);
-const shouldMinify = args.includes("--minify");
-const shouldZip = args.includes("--zip");
-
 const SRC = __dirname;
-// Output dir defaults to ./dist but can be redirected (e.g. so tests can
-// build into an isolated temp dir without clobbering a real dist build).
-const DIST = process.env.GCC_DIST
-  ? path.resolve(process.env.GCC_DIST)
-  : path.join(SRC, "dist");
 
 // Files to include in the build
 const FILES = [
@@ -39,71 +41,153 @@ const FILES = [
 
 const DIRS = ["icons"];
 
-// Clean dist
-if (fs.existsSync(DIST)) {
-  fs.rmSync(DIST, { recursive: true });
-}
-fs.mkdirSync(DIST, { recursive: true });
+// Firefox MV3 requires a stable add-on ID (AMO refuses unsigned/ID-less
+// submissions) and uses event pages: background.scripts, not
+// background.service_worker. Functionally the extension only needs
+// Firefox 127 (storage.session, promises in the chrome.* namespace,
+// install-time host permission grants), but the mandatory
+// data_collection_permissions manifest key only exists from 140, so
+// that is the floor.
+const GECKO_ID = "gmail-one-click-cleaner@gmail-cleaner-pro.netlify.app";
+const GECKO_STRICT_MIN_VERSION = "140.0";
 
-// Copy files
-for (const file of FILES) {
-  const src = path.join(SRC, file);
-  const dest = path.join(DIST, file);
+function firefoxManifest(chromeManifest) {
+  const m = JSON.parse(JSON.stringify(chromeManifest));
 
-  if (!fs.existsSync(src)) {
-    console.warn("Warning: " + file + " not found, skipping");
-    continue;
-  }
+  delete m.minimum_chrome_version;
 
-  if (shouldMinify && file.endsWith(".js") && file !== "browser-polyfill.js") {
-    try {
-      const esbuild = require("esbuild");
-      const result = esbuild.buildSync({
-        entryPoints: [src],
-        bundle: false,
-        minify: true,
-        write: false,
-        target: "chrome110"
-      });
-      fs.writeFileSync(dest, result.outputFiles[0].text);
-      console.log("Minified: " + file);
-    } catch {
-      // Fallback: just copy
-      fs.copyFileSync(src, dest);
-      console.log("Copied (no minify): " + file);
+  // AMO caps the name at 45 characters (the Chrome listing name is 50).
+  m.name = "Gmail One-Click Cleaner - Bulk Delete Emails";
+
+  m.background = {
+    scripts: ["browser-polyfill.js", "background.js"]
+  };
+
+  m.browser_specific_settings = {
+    gecko: {
+      id: GECKO_ID,
+      strict_min_version: GECKO_STRICT_MIN_VERSION,
+      // Mandatory declaration for new AMO submissions. "none" is the
+      // truth: everything runs locally, no telemetry, license keys are
+      // verified offline against an embedded public key.
+      data_collection_permissions: {
+        required: ["none"]
+      }
+    },
+    // Android needs 142+ for data_collection_permissions. The extension
+    // targets Gmail's desktop web UI, so Android is a curiosity at
+    // best; Android availability can be switched off in AMO settings.
+    gecko_android: {
+      strict_min_version: "142.0"
     }
-  } else {
-    fs.copyFileSync(src, dest);
-    console.log("Copied: " + file);
+  };
+
+  // Firefox ignores options_page; options_ui is the supported key.
+  delete m.options_page;
+  m.options_ui = {
+    page: "options.html",
+    open_in_tab: true
+  };
+
+  return m;
+}
+
+const TARGETS = {
+  chrome: {
+    dist: process.env.GCC_DIST
+      ? path.resolve(process.env.GCC_DIST)
+      : path.join(SRC, "dist"),
+    zipName: "gmail-one-click-cleaner.zip",
+    transformManifest: (m) => m
+  },
+  firefox: {
+    dist: process.env.GCC_DIST_FIREFOX
+      ? path.resolve(process.env.GCC_DIST_FIREFOX)
+      : path.join(SRC, "dist-firefox"),
+    zipName: "gmail-one-click-cleaner-firefox.zip",
+    transformManifest: firefoxManifest
+  }
+};
+
+function buildTarget(name, { shouldMinify, shouldZip }) {
+  const target = TARGETS[name];
+  if (!target) throw new Error(`Unknown build target: ${name}`);
+  const DIST = target.dist;
+
+  // Clean dist
+  if (fs.existsSync(DIST)) {
+    fs.rmSync(DIST, { recursive: true });
+  }
+  fs.mkdirSync(DIST, { recursive: true });
+
+  // Copy files
+  for (const file of FILES) {
+    const src = path.join(SRC, file);
+    const dest = path.join(DIST, file);
+
+    if (!fs.existsSync(src)) {
+      console.warn("Warning: " + file + " not found, skipping");
+      continue;
+    }
+
+    if (file === "manifest.json") {
+      const manifest = JSON.parse(fs.readFileSync(src, "utf-8"));
+      const transformed = target.transformManifest(manifest);
+      fs.writeFileSync(dest, JSON.stringify(transformed, null, 2) + "\n");
+      console.log("Wrote: manifest.json (" + name + ")");
+      continue;
+    }
+
+    if (shouldMinify && file.endsWith(".js") && file !== "browser-polyfill.js") {
+      try {
+        const esbuild = require("esbuild");
+        const result = esbuild.buildSync({
+          entryPoints: [src],
+          bundle: false,
+          minify: true,
+          write: false,
+          target: "chrome110"
+        });
+        fs.writeFileSync(dest, result.outputFiles[0].text);
+        console.log("Minified: " + file);
+      } catch {
+        // Fallback: just copy
+        fs.copyFileSync(src, dest);
+        console.log("Copied (no minify): " + file);
+      }
+    } else {
+      fs.copyFileSync(src, dest);
+      console.log("Copied: " + file);
+    }
+  }
+
+  // Copy directories
+  for (const dir of DIRS) {
+    const srcDir = path.join(SRC, dir);
+    const destDir = path.join(DIST, dir);
+
+    if (!fs.existsSync(srcDir)) {
+      console.warn("Warning: " + dir + "/ not found, skipping");
+      continue;
+    }
+
+    // SVG sources stay in the repo for future icon edits but have no
+    // business in the shipped extension; the browsers only load PNGs.
+    fs.cpSync(srcDir, destDir, {
+      recursive: true,
+      filter: (src) => !src.endsWith(".svg")
+    });
+    console.log("Copied: " + dir + "/");
+  }
+
+  console.log("\n" + name + " build complete in " + DIST);
+
+  if (shouldZip) {
+    createZip(DIST, path.join(SRC, target.zipName));
   }
 }
 
-// Copy directories
-for (const dir of DIRS) {
-  const srcDir = path.join(SRC, dir);
-  const destDir = path.join(DIST, dir);
-
-  if (!fs.existsSync(srcDir)) {
-    console.warn("Warning: " + dir + "/ not found, skipping");
-    continue;
-  }
-
-  // SVG sources stay in the repo for future icon edits but have no
-  // business in the shipped extension; Chrome only loads the PNGs.
-  fs.cpSync(srcDir, destDir, {
-    recursive: true,
-    filter: (src) => !src.endsWith(".svg")
-  });
-  console.log("Copied: " + dir + "/");
-}
-
-console.log("\nBuild complete in " + DIST);
-
-// Create zip if requested
-if (shouldZip) {
-  const zipName = "gmail-one-click-cleaner.zip";
-  const zipPath = path.join(SRC, zipName);
-
+function createZip(distDir, zipPath) {
   // Delete any existing zip so the writer doesn't append.
   if (fs.existsSync(zipPath)) fs.rmSync(zipPath);
 
@@ -117,11 +201,11 @@ if (shouldZip) {
         "-NoProfile", "-Command",
         `Add-Type -AssemblyName System.IO.Compression.FileSystem; ` +
         `[System.IO.Compression.ZipFile]::CreateFromDirectory(` +
-        `'${DIST.replace(/\\/g, "\\\\")}','${zipPath.replace(/\\/g, "\\\\")}',` +
+        `'${distDir.replace(/\\/g, "\\\\")}','${zipPath.replace(/\\/g, "\\\\")}',` +
         `[System.IO.Compression.CompressionLevel]::Optimal,$false)`
       ], { stdio: "inherit" });
     } else {
-      execFileSync("zip", ["-r", zipPath, "."], { cwd: DIST, stdio: "inherit" });
+      execFileSync("zip", ["-r", zipPath, "."], { cwd: distDir, stdio: "inherit" });
     }
     console.log("\nZip created: " + zipPath);
     normalizeZipPathSeparators(zipPath);
@@ -181,3 +265,23 @@ function normalizeZipPathSeparators(zipPath) {
     console.log(`Normalized ${touched} path separator(s) (\\ -> /) in zip`);
   }
 }
+
+function main() {
+  const args = process.argv.slice(2);
+  const shouldMinify = args.includes("--minify");
+  const shouldZip = args.includes("--zip");
+
+  const targetArg = (args.find((a) => a.startsWith("--target=")) || "--target=chrome")
+    .split("=")[1];
+  const targets = targetArg === "all" ? ["chrome", "firefox"] : [targetArg];
+
+  for (const t of targets) {
+    buildTarget(t, { shouldMinify, shouldZip });
+  }
+}
+
+if (require.main === module) {
+  main();
+}
+
+module.exports = { firefoxManifest, FILES, TARGETS, GECKO_ID };

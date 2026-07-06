@@ -3,6 +3,39 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 7.1.0 - Firefox and Edge support
+
+### Added
+- **Firefox support.** The extension now ships a dedicated Firefox
+  build: event-page background instead of a service worker, a stable
+  AMO add-on ID, options opening in a tab, and a declared
+  no-data-collection policy (everything still runs locally).
+  `npm run build:firefox` produces it; `npm run zip:all` produces both
+  store zips. Verified clean by addons-linter, the same validator
+  Firefox Add-ons runs on submission.
+- **Edge support, documented.** Edge is Chromium, so the Chrome build
+  installs there as-is; the README now says how.
+- **Gmail access banner.** If the browser reports no permission for
+  mail.google.com (Firefox lets users revoke it per extension), the
+  popup shows an amber banner with a one-click Allow button instead of
+  failing with a cryptic injection error.
+- Rating and share links now open the store matching your browser:
+  Firefox users land on Firefox Add-ons, everyone else on the Chrome
+  Web Store.
+
+### Changed
+- **Toolbar icon is finally legible.** The 16px and 32px icons are
+  re-cut from the source art with the envelope filling the frame
+  (previously the 32px kept the whole tile, leaving the glyph tiny in
+  the toolbar) and brightened for dark toolbars.
+- Deep-intensity cleanup now confirms inline: the Run button arms and
+  asks for a second click instead of popping a system dialog. Firefox
+  silently swallows dialogs in popups, which would have made deep
+  cleans unstartable there; the two-click flow behaves the same
+  everywhere.
+- Desktop notifications no longer pass the priority flag, which
+  Firefox rejects outright.
+
 ## 7.0.2 - Neon icon artwork
 
 ### Changed

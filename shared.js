@@ -568,12 +568,14 @@ const GCC = (() => {
   const notify = async ({ title, message, iconUrl, id = "" } = {}) => {
     try {
       if (typeof chrome === "undefined" || !chrome.notifications?.create) return false;
+      // Only the four properties every browser accepts. Firefox rejects
+      // notification options it does not implement (e.g. priority) with
+      // a type error instead of ignoring them.
       const opts = {
         type: "basic",
         iconUrl: iconUrl || (chrome.runtime?.getURL?.("icons/icon128.png") || ""),
         title: String(title || "Gmail Cleaner"),
-        message: String(message || ""),
-        priority: 1
+        message: String(message || "")
       };
       return await new Promise((resolve) => {
         try {
@@ -754,6 +756,77 @@ const GCC = (() => {
   });
 
   // =========================
+  // Browser + store identity (7.1)
+  // =========================
+  // The extension ships from three stores. Store-facing links (rating
+  // prompt, share button) resolve per browser at runtime via userAgent:
+  // Edge carries "Edg/", Firefox carries "Firefox/", every other
+  // Chromium falls back to the Chrome Web Store. Edge users are pointed
+  // at the Chrome listing on purpose: the extension installs from there
+  // in Edge and reviews pool in one place. The Firefox listing URL uses
+  // the gecko add-on ID, which AMO resolves regardless of what slug the
+  // listing ends up with.
+
+  const CWS_LISTING = "https://chromewebstore.google.com/detail/bmcfpljakkpcbinhgiahncpcbhmihgpc";
+  const AMO_LISTING = "https://addons.mozilla.org/firefox/addon/gmail-one-click-cleaner@gmail-cleaner-pro.netlify.app/";
+
+  const detectBrowser = (uaOverride) => {
+    const ua = String(
+      uaOverride ?? (typeof navigator !== "undefined" ? navigator.userAgent : "")
+    );
+    if (/\bFirefox\//.test(ua)) return "firefox";
+    if (/\bEdg\//.test(ua)) return "edge";
+    return "chrome";
+  };
+
+  const storeLinks = (uaOverride) => {
+    const which = detectBrowser(uaOverride);
+    if (which === "firefox") {
+      return { browser: which, listing: AMO_LISTING, reviews: AMO_LISTING + "reviews/" };
+    }
+    return { browser: which, listing: CWS_LISTING, reviews: CWS_LISTING + "/reviews" };
+  };
+
+  // =========================
+  // Gmail host access (7.1)
+  // =========================
+  // Chrome and Edge grant host_permissions at install. Firefox (127+)
+  // does too, but the user can revoke them any time from about:addons,
+  // and older profiles may carry the pre-127 not-granted default.
+  // check() errs toward true so the grant banner can never block a
+  // browser where the permissions API misbehaves; a genuinely missing
+  // grant still surfaces when injection fails, and the banner shows on
+  // the next popup open. request() must run inside a user gesture.
+
+  const GMAIL_ORIGINS = Object.freeze({ origins: ["https://mail.google.com/*"] });
+
+  const gmailAccess = Object.freeze({
+    ORIGINS: GMAIL_ORIGINS,
+    check: async () => {
+      try {
+        if (!hasChrome() || !chrome.permissions?.contains) return true;
+        return Boolean(await promisify(
+          chrome.permissions.contains.bind(chrome.permissions),
+          GMAIL_ORIGINS
+        ));
+      } catch {
+        return true;
+      }
+    },
+    request: async () => {
+      try {
+        if (!hasChrome() || !chrome.permissions?.request) return false;
+        return Boolean(await promisify(
+          chrome.permissions.request.bind(chrome.permissions),
+          GMAIL_ORIGINS
+        ));
+      } catch {
+        return false;
+      }
+    }
+  });
+
+  // =========================
   // Public API
   // =========================
 
@@ -817,6 +890,11 @@ const GCC = (() => {
     classifyChromeError,
 
     // New in 7.0
-    license
+    license,
+
+    // New in 7.1
+    detectBrowser,
+    storeLinks,
+    gmailAccess
   });
 })();

@@ -1,13 +1,13 @@
 # Gmail One-Click Cleaner
 
 [![CI](https://github.com/TiltedLunar123/gmail-one-click-cleaner/actions/workflows/ci.yml/badge.svg)](https://github.com/TiltedLunar123/gmail-one-click-cleaner/actions/workflows/ci.yml)
-[![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-v7.0.0-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-v7.1.0-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/bmcfpljakkpcbinhgiahncpcbhmihgpc)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-blue.svg)]()
 
-A Chrome extension that bulk-cleans Gmail in one click. Run configurable cleanup rules (promotions, social, newsletters, large attachments, etc.) with a live progress dashboard, dry-run mode, review mode, and safety guardrails.
+A browser extension that bulk-cleans Gmail in one click. Run configurable cleanup rules (promotions, social, newsletters, large attachments, etc.) with a live progress dashboard, dry-run mode, review mode, and safety guardrails.
 
-> Works with Chrome, Edge, Brave, and Firefox.
+> Works with Chrome, Edge, Brave, and Firefox. One codebase, per-browser builds.
 
 ## Features
 
@@ -69,8 +69,14 @@ has:attachment larger:10M older_than:6m
 
 ## Install
 
-### From Chrome Web Store
-Search **"Gmail One-Click Cleaner"** in the [Chrome Web Store](https://chromewebstore.google.com/).
+### Chrome / Brave / other Chromium
+Install from the [Chrome Web Store](https://chromewebstore.google.com/detail/bmcfpljakkpcbinhgiahncpcbhmihgpc).
+
+### Microsoft Edge
+Install straight from the [Chrome Web Store](https://chromewebstore.google.com/detail/bmcfpljakkpcbinhgiahncpcbhmihgpc); Edge will ask once to allow extensions from other stores.
+
+### Firefox
+Install from [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/gmail-one-click-cleaner@gmail-cleaner-pro.netlify.app/). Firefox gets its own build with an event-page background; features are identical. If cleanup ever reports a permission problem, click **Allow** on the Gmail access banner in the popup (Firefox lets you revoke site access per extension).
 
 ### Developer Mode (Load Unpacked)
 1. Clone this repo:
@@ -81,6 +87,8 @@ Search **"Gmail One-Click Cleaner"** in the [Chrome Web Store](https://chromeweb
 3. Enable **Developer mode** (top-right toggle)
 4. Click **Load unpacked** and select the cloned folder
 5. Pin the extension, open Gmail, and click the icon to start
+
+For Firefox, build the dedicated bundle first (`npm run build:firefox`), then load `dist-firefox/` as a temporary add-on from `about:debugging`.
 
 ---
 

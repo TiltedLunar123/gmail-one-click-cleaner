@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "7.0.2";
+  const POPUP_VERSION = "7.1.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -66,6 +66,12 @@ document.addEventListener("DOMContentLoaded", () => {
     buttonState: BUTTON_STATES.IDLE,
 
     autosaveTimer: null,
+
+    // 7.1 deep-clean confirmation. window.confirm() is a silent no-op
+    // inside Firefox popups, so the guard is an inline two-click arm
+    // instead of a modal. Armed state expires after a short window.
+    deepConfirmArmed: false,
+    deepConfirmTimer: null,
 
     // 6.0 focused "target" presets: a one-off rule set for the next run.
     // Transient (not persisted) -- cleared when the user touches the
@@ -263,6 +269,10 @@ document.addEventListener("DOMContentLoaded", () => {
     themeSwitcher: $("themeSwitcher"),
     snoozeBanner: $("snoozeBanner"),
     snoozeBannerText: $("snoozeBannerText"),
+
+    // 7.1 Gmail host access (Firefox lets users revoke it)
+    gmailAccessBanner: $("gmailAccessBanner"),
+    gmailAccessBtn: $("gmailAccessBtn"),
     kbdHelpBtn: $("kbdHelpBtn"),
     kbdHelp: $("keyboardHelp"),
     kbdHelpClose: $("kbdHelpClose"),
@@ -938,18 +948,47 @@ document.addEventListener("DOMContentLoaded", () => {
   // Run cleanup
   // =========================
 
+  const disarmDeepConfirm = () => {
+    if (state.deepConfirmTimer) clearTimeout(state.deepConfirmTimer);
+    state.deepConfirmTimer = null;
+    const wasArmed = state.deepConfirmArmed;
+    state.deepConfirmArmed = false;
+    if (wasArmed && state.buttonState === BUTTON_STATES.IDLE) resetRunButton();
+  };
+
   const runCleanup = async () => {
     if (state.isRunning) return;
 
-    // Warn on deep intensity
+    // Warn on deep intensity. Inline two-click confirmation instead of
+    // window.confirm(): modals are a silent no-op in Firefox popups,
+    // which would have made live deep cleans unstartable there.
     const intensity = elements.intensityEl?.value || "normal";
     if (intensity === "deep" && !elements.dryRunEl?.checked) {
-      const confirmed = confirm(
-        "Deep intensity is aggressive and will target many categories.\n\n" +
-        "Consider using Dry Run first to preview what would be cleaned.\n\n" +
-        "Continue with deep cleanup?"
-      );
-      if (!confirmed) return;
+      if (!state.deepConfirmArmed) {
+        state.deepConfirmArmed = true;
+        setRunButtonState({
+          disabled: false,
+          label: "confirm deep clean?",
+          sub: "click again to run it - dry run is the safe preview",
+          state: BUTTON_STATES.IDLE
+        });
+        setStatus("deep targets many categories - click run again to confirm", STATUS_TYPES.WARNING);
+        if (state.deepConfirmTimer) clearTimeout(state.deepConfirmTimer);
+        state.deepConfirmTimer = setTimeout(disarmDeepConfirm, 8000);
+        return;
+      }
+      disarmDeepConfirm();
+    } else if (state.deepConfirmArmed) {
+      disarmDeepConfirm();
+    }
+
+    // Host access gate: Chrome grants it at install; Firefox users can
+    // revoke it (or hold a pre-127 profile that never granted it).
+    if (!(await GCC.gmailAccess.check())) {
+      elements.gmailAccessBanner?.classList.add("show");
+      setStatus("allow Gmail access above, then run again", STATUS_TYPES.WARNING);
+      showToast("gmail access needed", "warning");
+      return;
     }
 
     state.isRunning = true;
@@ -1221,6 +1260,13 @@ document.addEventListener("DOMContentLoaded", () => {
   // Shared injection path for both subscription run kinds. Returns the
   // Gmail tab id, or null when the run could not start.
   const injectSubscriptionRun = async (runKind, unsubSenders = []) => {
+    if (!(await GCC.gmailAccess.check())) {
+      elements.gmailAccessBanner?.classList.add("show");
+      setSubsStatus("Allow Gmail access at the top of this popup first.");
+      showToast("gmail access needed", "warning");
+      return null;
+    }
+
     const gmailTab = await findGmailTab();
     if (!gmailTab) {
       showToast("open Gmail in a tab first", "warning");
@@ -1477,7 +1523,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const setupShare = () => {
     if (!elements.shareBtn) return;
     elements.shareBtn.addEventListener("click", async () => {
-      const url = "https://chromewebstore.google.com/detail/bmcfpljakkpcbinhgiahncpcbhmihgpc?utm_source=share";
+      // Firefox users share the AMO listing; Chrome, Edge and other
+      // Chromiums share the Chrome Web Store one (installable in all).
+      const url = GCC.storeLinks().listing + "?utm_source=share";
       try {
         if (navigator.clipboard?.writeText) {
           await navigator.clipboard.writeText(url);
@@ -1673,6 +1721,8 @@ document.addEventListener("DOMContentLoaded", () => {
         // Changing the intensity means "use the full rule set", so it
         // supersedes any one-category target preset.
         if (el === elements.intensityEl) clearTargetPreset();
+        // Any config change invalidates an armed deep-clean confirm.
+        disarmDeepConfirm();
         scheduleAutosave();
       });
     });
@@ -1718,6 +1768,20 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       elements.snoozeBanner.classList.remove("show");
     }
+  };
+
+  // =========================
+  // Gmail host access banner (7.1)
+  // =========================
+  // Hidden whenever access is granted (always, on Chrome/Edge). Shows
+  // on Firefox profiles where the user revoked mail.google.com or that
+  // predate install-time host grants (Firefox 127).
+
+  const refreshGmailAccessBanner = async () => {
+    if (!elements.gmailAccessBanner) return true;
+    const ok = await GCC.gmailAccess.check();
+    elements.gmailAccessBanner.classList.toggle("show", !ok);
+    return ok;
   };
 
   // =========================
@@ -1777,10 +1841,8 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.onbSkipBtn?.addEventListener("click", dismissOnboarding);
 
     elements.ratingBtn?.addEventListener("click", async () => {
-      await tabsCreate({
-        url: "https://chromewebstore.google.com/detail/bmcfpljakkpcbinhgiahncpcbhmihgpc/reviews",
-        active: true
-      });
+      // Reviews land on the store this browser installed from.
+      await tabsCreate({ url: GCC.storeLinks().reviews, active: true });
       dismissRatingPrompt();
       setTimeout(safeClosePopup, 150);
     });
@@ -1828,6 +1890,18 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.proPromoKey?.addEventListener("click", openProOptions);
     elements.footerProBtn?.addEventListener("click", openProOptions);
 
+    // 7.1 Gmail host access grant (must run inside this click gesture)
+    elements.gmailAccessBtn?.addEventListener("click", async () => {
+      const granted = await GCC.gmailAccess.request();
+      if (granted) {
+        elements.gmailAccessBanner?.classList.remove("show");
+        setStatus("", STATUS_TYPES.INFO);
+        showToast("gmail access granted", "success");
+      } else {
+        showToast("access was not granted", "warning");
+      }
+    });
+
     setupShare();
     setupKeyboardShortcuts();
     setupRuntimeMessages();
@@ -1864,6 +1938,7 @@ document.addEventListener("DOMContentLoaded", () => {
     await restoreActiveRunUI();
     await maybeShowRatingPrompt();
     await refreshSnoozeBanner();
+    await refreshGmailAccessBanner();
     await maybeShowOnboarding();
 
     loadGmailAccounts();
