@@ -3,6 +3,41 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 7.3.0 - Tabbed popup
+
+### Changed
+- **The popup is now three tabs: Clean, Unsubscribe, Storage.** The old
+  single scroll column had grown past a dozen stacked sections; each
+  feature now owns a panel under a fixed-height card (600px, the most
+  Chrome allows a popup), so the header, tab bar and footer stay put
+  and only the active panel scrolls. The tab bar is keyboard-first:
+  arrow keys move between tabs, Home/End jump, and screen readers get
+  real tab semantics.
+- **Cleanup Strategy and Safety moved into one Advanced disclosure.**
+  The three strategy dropdowns and the safety toggles now live in a
+  collapsed "Advanced" section on the Clean tab, and it remembers
+  whether you left it open. Defaults are unchanged; most runs never
+  need to open it.
+- **The result screen replaces the form.** When a run finishes with the
+  popup open, the summary, the share/rate buttons and the rating ask
+  take over the Clean tab instead of piling up underneath it, with a
+  clear "Back to the cleaner" button.
+- **One banner at a time.** If several notices are eligible, only the
+  most important shows: Gmail access first, then the schedule snooze
+  notice, then the pin hint.
+- **"How it works" folds itself away.** The safety explainer starts
+  open for new installs and collapses once your first cleanup is
+  recorded; it stays a click away.
+- **Upsells now lead with your own numbers.** After a scan, the
+  Unsubscribe pitch opens with how many mailing lists were found and
+  the Storage pitch with how many senders hold how many MB (always the
+  scan's floor estimates). Before any scan, a short static line shows
+  instead.
+- **The rating ask is earned, not scheduled.** The star prompt now
+  appears only right after a real (non dry-run) cleanup that removed
+  at least 200 emails or freed an estimated 100 MB and up. "Maybe
+  later" still dismisses it for good.
+
 ## 7.2.0 - Storage X-ray
 
 ### Added

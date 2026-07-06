@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const DIAGNOSTICS_VERSION = "7.2.0";
+  const DIAGNOSTICS_VERSION = "7.3.0";
 
   const CONFIG = Object.freeze({
     MAX_URL_LENGTH: 120,
