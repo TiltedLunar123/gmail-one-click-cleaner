@@ -903,6 +903,131 @@ const GCC = (() => {
   });
 
   // =========================
+  // Popup UI policy (7.3)
+  // =========================
+  // Pure decision logic behind the tabbed popup, kept here so it is
+  // unit-testable: which banner wins when several want to show, when a
+  // finished run earns the rating ask, whether the reassurance block
+  // starts open, and the number-led first lines of the Pro upsells.
+  // The popup owns the DOM; these own the rules.
+
+  // One banner at a time. A missing Gmail grant blocks every feature,
+  // snooze explains why schedules are quiet, and the pin hint is mere
+  // marketing, so that is the priority order.
+  const pickBanner = ({ accessNeeded = false, snoozed = false, pinEligible = false } = {}) => {
+    if (accessNeeded) return "access";
+    if (snoozed) return "snooze";
+    if (pinEligible) return "pin";
+    return null;
+  };
+
+  // A run earns the rating ask only when it was real (not a dry run)
+  // and big enough that the user just felt the benefit.
+  const RATING_MIN_CLEANED = 200;
+  const RATING_MIN_FREED_MB = 100;
+
+  const ratingRunQualifies = ({ dryRun = false, cleaned = 0, freedMb = 0 } = {}) => {
+    if (dryRun) return false;
+    const count = Number(cleaned) || 0;
+    const mb = Number(freedMb) || 0;
+    return count >= RATING_MIN_CLEANED || mb >= RATING_MIN_FREED_MB;
+  };
+
+  // "How it works" starts open for newcomers and collapses once the
+  // first cleanup has been recorded (the popup's run counter).
+  const reassuranceOpen = (runSuccessCount) => !(Number(runSuccessCount) > 0);
+
+  // First lines of the Pro upsells. Lead with the user's own scan
+  // numbers once a scan exists; before that, fall back to the static
+  // pitch. Claims mirror what the features do: the user picks the
+  // senders, and storage figures are floor estimates.
+  const subsUpsellLine = (senderCount) => {
+    const n = Math.max(0, Math.floor(Number(senderCount) || 0));
+    if (!n) return "One $5 payment unlocks bulk unsubscribe forever.";
+    return `Found ${n} mailing list${n === 1 ? "" : "s"} emailing you. Pro unsubscribes from the ones you pick for $5.`;
+  };
+
+  const xrayUpsellLine = (senderCount, totalMb) => {
+    const n = Math.max(0, Math.floor(Number(senderCount) || 0));
+    const mb = Math.max(0, Number(totalMb) || 0);
+    if (!n || !mb) return "Pro is $5 once: it unlocks the full ranked list and one-click purge.";
+    const who = n === 1 ? "1 sender is" : `${n} senders are`;
+    return `${who} holding at least ${formatMb(mb)}. Pro purges the ones you pick for $5.`;
+  };
+
+  const popupUi = Object.freeze({
+    RATING_MIN_CLEANED,
+    RATING_MIN_FREED_MB,
+    pickBanner,
+    ratingRunQualifies,
+    reassuranceOpen,
+    subsUpsellLine,
+    xrayUpsellLine
+  });
+
+  // =========================
+  // Accessible tablist (7.3)
+  // =========================
+  // Minimal WAI-ARIA tabs behavior: roving tabindex, arrow-key
+  // navigation with wrap-around, Home/End, and automatic activation
+  // (moving focus selects the tab). Panels are resolved through each
+  // tab's aria-controls and toggled with the hidden attribute.
+
+  const tablist = (root, { onSelect } = {}) => {
+    if (!root) return null;
+    const tabs = Array.from(root.querySelectorAll('[role="tab"]'));
+    if (!tabs.length) return null;
+
+    const panelOf = (tab) => {
+      const id = tab.getAttribute("aria-controls");
+      return id ? document.getElementById(id) : null;
+    };
+
+    const select = (tabOrId, { focus = false } = {}) => {
+      const target = typeof tabOrId === "string"
+        ? tabs.find((t) => t.id === tabOrId)
+        : tabOrId;
+      if (!target || !tabs.includes(target)) return;
+      for (const t of tabs) {
+        const active = t === target;
+        t.setAttribute("aria-selected", active ? "true" : "false");
+        t.setAttribute("tabindex", active ? "0" : "-1");
+        const panel = panelOf(t);
+        if (panel) panel.hidden = !active;
+      }
+      if (focus) target.focus();
+      if (typeof onSelect === "function") onSelect(target.id);
+    };
+
+    root.addEventListener("click", (e) => {
+      const tab = e.target?.closest?.('[role="tab"]');
+      if (tab && tabs.includes(tab)) select(tab);
+    });
+
+    root.addEventListener("keydown", (e) => {
+      const idx = tabs.indexOf(document.activeElement);
+      if (idx < 0) return;
+      let next = -1;
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") next = (idx + 1) % tabs.length;
+      else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = (idx - 1 + tabs.length) % tabs.length;
+      else if (e.key === "Home") next = 0;
+      else if (e.key === "End") next = tabs.length - 1;
+      if (next < 0) return;
+      e.preventDefault();
+      select(tabs[next], { focus: true });
+    });
+
+    const initial = tabs.find((t) => t.getAttribute("aria-selected") === "true") || tabs[0];
+    select(initial);
+
+    return Object.freeze({
+      select: (id) => select(id),
+      selectedId: () =>
+        tabs.find((t) => t.getAttribute("aria-selected") === "true")?.id || null
+    });
+  };
+
+  // =========================
   // Public API
   // =========================
 
@@ -974,6 +1099,10 @@ const GCC = (() => {
     gmailAccess,
 
     // New in 7.2
-    storageXray
+    storageXray,
+
+    // New in 7.3
+    popupUi,
+    tablist
   });
 })();
