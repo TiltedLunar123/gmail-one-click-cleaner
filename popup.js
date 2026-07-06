@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "7.2.0";
+  const POPUP_VERSION = "7.3.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -17,7 +17,6 @@ document.addEventListener("DOMContentLoaded", () => {
     GMAIL_URL: "https://mail.google.com/",
     GMAIL_INBOX_URL: "https://mail.google.com/mail/u/0/#inbox",
 
-    RATING_THRESHOLD_RUNS: 2,
     ACTIVE_RUN_TTL_MS: 1000 * 60 * 60 * 2 // 2h best effort TTL
   });
 
@@ -33,6 +32,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     RUN_COUNT: "runSuccessCount",
     RATING_DISMISSED: "ratingPromptDismissed",
+
+    // 7.3: whether the Advanced disclosure was left open.
+    ADVANCED_OPEN: "advancedOpen",
 
     SNOOZE_UNTIL: "snoozeUntil",
     NOTIFY_ENABLED: "notifyOnComplete",
@@ -66,6 +68,9 @@ document.addEventListener("DOMContentLoaded", () => {
     buttonState: BUTTON_STATES.IDLE,
 
     autosaveTimer: null,
+
+    // 7.3 tabbed layout: handle returned by GCC.tablist.
+    tabs: null,
 
     // 7.1 deep-clean confirmation. window.confirm() is a silent no-op
     // inside Firefox popups, so the guard is an inline two-click arm
@@ -240,6 +245,14 @@ document.addEventListener("DOMContentLoaded", () => {
     monthlyCleanBtn: $("monthlyCleanBtn"),
     targetChips: $("targetChips"),
 
+    // 7.3 tabbed layout
+    tabBar: $("popupTabs"),
+    cleanForm: $("cleanForm"),
+    cleanResult: $("cleanResult"),
+    resultBackBtn: $("resultBackBtn"),
+    reassurance: $("reassurance"),
+    advancedSection: $("advancedSection"),
+
     pinHint: $("pinHint"),
     pinHintClose: $("pinHintClose"),
 
@@ -290,7 +303,6 @@ document.addEventListener("DOMContentLoaded", () => {
     onbSkipBtn: $("onbSkipBtn"),
 
     // 7.0 subscriptions
-    subsSection: $("subscriptionsSection"),
     subsProPill: $("subsProPill"),
     scanSubsBtn: $("scanSubsBtn"),
     subsStatus: $("subsStatus"),
@@ -301,6 +313,7 @@ document.addEventListener("DOMContentLoaded", () => {
     unsubBtn: $("unsubBtn"),
     unsubBtnSub: $("unsubBtnSub"),
     subsUpsell: $("subsUpsell"),
+    subsUpsellText: $("subsUpsellText"),
     subsBuyLink: $("subsBuyLink"),
     subsEnterKey: $("subsEnterKey"),
     footerProBtn: $("footerProBtn"),
@@ -324,6 +337,7 @@ document.addEventListener("DOMContentLoaded", () => {
     xrayPurgeBtn: $("xrayPurgeBtn"),
     xrayPurgeBtnSub: $("xrayPurgeBtnSub"),
     xrayUpsell: $("xrayUpsell"),
+    xrayUpsellText: $("xrayUpsellText"),
     xrayBuyLink: $("xrayBuyLink"),
     xrayEnterKey: $("xrayEnterKey")
   };
@@ -476,6 +490,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const showSuccessCtas = () => elements.successCtas?.classList.add("show");
   const hideSuccessCtas = () => elements.successCtas?.classList.remove("show");
+
+  const hideRatingPrompt = () => elements.ratingPrompt?.classList.remove("show");
+
+  // 7.3: the Clean tab swaps between the form and the post-run result.
+  // The result view owns the summary, the CTAs and the rating ask; the
+  // back button (or starting another run) returns to the form.
+  const showResultState = () => {
+    if (!elements.cleanForm || !elements.cleanResult) return;
+    elements.cleanForm.hidden = true;
+    elements.cleanResult.hidden = false;
+  };
+
+  const showFormState = () => {
+    hideResultSummary();
+    hideSuccessCtas();
+    hideRatingPrompt();
+    if (!elements.cleanForm || !elements.cleanResult) return;
+    elements.cleanResult.hidden = true;
+    elements.cleanForm.hidden = false;
+  };
 
   // =========================
   // Accessibility helpers
@@ -908,26 +942,56 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.runBtn?.focus();
   };
 
-  const checkPinHint = async () => {
-    if (!elements.pinHint) return;
-    const r = await storageGet("local", STORAGE_KEYS.PIN_DISMISSED);
-    if (!r?.[STORAGE_KEYS.PIN_DISMISSED]) elements.pinHint.classList.add("show");
+  // 7.3: at most one banner shows at a time. Eligibility for all three
+  // is gathered here and GCC.popupUi.pickBanner arbitrates (Gmail
+  // access, then snooze, then pin hint), so a grant or a dismissal
+  // re-runs the whole decision instead of leaving stale banners up.
+  const refreshBanners = async () => {
+    const [accessOk, snoozeUntil, pinFlag] = await Promise.all([
+      GCC.gmailAccess.check(),
+      getSnoozeUntil(),
+      storageGet("local", STORAGE_KEYS.PIN_DISMISSED)
+    ]);
+
+    const which = GCC.popupUi.pickBanner({
+      accessNeeded: !accessOk,
+      snoozed: Boolean(snoozeUntil),
+      pinEligible: !pinFlag?.[STORAGE_KEYS.PIN_DISMISSED]
+    });
+
+    if (which === "snooze" && elements.snoozeBannerText) {
+      const days = Math.max(1, Math.ceil((snoozeUntil - Date.now()) / (24 * 60 * 60 * 1000)));
+      elements.snoozeBannerText.textContent =
+        `Schedules snoozed (~${days} day${days === 1 ? "" : "s"} left). Manual runs still work.`;
+    }
+
+    elements.gmailAccessBanner?.classList.toggle("show", which === "access");
+    elements.snoozeBanner?.classList.toggle("show", which === "snooze");
+    elements.pinHint?.classList.toggle("show", which === "pin");
+    return accessOk;
   };
 
   const dismissPinHint = async () => {
     elements.pinHint?.classList.remove("show");
     await storageSet("local", { [STORAGE_KEYS.PIN_DISMISSED]: true });
+    refreshBanners().catch(() => {});
   };
 
-  const maybeShowRatingPrompt = async () => {
+  // 7.3: the rating ask fires right after a run worth bragging about (a
+  // real, non-dry cleanup past the size thresholds) instead of counting
+  // popup opens. "Maybe later" still suppresses it for good.
+  const maybeShowRatingForRun = async (run) => {
     if (!elements.ratingPrompt) return;
-    const r = await storageGet("local", [STORAGE_KEYS.RUN_COUNT, STORAGE_KEYS.RATING_DISMISSED]);
-    const dismissed = Boolean(r?.[STORAGE_KEYS.RATING_DISMISSED]);
-    const count = Number(r?.[STORAGE_KEYS.RUN_COUNT] || 0);
-
-    if (!dismissed && count >= CONFIG.RATING_THRESHOLD_RUNS) {
-      elements.ratingPrompt.classList.add("show");
+    if (!GCC.popupUi.ratingRunQualifies(run)) {
+      hideRatingPrompt();
+      return;
     }
+    const r = await storageGet("local", STORAGE_KEYS.RATING_DISMISSED);
+    if (Boolean(r?.[STORAGE_KEYS.RATING_DISMISSED])) {
+      hideRatingPrompt();
+      return;
+    }
+    elements.ratingPrompt.classList.add("show");
   };
 
   const dismissRatingPrompt = async () => {
@@ -939,6 +1003,28 @@ document.addEventListener("DOMContentLoaded", () => {
     const r = await storageGet("local", STORAGE_KEYS.RUN_COUNT);
     const count = Number(r?.[STORAGE_KEYS.RUN_COUNT] || 0) + 1;
     await storageSet("local", { [STORAGE_KEYS.RUN_COUNT]: count });
+  };
+
+  // 7.3: "How it works" ships open in the markup for newcomers and
+  // collapses once the popup's run counter records the first cleanup.
+  const initReassurance = async () => {
+    if (!elements.reassurance) return;
+    const r = await storageGet("local", STORAGE_KEYS.RUN_COUNT);
+    elements.reassurance.open =
+      GCC.popupUi.reassuranceOpen(r?.[STORAGE_KEYS.RUN_COUNT]);
+  };
+
+  // 7.3: the Advanced disclosure keeps its open state across popup
+  // opens, same local-flag pattern as the pin hint dismissal.
+  const initAdvancedDisclosure = async () => {
+    if (!elements.advancedSection) return;
+    const r = await storageGet("local", STORAGE_KEYS.ADVANCED_OPEN);
+    elements.advancedSection.open = Boolean(r?.[STORAGE_KEYS.ADVANCED_OPEN]);
+    elements.advancedSection.addEventListener("toggle", () => {
+      storageSet("local", {
+        [STORAGE_KEYS.ADVANCED_OPEN]: Boolean(elements.advancedSection.open)
+      }).catch(() => {});
+    });
   };
 
   // =========================
@@ -1013,7 +1099,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Host access gate: Chrome grants it at install; Firefox users can
     // revoke it (or hold a pre-127 profile that never granted it).
     if (!(await GCC.gmailAccess.check())) {
-      elements.gmailAccessBanner?.classList.add("show");
+      refreshBanners().catch(() => {});
       setStatus("allow Gmail access above, then run again", STATUS_TYPES.WARNING);
       showToast("gmail access needed", "warning");
       return;
@@ -1021,8 +1107,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     state.isRunning = true;
     removeOpenGmailHelper();
-    hideResultSummary();
-    hideSuccessCtas();
+    showFormState();
 
     setRunButtonState({
       disabled: true,
@@ -1221,8 +1306,17 @@ document.addEventListener("DOMContentLoaded", () => {
       : `${total} sender${total === 1 ? "" : "s"} found`;
   };
 
+  // 7.3: once a scan exists, the upsell leads with the user's own
+  // numbers; before that it keeps the static pitch from the markup.
+  const updateSubsUpsellCopy = () => {
+    if (!elements.subsUpsellText) return;
+    elements.subsUpsellText.textContent =
+      GCC.popupUi.subsUpsellLine(state.subs.senders.length);
+  };
+
   const renderSubsList = () => {
     if (!elements.subsList) return;
+    updateSubsUpsellCopy();
     elements.subsList.textContent = "";
     const senders = state.subs.senders;
     const hasSenders = senders.length > 0;
@@ -1302,7 +1396,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // user-facing reason on refusal.
   const injectEngineRun = async (config, setStatusFn) => {
     if (!(await GCC.gmailAccess.check())) {
-      elements.gmailAccessBanner?.classList.add("show");
+      refreshBanners().catch(() => {});
       setStatusFn("Allow Gmail access at the top of this popup first.");
       showToast("gmail access needed", "warning");
       return null;
@@ -1501,8 +1595,20 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.xrayTotal.classList.add("show");
   };
 
+  // 7.3: number-led upsell. The MB figure is the sum of the ranked
+  // senders' floor estimates, so the claim can never overshoot what the
+  // scan actually measured.
+  const updateXrayUpsellCopy = () => {
+    if (!elements.xrayUpsellText) return;
+    const senders = state.xray.senders;
+    const mbSum = senders.reduce((sum, s) => sum + (Number(s.estMb) || 0), 0);
+    elements.xrayUpsellText.textContent =
+      GCC.popupUi.xrayUpsellLine(senders.length, mbSum);
+  };
+
   const renderXrayList = () => {
     if (!elements.xrayList) return;
+    updateXrayUpsellCopy();
     elements.xrayList.textContent = "";
     const active = state.subs.licenseActive;
     const senders = state.xray.senders;
@@ -1691,7 +1797,7 @@ document.addEventListener("DOMContentLoaded", () => {
     state.isRunning = true;
     try {
       if (!(await GCC.gmailAccess.check())) {
-        elements.gmailAccessBanner?.classList.add("show");
+        refreshBanners().catch(() => {});
         setXrayStatus("Allow Gmail access at the top of this popup first.");
         showToast("gmail access needed", "warning");
         state.isRunning = false;
@@ -1928,11 +2034,14 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      // Enter runs cleaner (but not while a select is focused)
+      // Enter runs cleaner (but not while a select is focused, and not
+      // on a tab, where Enter must activate the tab itself)
       if (e.key === "Enter" && !e.repeat) {
-        const tag = document.activeElement?.tagName;
+        const active = document.activeElement;
+        const tag = active?.tagName;
         const isFormControl = tag === "SELECT" || tag === "INPUT" || tag === "TEXTAREA";
-        if (!isFormControl && !state.isRunning) {
+        const isTab = active?.getAttribute?.("role") === "tab";
+        if (!isFormControl && !isTab && !state.isRunning) {
           e.preventDefault();
           runCleanup();
         }
@@ -2005,6 +2114,7 @@ document.addEventListener("DOMContentLoaded", () => {
           hideProgress();
           hideQuickActions();
           resetRunButton();
+          state.tabs?.select("tabClean");
           setStatus("canceled", STATUS_TYPES.WARNING, true);
           state.isRunning = false;
           state.currentGmailTabId = null;
@@ -2017,6 +2127,7 @@ document.addEventListener("DOMContentLoaded", () => {
           hideProgress();
           hideQuickActions();
           resetRunButton();
+          state.tabs?.select("tabClean");
           setStatus(`error: ${m}`, STATUS_TYPES.ERROR);
           showToast(`failed: ${m}`, "error");
           state.isRunning = false;
@@ -2032,10 +2143,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
           const action = stats?.action === "archive" ? "archive" : "trash";
           const count = Number(stats?.runCount ?? stats?.totalDeleted ?? 0);
-          const freedBytes = Number(stats?.totalFreedMb || 0) * 1024 * 1024;
+          const freedMb = Number(stats?.totalFreedMb || 0);
+          const freedBytes = freedMb * 1024 * 1024;
+
+          // The result view replaces the Clean form; jump there so the
+          // outcome is visible even if another tab had focus.
+          state.tabs?.select("tabClean");
+          showResultState();
           showResultSummary({ count, freedBytes, action });
 
           showSuccessCtas();
+          maybeShowRatingForRun({
+            dryRun: stats?.mode === "dry",
+            cleaned: count,
+            freedMb
+          }).catch(() => {});
           setStatus("cleanup complete", STATUS_TYPES.SUCCESS, true);
 
           GCC.showToast(
@@ -2130,36 +2252,6 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   // =========================
-  // Snooze banner (5.0)
-  // =========================
-
-  const refreshSnoozeBanner = async () => {
-    if (!elements.snoozeBanner) return;
-    const until = await getSnoozeUntil();
-    if (until && elements.snoozeBannerText) {
-      const days = Math.max(1, Math.ceil((until - Date.now()) / (24 * 60 * 60 * 1000)));
-      elements.snoozeBannerText.textContent = `Schedules snoozed (~${days} day${days === 1 ? "" : "s"} left). Manual runs still work.`;
-      elements.snoozeBanner.classList.add("show");
-    } else {
-      elements.snoozeBanner.classList.remove("show");
-    }
-  };
-
-  // =========================
-  // Gmail host access banner (7.1)
-  // =========================
-  // Hidden whenever access is granted (always, on Chrome/Edge). Shows
-  // on Firefox profiles where the user revoked mail.google.com or that
-  // predate install-time host grants (Firefox 127).
-
-  const refreshGmailAccessBanner = async () => {
-    if (!elements.gmailAccessBanner) return true;
-    const ok = await GCC.gmailAccess.check();
-    elements.gmailAccessBanner.classList.toggle("show", !ok);
-    return ok;
-  };
-
-  // =========================
   // Keyboard help modal (5.0)
   // =========================
 
@@ -2223,6 +2315,12 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     elements.ratingDismiss?.addEventListener("click", dismissRatingPrompt);
 
+    // 7.3: leave the post-run result view and return to the form.
+    elements.resultBackBtn?.addEventListener("click", () => {
+      showFormState();
+      elements.runBtn?.focus();
+    });
+
     // Make star row clickable + keyboard-accessible (optional)
     const stars = $$(".rating-star");
     const activateStar = () => {
@@ -2281,7 +2379,7 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.gmailAccessBtn?.addEventListener("click", async () => {
       const granted = await GCC.gmailAccess.request();
       if (granted) {
-        elements.gmailAccessBanner?.classList.remove("show");
+        await refreshBanners();
         setStatus("", STATUS_TYPES.INFO);
         showToast("gmail access granted", "success");
       } else {
@@ -2318,14 +2416,17 @@ document.addEventListener("DOMContentLoaded", () => {
     await wireThemeSwitcher();
 
     syncVersionBadge();
+
+    // 7.3: tab bar (WAI-ARIA tabs semantics live in GCC.tablist).
+    state.tabs = GCC.tablist(elements.tabBar);
+
     setupEventListeners();
 
-    await checkPinHint();
+    await initAdvancedDisclosure();
+    await initReassurance();
     await restoreLastConfig();
     await restoreActiveRunUI();
-    await maybeShowRatingPrompt();
-    await refreshSnoozeBanner();
-    await refreshGmailAccessBanner();
+    await refreshBanners();
     await maybeShowOnboarding();
 
     loadGmailAccounts();
