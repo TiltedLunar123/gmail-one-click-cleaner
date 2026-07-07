@@ -255,6 +255,35 @@
       margin-top: 2px;
     }
 
+    /* 7.6 restore controls. Theme tokens only, so light/dark/system
+       all follow shared.css without local overrides. */
+    .undo-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      flex-shrink: 0;
+      margin-left: var(--space-3);
+    }
+
+    .undo-restore-note {
+      font-size: 12px;
+      color: var(--primary);
+      margin-top: 4px;
+    }
+
+    .undo-restore-reason {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    .restore-status {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: var(--space-3);
+      min-height: 16px;
+    }
+
     .toolbar {
       display: flex;
       align-items: center;
@@ -365,13 +394,16 @@
     <div class="section animate-in">
       <div class="section-title">Recovery Log</div>
       <p style="font-size: 12px; color: var(--text-dim); margin-bottom: var(--space-3);">
-        Tagged emails can be found in Gmail by searching for the label (e.g., <code>label:GmailCleaner</code>).
-        Deleted emails remain in Trash for 30 days.
+        Every tagged run can be put back: <strong>Restore</strong> selects the run's label in Gmail and moves
+        that mail back to your Inbox. Deleted mail stays restorable for the ~30 days Gmail keeps Trash;
+        archived mail has no deadline. You can also find any run by searching its label
+        (e.g., <code>label:GmailCleaner</code>).
       </p>
       <div class="toolbar">
         <button class="btn btn-sm" id="refreshUndoBtn">Refresh</button>
         <button class="btn btn-sm btn-danger" id="clearUndoBtn">Clear Log</button>
       </div>
+      <div class="restore-status" id="restoreStatus" role="status" aria-live="polite"></div>
       <div class="undo-list" id="undoList">
         <div class="empty-state">No recovery entries</div>
       </div>

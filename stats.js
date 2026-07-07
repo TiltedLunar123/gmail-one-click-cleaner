@@ -20,6 +20,7 @@ const ui = {
   undoList: GCC.$("undoList"),
   refreshUndoBtn: GCC.$("refreshUndoBtn"),
   clearUndoBtn: GCC.$("clearUndoBtn"),
+  restoreStatus: GCC.$("restoreStatus"),
   toastContainer: GCC.$("toastContainer"),
   topSendersList: GCC.$("topSendersList"),
   themeSwitcher: GCC.$("themeSwitcher")
@@ -241,8 +242,189 @@ function renderHistory(history) {
 }
 
 // =========================
-// Undo Log
+// Undo Log + Restore (7.6)
 // =========================
+// Restore drives the engine (runKind "restoreRun") in a Gmail tab: it
+// searches the run's label, selects everything, and clicks Gmail's own
+// move-back-to-Inbox control. One restore at a time; progress comes
+// back as gmailCleanerProgress messages and the finished outcome is
+// persisted on the log entry by the service worker.
+
+const restoreState = {
+  running: false,
+  entryId: null,
+  tabId: null,
+  button: null,
+  noteEl: null
+};
+
+const setRestoreStatus = (text) => {
+  if (ui.restoreStatus) ui.restoreStatus.textContent = text || "";
+};
+
+const tabsQuery = (info) =>
+  GCC.promisify(chrome.tabs.query.bind(chrome.tabs), info);
+
+const tabsSendMessage = (tabId, message) =>
+  GCC.promisify(chrome.tabs.sendMessage.bind(chrome.tabs), tabId, message);
+
+const scriptingExecuteScript = (details) =>
+  GCC.promisify(chrome.scripting.executeScript.bind(chrome.scripting), details);
+
+async function findGmailTab() {
+  if (!GCC.hasChromeTabs()) return null;
+  try {
+    const tabs = await tabsQuery({ url: "https://mail.google.com/*" });
+    if (!tabs?.length) return null;
+    return tabs.find((t) => t.active) || tabs[0];
+  } catch {
+    return null;
+  }
+}
+
+// Same injection shape the popup uses for the auxiliary run kinds:
+// refuse without the Gmail grant, refuse without a Gmail tab, refuse a
+// tab that already has a run attached, then config + contentScript.js.
+async function injectRestoreRun(entry) {
+  if (!GCC.hasChromeScripting() || !GCC.hasChromeTabs()) {
+    GCC.showToast("Extension APIs unavailable on this page", "error");
+    return null;
+  }
+  if (!(await GCC.gmailAccess.check())) {
+    GCC.showToast("Allow Gmail access from the extension popup first", "warning");
+    return null;
+  }
+  const gmailTab = await findGmailTab();
+  if (!gmailTab) {
+    GCC.showToast("Open mail.google.com in a tab, then try again", "warning");
+    return null;
+  }
+
+  try {
+    const [attached] = await scriptingExecuteScript({
+      target: { tabId: gmailTab.id },
+      func: () => !!window.GCC_ATTACHED
+    });
+    if (attached?.result === true) {
+      GCC.showToast("Another run is already in progress", "warning");
+      return null;
+    }
+  } catch {
+    // Tab might not be ready; the injection below surfaces real errors.
+  }
+
+  await scriptingExecuteScript({
+    target: { tabId: gmailTab.id },
+    func: (cfg) => {
+      window.GMAIL_CLEANER_CONFIG = cfg;
+    },
+    args: [{
+      runKind: "restoreRun",
+      restoreLabel: entry.tagLabel,
+      restoreAction: entry.action === "archive" ? "archive" : "delete"
+    }]
+  });
+  await scriptingExecuteScript({
+    target: { tabId: gmailTab.id },
+    files: ["contentScript.js"]
+  });
+  return gmailTab.id;
+}
+
+function resetRestoreState() {
+  restoreState.running = false;
+  restoreState.entryId = null;
+  restoreState.tabId = null;
+  restoreState.button = null;
+  restoreState.noteEl = null;
+}
+
+async function cancelActiveRestore() {
+  if (!restoreState.tabId) return;
+  setRestoreStatus("Cancelling restore...");
+  try {
+    await tabsSendMessage(restoreState.tabId, { type: "gmailCleanerCancel" });
+  } catch {
+    // The tab may already be gone; the terminal message (or its
+    // absence) settles the UI either way.
+  }
+}
+
+async function handleRestoreClick(entry, btn, note) {
+  if (restoreState.running) {
+    if (restoreState.entryId === entry.id) {
+      await cancelActiveRestore();
+    } else {
+      GCC.showToast("A restore is already running", "warning");
+    }
+    return;
+  }
+
+  restoreState.running = true;
+  restoreState.entryId = entry.id || "";
+  restoreState.button = btn;
+  restoreState.noteEl = note;
+  btn.textContent = "Cancel";
+  note.hidden = false;
+  note.textContent = "Starting restore...";
+  setRestoreStatus("Starting restore...");
+
+  let tabId = null;
+  try {
+    tabId = await injectRestoreRun(entry);
+  } catch (e) {
+    GCC.showToast("Restore failed to start: " + (e?.message || "unknown error"), "error");
+  }
+
+  if (tabId === null) {
+    resetRestoreState();
+    btn.textContent = "Restore";
+    note.hidden = true;
+    note.textContent = "";
+    setRestoreStatus("");
+    return;
+  }
+  restoreState.tabId = tabId;
+}
+
+function handleRestoreProgress(msg) {
+  const { phase, status, detail, done } = msg;
+  const line = [status, detail].filter(Boolean).join(" ");
+
+  if (!done && phase !== "done") {
+    if (restoreState.noteEl) {
+      restoreState.noteEl.hidden = false;
+      restoreState.noteEl.textContent = line || "Restoring...";
+    }
+    setRestoreStatus(line);
+    return;
+  }
+
+  const restored = Number(msg.restoredCount) || 0;
+  if (phase === "done") {
+    setRestoreStatus(status || "Restore finished.");
+    GCC.showToast(
+      restored > 0
+        ? GCC.formatNumber(restored) + " moved back to Inbox"
+        : "nothing left to restore",
+      restored > 0 ? "success" : "info"
+    );
+  } else if (phase === "cancelled") {
+    setRestoreStatus(line || "Restore cancelled.");
+    GCC.showToast("restore cancelled", "warning");
+  } else {
+    setRestoreStatus(line || "Restore failed.");
+    GCC.showToast("restore did not finish", "error");
+  }
+
+  if (restoreState.noteEl) restoreState.noteEl.textContent = line;
+  resetRestoreState();
+  // The service worker persists restoredAt just before the terminal
+  // message lands; the short beat keeps the reload behind that write.
+  setTimeout(() => {
+    loadUndoLog().catch(() => {});
+  }, 600);
+}
 
 async function loadUndoLog() {
   const resp = await GCC.sendMessage({ type: "gmailCleanerGetUndoLog" });
@@ -263,9 +445,11 @@ async function loadUndoLog() {
   for (const entry of log) {
     const tagClass = entry.action === "archive" ? "tag tag-success" : "tag tag-danger";
     const tagText = entry.action === "archive" ? "archived" : "deleted";
+    const verdict = GCC.restore.eligibility(entry);
 
     const metaParts = [GCC.relativeTime(entry.timestamp)];
     if (entry.tagLabel) metaParts.push("Label: " + entry.tagLabel);
+    if (verdict.restored) metaParts.push("Restored " + GCC.relativeTime(entry.restoredAt));
 
     const findUrl = "https://mail.google.com/mail/u/0/#search/label:" +
       encodeURIComponent(entry.tagLabel || "GmailCleaner");
@@ -278,18 +462,65 @@ async function loadUndoLog() {
       textContent: "Find in Gmail"
     });
 
+    const countEl = GCC.createEl("span", {
+      textContent: GCC.formatNumber(entry.count) + " emails"
+    });
+    countEl.style.color = "var(--primary)";
+    countEl.style.fontWeight = "600";
+
+    const note = GCC.createEl("div", { className: "undo-restore-note", hidden: "" });
+
     const info = GCC.createEl("div", { className: "undo-info" }, [
       GCC.createEl("strong", { textContent: entry.label || entry.query || "Unknown" }),
       document.createTextNode(" "),
       GCC.createEl("span", { className: tagClass, textContent: tagText }),
       document.createTextNode(" "),
-      GCC.createEl("span", { className: "", textContent: GCC.formatNumber(entry.count) + " emails" }),
+      countEl,
       GCC.createEl("div", { className: "undo-meta", textContent: metaParts.join(" \u00B7 ") })
     ]);
-    info.querySelector("span:last-of-type").style.color = "var(--primary)";
-    info.querySelector("span:last-of-type").style.fontWeight = "600";
 
-    ui.undoList.appendChild(GCC.createEl("div", { className: "undo-item" }, [info, findLink]));
+    const actions = GCC.createEl("div", { className: "undo-actions" }, [findLink]);
+
+    if (verdict.restored) {
+      actions.appendChild(GCC.createEl("span", { className: "tag tag-success", textContent: "Restored" }));
+    } else if (verdict.eligible) {
+      const restoreBtn = GCC.createEl("button", {
+        className: "btn btn-sm btn-success undo-restore-btn",
+        type: "button",
+        textContent: "Restore"
+      });
+      restoreBtn.addEventListener("click", () => {
+        handleRestoreClick(entry, restoreBtn, note).catch(() => {});
+      });
+      // A refresh mid-run re-renders the list; hand the fresh nodes to
+      // the active run so its progress stays visible and the button
+      // keeps offering Cancel.
+      if (restoreState.running && restoreState.entryId === (entry.id || "")) {
+        restoreBtn.textContent = "Cancel";
+        restoreState.button = restoreBtn;
+        restoreState.noteEl = note;
+        note.hidden = false;
+      }
+      actions.appendChild(restoreBtn);
+    } else {
+      const disabledBtn = GCC.createEl("button", {
+        className: "btn btn-sm undo-restore-btn",
+        type: "button",
+        textContent: "Restore",
+        disabled: "",
+        "aria-disabled": "true",
+        title: verdict.reason
+      });
+      actions.appendChild(disabledBtn);
+      info.appendChild(GCC.createEl("div", {
+        className: "undo-restore-reason",
+        textContent: verdict.reason
+      }));
+    }
+
+    info.appendChild(note);
+
+    ui.undoList.appendChild(GCC.createEl("div", { className: "undo-item" }, [info, actions]));
   }
 }
 
@@ -316,6 +547,19 @@ async function init() {
     await loadUndoLog();
     GCC.showToast("Log cleared", "success");
   });
+
+  // 7.6: live progress from a restore run started on this page.
+  if (GCC.hasChrome() && chrome.runtime?.onMessage) {
+    chrome.runtime.onMessage.addListener((msg) => {
+      if (!msg || typeof msg !== "object") return;
+      if (msg.type !== "gmailCleanerProgress" || msg.runKind !== "restoreRun") return;
+      try {
+        handleRestoreProgress(msg);
+      } catch (e) {
+        console.warn("[Stats] restore progress handler failed:", e);
+      }
+    });
+  }
 
   // Auto-refresh every 30s, visibility-aware so we pause when the
   // stats tab is in the background (issue #17).

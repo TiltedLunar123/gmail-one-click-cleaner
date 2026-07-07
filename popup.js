@@ -2164,6 +2164,9 @@ document.addEventListener("DOMContentLoaded", () => {
           handleXrayProgress(msg);
           return;
         }
+        // 7.6: restore runs are started and watched from the recovery
+        // log on the Stats page; the popup has no surface for them.
+        if (msg.runKind === "restoreRun") return;
         if (msg.runKind) {
           handleSubsProgress(msg);
           return;
