@@ -443,14 +443,22 @@
       // 7.0: what this injection should do. "cleanup" (default) runs the
       // rules engine; "subscriptionScan" / "unsubscribe" run the
       // subscriptions engine. 7.2 adds "storageScan" (read-only size
-      // tiers). unsubSenders is re-sanitized at run start; keeping raw
-      // strings here is fine.
-      runKind: ["cleanup", "subscriptionScan", "unsubscribe", "storageScan"].includes(config.runKind)
+      // tiers), 7.6 adds "restoreRun" (move a logged run's mail back to
+      // the Inbox). unsubSenders is re-sanitized at run start; keeping
+      // raw strings here is fine.
+      runKind: ["cleanup", "subscriptionScan", "unsubscribe", "storageScan", "restoreRun"].includes(config.runKind)
         ? config.runKind
         : "cleanup",
       unsubSenders: Array.isArray(config.unsubSenders)
         ? config.unsubSenders.filter((s) => typeof s === "string").slice(0, 25)
-        : []
+        : [],
+      // 7.6 restore run: the undo entry's label and mode. Double quotes
+      // are stripped so the label can never break out of the quoted
+      // label:"..." term it is placed in.
+      restoreLabel: typeof config.restoreLabel === "string"
+        ? config.restoreLabel.replace(/"/g, "").trim().slice(0, 120)
+        : "",
+      restoreAction: config.restoreAction === "archive" ? "archive" : "delete"
     };
   };
 
@@ -585,6 +593,75 @@
     "ウェブサイトに移動", "웹사이트로 이동", "前往网站", "前往網站"
   ]);
 
+  // 7.6 restore run: Gmail's own wording for the controls that move
+  // mail back to the Inbox, one entry per DELETE_LABEL_TOKENS locale,
+  // verified against Google's localized Gmail help pages (the archive
+  // article for "Move to Inbox", the delete article for "Move to" and
+  // the trash view's example destination). The direct button appears in
+  // All Mail / archive views; the Trash toolbar instead offers a
+  // "Move to" menu whose items are folder names, so all three shapes
+  // are needed. Locales whose wording could not be verified are left
+  // out on purpose: an unmatched toolbar does nothing, and mail that
+  // stays in Trash remains recoverable, which is the safe failure.
+  const MOVE_TO_INBOX_TOKENS = Object.freeze([
+    "Move to Inbox", "Mover a Recibidos",
+    "Placer dans la boîte de réception", "In Posteingang verschieben",
+    "Mover para a Caixa de entrada", "Sposta in Posta in arrivo",
+    "Naar inbox verplaatsen", "Flytta till inkorgen",
+    "Flyt til Indbakke", "Flytt til Innboksen",
+    "Przenieś do Odebranych", "Gelen Kutusuna Taşı",
+    "Поместить во входящие", "نقل إلى البريد الوارد",
+    "受信トレイに移動", "받은편지함으로 이동",
+    "移至收件箱", "移至收件匣"
+  ]);
+
+  // The Trash toolbar's "Move to" menu opener. Matched as EXACT whole
+  // text only: several locales use very short words (ja "移動", ko
+  // "이동", zh "移至") that would substring-match unrelated controls.
+  // Danish is deliberately absent: its help page words the recovery
+  // step as the full "Flyt til Indbakke", so the standalone form could
+  // not be verified.
+  const MOVE_TO_TOKENS = Object.freeze([
+    "Move to", "Mover a", "Déplacer vers", "Verschieben",
+    "Mover para", "Sposta in", "Verplaatsen naar", "Flytta till",
+    "Flytt til", "Przenieś do", "Şuraya taşı", "Переместить в",
+    "نقل إلى", "移動", "이동", "移至"
+  ]);
+
+  // The Inbox entry inside the "Move to" menu, i.e. each locale's name
+  // for the Inbox itself. Exact whole text only: a user label whose
+  // name merely contains the word must never be picked. nl keeps the
+  // older "Postvak IN" alongside the English fallback because Google's
+  // Dutch pages currently use both.
+  const INBOX_TOKENS = Object.freeze([
+    "Inbox", "Recibidos", "Boîte de réception", "Posteingang",
+    "Caixa de entrada", "Posta in arrivo", "Postvak IN",
+    "Inkorgen", "Indbakke", "Innboks", "Innboksen",
+    "Odebrane", "Gelen Kutusu", "Входящие", "البريد الوارد",
+    "受信トレイ", "받은편지함", "收件箱", "收件匣"
+  ]);
+
+  // INVERSE-SAFETY DENY-LIST. The Trash toolbar also holds "Delete
+  // forever", the one control in this flow that destroys mail past
+  // recovery. Every restore finder refuses a candidate whose label
+  // contains any of these strings, no matter how well it scores.
+  // Substring matching is deliberate here: over-matching on the deny
+  // side only skips a candidate, which is always safe. Strings come
+  // from the same localized help pages; ar carries the researched
+  // phrase plus its bare stem and ko both spacing forms, so grammar
+  // and spacing variants of the same researched wording stay covered.
+  const DELETE_FOREVER_TOKENS = Object.freeze([
+    "Delete forever", "Eliminar definitivamente",
+    "Supprimer définitivement", "Endgültig löschen",
+    "Excluir definitivamente", "Elimina definitivamente",
+    "Definitief verwijderen", "Radera permanent",
+    "Slet for evigt", "Slett for godt", "Usuń na zawsze",
+    "Kalıcı olarak sil", "Удалить навсегда",
+    "الحذف نهائيًا", "حذف نهائي",
+    "完全に削除", "영구 삭제", "영구삭제",
+    "永久删除", "永久刪除"
+  ]);
+
   // Exact whole-text matching for dialog button safety. Both the tokens
   // and the candidate text go through the same normalization (trim,
   // collapse whitespace, case-fold), so locale case quirks like the
@@ -600,6 +677,22 @@
   const isUnsubscribeLabel = buildExactTokenMatcher(UNSUBSCRIBE_TOKENS);
   const isUnsubCancelLabel = buildExactTokenMatcher(UNSUB_CANCEL_TOKENS);
   const isUnsubWebsiteLabel = buildExactTokenMatcher(UNSUB_WEBSITE_TOKENS);
+
+  const isMoveToMenuLabel = buildExactTokenMatcher(MOVE_TO_TOKENS);
+  const isInboxLabel = buildExactTokenMatcher(INBOX_TOKENS);
+
+  // Deny check for the restore finders. Substring on normalized text so
+  // a merged or suffixed label ("Delete forever (empty trash)") is
+  // still refused; see DELETE_FOREVER_TOKENS for why over-matching is
+  // fine here.
+  const DELETE_FOREVER_NORMALIZED = Object.freeze(
+    DELETE_FOREVER_TOKENS.map(normalizeControlText)
+  );
+  const isDeleteForeverLabel = (text) => {
+    const norm = normalizeControlText(text);
+    if (!norm) return false;
+    return DELETE_FOREVER_NORMALIZED.some((token) => norm.includes(token));
+  };
 
   // v3.3: throttling / temporary error tokens. 7.5 adds the major
   // locales so adaptive backoff engages off-English too. Detection-side
@@ -3923,6 +4016,440 @@
     }
   }
 
+  // =========================
+  // Restore run (7.6)
+  // =========================
+  // Every tag-before-delete cleanup labels its mail before moving it,
+  // and Gmail keeps Trash for 30 days, so a logged run is mechanically
+  // reversible: search the run's label, select everything, and drive
+  // Gmail's own move-back-to-Inbox control. That is ALL this engine
+  // does. It never deletes, archives, or marks anything; its only
+  // mutating click is the verified move-back control, and every finder
+  // below refuses "Delete forever" via the deny-list before scoring.
+
+  // Delete-mode runs sit in Trash; archive-mode runs sit outside the
+  // Inbox under the label. Both searches are pure Gmail operators plus
+  // the quoted label name (quotes inside the label are stripped by
+  // sanitizeConfig and again here for the test-facing callers).
+  function buildRestoreQuery(label, action) {
+    const clean = String(label || "").replace(/"/g, "").trim();
+    if (!clean) return "";
+    const labelTerm = `label:"${clean}"`;
+    return action === "archive"
+      ? `${labelTerm} -in:inbox`
+      : `in:trash ${labelTerm}`;
+  }
+
+  // The deny scan reads EVERY label surface, not just the first
+  // non-empty one the way getElementLabel does: a control whose
+  // aria-label reads harmlessly but whose tooltip says "Delete forever"
+  // must still be refused.
+  function hasDeleteForeverMarking(el) {
+    return (
+      isDeleteForeverLabel(getAttr(el, "aria-label")) ||
+      isDeleteForeverLabel(getAttr(el, "data-tooltip")) ||
+      isDeleteForeverLabel(getAttr(el, "title")) ||
+      isDeleteForeverLabel(getTextContent(el))
+    );
+  }
+
+  // Candidate walk shared by the two toolbar finders: toolbar-scoped
+  // buttons, minus anything inside a list row or a message body (both
+  // can carry sender-controlled or per-row text), minus anything on the
+  // deny-list. The deny check runs BEFORE any scoring so a "Delete
+  // forever" control can never win, no matter what its label also says.
+  function restoreCandidates(root) {
+    const scope = root || findToolbarRoot() || document;
+    return qsa("div[role='button'], button, span[role='button']", scope)
+      .filter((el) => !el.closest("tr[role='row']"))
+      .filter((el) => !el.closest(SELECTORS.messageBody))
+      .filter((el) => !hasDeleteForeverMarking(el));
+  }
+
+  // The direct "Move to Inbox" button (All Mail / archive views, and
+  // some Trash layouts). Exact whole-text scores highest; a label that
+  // contains the full phrase with extra words (tooltip shortcut hints)
+  // still scores. Single words never match: the tokens are the full
+  // localized phrases.
+  function findMoveToInboxButton(root) {
+    let best = null;
+    let bestScore = 0;
+    for (const el of restoreCandidates(root)) {
+      const norm = normalizeControlText(getElementLabel(el));
+      if (!norm) continue;
+      let score = 0;
+      for (const token of MOVE_TO_INBOX_TOKENS) {
+        const wanted = normalizeControlText(token);
+        if (norm === wanted) score += 5;
+        else if (norm.includes(wanted)) score += 2;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        best = el;
+      }
+    }
+    return best ? /** @type {HTMLElement} */ (best) : null;
+  }
+
+  // The Trash toolbar's "Move to" menu opener. Exact whole text only
+  // (see MOVE_TO_TOKENS for why), so a miss here just means the direct
+  // button was the only chance and the run reports honestly.
+  function findMoveToMenuButton(root) {
+    for (const el of restoreCandidates(root)) {
+      if (isMoveToMenuLabel(getElementLabel(el))) {
+        return /** @type {HTMLElement} */ (el);
+      }
+    }
+    return null;
+  }
+
+  // The Inbox entry inside the opened "Move to" menu. Exact whole text
+  // against the localized Inbox names; user labels that merely contain
+  // the word never match, and deny-listed items are refused outright.
+  function findInboxMenuItemIn(menuRoot) {
+    if (!menuRoot) return null;
+    const items = qsa(
+      "div[role='menuitem'], li[role='menuitem'], span[role='menuitem'], div[role='menuitemcheckbox']",
+      menuRoot
+    );
+    for (const el of items) {
+      if (hasDeleteForeverMarking(el)) continue;
+      if (isInboxLabel(getElementLabel(el))) {
+        return /** @type {HTMLElement} */ (el);
+      }
+    }
+    return null;
+  }
+
+  // Drive whichever move-back control this view offers: the direct
+  // button first, then the "Move to" menu with its Inbox item. Finding
+  // neither does nothing and says so; the selection is left alone and
+  // the mail stays where it was, still recoverable.
+  async function driveMoveBackControl() {
+    const direct = findMoveToInboxButton();
+    if (direct) {
+      safeSend({ phase: "debug", detail: `Clicked move-to-inbox button: "${describeButton(direct)}"` });
+      fireMouseSequence(direct);
+      return { clicked: true, how: "direct" };
+    }
+
+    const opener = findMoveToMenuButton();
+    if (!opener) {
+      return { clicked: false, reason: "no-restore-control" };
+    }
+    fireMouseSequence(opener);
+    const menu = await waitFor(findVisibleMenu, {
+      timeout: TIMING.LABEL_DIALOG_TIMEOUT,
+      interval: 80,
+      description: "move-to menu"
+    });
+    const item = menu ? findInboxMenuItemIn(menu) : null;
+    if (!item) {
+      // Close the menu we opened; nothing was clicked inside it.
+      dispatchKeyEvent("Escape", "Escape");
+      return { clicked: false, reason: menu ? "no-inbox-item" : "no-restore-control" };
+    }
+    safeSend({ phase: "debug", detail: `Clicked Inbox in the move-to menu: "${describeButton(item)}"` });
+    fireMouseSequence(item);
+    return { clicked: true, how: "menu" };
+  }
+
+  // One page-level restore pass: select everything (including the bulk
+  // "select all conversations that match" banner), drive the move-back
+  // control, confirm the bulk dialog if Gmail asks, and verify the list
+  // actually changed. Mirrors actOnCurrentPageIfAny's counting so the
+  // reported number means the same thing cleanup counts mean.
+  async function restoreCurrentPage() {
+    if (hasNoResults()) {
+      return { moved: false, count: 0, reason: "no-results" };
+    }
+
+    await waitFor(findToolbarRoot, {
+      timeout: TIMING.WAIT_TOOLBAR_TIMEOUT,
+      description: "toolbar"
+    });
+
+    const checkboxResult = await clickMasterCheckbox();
+    if (!checkboxResult.success) {
+      if (checkboxResult.reason === "not-found" && (getGridRowCount() ?? 0) > 0) {
+        throw new GmailLayoutError(layoutChangedMessage(
+          "the run's mail is on screen but the select-all checkbox is missing, so nothing can be selected"
+        ));
+      }
+      return { moved: false, count: 0, reason: `selection: ${checkboxResult.reason}` };
+    }
+
+    await sleep(TIMING.CHECKBOX_SETTLE_DELAY);
+
+    const selectAllResult = await clickSelectAllConversations();
+    const bulkAllSelected = selectAllResult.success &&
+      (selectAllResult.reason === "all-selected-indicator" || findAllConversationsSelectedIndicator());
+
+    const selectedCount = extractSelectedCount();
+    const rowsBefore = getGridRowCount();
+    const totalBefore = bulkAllSelected ? estimateTotalResults() : null;
+
+    const driveResult = await driveMoveBackControl();
+    if (!driveResult.clicked) {
+      return { moved: false, count: 0, reason: driveResult.reason };
+    }
+
+    if (selectAllResult.success) {
+      await handleBulkConfirmation();
+    }
+
+    await sleep(TIMING.POST_ACTION_DELAY_MS);
+
+    const verification = await waitForActionProcessing();
+    if (!verification.ok) {
+      const rl = findRateLimitText();
+      if (rl) throw new RateLimitError(rl);
+      throw new TimeoutError("Restore processing timed out (Gmail did not refresh the result list).");
+    }
+
+    let movedCount;
+    if (bulkAllSelected) {
+      movedCount = (selectedCount && selectedCount > 0)
+        ? selectedCount
+        : (totalBefore || rowsBefore || 0);
+    } else if (selectedCount !== null && selectedCount !== undefined && selectedCount > 0) {
+      movedCount = selectedCount;
+    } else if (verification.signal === "no-results" && rowsBefore !== null && rowsBefore !== undefined) {
+      movedCount = rowsBefore;
+    } else if (
+      verification.startRowCount !== null && verification.startRowCount !== undefined &&
+      verification.endRowCount !== null && verification.endRowCount !== undefined &&
+      verification.startRowCount > verification.endRowCount
+    ) {
+      movedCount = verification.startRowCount - verification.endRowCount;
+    } else {
+      movedCount = 0;
+    }
+
+    return { moved: true, count: movedCount };
+  }
+
+  // A stop that leaves labeled mail behind, phrased in plain words for
+  // the recovery log page. The mail is untouched and stays recoverable,
+  // so every one of these is inconvenient, never dangerous.
+  function restoreStopMessage(reason, action) {
+    const place = action === "archive" ? "All Mail" : "Trash";
+    if (reason === "no-restore-control" || reason === "no-inbox-item") {
+      return {
+        status: "Could not find Gmail's Move to Inbox control.",
+        detail: `Nothing was changed in this pass. The mail stays in ${place} and can still be moved back by hand.`
+      };
+    }
+    if (reason === "rate-limited" || reason === "timeout") {
+      return {
+        status: "Gmail stopped responding to the restore.",
+        detail: `The remaining mail stays in ${place}. Run Restore again in a few minutes to pick up where it left off.`
+      };
+    }
+    return {
+      status: "Restore stopped early.",
+      detail: `Selection failed (${reason}). The remaining mail stays in ${place}.`
+    };
+  }
+
+  async function restoreRun() {
+    if (RUNNING) {
+      debugLog("Run already in progress, ignoring restore request");
+      return;
+    }
+    RUNNING = true;
+    CANCELLED = false;
+    const runStartedAt = Date.now();
+    const originHash = location.hash;
+    const action = CONFIG.restoreAction;
+    let restoredTotal = 0;
+    let completedClean = false;
+    let stopReason = null;
+
+    try {
+      if (!isGmailTab()) {
+        alert("Gmail Cleaner: please run this from a Gmail tab.");
+        return;
+      }
+
+      const query = buildRestoreQuery(CONFIG.restoreLabel, action);
+      if (!query) {
+        safeSendImmediate({
+          runKind: "restoreRun",
+          phase: "error",
+          status: "Restore could not start.",
+          detail: "This run has no label recorded, so there is nothing safe to search for.",
+          done: true,
+          percent: 100,
+          restoredCount: 0
+        });
+        return;
+      }
+
+      safeSendImmediate({
+        runKind: "restoreRun",
+        phase: "starting",
+        status: "Restoring this run...",
+        detail: query,
+        percent: 0
+      });
+
+      let pass = 0;
+      let retries = 0;
+      while (pass < TIMING.PASS_CAP) {
+        if (CANCELLED) throw new CancellationError("Restore run cancelled by user");
+
+        try {
+          await openSearch(query);
+
+          if (hasNoResults()) {
+            completedClean = true;
+            break;
+          }
+
+          safeSendImmediate({
+            runKind: "restoreRun",
+            phase: "running",
+            status: `Restoring (pass ${pass + 1})...`,
+            detail: restoredTotal > 0
+              ? `${restoredTotal.toLocaleString()} moved back to Inbox so far.`
+              : "Selecting the run's mail.",
+            percent: Math.min(90, 10 + pass * 20)
+          });
+
+          const result = await restoreCurrentPage();
+
+          if (!result.moved) {
+            // The list can empty between the search settling and the
+            // pass starting; that is a finished restore, not a stop.
+            if (result.reason === "no-results") {
+              completedClean = true;
+            } else {
+              stopReason = result.reason;
+            }
+            break;
+          }
+
+          restoredTotal += result.count;
+          pass++;
+          retries = 0;
+          deescalateBackoff();
+          await sleep(TIMING.BETWEEN_PASS_SLEEP_MS);
+        } catch (e) {
+          if (e instanceof CancellationError || e instanceof GmailLayoutError) throw e;
+          const isRL = e instanceof RateLimitError;
+          const isTO = e instanceof TimeoutError;
+          if (!isRL && !isTO) throw e;
+
+          const elapsedMs = Date.now() - runStartedAt;
+          if (elapsedMs > GUARDRAILS.QUERY_WALL_TIME_BUDGET_MS ||
+              retries >= TIMING.RATE_LIMIT_MAX_RETRIES_PER_PASS) {
+            stopReason = isRL ? "rate-limited" : "timeout";
+            break;
+          }
+          retries++;
+          safeSend({
+            phase: "debug",
+            detail: `Restore: retry ${retries}/${TIMING.RATE_LIMIT_MAX_RETRIES_PER_PASS} after ${isRL ? "rate limit" : "timeout"}`
+          });
+          await backoff(isRL ? "rate-limited" : "timeout", e?.message || String(e));
+        }
+      }
+
+      // Only a clean completion (the search came back empty) marks the
+      // log entries restored: a partial pass leaves labeled mail behind
+      // that a later Restore should still be offered for. Re-running is
+      // idempotent either way because the search only matches mail that
+      // has not been moved back yet.
+      if (completedClean && restoredTotal > 0 && hasChromeRuntime()) {
+        try {
+          chrome.runtime.sendMessage({
+            type: "gmailCleanerRecordRestore",
+            data: {
+              tagLabel: CONFIG.restoreLabel,
+              action,
+              count: restoredTotal,
+              startedAt: runStartedAt
+            }
+          });
+        } catch (e) {
+          debugLog("Failed to record restore outcome", { error: e?.message });
+        }
+      }
+
+      if (!completedClean) {
+        const stop = restoreStopMessage(stopReason || "unknown", action);
+        safeSendImmediate({
+          runKind: "restoreRun",
+          phase: "error",
+          status: stop.status,
+          detail: restoredTotal > 0
+            ? `${restoredTotal.toLocaleString()} conversation${restoredTotal === 1 ? " was" : "s were"} moved back to Inbox first. ${stop.detail}`
+            : stop.detail,
+          done: true,
+          percent: 100,
+          restoredCount: restoredTotal
+        });
+        return;
+      }
+
+      safeSendImmediate({
+        runKind: "restoreRun",
+        phase: "done",
+        status: restoredTotal > 0
+          ? `${restoredTotal.toLocaleString()} conversation${restoredTotal === 1 ? "" : "s"} moved back to Inbox.`
+          : "Nothing left to restore for this run.",
+        detail: restoredTotal > 0
+          ? "The mail is back in your Inbox with the run's label still on it."
+          : "The run's label matched no mail: it was already restored, or Gmail has emptied it from Trash.",
+        percent: 100,
+        done: true,
+        restoredCount: restoredTotal
+      });
+    } catch (e) {
+      if (e instanceof CancellationError) {
+        safeSendImmediate({
+          runKind: "restoreRun",
+          phase: "cancelled",
+          status: "Restore cancelled.",
+          detail: restoredTotal > 0
+            ? `${restoredTotal.toLocaleString()} conversation${restoredTotal === 1 ? " was" : "s were"} already moved back to Inbox. Run Restore again for the rest.`
+            : "Stopped by user. Nothing was moved.",
+          done: true,
+          percent: 100,
+          restoredCount: restoredTotal
+        });
+      } else {
+        logError(e, "restore run");
+        const errorPayload = {
+          runKind: "restoreRun",
+          phase: "error",
+          status: "Restore failed.",
+          detail: e instanceof Error ? e.message : String(e),
+          done: true,
+          percent: 100,
+          restoredCount: restoredTotal
+        };
+        if (e instanceof GmailLayoutError) errorPayload.code = e.code;
+        safeSendImmediate(errorPayload);
+      }
+    } finally {
+      RUNNING = false;
+      try {
+        if (typeof window !== "undefined") window.GCC_ATTACHED = false;
+      } catch {}
+      try {
+        if (originHash && location.hash !== originHash) location.hash = originHash;
+      } catch {}
+    }
+  }
+
+  function startRestoreRun() {
+    if (!RUNNING) {
+      restoreRun().catch((e) => logError(e, "startRestoreRun"));
+    }
+  }
+
   async function main() {
     if (RUNNING) {
       debugLog("Run already in progress, ignoring start request");
@@ -4178,7 +4705,16 @@
       buildSubscriptionScanQueries,
       STORAGE_XRAY,
       foldStorageSample,
-      estimateMbPerEmail
+      estimateMbPerEmail,
+      // 7.6 restore fixtures
+      buildRestoreQuery,
+      isDeleteForeverLabel,
+      hasDeleteForeverMarking,
+      findMoveToInboxButton,
+      findMoveToMenuButton,
+      findInboxMenuItemIn,
+      driveMoveBackControl,
+      restoreCurrentPage
     };
   }
 
@@ -4191,6 +4727,8 @@
     startUnsubscribeRun(CONFIG.unsubSenders);
   } else if (CONFIG.runKind === "storageScan") {
     startStorageScan();
+  } else if (CONFIG.runKind === "restoreRun") {
+    startRestoreRun();
   } else {
     startMain();
   }
