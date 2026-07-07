@@ -3,6 +3,37 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 7.4.0 - Ratings and trust
+
+### Added
+- **Your last cleanup greets you on the next open.** The popup closes
+  itself when a run starts, so the 7.3 result screen almost never had
+  an audience. Now, if a real (never dry-run) cleanup finished while
+  the popup was closed, the next open replays it through the same
+  result view, marked with a small "Recap" note and how long ago it
+  finished. Each run shows once; the back button returns to the form
+  as usual, and an in-flight run always takes priority over a recap.
+  The earned rating ask (200+ emails or 100+ MB) applies to recaps
+  exactly as it does to live results, so it finally has a chance to
+  fire.
+- **The cleaner now says so when Gmail changes its layout.** Gmail DOM
+  churn is this extension's recurring failure mode. Two hard signals
+  (search results on screen but no select-all checkbox anywhere, and
+  tag-before-delete with no way into the label controls) now stop the
+  run with a plain-words explanation: Gmail changed its layout, nothing
+  was touched beyond what already completed, and an update usually
+  follows within days. Before, the first read as a wrong-looking zero
+  count and the second silently deleted without the promised tag
+  safety net. Finding zero matches for a rule stays perfectly normal
+  and never trips this. The popup points these errors at Diagnostics.
+- **Gmail locale audit.** Every selector and text match the engine uses
+  is now classified in `docs/gmail-locale-audit.md`: the destructive
+  path (find, select, delete/archive) is structure-first and works off
+  English, and the genuinely English-only spots (unsubscribe control
+  text, rate-limit phrases, archive button tokens) are documented as
+  7.5 work. New fixture tests pin the language-independent paths so
+  they stay that way.
+
 ## 7.3.0 - Tabbed popup
 
 ### Changed
