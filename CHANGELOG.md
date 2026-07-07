@@ -3,6 +3,49 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 7.5.0 - Locale support
+
+### Fixed
+- **Bulk unsubscribe now works on non-English Gmail.** The engine used
+  to demand the literal English word "Unsubscribe" before it would
+  touch Gmail's header unsubscribe control, so the paid feature
+  silently failed on every other UI language. The control is now
+  trusted by its structure (the class Gmail renders on it in every
+  locale), and the confirmation dialog's buttons are recognized
+  through per-language tables verified against Google's own localized
+  help pages (Spanish "Darse de baja", German "Abbestellen", Japanese
+  "登録解除", and fourteen more). Matching is exact whole text only:
+  an "Unsubscribe and block" style button never passes as a plain
+  confirm, an unrecognized dialog is closed without clicking anything,
+  and unsubscribe links inside message bodies stay off-limits exactly
+  as before.
+- **Throttling is now recognized in the major locales.** Gmail's "try
+  again later" style banners were only detected in English, so a
+  throttled non-English run read as a timeout instead of engaging the
+  adaptive backoff. The detector now carries the equivalent phrases
+  for the same languages the rest of the engine speaks.
+
+### Changed
+- **Archive and label buttons are found in the same languages as
+  delete.** Those two token tables covered six and eight languages
+  against delete's seventeen; they now match delete's locale set, so
+  archive-mode cleanups and tag-before-delete work wherever deletes
+  already did.
+- **The subscription scan searches in your Gmail language.** The scan's
+  body-text discovery query used the English word "unsubscribe", which
+  non-English newsletters rarely contain. It now picks the term that
+  fits the mailbox's UI language (one term per run, English fallback)
+  and keeps the two category searches unchanged.
+
+### Added
+- **Diagnostics now shows the last layout-change stop.** 7.4 taught the
+  cleaner to stop and say so when Gmail changes its layout, and the
+  popup pointed at Diagnostics, but Diagnostics had nothing to show.
+  The extension now keeps a small local record of the most recent
+  layout-change stop and Diagnostics renders it as a card: how long
+  ago it happened, what the run reported, and the reminder that
+  nothing beyond the already-reported work was touched.
+
 ## 7.4.0 - Ratings and trust
 
 ### Added
