@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "7.5.0";
+  const GCC_CONTENT_VERSION = "7.6.0";
 
   // =========================
   // Timing & behavior constants
