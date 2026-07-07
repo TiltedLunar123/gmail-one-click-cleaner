@@ -215,6 +215,108 @@ describe("contentScript engine internals", () => {
     });
   });
 
+  describe("gmail layout-change detection (7.4)", () => {
+    // The two hard signals abort with a GmailLayoutError that rides the
+    // existing phase:"error" message (plus the additive code field).
+    // Empty result sets are NORMAL and must never trip either one.
+
+    const RESULTS_NO_CHECKBOXES = `
+      <div role="main">
+        <div gh="mtb"><div role="button" aria-label="Delete"></div></div>
+        <table role="grid">
+          <tr role="row"><td role="gridcell">Old promo one</td></tr>
+          <tr role="row"><td role="gridcell">Old promo two</td></tr>
+        </table>
+      </div>`;
+
+    test("(a) results on screen but no selection control anywhere aborts with the layout code", async () => {
+      const I = loadEngine();
+      document.body.innerHTML = RESULTS_NO_CHECKBOXES;
+      let thrown = null;
+      try {
+        await I.actOnCurrentPageIfAny(null);
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown).not.toBeNull();
+      expect(thrown.name).toBe("GmailLayoutError");
+      expect(thrown.code).toBe("gmail_layout_changed");
+      expect(thrown.message).toContain("Gmail changed its layout");
+      expect(thrown.message).toContain("Nothing was touched beyond what already completed");
+      expect(thrown.message).toContain("An update usually follows within days");
+    });
+
+    test("(a) building block: rows without checkboxes report the checkbox as not-found", async () => {
+      const I = loadEngine();
+      document.body.innerHTML = RESULTS_NO_CHECKBOXES;
+      const result = await I.clickMasterCheckbox();
+      expect(result).toEqual({ success: false, reason: "not-found" });
+      expect(I.getGridRowCount()).toBe(2);
+    });
+
+    test("zero matches is normal: an empty grid returns 'No results', no error", async () => {
+      const I = loadEngine();
+      document.body.innerHTML = `
+        <div role="main">
+          <div gh="mtb"><div role="button" aria-label="Delete"></div></div>
+          <table role="grid"></table>
+        </div>`;
+      const result = await I.actOnCurrentPageIfAny(null);
+      expect(result).toEqual({ deleted: false, count: 0, reason: "No results" });
+      expect(I.hasNoResults()).toBe(true);
+      expect(I.getGridRowCount()).toBe(0);
+    });
+
+    test("zero matches via Gmail's empty-state cell is normal too", () => {
+      const I = loadEngine();
+      document.body.innerHTML = `
+        <div role="main"><table><tr><td class="TC">Nothing here</td></tr></table></div>`;
+      expect(I.hasNoResults()).toBe(true);
+    });
+
+    test("(b) no Labels button, no More menu, dead hotkey aborts with the layout code", async () => {
+      const I = loadEngine();
+      document.body.innerHTML = `
+        <div role="main">
+          <div gh="mtb">
+            <div role="button" aria-label="Delete"></div>
+            <div role="button" aria-label="Archive"></div>
+          </div>
+        </div>`;
+      let thrown = null;
+      try {
+        await I.openLabelInput();
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown).not.toBeNull();
+      expect(thrown.name).toBe("GmailLayoutError");
+      expect(thrown.code).toBe("gmail_layout_changed");
+      expect(thrown.message).toContain("More email options");
+    });
+
+    test("(b) a present More button that fails to open stays a soft null, not an error", async () => {
+      const I = loadEngine();
+      document.body.innerHTML = `
+        <div role="main">
+          <div gh="mtb">
+            <div role="button" aria-label="More email options" aria-haspopup="true"></div>
+          </div>
+        </div>`;
+      await expect(I.openLabelInput()).resolves.toBeNull();
+    });
+
+    test("(b) the hotkey fallback finding an input suppresses the error", async () => {
+      const I = loadEngine();
+      document.body.innerHTML = `
+        <div role="main"><div gh="mtb"></div></div>
+        <div role="dialog"><input type="text" aria-label="Label as" /></div>`;
+      const input = await I.openLabelInput();
+      expect(input).not.toBeNull();
+      expect(input.getAttribute("aria-label")).toBe("Label as");
+    });
+  });
+
   describe("buildFinalStats popup/notification contract", () => {
     test("includes the fields the popup and SW read on completion", () => {
       const I = loadEngine();

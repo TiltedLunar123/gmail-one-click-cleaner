@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "7.3.0";
+  const GCC_CONTENT_VERSION = "7.4.0";
 
   // =========================
   // Timing & behavior constants
@@ -136,6 +136,26 @@
       this.name = "RateLimitError";
     }
   }
+
+  // 7.4: Gmail moved or removed a control the engine cannot work
+  // without. Raised only on the hard signals (results on screen but no
+  // selection control; tag-before-delete with no way into the label
+  // dialog), never on empty result sets, so the run ends with a
+  // specific explanation instead of wrong-looking zero counts or a
+  // silent loss of the tag safety net. The code field rides the
+  // existing phase:"error" progress message as an optional extra.
+  class GmailLayoutError extends Error {
+    constructor(message) {
+      super(message);
+      this.name = "GmailLayoutError";
+      this.code = "gmail_layout_changed";
+    }
+  }
+
+  const layoutChangedMessage = (what) =>
+    `Gmail changed its layout: ${what}. ` +
+    "Nothing was touched beyond what already completed. " +
+    "An update usually follows within days.";
 
   const hasChromeRuntime = () => {
     try {
@@ -2149,7 +2169,19 @@
     // Last resort: Gmail's "Label as" hotkey. Only fires if the user has
     // keyboard shortcuts enabled, but it's harmless otherwise.
     dispatchKeyEvent("l", "KeyL");
-    return (await getInput()) || null;
+    const hotkeyInput = await getInput();
+    if (hotkeyInput) return hotkeyInput;
+
+    // 7.4 hard layout signal: no Labels button, no "More email options"
+    // overflow menu, and the hotkey went nowhere. Tag-before-delete has
+    // no way in at all, which reads as Gmail restructuring its toolbar,
+    // not a one-off flake (those leave the More button findable).
+    if (!direct && !more) {
+      throw new GmailLayoutError(layoutChangedMessage(
+        "the More email options menu is missing, so mail cannot be tagged before it is moved"
+      ));
+    }
+    return null;
   }
 
   async function applyTagLabel(labelName) {
@@ -2399,6 +2431,15 @@
     if (!checkboxResult.success) {
       debugLog("Master checkbox click failed", { reason: checkboxResult.reason });
       safeSend({ phase: "debug", detail: `Checkbox click failed: ${checkboxResult.reason}` });
+      // 7.4 hard layout signal: result rows are on screen but neither
+      // the per-row checkboxes nor the master select-all exist. That is
+      // not "nothing matched" (hasNoResults returned above for that);
+      // it is Gmail's list markup changing under us.
+      if (checkboxResult.reason === "not-found" && (getGridRowCount() ?? 0) > 0) {
+        throw new GmailLayoutError(layoutChangedMessage(
+          "search results are on screen but the select-all checkbox is missing, so nothing can be selected"
+        ));
+      }
       return { deleted: false, count: 0, reason: `Checkbox: ${checkboxResult.reason}` };
     }
 
@@ -2485,6 +2526,11 @@
         const tagged = await applyTagLabel(tagLabel);
         taggingFailed = !tagged;
       } catch (e) {
+        // 7.4: a layout-change signal is not a skippable tag hiccup;
+        // deleting without the promised tag safety net is exactly the
+        // silent breakage it exists to stop. Let it end the run before
+        // this selection is acted on.
+        if (e instanceof GmailLayoutError) throw e;
         taggingFailed = true;
         safeSend({
           phase: "tag",
@@ -3865,13 +3911,18 @@
 
         logError(e, "main run");
 
-        safeSendImmediate({
+        const errorPayload = {
           phase: "error",
           status: "Error occurred.",
           detail: errorMessage,
           done: true,
           percent: 100
-        });
+        };
+        // 7.4: optional machine-readable marker so the popup can point
+        // layout-change failures at Diagnostics. Additive only; the
+        // message shape is otherwise unchanged.
+        if (e instanceof GmailLayoutError) errorPayload.code = e.code;
+        safeSendImmediate(errorPayload);
 
         debugLog("Run errored", { message: errorMessage });
       }
@@ -3931,6 +3982,14 @@
       findMoreOptionsButton,
       findLabelMenuItemIn,
       findAllConversationsSelectedIndicator,
+      // 7.4 layout-change detection + locale-audit fixtures
+      GmailLayoutError,
+      clickMasterCheckbox,
+      openLabelInput,
+      actOnCurrentPageIfAny,
+      hasNoResults,
+      getGridRowCount,
+      sampleListRows,
       queryHasDangerousToken,
       sanitizeProtectKeywords,
       buildSubjectExclusion,
