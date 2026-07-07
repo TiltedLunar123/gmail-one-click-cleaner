@@ -341,6 +341,11 @@
         withStorageLock(() => recordUndoEntry(msg.data)).then(() => sendResponse({ ok: true }));
         return true;
 
+      // 7.6: a finished restore run marks the log entries it emptied.
+      case "gmailCleanerRecordRestore":
+        withStorageLock(() => recordRestoreOutcome(msg.data)).then(() => sendResponse({ ok: true }));
+        return true;
+
       case "gmailCleanerGetUndoLog":
         getUndoLog().then(log => sendResponse({ ok: true, log }));
         return true;
@@ -905,6 +910,39 @@
       await chrome.storage.local.set({ [STORAGE_KEYS.UNDO_LOG]: log });
     } catch (e) {
       console.error("[GCC SW] recordUndoEntry failed:", e);
+    }
+  }
+
+  // 7.6: a restore run that finished clean (its label search came back
+  // empty) stamps restoredAt on every entry it covered. Restoring by
+  // label moves back ALL trash/archive mail carrying that label, so
+  // every same-label same-mode entry recorded before the restore
+  // started is covered by it; entries recorded afterwards belong to a
+  // newer run and stay restorable. Additive field only: nothing else
+  // about the entry shape changes.
+  async function recordRestoreOutcome(data) {
+    const tagLabel = String(data?.tagLabel || "").trim();
+    const action = data?.action === "archive" ? "archive" : "delete";
+    const count = Math.max(0, Math.round(Number(data?.count) || 0));
+    const startedAt = Number(data?.startedAt) || Date.now();
+    if (!tagLabel || count <= 0) return;
+    try {
+      const result = await chrome.storage.local.get(STORAGE_KEYS.UNDO_LOG);
+      const log = result?.[STORAGE_KEYS.UNDO_LOG] || [];
+      let touched = 0;
+      for (const entry of log) {
+        if (!entry || entry.restoredAt) continue;
+        if (entry.tagLabel !== tagLabel) continue;
+        if ((entry.action || "delete") !== action) continue;
+        if ((Number(entry.timestamp) || 0) > startedAt) continue;
+        entry.restoredAt = Date.now();
+        touched++;
+      }
+      if (touched > 0) {
+        await chrome.storage.local.set({ [STORAGE_KEYS.UNDO_LOG]: log });
+      }
+    } catch (e) {
+      console.error("[GCC SW] recordRestoreOutcome failed:", e);
     }
   }
 

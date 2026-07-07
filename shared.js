@@ -1011,6 +1011,52 @@ const GCC = (() => {
   });
 
   // =========================
+  // Restore eligibility (7.6)
+  // =========================
+  // Pure policy behind the recovery log's Restore button. A run can be
+  // restored only when it left a label to search for: the engine tags
+  // mail before moving it, so the label is the one identifier that
+  // cannot drag unrelated mail back (sender-based guessing could).
+  // Delete-mode runs additionally race Gmail's ~30-day Trash retention.
+  // Entries missing any needed field simply do not offer restore.
+
+  const RESTORE_TRASH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
+  const restoreEligibility = (entry, now = Date.now()) => {
+    if (!entry || typeof entry !== "object") {
+      return { eligible: false, restored: false, reason: "This entry cannot be restored." };
+    }
+    if (entry.restoredAt) {
+      return { eligible: false, restored: true, reason: "Already restored." };
+    }
+    const label = typeof entry.tagLabel === "string" ? entry.tagLabel.trim() : "";
+    // taggingFailed must be a recorded false: an entry that never said
+    // whether its label actually landed offers no safe search target.
+    if (!label || entry.taggingFailed !== false) {
+      return {
+        eligible: false,
+        restored: false,
+        reason: "No label was applied on this run, so there is nothing safe to search for."
+      };
+    }
+    const action = entry.action === "archive" ? "archive" : "delete";
+    const ts = Number(entry.timestamp) || 0;
+    if (action === "delete" && (!ts || now - ts > RESTORE_TRASH_WINDOW_MS)) {
+      return {
+        eligible: false,
+        restored: false,
+        reason: "Gmail keeps Trash for about 30 days and this run is older than that."
+      };
+    }
+    return { eligible: true, restored: false, reason: "", label, action };
+  };
+
+  const restore = Object.freeze({
+    TRASH_WINDOW_MS: RESTORE_TRASH_WINDOW_MS,
+    eligibility: restoreEligibility
+  });
+
+  // =========================
   // Accessible tablist (7.3)
   // =========================
   // Minimal WAI-ARIA tabs behavior: roving tabindex, arrow-key
@@ -1148,6 +1194,9 @@ const GCC = (() => {
 
     // New in 7.3
     popupUi,
-    tablist
+    tablist,
+
+    // New in 7.6
+    restore
   });
 })();
