@@ -955,14 +955,59 @@ const GCC = (() => {
     return `${who} holding at least ${formatMb(mb)}. Pro purges the ones you pick for $5.`;
   };
 
+  // 7.4: post-run recap. The popup closes itself when a run starts, so
+  // most runs finish with nobody watching; on the next open the newest
+  // unseen real (non dry-run) history entry is replayed through the
+  // result view, once. The "seen" marker is a local timestamp: an entry
+  // counts as unseen only while it is newer than the marker.
+  //
+  // The marker is stamped slightly ahead of "now" because the history
+  // entry for a live-finished run is written by the service worker a
+  // beat AFTER the popup's done handler fires; without the skew that
+  // same run would come back as a recap on the next open. Nothing real
+  // can start and finish inside the skew window, so it hides no runs.
+  const RECAP_SEEN_SKEW_MS = 5000;
+
+  const recapSeenMarker = (now) => (Number(now) || 0) + RECAP_SEEN_SKEW_MS;
+
+  const pickRecapEntry = (history, lastSeenTs) => {
+    if (!Array.isArray(history)) return null;
+    const seen = Number(lastSeenTs) || 0;
+    let newest = null;
+    for (const entry of history) {
+      if (!entry || typeof entry !== "object" || entry.dryRun) continue;
+      const ts = Number(entry.timestamp) || 0;
+      if (ts <= seen) continue;
+      if (!newest || ts > (Number(newest.timestamp) || 0)) newest = entry;
+    }
+    return newest;
+  };
+
+  // History entries carry deleted/archived counts but not the run's
+  // action; a run books everything under one of the two, so archived
+  // hits with zero deletions read as an archive run.
+  const recapAction = (entry) => {
+    const archived = Number(entry?.archived) || 0;
+    const deleted = Number(entry?.deleted) || 0;
+    return archived > 0 && deleted === 0 ? "archive" : "trash";
+  };
+
+  const recapCleanedCount = (entry) =>
+    (Number(entry?.deleted) || 0) + (Number(entry?.archived) || 0);
+
   const popupUi = Object.freeze({
     RATING_MIN_CLEANED,
     RATING_MIN_FREED_MB,
+    RECAP_SEEN_SKEW_MS,
     pickBanner,
     ratingRunQualifies,
     reassuranceOpen,
     subsUpsellLine,
-    xrayUpsellLine
+    xrayUpsellLine,
+    pickRecapEntry,
+    recapSeenMarker,
+    recapAction,
+    recapCleanedCount
   });
 
   // =========================

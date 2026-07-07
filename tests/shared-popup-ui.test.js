@@ -114,6 +114,86 @@ describe("GCC.popupUi.subsUpsellLine", () => {
   });
 });
 
+describe("GCC.popupUi.pickRecapEntry (7.4 post-run recap)", () => {
+  const entry = (timestamp, extra = {}) =>
+    ({ timestamp, deleted: 10, archived: 0, freedMb: 5, dryRun: false, ...extra });
+
+  test("picks the newest real entry newer than the seen marker", () => {
+    const history = [entry(3000), entry(5000), entry(4000)];
+    expect(UI.pickRecapEntry(history, 2000).timestamp).toBe(5000);
+  });
+
+  test("entries at or before the marker are already seen", () => {
+    const history = [entry(5000)];
+    expect(UI.pickRecapEntry(history, 5000)).toBeNull();
+    expect(UI.pickRecapEntry(history, 6000)).toBeNull();
+    expect(UI.pickRecapEntry(history, 4999).timestamp).toBe(5000);
+  });
+
+  test("dry runs never produce a recap, even when newest", () => {
+    const history = [entry(9000, { dryRun: true }), entry(5000)];
+    expect(UI.pickRecapEntry(history, 0).timestamp).toBe(5000);
+    expect(UI.pickRecapEntry([entry(9000, { dryRun: true })], 0)).toBeNull();
+  });
+
+  test("no marker yet means everything real is unseen", () => {
+    expect(UI.pickRecapEntry([entry(1000)], undefined).timestamp).toBe(1000);
+    expect(UI.pickRecapEntry([entry(1000)], null).timestamp).toBe(1000);
+  });
+
+  test("garbage input yields no recap", () => {
+    expect(UI.pickRecapEntry(undefined, 0)).toBeNull();
+    expect(UI.pickRecapEntry("nope", 0)).toBeNull();
+    expect(UI.pickRecapEntry([null, "x", { dryRun: false }], 0)).toBeNull();
+  });
+});
+
+describe("GCC.popupUi.recapSeenMarker (marker update rule)", () => {
+  test("stamps ahead of now by the skew so the in-flight history write is covered", () => {
+    expect(UI.RECAP_SEEN_SKEW_MS).toBe(5000);
+    expect(UI.recapSeenMarker(100000)).toBe(100000 + UI.RECAP_SEEN_SKEW_MS);
+  });
+
+  test("garbage input degrades to the bare skew, never NaN", () => {
+    expect(UI.recapSeenMarker(undefined)).toBe(UI.RECAP_SEEN_SKEW_MS);
+    expect(UI.recapSeenMarker(NaN)).toBe(UI.RECAP_SEEN_SKEW_MS);
+  });
+
+  test("a marker stamped at done-time hides that run's own history entry", () => {
+    // The SW writes the entry a beat after the popup's done handler.
+    const doneAt = 50000;
+    const marker = UI.recapSeenMarker(doneAt);
+    const lateEntry = { timestamp: doneAt + 40, deleted: 300, archived: 0, freedMb: 120, dryRun: false };
+    expect(UI.pickRecapEntry([lateEntry], marker)).toBeNull();
+  });
+});
+
+describe("GCC.popupUi.recapAction / recapCleanedCount", () => {
+  test("archive-only entries read as archive, everything else as trash", () => {
+    expect(UI.recapAction({ deleted: 0, archived: 12 })).toBe("archive");
+    expect(UI.recapAction({ deleted: 12, archived: 0 })).toBe("trash");
+    expect(UI.recapAction({ deleted: 3, archived: 9 })).toBe("trash");
+    expect(UI.recapAction({ deleted: 0, archived: 0 })).toBe("trash");
+    expect(UI.recapAction(undefined)).toBe("trash");
+  });
+
+  test("cleaned count is deleted plus archived, garbage-safe", () => {
+    expect(UI.recapCleanedCount({ deleted: 150, archived: 60 })).toBe(210);
+    expect(UI.recapCleanedCount({})).toBe(0);
+    expect(UI.recapCleanedCount(undefined)).toBe(0);
+    expect(UI.recapCleanedCount({ deleted: "x", archived: 4 })).toBe(4);
+  });
+
+  test("a recap entry feeds the same rating gate as a live run", () => {
+    const entry = { timestamp: 1, deleted: 150, archived: 60, freedMb: 10, dryRun: false };
+    expect(UI.ratingRunQualifies({
+      dryRun: entry.dryRun,
+      cleaned: UI.recapCleanedCount(entry),
+      freedMb: entry.freedMb
+    })).toBe(true);
+  });
+});
+
 describe("GCC.popupUi.xrayUpsellLine", () => {
   test("static fallback before any scan", () => {
     const line = UI.xrayUpsellLine(0, 0);
