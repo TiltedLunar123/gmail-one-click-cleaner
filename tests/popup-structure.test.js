@@ -32,6 +32,8 @@ const POPUP_JS_IDS = [
   "openProgressBtn", "resultSummary", "resultCount", "resultSize",
   "successCtas", "ratingPrompt", "ratingDismiss", "ratingBtn", "rateBtn",
   "shareBtn", "srStatus",
+  // 7.4 post-run recap
+  "recapNote",
   // chrome
   "toastContainer", "accountSelector", "wlSuggestions", "versionBadge",
   "openOptions", "openDiagnostics", "openStats", "themeSwitcher",
@@ -129,6 +131,15 @@ describe("popup.html: nodes landed in the right containers", () => {
     });
     expect(byId("cleanResult").hasAttribute("hidden")).toBe(true);
     expect(byId("cleanForm").hasAttribute("hidden")).toBe(false);
+  });
+
+  test("the recap note sits inside the result region and ships hidden", () => {
+    // Inside #resultSummary (the role=region screen readers announce),
+    // which itself lives inside #cleanResult.
+    expect(within("recapNote", "resultSummary")).toBe(true);
+    expect(within("recapNote", "cleanResult")).toBe(true);
+    expect(byId("recapNote").hasAttribute("hidden")).toBe(true);
+    expect(byId("resultSummary").getAttribute("role")).toBe("region");
   });
 
   test("Unsubscribe panel owns the subscription controls, no details wrapper", () => {

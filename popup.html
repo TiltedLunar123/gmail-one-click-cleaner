@@ -1195,6 +1195,21 @@
       border-top: 1px solid rgba(16,185,129,0.14);
     }
 
+    /* 7.4: recap marker line. Rides the shared tokens so light and dark
+       both come out styled without literal colors. */
+    .recap-note {
+      display: inline-block;
+      margin: 0 auto 10px;
+      padding: 4px 10px;
+      border-radius: var(--r-pill);
+      border: 1px solid var(--border);
+      background: var(--bg-surface);
+      color: var(--muted);
+      font-size: 10.5px;
+      font-weight: 700;
+      line-height: 1.4;
+    }
+
     /* Success CTAs */
     .success-ctas {
       display: none;
@@ -1822,7 +1837,7 @@
           </div>
           <h1 id="gcc-title">Gmail One-Click Cleaner</h1>
         </div>
-        <span class="badge" id="versionBadge" aria-label="Version 7.3.0">v7.3.0</span>
+        <span class="badge" id="versionBadge" aria-label="Version 7.4.0">v7.4.0</span>
       </header>
 
       <!-- Screen-reader-only live region -->
@@ -2080,6 +2095,9 @@
       <div class="result-summary" id="resultSummary" role="region" aria-labelledby="result-title">
         <svg class="result-summary-icon" aria-hidden="true" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="13" r="7.5"/><path d="M7.7 13l2.4 2.4 4.4-4.7"/><path d="M19 3.5l.6 1.7 1.7.6-1.7.6-.6 1.7-.6-1.7-1.7-.6 1.7-.6L19 3.5Z" stroke-width="1.1"/></svg>
         <div class="result-summary-title" id="result-title">Cleanup Complete!</div>
+        <!-- 7.4: recap marker. Shown only when this view replays the last
+             cleanup on popup open instead of a run that just finished. -->
+        <div class="recap-note" id="recapNote" hidden>Recap: your last cleanup finished while the popup was closed.</div>
         <div class="result-summary-stats">
           Cleaned <strong id="resultCount">0</strong> emails · Freed ~<strong id="resultSize">0 MB</strong> (est.)
           <br><span style="opacity: 0.8">(all moved to Trash)</span>

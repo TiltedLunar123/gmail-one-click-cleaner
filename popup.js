@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "7.3.0";
+  const POPUP_VERSION = "7.4.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -35,6 +35,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 7.3: whether the Advanced disclosure was left open.
     ADVANCED_OPEN: "advancedOpen",
+
+    // 7.4: post-run recap. STATS mirrors the service worker's stats key
+    // (read-only here); RECAP_SEEN is the "already shown" timestamp.
+    STATS: "cleanupStats",
+    RECAP_SEEN: "recapSeenAt",
 
     SNOOZE_UNTIL: "snoozeUntil",
     NOTIFY_ENABLED: "notifyOnComplete",
@@ -276,6 +281,9 @@ document.addEventListener("DOMContentLoaded", () => {
     resultSize: $("resultSize"),
     successCtas: $("successCtas"),
 
+    // 7.4 post-run recap
+    recapNote: $("recapNote"),
+
     ratingPrompt: $("ratingPrompt"),
     ratingDismiss: $("ratingDismiss"),
     ratingBtn: $("ratingBtn"),
@@ -493,6 +501,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const hideRatingPrompt = () => elements.ratingPrompt?.classList.remove("show");
 
+  // 7.4: the recap marker only shows while the result view is replaying
+  // the last cleanup; a live done and the back button both clear it.
+  const hideRecapNote = () => {
+    if (elements.recapNote) elements.recapNote.hidden = true;
+  };
+
   // 7.3: the Clean tab swaps between the form and the post-run result.
   // The result view owns the summary, the CTAs and the rating ask; the
   // back button (or starting another run) returns to the form.
@@ -506,6 +520,7 @@ document.addEventListener("DOMContentLoaded", () => {
     hideResultSummary();
     hideSuccessCtas();
     hideRatingPrompt();
+    hideRecapNote();
     if (!elements.cleanForm || !elements.cleanResult) return;
     elements.cleanResult.hidden = true;
     elements.cleanForm.hidden = false;
@@ -1003,6 +1018,62 @@ document.addEventListener("DOMContentLoaded", () => {
     const r = await storageGet("local", STORAGE_KEYS.RUN_COUNT);
     const count = Number(r?.[STORAGE_KEYS.RUN_COUNT] || 0) + 1;
     await storageSet("local", { [STORAGE_KEYS.RUN_COUNT]: count });
+  };
+
+  // 7.4: post-run recap. The popup closes itself when a run starts, so
+  // the 7.3 result screen (and its earned rating ask) almost never had
+  // an audience. On open, the newest unseen real cleanup from the
+  // lifetime history replays through the same result view, marked by
+  // the recap note. Marker semantics live in GCC.popupUi; both the
+  // recap and the live done path stamp it so no run shows twice.
+  const markRecapSeen = async () => {
+    await storageSet("local", {
+      [STORAGE_KEYS.RECAP_SEEN]: GCC.popupUi.recapSeenMarker(Date.now())
+    });
+  };
+
+  const showRecapForEntry = (entry) => {
+    const cleaned = GCC.popupUi.recapCleanedCount(entry);
+    const freedMb = Number(entry.freedMb) || 0;
+
+    showResultState();
+    showResultSummary({
+      count: cleaned,
+      freedBytes: freedMb * 1024 * 1024,
+      action: GCC.popupUi.recapAction(entry)
+    });
+    if (elements.recapNote) {
+      elements.recapNote.textContent =
+        `Recap: your last cleanup finished ${GCC.relativeTime(entry.timestamp)}, while the popup was closed.`;
+      elements.recapNote.hidden = false;
+    }
+    showSuccessCtas();
+  };
+
+  const maybeShowPostRunRecap = async () => {
+    if (!elements.cleanForm || !elements.cleanResult) return;
+
+    // A run in flight owns the Clean tab; leave the marker alone so the
+    // finished run still gets its recap on the next open.
+    if (await getActiveRun()) return;
+
+    const r = await storageGet("local", [STORAGE_KEYS.STATS, STORAGE_KEYS.RECAP_SEEN]);
+    const entry = GCC.popupUi.pickRecapEntry(
+      r?.[STORAGE_KEYS.STATS]?.history,
+      r?.[STORAGE_KEYS.RECAP_SEEN]
+    );
+    if (!entry) return;
+
+    showRecapForEntry(entry);
+
+    // Seen is seen, whatever the rating gate decides below.
+    await markRecapSeen();
+
+    await maybeShowRatingForRun({
+      dryRun: Boolean(entry.dryRun),
+      cleaned: GCC.popupUi.recapCleanedCount(entry),
+      freedMb: Number(entry.freedMb) || 0
+    });
   };
 
   // 7.3: "How it works" ships open in the markup for newcomers and
@@ -2130,6 +2201,11 @@ document.addEventListener("DOMContentLoaded", () => {
           state.tabs?.select("tabClean");
           setStatus(`error: ${m}`, STATUS_TYPES.ERROR);
           showToast(`failed: ${m}`, "error");
+          // 7.4: layout-change errors carry a machine-readable code; the
+          // detail already explains it, so just point at Diagnostics.
+          if (msg.code === "gmail_layout_changed") {
+            showToast("open Diagnostics (footer) for run details and updates", "info", 6000);
+          }
           state.isRunning = false;
           state.currentGmailTabId = null;
           clearActiveRun().catch(() => {});
@@ -2149,8 +2225,13 @@ document.addEventListener("DOMContentLoaded", () => {
           // The result view replaces the Clean form; jump there so the
           // outcome is visible even if another tab had focus.
           state.tabs?.select("tabClean");
+          hideRecapNote();
           showResultState();
           showResultSummary({ count, freedBytes, action });
+
+          // 7.4: a live result counts as seen; without the marker this
+          // same run would come back as a recap on the next open.
+          markRecapSeen().catch(() => {});
 
           showSuccessCtas();
           maybeShowRatingForRun({
@@ -2426,6 +2507,8 @@ document.addEventListener("DOMContentLoaded", () => {
     await initReassurance();
     await restoreLastConfig();
     await restoreActiveRunUI();
+    // 7.4: replay the last unseen cleanup (active runs win inside).
+    await maybeShowPostRunRecap().catch((e) => log("warn", "recap failed", e));
     await refreshBanners();
     await maybeShowOnboarding();
 
