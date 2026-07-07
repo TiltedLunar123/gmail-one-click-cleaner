@@ -635,6 +635,17 @@
       font-size: 12px;
     }
 
+    /* 7.5: layout-change notice card. Hidden (no gap) until the service
+       worker records a gmail_layout_changed run error. Colors ride the
+       theme-aware warning variables, no literals to override. */
+    .layout-change-card { border-color: var(--warning-border); }
+
+    .layout-change-detail {
+      margin: 0 0 10px;
+      font-size: 14px;
+      color: var(--text-main);
+    }
+
     /* Light-theme adjustments: lift inset panels off dark and darken the
        accent text on tags/badges. The #log stays a deliberate dark console. */
     html[data-theme="light"] .pill,
@@ -699,7 +710,7 @@
     <header class="page-header">
       <div class="title-row">
         <h1 id="main-content" tabindex="-1">Gmail One-Click Cleaner Diagnostics</h1>
-        <span class="badge" aria-label="Version 7.4.0">v7.4.0</span>
+        <span class="badge" aria-label="Version 7.5.0">v7.5.0</span>
         <span class="badge-secondary" id="diagVersionBadge" aria-label="Runtime snapshot">runtime snapshot</span>
         <div class="theme-switcher" id="themeSwitcher" role="group" aria-label="Color theme" style="margin-left:auto;">
           <button type="button" data-theme-value="system" aria-pressed="true">Auto</button>
@@ -716,6 +727,24 @@
     </header>
 
     <main>
+      <!-- LAYOUT CHANGE NOTICE (7.5): stays hidden unless the service
+           worker recorded a gmail_layout_changed run error. -->
+      <section class="card layout-change-card" id="layoutChangeCard" hidden aria-labelledby="layoutchange-heading">
+        <div class="card-header">
+          <h2 id="layoutchange-heading"><span class="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4M12 17h.01"/></svg></span> Gmail layout change detected</h2>
+          <span id="layoutChangeWhen" class="tag tag-warning">recently</span>
+        </div>
+
+        <p class="layout-change-detail" id="layoutChangeDetail">
+          A recent run stopped because Gmail changed its layout.
+        </p>
+
+        <p class="muted small" style="margin: 0;">
+          Nothing was touched beyond what that run already reported. Gmail moves things around from
+          time to time; a compatibility update usually follows within days, so keep the extension updated.
+        </p>
+      </section>
+
       <!-- ENV -->
       <section class="card" aria-labelledby="env-heading">
         <div class="card-header">

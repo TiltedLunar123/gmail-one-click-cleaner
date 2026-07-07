@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const DIAGNOSTICS_VERSION = "7.4.0";
+  const DIAGNOSTICS_VERSION = "7.5.0";
 
   const CONFIG = Object.freeze({
     MAX_URL_LENGTH: 120,
@@ -39,6 +39,10 @@
 
     log: "log",
     diagVersionBadge: "diagVersionBadge",
+
+    layoutChangeCard: "layoutChangeCard",
+    layoutChangeWhen: "layoutChangeWhen",
+    layoutChangeDetail: "layoutChangeDetail",
 
     lastRunSummary: "lastRunSummary",
     lastRunMeta: "lastRunMeta",
@@ -87,6 +91,10 @@
 
     log: GCC.$(SELECTORS.log),
     diagVersionBadge: GCC.$(SELECTORS.diagVersionBadge),
+
+    layoutChangeCard: GCC.$(SELECTORS.layoutChangeCard),
+    layoutChangeWhen: GCC.$(SELECTORS.layoutChangeWhen),
+    layoutChangeDetail: GCC.$(SELECTORS.layoutChangeDetail),
 
     lastRunSummary: GCC.$(SELECTORS.lastRunSummary),
     lastRunMeta: GCC.$(SELECTORS.lastRunMeta),
@@ -520,6 +528,38 @@
   };
 
   // =========================
+  // Layout Change Notice (7.5)
+  // =========================
+
+  // The service worker records the last gmail_layout_changed run error
+  // under "layoutChangeNotice" ({ at, detail }). The card stays hidden
+  // when the key is empty; when set, it shows how long ago Gmail moved
+  // and the run's own plain-words explanation.
+  const renderLayoutChangeNotice = async () => {
+    if (!elements.layoutChangeCard) return;
+    if (!GCC.hasChromeStorage("local")) return;
+
+    try {
+      const result = await GCC.storageGet("local", ["layoutChangeNotice"]);
+      const notice = result?.layoutChangeNotice;
+      if (!notice || typeof notice.at !== "number" || !Number.isFinite(notice.at)) return;
+
+      if (elements.layoutChangeWhen) {
+        elements.layoutChangeWhen.textContent = GCC.relativeTime(notice.at);
+        elements.layoutChangeWhen.title = GCC.formatDate(notice.at);
+      }
+
+      if (elements.layoutChangeDetail && typeof notice.detail === "string" && notice.detail) {
+        elements.layoutChangeDetail.textContent = notice.detail;
+      }
+
+      elements.layoutChangeCard.hidden = false;
+    } catch (err) {
+      console.warn("[Diagnostics] Failed to load layout change notice:", err);
+    }
+  };
+
+  // =========================
   // Run History
   // =========================
 
@@ -945,7 +985,11 @@
     await renderEnv();
     setupEventListeners();
 
-    await Promise.allSettled([renderLastRunFromStorage(), renderRunHistory()]);
+    await Promise.allSettled([
+      renderLastRunFromStorage(),
+      renderRunHistory(),
+      renderLayoutChangeNotice()
+    ]);
 
     addLog(`Diagnostics page initialized (v${DIAGNOSTICS_VERSION})`, "success");
   };

@@ -352,6 +352,66 @@ describe("background.js: Service Worker", () => {
   });
 
   // ===========================
+  // Layout-change notice persistence (7.5)
+  // ===========================
+
+  describe("message: gmailCleanerProgress layout-change record", () => {
+    test("persists a timestamp and detail when the error carries the layout code", async () => {
+      const sender = { id: "test-extension-id", tab: { id: 7, url: "https://mail.google.com/mail/u/0/" } };
+      const before = Date.now();
+
+      onMessageCb(
+        {
+          type: "gmailCleanerProgress",
+          phase: "error",
+          code: "gmail_layout_changed",
+          detail: "Gmail changed its layout: search results are on screen but the select-all checkbox is gone.",
+          done: true
+        },
+        sender,
+        jest.fn()
+      );
+      await new Promise((r) => setTimeout(r, 50));
+
+      const notice = storageBacking.local.layoutChangeNotice;
+      expect(notice).toBeDefined();
+      expect(notice.at).toBeGreaterThanOrEqual(before);
+      expect(notice.detail).toContain("select-all checkbox");
+    });
+
+    test("caps an oversized detail string", async () => {
+      const sender = { id: "test-extension-id", tab: { id: 7, url: "https://mail.google.com/mail/u/0/" } };
+
+      onMessageCb(
+        { type: "gmailCleanerProgress", phase: "error", code: "gmail_layout_changed", detail: "x".repeat(900) },
+        sender,
+        jest.fn()
+      );
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(storageBacking.local.layoutChangeNotice.detail).toHaveLength(300);
+    });
+
+    test("ignores ordinary errors and non-error phases", async () => {
+      const sender = { id: "test-extension-id", tab: { id: 7, url: "https://mail.google.com/mail/u/0/" } };
+
+      onMessageCb(
+        { type: "gmailCleanerProgress", phase: "error", detail: "No delete button" },
+        sender,
+        jest.fn()
+      );
+      onMessageCb(
+        { type: "gmailCleanerProgress", phase: "running", code: "gmail_layout_changed", detail: "not an error" },
+        sender,
+        jest.fn()
+      );
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(storageBacking.local.layoutChangeNotice).toBeUndefined();
+    });
+  });
+
+  // ===========================
   // Rejects unknown senders
   // ===========================
 

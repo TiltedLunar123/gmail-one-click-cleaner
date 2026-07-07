@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "7.4.0";
+  const SW_VERSION = "7.5.0";
 
   // =========================
   // Storage Keys
@@ -22,7 +22,8 @@
     NOTIFY_ENABLED: "notifyOnComplete",
     SUBSCRIPTIONS: "subscriptionScan",
     STORAGE_XRAY: "storageXray",
-    XRAY_PENDING: "storageXrayPendingPurge"
+    XRAY_PENDING: "storageXrayPendingPurge",
+    LAYOUT_CHANGE: "layoutChangeNotice"
   });
 
   // chrome.storage.sync caps: 8KB per item, 102KB total. The options
@@ -310,7 +311,24 @@
     switch (msg.type) {
       // Progress messages from content script already reach all extension
       // pages via chrome.runtime.sendMessage, no re-broadcast needed.
+      // 7.5: layout-change errors additionally leave a small record
+      // (timestamp + detail) so the Diagnostics page the popup points
+      // at has something to show. Latest record wins; fire-and-forget
+      // because the progress path must never block on storage.
       case "gmailCleanerProgress":
+        if (msg.phase === "error" && msg.code === "gmail_layout_changed") {
+          try {
+            const write = chrome.storage.local.set({
+              [STORAGE_KEYS.LAYOUT_CHANGE]: {
+                at: Date.now(),
+                detail: typeof msg.detail === "string" ? msg.detail.slice(0, 300) : ""
+              }
+            });
+            write?.catch?.(() => {});
+          } catch (e) {
+            console.warn("[GCC SW] Failed to record layout change:", e);
+          }
+        }
         break;
 
       // Stats recording
