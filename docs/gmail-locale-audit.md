@@ -1,4 +1,4 @@
-# Gmail locale-independence audit (7.4.0)
+# Gmail locale-independence audit (written for 7.4.0, revised for 7.5.0)
 
 The engine drives Gmail's UI directly, so anything that matches on-screen
 text silently breaks on non-English Gmail accounts. This audit walks every
@@ -6,18 +6,21 @@ selector and string match in `contentScript.js`, classifies each as
 structure/attribute-based (safe in any language), language-dependent
 (breaks outside the covered locales), or mixed, and states the blast
 radius when it misses. Fixture tests locking in the language-independent
-paths live in `tests/contentScript-locale.test.js`.
+paths, and since 7.5 the localized ones, live in
+`tests/contentScript-locale.test.js`.
 
 Verdict up front: the destructive path (find rows, select, delete or
 archive) is structure-first with multilingual token fallbacks, so core
 cleanup works on non-English accounts. The genuinely English-only spots
-are all in secondary paths: rate-limit detection, the no-results text
-fallback, the unsubscribe control's text check, and the unsubscribe
-dialog's button classification. Those are documented as 7.5 work below.
-No code changes shipped from this audit: none of the string matches has
-an attribute-based equivalent that the existing fixtures already prove
-equivalent, and swapping unproven selectors on the deletion path is a
-bigger risk than the one being audited.
+the 7.4 audit found were all in secondary paths: the unsubscribe
+control's text check, the unsubscribe dialog's button classification,
+rate-limit detection, the thin archive/label token tables, and the
+subscription scan's English search term. 7.5 closed all five (details in
+the sections below); the new dialog and search tokens were verified per
+locale against Google's own localized Gmail help pages rather than
+guessed, and locales that could not be verified were left out because
+this path clicks buttons on the user's behalf: an unmatched dialog is
+dismissed, which fails safe, while a mismatched one would not.
 
 ## Classification key
 
@@ -52,12 +55,12 @@ bigger risk than the one being audited.
 | --- | --- | --- | --- |
 | Candidate set `div[role='button'], button, span[role='button']` scoped to `div[gh='mtb']` / `div[role='toolbar']` | `findButtonByTokens` | STRUCTURE | Low. |
 | `DELETE_LABEL_TOKENS` (27 tokens: en/es/fr/de/pt/it/nl/sv/da/no/pl/tr/ru/ar/ja/ko/zh) + `/delete|trash|bin/i` | `findDeleteButton` | LANG (broad) | Medium. Well covered for major locales, but an uncovered locale (e.g. Czech, Thai, Hindi) scores nothing and the delete click never happens; the run then ends with "No delete button" instead of deleting the wrong thing. Fails safe, but fails. |
-| `ARCHIVE_LABEL_TOKENS` (en/fr/es/de/pt/it only) + `/archive/i` | `findArchiveButton` | LANG (narrower) | Medium. Same failure shape as delete with thinner coverage (no nl/sv/pl/tr/ru/ar/ja/ko/zh). Archive-mode users outside six locales get "No archive button". |
+| `ARCHIVE_LABEL_TOKENS` + `/archive/i` | `findArchiveButton` | LANG (broad since 7.5) | Medium, same failure shape as delete. 7.5 widened the table from six locales to delete's full set (added nl/sv/da/no/pl/tr/ru/ar/ja/ko/zh, button names verified against Google's localized help pages, zh covered in both scripts). |
 
-7.5 candidate: Gmail's toolbar buttons do not expose a stable
-language-free identifier for delete vs archive, so tokens are the
-honest tool here. The realistic improvement is widening the token
-tables, not a selector swap.
+Gmail's toolbar buttons do not expose a stable language-free
+identifier for delete vs archive, so tokens are the honest tool here.
+7.5 did the realistic improvement (widening the tables); a selector
+swap stays off the table.
 
 ## 4. Overflow menu and tag-before-delete (the label dialog)
 
@@ -66,7 +69,7 @@ tables, not a selector swap.
 | `MORE_OPTIONS_TOKENS` (23 tokens) + multilingual regex | `findMoreOptionsButton` | LANG (broad) | Low-medium. |
 | `aria-haspopup` bonus (+3, enough to win with zero token hits) | `findMoreOptionsButton` | STRUCTURE | This is the locale-proof back-stop: an overflow button in an uncovered locale is still found through `aria-haspopup` alone (fixture-locked). It can mis-pick when several toolbar buttons carry `aria-haspopup`, so it stays a fallback, not the primary. |
 | `div[role='menu']` + visibility + most-`[role^='menuitem']` wins | `findVisibleMenu` | STRUCTURE | Low. |
-| `LABEL_BUTTON_TOKENS` (8 tokens) + `/label|libell|etiquet|etichett/i` | `findLabelMenuItemIn` | LANG | Medium. Romance/Germanic locales covered; ru/ar/ja/ko/zh are not, so the menu item is missed and tagging falls through to the hotkey. |
+| `LABEL_BUTTON_TOKENS` + `/label|libell|etiquet|etichett/i` | `findLabelMenuItemIn` | LANG (broad since 7.5) | Low-medium. 7.5 widened the table from 8 tokens to delete's locale set (added pt-BR "Marcadores", sv/da/no "Etiketter", pl/tr, ru "Ярлыки", ar, ja/ko/zh in both scripts; toolbar button names verified against Google's localized help pages). Remaining gap: a locale whose "Label as" menu item is worded differently from its toolbar Labels button can still miss and fall through to the structural input selectors, then the hotkey. |
 | `SELECTORS.labelInputs`: `input[aria-label*='Label as']` etc. | `openLabelInput` | MIXED | Medium. Two of the six selectors are pure structure (`div[role='menu'] input[type='text']`, `div[role='dialog'] input[type='text']`), so the input is usually still found after the menu opens in any locale. |
 | `l` keyboard shortcut fallback | `openLabelInput` | STRUCTURE | Locale-proof but only fires when the user enabled Gmail keyboard shortcuts. |
 | Failure mode | `applyTagLabel` | n/a | If every path misses, tagging is skipped and the run continues untagged (recorded in the undo log as `taggingFailed`), unless the 7.4 hard signal (no Labels button AND no overflow button) fires first and stops the run. |
@@ -81,26 +84,21 @@ tables, not a selector swap.
 
 ## 6. Unsubscribe control and its confirm dialog (7.0 Pro path)
 
+Closed in 7.5. This was the biggest locale win available: the paid
+unsubscribe feature was effectively English-only.
+
 | Dependency | Where | Class | Risk |
 | --- | --- | --- | --- |
-| `div[role='main'] span.Ca` | `findHeaderUnsubscribeControl` | STRUCTURE | Low: Gmail renders its native header unsubscribe control with this class in every locale. |
-| `/unsubscribe/i` text check on the span.Ca hit | same | LANG | **High for non-English.** The structural hit is immediately vetoed when the control says "Cancelar suscripción" or "Se désabonner". Primary path dies on every non-English account. |
-| Fallback: `[role="link"], [role="button"]` with exact `/^unsubscribe$/i`, excluding `div.a3s` body and `tr[role='row']` | same | MIXED | Same English-only veto. The body/row exclusions are structural and good. |
-| Dialog buttons: `/^unsubscribe$/i` confirm, `/^(cancel|no thanks|close|dismiss|got it)$/i` cancel, `/(go to|visit).*(website|site)/i` manual | `resolveUnsubscribeDialog` | LANG | **High for non-English.** An unrecognized dialog is classified "unknown" and the sender is reported unconfirmed; `dismissDialog` still closes it via Escape, so nothing wrong is clicked. Fails safe. |
-
-7.5 work (the biggest locale win available): trust `span.Ca` inside the
-message header structurally instead of vetoing it by English text, and
-add localized token tables for the dialog's confirm/cancel buttons
-(mirroring `CONFIRM_TOKENS`). Not done in 7.4 because no existing
-fixture proves the text check redundant, and a wrong click here
-unsubscribes or navigates on the user's behalf.
+| `div[role='main'] span.Ca`, trusted structurally (7.5 removed the English `/unsubscribe/i` veto), refusing hits inside `div.a3s` and `tr[role='row']` | `findHeaderUnsubscribeControl` | STRUCTURE | Low: Gmail renders its native header unsubscribe control with this class in every locale (class-rot risk only, same as every Gmail class name). The body/row exclusions now guard the primary path too, so sender-controlled markup that mimics the class is never driven. |
+| Fallback: `[role="link"], [role="button"]` matched EXACT whole-text against `UNSUBSCRIBE_TOKENS` (17 locales, verified against Google's localized help pages), same exclusions | same | LANG (broad) | Low-medium. An uncovered locale misses the fallback but normally still hits the structural primary. |
+| Dialog buttons: `UNSUBSCRIBE_TOKENS` confirm, `UNSUB_CANCEL_TOKENS` cancel, `UNSUB_WEBSITE_TOKENS` + `/(go to|visit).*(website|site)/i` manual, all exact whole-text | `resolveUnsubscribeDialog` | LANG (broad) | Low-medium. Exact matching is the safety load-bearing wall: "Unsubscribe and block" must not classify as a plain confirm, and prefix pairs like ar "إلغاء" (cancel) vs "إلغاء الاشتراك" (confirm) must stay apart. An unrecognized dialog stays "unknown", is dismissed via Escape, and the sender is reported unconfirmed. Fails safe in any locale. |
 
 ## 7. Subscription scan row sampling (7.0)
 
 | Dependency | Where | Class | Risk |
 | --- | --- | --- | --- |
 | `tr[role="row"]` > `span[email]` / `[email]`, `email` + `name` attributes | `sampleSubscriptionRows` | STRUCTURE | Low. Fully attribute-based; fixture-locked with non-Latin sender names. |
-| Scan queries `"unsubscribe" newer_than:1y`, `category:promotions ...` | `SUBSCRIPTIONS.SCAN_QUERIES` | STRUCTURE (operators) with one LANG literal | Medium recall on non-English accounts: Gmail search operators are locale-independent, but the literal `"unsubscribe"` body-text term only matches mail that contains the English word. Non-English newsletters still surface through the two `category:` queries. 7.5: consider adding localized unsubscribe terms per UI language. |
+| Scan queries: localized body-text term + `category:` queries | `buildSubscriptionScanQueries` | STRUCTURE (operators) with one localized literal | Low since 7.5. The body-text discovery term now follows the Gmail UI language (`SUBSCRIPTION_SEARCH_TERMS` keyed off `document.documentElement.lang`, English fallback, one term per run). The two `category:` queries are byte-identical to 7.0, including the English term inside the `category:updates` query, so existing recall is a floor, not a trade. An uncovered UI language just keeps today's English-only recall. |
 
 ## 8. Storage X-ray scan (7.2)
 
@@ -115,7 +113,7 @@ unsubscribes or navigates on the user's behalf.
 | --- | --- | --- | --- |
 | `hasNoResults`: empty `table[role='grid']`, `td.TC` empty-state cell | `hasNoResults` | STRUCTURE | Low. The two structural checks fire first in any locale; fixture-locked. |
 | `noResultsIndicators` two English sentences | `hasNoResults` fallback | LANG | None in practice: only consulted when the grid is missing AND `td.TC` is absent, which current Gmail does not do. Kept as a legacy belt. |
-| `RATE_LIMIT_TOKENS` (9 English phrases) in alert/status/aria-live areas | `findRateLimitText` | LANG | **English-only.** On non-English accounts throttling is never recognized, so the adaptive backoff never engages and a throttled pass surfaces as a timeout instead. Degraded, not destructive: the timeout path retries with the same backoff machinery. 7.5: add localized token rows for the major locales. |
+| `RATE_LIMIT_TOKENS` (9 English + localized phrases since 7.5) in alert/status/aria-live areas | `findRateLimitText` | LANG (broad) | Low-medium since 7.5: throttle/temporary-error phrases now cover the same major locales as the rest of the engine, so adaptive backoff engages off-English. Detection-side, so the tokens are deliberately broader than the confirm-side tables (a false positive only slows the run down), but every entry stays a phrase, never a lone common word. Uncovered locales keep the old degraded-but-safe timeout behavior. |
 | `findUndoToast`: alert/status regions + "undo" + multilingual action words | `waitForActionProcessing` | MIXED | Low-medium. It is one of several completion signals (no-results, row-count delta, selection cleared); missing it in an uncovered locale slows verification but does not fail it. |
 | `parseCountFromText` `/\bof\s+N/`, `/about N results/` | `estimateTotalResults` | LANG | Low. Only feeds estimates for dry runs and bulk-all counts; per-page selection counts stay accurate. Non-English accounts see null estimates, which every caller already tolerates. |
 | Query builders (`older_than:`, `category:`, `from:`, `-subject:(...)`, `label:`) | `applyGlobalGuards`, presets | STRUCTURE | None. Gmail search operators are locale-independent by design. English guard words inside `SAFE_MODE_SUBJECT_GUARD` (receipt, invoice, ...) protect less mail on non-English accounts, which errs toward protecting less, never deleting protected mail; the user-editable protected-keywords list covers the gap. |
@@ -125,18 +123,47 @@ unsubscribes or navigates on the user's behalf.
 
 ## Summary
 
-Safe today (structure/attribute-based, fixture-locked where practical):
+Safe (structure/attribute-based, fixture-locked where practical):
 row discovery, per-row selection, selection counting, grid emptiness,
-menu discovery, both scans' row sampling, all query building, navigation.
+menu discovery, both scans' row sampling, all query building,
+navigation, and since 7.5 the header unsubscribe control.
 
-Covered by broad token tables (17+ locales): delete button, more-options
-button, select-all banner, bulk confirm.
+Covered by broad token tables (17 locales): delete button, archive
+button, labels button, more-options button, select-all banner, bulk
+confirm, unsubscribe dialog classification, rate-limit detection, the
+subscription scan's discovery term.
 
-7.5 backlog, in impact order:
-1. Unsubscribe path: trust `span.Ca` structurally, tokenize the dialog
-   buttons. Today the Pro unsubscribe feature is English-only.
-2. `RATE_LIMIT_TOKENS`: localized throttle phrases so backoff engages
+Shipped in 7.5 (the whole 7.4 backlog, in its original impact order):
+1. Unsubscribe path: `span.Ca` is trusted structurally and the dialog
+   buttons are classified through verified, exact-whole-text token
+   tables. The Pro unsubscribe feature now works off-English.
+2. `RATE_LIMIT_TOKENS`: localized throttle phrases; backoff engages
    off-English.
-3. `ARCHIVE_LABEL_TOKENS` and `LABEL_BUTTON_TOKENS`: extend to the same
-   locale set as `DELETE_LABEL_TOKENS`.
-4. Subscription scan: localized `"unsubscribe"` body-text terms.
+3. `ARCHIVE_LABEL_TOKENS` and `LABEL_BUTTON_TOKENS`: extended to the
+   `DELETE_LABEL_TOKENS` locale set.
+4. Subscription scan: localized body-text term picked from the Gmail
+   UI language.
+
+Still open, deliberately (all fail safe, none block a covered-locale
+run):
+- Locales outside the 17-locale set (e.g. Czech, Thai, Hindi, Greek)
+  still miss every token table: cleanups end with "No delete button",
+  unsubscribe dialogs stay "unknown" and are dismissed, throttling
+  reads as timeouts. Adding a locale means verifying its strings the
+  same way (Google's localized help pages), not guessing.
+- The unsubscribe dialog tables cover Gmail's current wording; if
+  Google rewords a locale, that locale degrades back to fail-safe
+  "unknown" until the table is refreshed.
+- `SELECT_ALL_CONVERSATIONS_PATTERNS` regexes cover en/es/fr/de/pt
+  only; uncovered locales fall back to page-by-page passes (slower,
+  counts stay correct).
+- `findUndoToast`, `parseCountFromText`, and the legacy
+  `noResultsIndicators` sentences remain partially or fully
+  English-bound; each is one of several signals and its absence only
+  degrades verification or estimates.
+- `SAFE_MODE_SUBJECT_GUARD` keywords are English, so safe mode
+  protects less mail on non-English accounts; the user-editable
+  protected-keywords list covers the gap.
+- The scan's `category:updates` query keeps its English term by
+  design (see section 7); localized recall rides on the body-text
+  query.
