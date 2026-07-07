@@ -1,13 +1,14 @@
 /**
  * @jest-environment jsdom
  *
- * Locale-independence locks (7.4). docs/gmail-locale-audit.md classifies
- * every engine selector as structure/attribute-based or language-
- * dependent; this suite pins the structure-based ones by driving them
- * against non-English fixtures, so a future "helpful" refactor toward
- * text matching fails loudly here. The language-dependent gaps (the
- * unsubscribe text veto, rate-limit phrases, archive tokens) are 7.5
- * work and deliberately have no locks.
+ * Locale-independence locks (7.4) and the 7.5 locale release. The docs/
+ * gmail-locale-audit.md audit classifies every engine selector as
+ * structure/attribute-based or language-dependent; this suite pins the
+ * structure-based ones by driving them against non-English fixtures, so
+ * a future "helpful" refactor toward text matching fails loudly here.
+ * 7.5 closed the audited gaps (the unsubscribe text veto, dialog button
+ * classification, rate-limit phrases, archive/label tokens, the scan's
+ * English search term); those paths are locked below too.
  */
 const fs = require("fs");
 const path = require("path");
@@ -173,8 +174,8 @@ describe("locale locks: row sampling is attribute-only", () => {
   });
 });
 
-describe("locale locks: unsubscribe control's structural half", () => {
-  test("span.Ca is the primary hit when its text matches (English today)", () => {
+describe("locale locks: unsubscribe control is trusted structurally (7.5)", () => {
+  test("span.Ca is the primary hit with English text", () => {
     const I = loadEngine();
     document.body.innerHTML = `
       <div role="main"><span class="Ca" role="link">Unsubscribe</span></div>`;
@@ -183,12 +184,217 @@ describe("locale locks: unsubscribe control's structural half", () => {
     expect(el.className).toBe("Ca");
   });
 
-  test("documented 7.5 gap: the English text veto rejects a localized span.Ca", () => {
-    // This pins the CURRENT behavior so the 7.5 fix (trusting span.Ca
-    // structurally) shows up as a deliberate test change, not a silent one.
+  test("7.5 gap closed: a localized span.Ca is trusted without a text check", () => {
+    // Deliberate flip of the 7.4 lock that pinned the English text veto.
+    // The veto killed the Pro unsubscribe path on every non-English
+    // account; the class itself is what Gmail renders in every locale.
     const I = loadEngine();
     document.body.innerHTML = `
       <div role="main"><span class="Ca" role="link">Cancelar suscripción</span></div>`;
+    const el = I.findHeaderUnsubscribeControl();
+    expect(el).not.toBeNull();
+    expect(el.className).toBe("Ca");
+  });
+
+  test("a span.Ca inside the sender-controlled message body is never driven", () => {
+    const I = loadEngine();
+    document.body.innerHTML = `
+      <div role="main"><div class="a3s"><span class="Ca" role="link">Unsubscribe</span></div></div>`;
     expect(I.findHeaderUnsubscribeControl()).toBeNull();
+  });
+
+  test("a span.Ca inside a list row is never driven", () => {
+    const I = loadEngine();
+    document.body.innerHTML = `
+      <div role="main"><table><tr role="row"><td><span class="Ca" role="link">Unsubscribe</span></td></tr></table></div>`;
+    expect(I.findHeaderUnsubscribeControl()).toBeNull();
+  });
+
+  test("the fallback link scan accepts an exact localized label", () => {
+    const I = loadEngine();
+    document.body.innerHTML = `
+      <div role="main"><span role="link">Se désabonner</span></div>`;
+    expect(I.findHeaderUnsubscribeControl()).not.toBeNull();
+  });
+
+  test("the fallback link scan stays exact: extra words do not match", () => {
+    const I = loadEngine();
+    document.body.innerHTML = `
+      <div role="main"><span role="link">Se désabonner maintenant</span></div>`;
+    expect(I.findHeaderUnsubscribeControl()).toBeNull();
+  });
+});
+
+describe("7.5: unsubscribe dialog classification per locale", () => {
+  const dialog = (buttons) => {
+    document.body.innerHTML = `
+      <div role="alertdialog">${buttons.map((b) => `<button>${b}</button>`).join("")}</div>`;
+    return document.querySelector("div[role='alertdialog']");
+  };
+
+  test.each([
+    ["es", "Cancelar", "Darse de baja"],
+    ["fr", "Annuler", "Se désabonner"],
+    ["de", "Abbrechen", "Abbestellen"],
+    ["pt", "Cancelar", "Cancelar inscrição"],
+    ["ru", "Отмена", "Отказаться от рассылки"],
+    ["ja", "キャンセル", "登録解除"],
+    ["ko", "취소", "수신 거부"]
+  ])("%s: confirm dialog classifies confirm and cancel", (_lang, cancel, confirm) => {
+    const I = loadEngine();
+    const out = I.resolveUnsubscribeDialog(dialog([cancel, confirm]));
+    expect(out.kind).toBe("confirm");
+    expect(out.confirmBtn.textContent).toBe(confirm);
+    expect(out.cancelBtn.textContent).toBe(cancel);
+  });
+
+  test("prefix pairs stay apart: Arabic cancel is a prefix of the confirm label", () => {
+    const I = loadEngine();
+    const out = I.resolveUnsubscribeDialog(dialog(["إلغاء", "إلغاء الاشتراك"]));
+    expect(out.kind).toBe("confirm");
+    expect(out.confirmBtn.textContent).toBe("إلغاء الاشتراك");
+    expect(out.cancelBtn.textContent).toBe("إلغاء");
+  });
+
+  test("prefix pairs stay apart: zh-TW cancel is a prefix of the confirm label", () => {
+    const I = loadEngine();
+    const out = I.resolveUnsubscribeDialog(dialog(["取消", "取消訂閱"]));
+    expect(out.kind).toBe("confirm");
+    expect(out.confirmBtn.textContent).toBe("取消訂閱");
+    expect(out.cancelBtn.textContent).toBe("取消");
+  });
+
+  test.each([
+    ["es", "Cancelar", "Ir al sitio web"],
+    ["de", "Abbrechen", "Website aufrufen"],
+    ["ja", "キャンセル", "ウェブサイトに移動"]
+  ])("%s: go-to-website hand-off classifies as manual", (_lang, cancel, website) => {
+    const I = loadEngine();
+    const out = I.resolveUnsubscribeDialog(dialog([cancel, website]));
+    expect(out.kind).toBe("manual");
+    expect(out.confirmBtn).toBeNull();
+  });
+
+  test("substring never classifies: 'Unsubscribe and block' is not a confirm", () => {
+    const I = loadEngine();
+    const out = I.resolveUnsubscribeDialog(dialog(["Unsubscribe and block"]));
+    expect(out.kind).toBe("unknown");
+    expect(out.confirmBtn).toBeNull();
+  });
+
+  test("substring never classifies: a superstring of a cancel token is not a cancel", () => {
+    const I = loadEngine();
+    const out = I.resolveUnsubscribeDialog(dialog(["Cancelar suscripción"]));
+    expect(out.kind).toBe("unknown");
+    expect(out.cancelBtn).toBeNull();
+  });
+
+  test("an uncovered locale stays unknown instead of guessing", () => {
+    // Czech is deliberately not in the token tables; the run dismisses
+    // the dialog via Escape and reports the sender unconfirmed.
+    const I = loadEngine();
+    const out = I.resolveUnsubscribeDialog(dialog(["Zrušit", "Odhlásit odběr"]));
+    expect(out.kind).toBe("unknown");
+    expect(out.confirmBtn).toBeNull();
+  });
+
+  test("whitespace is normalized before the exact match", () => {
+    const I = loadEngine();
+    const out = I.resolveUnsubscribeDialog(dialog(["  Darse   de\n baja  "]));
+    expect(out.kind).toBe("confirm");
+  });
+});
+
+describe("7.5: rate-limit detection reads localized throttle phrases", () => {
+  test("a German throttle banner engages detection", () => {
+    const I = loadEngine();
+    document.body.innerHTML = `
+      <div role="alert">Zu viele Anfragen. Bitte versuche es später erneut.</div>`;
+    expect(I.findRateLimitText()).toContain("Zu viele Anfragen");
+  });
+
+  test("a Russian aria-live error engages detection", () => {
+    const I = loadEngine();
+    document.body.innerHTML = `
+      <div aria-live="polite">Произошла ошибка. Повторите попытку позже.</div>`;
+    expect(I.findRateLimitText()).toContain("Произошла ошибка");
+  });
+
+  test("ordinary localized status text is not mistaken for throttling", () => {
+    const I = loadEngine();
+    document.body.innerHTML = `
+      <div role="alert">42 Konversationen ausgewählt</div>`;
+    expect(I.findRateLimitText()).toBeNull();
+  });
+});
+
+describe("7.5: widened toolbar token tables", () => {
+  test("a Turkish archive button is found among Turkish siblings", () => {
+    const I = loadEngine();
+    document.body.innerHTML = `
+      <div gh="mtb">
+        <div role="button" aria-label="Sil"></div>
+        <div role="button" aria-label="Arşivle"></div>
+      </div>`;
+    const btn = I.findArchiveButton();
+    expect(btn).not.toBeNull();
+    expect(btn.getAttribute("aria-label")).toBe("Arşivle");
+  });
+
+  test("a Korean archive button is found", () => {
+    const I = loadEngine();
+    document.body.innerHTML = `
+      <div gh="mtb"><div role="button" aria-label="보관처리"></div></div>`;
+    expect(I.findArchiveButton()).not.toBeNull();
+  });
+
+  test("a Russian labels button is found", () => {
+    const I = loadEngine();
+    document.body.innerHTML = `
+      <div gh="mtb">
+        <div role="button" aria-label="Удалить"></div>
+        <div role="button" aria-label="Ярлыки"></div>
+      </div>`;
+    const btn = I.findLabelButton();
+    expect(btn).not.toBeNull();
+    expect(btn.getAttribute("aria-label")).toBe("Ярлыки");
+  });
+
+  test("a pt-BR Marcadores button is found", () => {
+    const I = loadEngine();
+    document.body.innerHTML = `
+      <div gh="mtb"><div role="button" aria-label="Marcadores"></div></div>`;
+    expect(I.findLabelButton()).not.toBeNull();
+  });
+});
+
+describe("7.5: subscription scan term follows the Gmail UI language", () => {
+  afterEach(() => {
+    document.documentElement.lang = "";
+  });
+
+  test.each([
+    ["", "unsubscribe"],
+    ["en-US", "unsubscribe"],
+    ["de", "abbestellen"],
+    ["pt-BR", "cancelar inscrição"],
+    ["zh-CN", "退订"],
+    ["zh-TW", "取消訂閱"],
+    ["cs", "unsubscribe"]
+  ])("lang '%s' picks '%s' (uncovered locales fall back to English)", (lang, term) => {
+    const I = loadEngine();
+    document.documentElement.lang = lang;
+    expect(I.getSubscriptionSearchTerm()).toBe(term);
+  });
+
+  test("only the body-text query is localized; the category queries are unchanged", () => {
+    const I = loadEngine();
+    document.documentElement.lang = "de";
+    const queries = I.buildSubscriptionScanQueries();
+    expect(queries).toEqual([
+      "\"abbestellen\" newer_than:1y",
+      "category:promotions newer_than:1y",
+      "category:updates \"unsubscribe\" newer_than:1y"
+    ]);
   });
 });

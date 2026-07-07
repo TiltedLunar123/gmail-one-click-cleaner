@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "7.4.0";
+  const GCC_CONTENT_VERSION = "7.5.0";
 
   // =========================
   // Timing & behavior constants
@@ -482,14 +482,23 @@
     "Sil", "Удалить", "حذف", "削除", "삭제", "删除"
   ]);
 
+  // 7.5: widened to the same locale set as DELETE_LABEL_TOKENS. Button
+  // names verified against Google's localized Gmail help pages.
   const ARCHIVE_LABEL_TOKENS = Object.freeze([
     "Archive", "Archived", "Archiver", "Archivar",
-    "Archivé", "Archivieren", "Arquivar", "Archivia", "Archivio"
+    "Archivé", "Archivieren", "Arquivar", "Archivia", "Archivio",
+    "Archiveren", "Arkivera", "Arkivér", "Arkiver",
+    "Archiwizuj", "Arşivle", "Архивировать", "أرشفة",
+    "アーカイブ", "보관처리", "归档", "封存"
   ]);
 
+  // 7.5: widened to the same locale set as DELETE_LABEL_TOKENS. Note
+  // pt-BR Gmail calls labels "Marcadores"; nl/de Gmail keep "Labels".
   const LABEL_BUTTON_TOKENS = Object.freeze([
     "Labels", "Label", "Label as", "Libellés",
-    "Etiquetas", "Etiquette", "Etichette", "Märken"
+    "Etiquetas", "Etiquette", "Etichette", "Märken",
+    "Marcadores", "Etiketter", "Etykiety", "Etiketler",
+    "Ярлыки", "تصنيفات", "ラベル", "라벨", "标签", "標籤"
   ]);
 
   // Current Gmail hides "Label as" inside the toolbar overflow ("More
@@ -534,7 +543,69 @@
     "موافق", "確認", "확인", "确认"
   ]);
 
-  // v3.3: throttling / temporary error tokens
+  // 7.5: Gmail's own wording for the header Unsubscribe control and the
+  // confirm button in its dialog, one entry per CONFIRM_TOKENS locale,
+  // verified against Google's localized Gmail help pages. Matched as
+  // EXACT whole text (see buildExactTokenMatcher): substring matching
+  // would let "Unsubscribe and block" pass as a plain confirm, and
+  // would collide prefix pairs like "取消" (cancel) inside "取消訂閱"
+  // (unsubscribe). Locales whose label could not be verified are left
+  // out on purpose: an unmatched dialog stays "unknown" and is
+  // dismissed, which is the safe failure.
+  const UNSUBSCRIBE_TOKENS = Object.freeze([
+    "Unsubscribe", "Darse de baja", "Se désabonner",
+    "Abbestellen", "Cancelar inscrição", "Annulla iscrizione",
+    "Afmelden", "Avsluta prenumeration", "Frameld",
+    "Meld deg av", "Anuluj subskrypcję", "E-posta listesinden çık",
+    "Отказаться от рассылки", "إلغاء الاشتراك",
+    "登録解除", "メーリングリストの登録解除",
+    "수신 거부", "退订", "取消訂閱"
+  ]);
+
+  // Dismiss buttons in the unsubscribe dialog: Google's standard dialog
+  // vocabulary. Clicking one of these is behaviorally identical to the
+  // Escape fallback, so a stale entry cannot cause a wrong unsubscribe.
+  const UNSUB_CANCEL_TOKENS = Object.freeze([
+    "Cancel", "No thanks", "Close", "Dismiss", "Got it",
+    "Cancelar", "Annuler", "Abbrechen", "Annulla",
+    "Annuleren", "Avbryt", "Annuller", "Anuluj",
+    "İptal", "Отмена", "إلغاء",
+    "キャンセル", "취소", "取消"
+  ]);
+
+  // The "go to website" hand-off for senders without one-click support.
+  // A bulk run must never follow it, so recognizing it only makes the
+  // engine skip the sender instead of reporting an unknown dialog.
+  const UNSUB_WEBSITE_TOKENS = Object.freeze([
+    "Go to website", "Ir al sitio web", "Accéder au site Web",
+    "Website aufrufen", "Acessar o site", "Vai al sito web",
+    "Naar website", "Öppna webbplatsen", "Gå til website",
+    "Gå til nettstedet", "Wejdź na stronę", "Web sitesine git",
+    "Перейти на сайт", "الانتقال إلى الموقع الإلكتروني",
+    "ウェブサイトに移動", "웹사이트로 이동", "前往网站", "前往網站"
+  ]);
+
+  // Exact whole-text matching for dialog button safety. Both the tokens
+  // and the candidate text go through the same normalization (trim,
+  // collapse whitespace, case-fold), so locale case quirks like the
+  // Turkish dotted I stay consistent on both sides.
+  const normalizeControlText = (text) =>
+    (text || "").replace(/\s+/g, " ").trim().toLowerCase();
+
+  const buildExactTokenMatcher = (tokens) => {
+    const wanted = new Set(tokens.map(normalizeControlText));
+    return (text) => wanted.has(normalizeControlText(text));
+  };
+
+  const isUnsubscribeLabel = buildExactTokenMatcher(UNSUBSCRIBE_TOKENS);
+  const isUnsubCancelLabel = buildExactTokenMatcher(UNSUB_CANCEL_TOKENS);
+  const isUnsubWebsiteLabel = buildExactTokenMatcher(UNSUB_WEBSITE_TOKENS);
+
+  // v3.3: throttling / temporary error tokens. 7.5 adds the major
+  // locales so adaptive backoff engages off-English too. Detection-side
+  // only (a false positive just slows the run down), but every entry
+  // stays a phrase, never a lone common word. Stems are used where they
+  // cover several polite endings of the same sentence.
   const RATE_LIMIT_TOKENS = Object.freeze([
     "too many requests",
     "try again later",
@@ -544,8 +615,94 @@
     "were sorry",
     "something went wrong",
     "action could not be completed",
-    "server error"
+    "server error",
+    "inténtalo de nuevo más tarde",
+    "se ha producido un error",
+    "demasiadas solicitudes",
+    "réessayez plus tard",
+    "une erreur s'est produite",
+    "trop de requêtes",
+    "es später erneut",
+    "ein fehler ist aufgetreten",
+    "zu viele anfragen",
+    "tente novamente mais tarde",
+    "ocorreu um erro",
+    "muitas solicitações",
+    "riprova più tardi",
+    "si è verificato un errore",
+    "troppe richieste",
+    "probeer het later opnieuw",
+    "er is iets misgegaan",
+    "te veel verzoeken",
+    "försök igen senare",
+    "något gick fel",
+    "prøv igen senere",
+    "noget gik galt",
+    "prøv på nytt senere",
+    "noe gikk galt",
+    "spróbuj ponownie później",
+    "coś poszło nie tak",
+    "zbyt wiele żądań",
+    "daha sonra tekrar deneyin",
+    "bir hata oluştu",
+    "çok fazla istek",
+    "повторите попытку позже",
+    "произошла ошибка",
+    "слишком много запросов",
+    "حاول مرة أخرى",
+    "حدث خطأ",
+    "しばらくしてからもう一度",
+    "エラーが発生しました",
+    "リクエストが多すぎます",
+    "나중에 다시 시도",
+    "오류가 발생했습니다",
+    "요청이 너무 많습니다",
+    "请稍后再试",
+    "出了点问题",
+    "请求过多",
+    "請稍後再試",
+    "發生錯誤"
   ]);
+
+  // 7.5: body-text discovery term for the subscription scan, keyed by
+  // Gmail UI language. The English literal only matches mail that
+  // contains the English word, so non-English mailboxes pick the term
+  // their newsletters actually print. Recall-side only: a miss just
+  // leaves discovery to the category: queries, exactly like before.
+  const SUBSCRIPTION_SEARCH_TERMS = Object.freeze({
+    en: "unsubscribe",
+    es: "darse de baja",
+    fr: "désabonner",
+    de: "abbestellen",
+    pt: "cancelar inscrição",
+    it: "annulla iscrizione",
+    nl: "afmelden",
+    sv: "avsluta prenumeration",
+    da: "frameld",
+    no: "meld deg av",
+    pl: "anuluj subskrypcję",
+    tr: "listeden çık",
+    ru: "отказаться от рассылки",
+    ar: "إلغاء الاشتراك",
+    ja: "配信停止",
+    ko: "수신거부",
+    zh: "退订"
+  });
+
+  // Gmail stamps its UI language on <html lang>. One term per run:
+  // stacking every language into an OR query would blow past Gmail's
+  // search-length limits for no recall gain on a single-language inbox.
+  function getSubscriptionSearchTerm() {
+    let lang = "";
+    try {
+      lang = (document.documentElement?.lang || "").toLowerCase();
+    } catch {
+      // Fall through to English.
+    }
+    if (lang === "zh-tw" || lang === "zh-hk") return "取消訂閱";
+    const base = lang.split("-")[0];
+    return SUBSCRIPTION_SEARCH_TERMS[base] || SUBSCRIPTION_SEARCH_TERMS.en;
+  }
 
   const isGmailTab = () => {
     try {
@@ -3182,11 +3339,6 @@
   // and can point anywhere.
 
   const SUBSCRIPTIONS = Object.freeze({
-    SCAN_QUERIES: [
-      "\"unsubscribe\" newer_than:1y",
-      "category:promotions newer_than:1y",
-      "category:updates \"unsubscribe\" newer_than:1y"
-    ],
     MAX_SENDERS: 200,
     MAX_UNSUB_PER_RUN: 25,
     ROW_SAMPLE_CAP: 100,
@@ -3195,6 +3347,17 @@
     DIALOG_CLOSE_TIMEOUT: 4000,
     BETWEEN_SENDERS_MS: 1200
   });
+
+  // The three discovery searches. Query 1 carries the localized
+  // body-text term (7.5); the two category: queries are byte-identical
+  // to 7.0 and keep their recall on any mailbox.
+  function buildSubscriptionScanQueries() {
+    return [
+      `"${getSubscriptionSearchTerm()}" newer_than:1y`,
+      "category:promotions newer_than:1y",
+      "category:updates \"unsubscribe\" newer_than:1y"
+    ];
+  }
 
   // One entry per visible row (deliberately not deduped: the duplicate
   // count is the volume signal the popup ranks senders by).
@@ -3241,16 +3404,22 @@
   }
 
   // Gmail's native header Unsubscribe control in an open conversation.
-  // Primary: span.Ca (role=link, literal "Unsubscribe"). Fallback: any
-  // link/button in the reading view with that exact text that is not
-  // inside the message body and not a list-row inline action.
+  // Primary: span.Ca (role=link), trusted structurally since 7.5: Gmail
+  // renders that class on the header control in every UI language, and
+  // the old English text check vetoed it on every non-English account.
+  // Fallback: any link/button in the reading view whose whole text is
+  // one of the localized unsubscribe labels. Both paths refuse hits
+  // inside the message body (sender-controlled markup) and inside list
+  // rows (inline row actions).
   function findHeaderUnsubscribeControl() {
     const main = getMainRoot();
     for (const el of qsa(SELECTORS.headerUnsubscribe.join(", "), main)) {
-      if (/unsubscribe/i.test(getTextContent(el))) return el;
+      if (el.closest(SELECTORS.messageBody)) continue;
+      if (el.closest('tr[role="row"]')) continue;
+      return el;
     }
     for (const el of qsa('[role="link"], [role="button"]', main)) {
-      if (!/^unsubscribe$/i.test(getTextContent(el))) continue;
+      if (!isUnsubscribeLabel(getTextContent(el))) continue;
       if (el.closest(SELECTORS.messageBody)) continue;
       if (el.closest('tr[role="row"]')) continue;
       return el;
@@ -3261,18 +3430,20 @@
   // Classify the confirmation dialog. Gmail shows either a direct
   // confirm (Cancel / Unsubscribe buttons) or, for senders without
   // one-click support, a "go to website" hand-off that a bulk run must
-  // not follow.
+  // not follow. 7.5: classification runs on the localized token tables,
+  // exact whole text only. A button that matches nothing leaves the
+  // dialog "unknown", and unknown dialogs are dismissed, never clicked.
   function resolveUnsubscribeDialog(dlg) {
     const result = { confirmBtn: null, cancelBtn: null, kind: "unknown" };
     if (!dlg) return result;
     for (const btn of qsa('button, [role="button"]', dlg)) {
       const text = getTextContent(btn);
-      if (/^unsubscribe$/i.test(text)) {
+      if (isUnsubscribeLabel(text)) {
         result.confirmBtn = btn;
         result.kind = "confirm";
-      } else if (/^(cancel|no thanks|close|dismiss|got it)$/i.test(text)) {
+      } else if (isUnsubCancelLabel(text)) {
         result.cancelBtn = btn;
-      } else if (/(go to|visit).*(website|site)/i.test(text)) {
+      } else if (isUnsubWebsiteLabel(text) || /(go to|visit).*(website|site)/i.test(text)) {
         result.kind = "manual";
       }
     }
@@ -3351,15 +3522,15 @@
         return;
       }
 
+      const queries = buildSubscriptionScanQueries();
+
       safeSendImmediate({
         runKind: "subscriptionScan",
         phase: "starting",
         status: "Scanning for subscriptions...",
-        detail: `${SUBSCRIPTIONS.SCAN_QUERIES.length} discovery searches.`,
+        detail: `${queries.length} discovery searches.`,
         percent: 0
       });
-
-      const queries = SUBSCRIPTIONS.SCAN_QUERIES;
       for (let i = 0; i < queries.length; i++) {
         if (CANCELLED) throw new CancellationError("Scan cancelled by user");
 
@@ -3999,6 +4170,12 @@
       sanitizeSenderList,
       findHeaderUnsubscribeControl,
       resolveUnsubscribeDialog,
+      // 7.5 locale fixtures
+      findRateLimitText,
+      findArchiveButton,
+      findLabelButton,
+      getSubscriptionSearchTerm,
+      buildSubscriptionScanQueries,
       STORAGE_XRAY,
       foldStorageSample,
       estimateMbPerEmail
