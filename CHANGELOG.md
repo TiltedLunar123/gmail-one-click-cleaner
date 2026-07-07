@@ -3,6 +3,44 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 7.6.0 - Restore runs
+
+### Added
+- **Every logged run now has a one-click Restore.** Tag-before-delete
+  has always labeled a run's mail before moving it, and Gmail keeps
+  Trash for 30 days, so putting a run back was mechanically possible
+  but tedious by hand. The Recovery Log on the Stats page now offers a
+  Restore button on every eligible entry: it searches the run's label
+  in a Gmail tab (Trash for delete runs, outside the Inbox for archive
+  runs), selects everything the way cleanups do, including the "select
+  all conversations that match" banner and its confirmation dialog,
+  and clicks Gmail's own Move to Inbox control. Progress streams onto
+  the page, the run can be cancelled mid-flight, and a finished run
+  reports exactly what happened ("N conversations moved back to
+  Inbox") and marks the entry Restored. Restore is part of the free
+  safety net, not a Pro feature.
+- **The restore engine is built to fail toward safety.** Its only
+  mutating click is the verified move-back control: it never deletes,
+  archives, or marks anything. The Trash toolbar also holds "Delete
+  forever", so the restore finders carry a localized deny-list for it
+  (the same seventeen-language coverage as the other token tables,
+  every string verified against Google's localized help pages) and
+  refuse a deny-listed control no matter how well it otherwise
+  matches, on any of its labels, tooltips or text. A toolbar the
+  engine cannot recognize does nothing: the mail stays in Trash,
+  still recoverable by hand, and the run says so instead of
+  pretending. An empty label search is reported as a finished restore
+  ("nothing left"), because already-restored and already-emptied runs
+  are normal outcomes, not errors.
+- **Eligibility is honest about what can come back.** Restore only
+  offers itself when the run verifiably applied its label; runs whose
+  tagging failed never offer it, because without the label the only
+  alternative is guessing by sender, which could drag unrelated
+  trashed mail back to the Inbox. Delete-mode runs age out with
+  Gmail's ~30-day Trash retention and say so in plain words; archive
+  runs have no deadline. Entries older than the feature simply keep
+  their "Find in Gmail" link.
+
 ## 7.5.0 - Locale support
 
 ### Fixed

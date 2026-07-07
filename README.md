@@ -22,6 +22,7 @@ A browser extension that bulk-cleans Gmail in one click. Run configurable cleanu
 - **Protected Keywords** - Protect any message whose *subject* contains your words/phrases (e.g. `tax`, `invoice`, `"flight confirmation"`) from every rule. Applies to manual and scheduled runs.
 - **Safe Mode** - Skips riskier categories (receipts, order confirmations, shipping updates)
 - **Skip Starred & Important** - Automatically excluded when enabled
+- **One-click Restore** - Every tagged run in the Recovery Log has a Restore button that moves that run's mail back to your Inbox using the run's label and Gmail's own Move to Inbox control. Free, like the rest of the safety net.
 
 ### Presets
 - **Monthly Light Clean** - One-click safe maintenance: Safe Mode + Trash + 3-month age limit
@@ -131,7 +132,7 @@ gmail-one-click-cleaner/
 - **No data collection** - No analytics, no tracking, no email content, subjects, or credentials leave your device.
 - **License stays offline** - Pro keys are verified on-device with a built-in public key. The extension never phones home, not even to check the license. The only network calls are ones you start: opening the Stripe checkout page and its post-purchase activation page (part of the purchase flow, not the extension). No Gmail data is involved in either.
 - **Minimal permissions** - `activeTab`, `scripting`, `tabs`, `storage`, `alarms`, `notifications` + Gmail host access. No new permissions were added for Pro.
-- **30-day safety net** - Gmail keeps Trash for ~30 days. Restore anything deleted by mistake.
+- **30-day safety net** - Gmail keeps Trash for ~30 days, and every run is labeled before it moves. The Recovery Log's one-click Restore puts a run back in your Inbox; archived runs can come back any time, deleted runs within the 30-day window.
 
 See [SECURITY.md](SECURITY.md) for the full security policy and permissions breakdown.
 

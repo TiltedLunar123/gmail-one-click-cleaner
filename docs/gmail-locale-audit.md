@@ -1,4 +1,4 @@
-# Gmail locale-independence audit (written for 7.4.0, revised for 7.5.0)
+# Gmail locale-independence audit (written for 7.4.0, revised for 7.5.0 and 7.6.0)
 
 The engine drives Gmail's UI directly, so anything that matches on-screen
 text silently breaks on non-English Gmail accounts. This audit walks every
@@ -121,6 +121,23 @@ unsubscribe feature was effectively English-only.
 | List-settle signature via `data-legacy-thread-id` / row `id` | `openSearch` | STRUCTURE | Low. |
 | Undo-log row sampling `span[email]`, `data-legacy-thread-id` | `sampleListRows` | STRUCTURE | Low; fixture-locked. |
 
+## 10. Restore run move-back controls (7.6)
+
+The restore engine reuses the audited selection machinery (sections 1,
+2 and 5) and `openSearch`; the only new text-matching surface is the
+move-back control itself plus its inverse-safety deny-list. Restore is
+the one flow that shares a toolbar with "Delete forever", so its
+matching rules are the strictest in the engine.
+
+| Dependency | Where | Class | Risk |
+| --- | --- | --- | --- |
+| `MOVE_TO_INBOX_TOKENS` (18 entries: the 17-locale set with zh in both scripts), exact whole text scores highest, full-phrase containment scores lower (tooltip shortcut suffixes) | `findMoveToInboxButton` | LANG (broad) | Low-medium. Every string verified against Google's localized archive help page (`/mail/answer/6576` per `hl=`). An uncovered locale scores nothing and the engine falls through to the menu path, then to an honest no-op. Single words never match: every token is the full localized phrase. |
+| `MOVE_TO_TOKENS` (Trash toolbar's "Move to" menu opener), EXACT whole text only | `findMoveToMenuButton` | LANG (broad) | Low-medium. Verified against the localized delete help page (`/mail/answer/7401` per `hl=`). Exact-only because several locales use very short words (ja "移動", ko "이동", zh "移至") that would substring-match unrelated controls. Danish is deliberately absent: its help page words the recovery step as the full "Flyt til Indbakke", so the standalone opener could not be verified; da restores through the direct button or not at all. |
+| `INBOX_TOKENS` (localized Inbox names inside the opened menu), EXACT whole text only | `findInboxMenuItemIn` | LANG (broad) | Low. Verified from the same pages (the delete article names the destination, e.g. es "Recibidos"). Exact matching means a user label that merely contains the word is never picked; a miss closes the menu via Escape and the run reports honestly. |
+| `DELETE_FOREVER_TOKENS` deny-list, SUBSTRING match across aria-label, data-tooltip, title AND text | `hasDeleteForeverMarking`, applied in `restoreCandidates` and `findInboxMenuItemIn` before any scoring | LANG (deny side) | This is the inverse-safety wall, and it fails in the safe direction by construction: over-matching only skips a candidate. Strings verified from the delete help page per locale; ar additionally carries the bare stem of the researched phrase and ko both spacing forms, so grammar variants of the same researched wording stay covered. Fixture-locked: a control that matches a move token exactly but carries a deny string on any label surface is refused even when it would win the score outright. An uncovered locale's "Delete forever" is protected differently: no move token covers that locale either, so the finders return nothing and the engine never clicks at all. |
+| Selection, bulk banner, bulk confirm, action verification | `restoreCurrentPage` reusing `clickMasterCheckbox`, `clickSelectAllConversations`, `handleBulkConfirmation`, `waitForActionProcessing` | see sections 1, 2, 5 | Same properties as cleanup, including the 7.4 layout-change signal when rows render without selection controls. |
+| Restore query `in:trash label:"..."` / `label:"..." -in:inbox` | `buildRestoreQuery` | STRUCTURE | None beyond operators. The label rides in a quoted term with embedded quotes stripped twice (page and engine), so it cannot re-scope the query. A label Gmail does not resolve returns zero results, which ends the run as "nothing left to restore". |
+
 ## Summary
 
 Safe (structure/attribute-based, fixture-locked where practical):
@@ -131,7 +148,8 @@ navigation, and since 7.5 the header unsubscribe control.
 Covered by broad token tables (17 locales): delete button, archive
 button, labels button, more-options button, select-all banner, bulk
 confirm, unsubscribe dialog classification, rate-limit detection, the
-subscription scan's discovery term.
+subscription scan's discovery term, and since 7.6 the restore path's
+move-back controls plus its "Delete forever" deny-list.
 
 Shipped in 7.5 (the whole 7.4 backlog, in its original impact order):
 1. Unsubscribe path: `span.Ca` is trusted structurally and the dialog
@@ -149,8 +167,12 @@ run):
 - Locales outside the 17-locale set (e.g. Czech, Thai, Hindi, Greek)
   still miss every token table: cleanups end with "No delete button",
   unsubscribe dialogs stay "unknown" and are dismissed, throttling
-  reads as timeouts. Adding a locale means verifying its strings the
-  same way (Google's localized help pages), not guessing.
+  reads as timeouts, and restore runs find no move-back control, click
+  nothing, and say so while the mail stays recoverable. Adding a
+  locale means verifying its strings the same way (Google's localized
+  help pages), not guessing.
+- Danish restore has no "Move to" menu-opener token (see section 10);
+  it relies on the direct "Flyt til Indbakke" button.
 - The unsubscribe dialog tables cover Gmail's current wording; if
   Google rewords a locale, that locale degrades back to fail-safe
   "unknown" until the table is refreshed.
