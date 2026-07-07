@@ -195,6 +195,122 @@ describe("background.js: Service Worker", () => {
     });
   });
 
+  // ===========================
+  // Restore outcome (7.6)
+  // ===========================
+
+  describe("message: gmailCleanerRecordRestore", () => {
+    const seedLog = (now) => {
+      storageBacking.local.undoLog = [
+        // Recorded AFTER the restore started: belongs to a newer run.
+        { id: "u_newer", timestamp: now + 5000, tagLabel: "GmailCleaner - Promotions", action: "delete", taggingFailed: false },
+        // Covered: same label, same mode, recorded before the restore.
+        { id: "u_hit1", timestamp: now - 1000, tagLabel: "GmailCleaner - Promotions", action: "delete", taggingFailed: false },
+        { id: "u_hit2", timestamp: now - 90000, tagLabel: "GmailCleaner - Promotions", action: "delete", taggingFailed: false },
+        // Same label but archive mode: a delete restore does not touch it.
+        { id: "u_archive", timestamp: now - 1000, tagLabel: "GmailCleaner - Promotions", action: "archive", taggingFailed: false },
+        // Different label entirely.
+        { id: "u_other", timestamp: now - 1000, tagLabel: "GmailCleaner - Social", action: "delete", taggingFailed: false }
+      ];
+    };
+
+    test("stamps restoredAt on same-label same-mode entries recorded before the run", async () => {
+      const now = Date.now();
+      seedLog(now);
+      const sendResponse = jest.fn();
+      const sender = { id: "test-extension-id", tab: { id: 7, url: "https://mail.google.com/mail/u/0/" } };
+
+      const result = onMessageCb(
+        {
+          type: "gmailCleanerRecordRestore",
+          data: { tagLabel: "GmailCleaner - Promotions", action: "delete", count: 240, startedAt: now }
+        },
+        sender,
+        sendResponse
+      );
+      expect(result).toBe(true);
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(sendResponse).toHaveBeenCalledWith({ ok: true });
+      const byId = Object.fromEntries(storageBacking.local.undoLog.map((e) => [e.id, e]));
+      expect(byId.u_hit1.restoredAt).toBeGreaterThan(0);
+      expect(byId.u_hit2.restoredAt).toBeGreaterThan(0);
+      expect(byId.u_newer.restoredAt).toBeUndefined();
+      expect(byId.u_archive.restoredAt).toBeUndefined();
+      expect(byId.u_other.restoredAt).toBeUndefined();
+    });
+
+    test("a zero-count or unlabeled outcome changes nothing", async () => {
+      const now = Date.now();
+      seedLog(now);
+      const sender = { id: "test-extension-id", tab: { id: 7, url: "https://mail.google.com/mail/u/0/" } };
+
+      onMessageCb(
+        { type: "gmailCleanerRecordRestore", data: { tagLabel: "GmailCleaner - Promotions", action: "delete", count: 0, startedAt: now } },
+        sender,
+        jest.fn()
+      );
+      onMessageCb(
+        { type: "gmailCleanerRecordRestore", data: { tagLabel: "", action: "delete", count: 10, startedAt: now } },
+        sender,
+        jest.fn()
+      );
+      await new Promise((r) => setTimeout(r, 50));
+
+      for (const e of storageBacking.local.undoLog) {
+        expect(e.restoredAt).toBeUndefined();
+      }
+    });
+
+    test("an already-restored entry keeps its original stamp", async () => {
+      const now = Date.now();
+      storageBacking.local.undoLog = [
+        { id: "u_done", timestamp: now - 5000, tagLabel: "GmailCleaner - Promotions", action: "delete", taggingFailed: false, restoredAt: 12345 }
+      ];
+      const sender = { id: "test-extension-id", tab: { id: 7, url: "https://mail.google.com/mail/u/0/" } };
+
+      onMessageCb(
+        { type: "gmailCleanerRecordRestore", data: { tagLabel: "GmailCleaner - Promotions", action: "delete", count: 5, startedAt: now } },
+        sender,
+        jest.fn()
+      );
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(storageBacking.local.undoLog[0].restoredAt).toBe(12345);
+    });
+  });
+
+  describe("undo entry restore fields (7.6 eligibility inputs)", () => {
+    test("recordUndo persists tagLabel, action and taggingFailed for the restore gate", async () => {
+      const sendResponse = jest.fn();
+      const sender = { id: "test-extension-id" };
+
+      onMessageCb(
+        {
+          type: "gmailCleanerRecordUndo",
+          data: {
+            query: "in:anywhere category:social",
+            label: "Social",
+            count: 42,
+            action: "archive",
+            tagLabel: "GmailCleaner - Social",
+            taggingFailed: false
+          }
+        },
+        sender,
+        sendResponse
+      );
+      await new Promise((r) => setTimeout(r, 50));
+
+      const [entry] = storageBacking.local.undoLog;
+      expect(entry.tagLabel).toBe("GmailCleaner - Social");
+      expect(entry.action).toBe("archive");
+      expect(entry.taggingFailed).toBe(false);
+      expect(entry.timestamp).toBeGreaterThan(0);
+      expect(entry.restoredAt).toBeUndefined();
+    });
+  });
+
   describe("message: gmailCleanerClearUndoLog", () => {
     test("clears the undo log", async () => {
       const sendResponse = jest.fn();
