@@ -3,6 +3,29 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 7.7.0 - Popup redesign
+
+### Changed
+- **The popup was rebuilt around one rule: fixed chrome stays small so
+  the content gets the room.** The header is a single compact row (the
+  theme switcher moved up into it), the footer is one row instead of a
+  wrapping two, the always-on Pro pitch shrank to a slim strip, and the
+  tab bar slimmed down. On a fresh install the whole Clean tab now fits
+  the 600px popup without scrolling; before, the panel clipped mid-chip
+  behind a native scrollbar.
+- **One clear hierarchy per tab.** Run Cleaner is the only saturated
+  button on the Clean tab. Monthly Light Clean and the one-category
+  targets now read as a single "pick what to clean" preset group, with
+  the targets on a steady 2x2 grid instead of a ragged pill row that
+  wrapped and clipped.
+- **Calmer visual language.** The always-running border glows and
+  button pulses are gone (the amber pulse stays, but only while a run
+  is live), along with the header grid overlay and the gradient title.
+  Scrollable areas use slim themed scrollbars instead of the native
+  arrows, and the popup honors the OS reduced-motion setting.
+- Nothing functional changed: every control, id and keyboard shortcut
+  from 7.6 is still in place, and both themes were retuned to match.
+
 ## 7.6.0 - Restore runs
 
 ### Added
