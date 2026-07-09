@@ -13,17 +13,17 @@
 
   <style>
     /* =========================================================
-       Gmail One-Click Cleaner - Popup UI (Redesign v2)
-       NOTE: All existing IDs preserved to avoid breaking popup.js
+       Gmail One-Click Cleaner - Popup UI (Redesign v3, 7.7)
+       Goals: fixed chrome stays small so the active tab panel
+       gets the vertical room; one saturated CTA per tab; every
+       id from 7.3-7.6 preserved (popup.js + tests address by id).
        ========================================================= */
 
-    /* Popup-local aliases mapped onto the shared.css "Signal" tokens, so the
-       brand lives in one place. Only popup-specific values stay literal. */
+    /* Popup-local aliases mapped onto the shared.css "Signal" tokens, so
+       the brand lives in one place. Only popup-specific values stay literal. */
     :root {
       --bg: var(--bg-deep-alt);
       --bg2: var(--bg-deep);
-      --surface: var(--bg-surface);
-      --surface2: var(--bg-surface-2);
       --surface3: rgba(9, 15, 21, 0.35);
 
       --text: var(--text-main);
@@ -41,8 +41,6 @@
       --warn: var(--warning);
       --bad: var(--danger);
 
-      --amazon: #ff9900;
-
       /* Shape / spacing mapped to the shared scale */
       --r-xl: var(--radius-xl);
       --r-lg: var(--radius-lg);
@@ -55,26 +53,24 @@
       --s-3: var(--space-3);
       --s-4: var(--space-4);
       --s-5: var(--space-5);
-      --s-6: var(--space-6);
 
       --font: var(--font-sans);
 
       /* Motion tokens bundle their easing, so they stay local */
       --ease: cubic-bezier(0.2, 0.9, 0.2, 1);
-      --ease-out: cubic-bezier(0.0, 0.0, 0.2, 1);
-      --ease-in: cubic-bezier(0.4, 0.0, 1, 1);
       --t-fast: 140ms var(--ease);
       --t: 190ms var(--ease);
       --t-slow: 280ms var(--ease);
     }
 
     * { box-sizing: border-box; margin: 0; }
+
     /* Fixed popup height (Chrome caps popups at 600px). The card is a
        flex column and the active tab panel owns the scroll, so the
        header, tab bar and footer stay put. */
     html { height: 600px; }
     body {
-      padding: var(--s-3);
+      padding: 8px;
       width: 380px;
       height: 100%;
       overflow: hidden;
@@ -87,27 +83,13 @@
       text-rendering: optimizeLegibility;
 
       background:
-        radial-gradient(900px 420px at 15% 5%, rgba(34, 211, 238, 0.20), transparent 55%),
-        radial-gradient(900px 420px at 85% 95%, rgba(56, 189, 248, 0.16), transparent 55%),
+        radial-gradient(720px 340px at 18% 0%, rgba(34, 211, 238, 0.14), transparent 60%),
+        radial-gradient(720px 340px at 90% 100%, rgba(56, 189, 248, 0.08), transparent 60%),
         linear-gradient(180deg, var(--bg), var(--bg2));
       background-attachment: fixed;
     }
 
     ::selection { background: rgba(34, 211, 238, 0.28); color: #fff; }
-
-    /* Entrance animations (fadeInUp from shared.css) */
-    .card > * { animation: fadeInUp 0.35s var(--ease) both; }
-    .card > :nth-child(1) { animation-delay: 0.02s; }
-    .card > :nth-child(2) { animation-delay: 0.05s; }
-    .card > :nth-child(3) { animation-delay: 0.08s; }
-    .card > :nth-child(4) { animation-delay: 0.11s; }
-    .card > :nth-child(5) { animation-delay: 0.14s; }
-    .card > :nth-child(6) { animation-delay: 0.17s; }
-    .card > :nth-child(7) { animation-delay: 0.20s; }
-    .card > :nth-child(8) { animation-delay: 0.23s; }
-    .card > :nth-child(9) { animation-delay: 0.26s; }
-    .card > :nth-child(10) { animation-delay: 0.29s; }
-    .card > :nth-child(n+11) { animation-delay: 0.32s; }
 
     /* Focus */
     :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
@@ -121,7 +103,7 @@
       z-index: 9999;
       padding: var(--s-2) var(--s-4);
       background: var(--primary);
-      color: #fff;
+      color: var(--on-primary);
       border-radius: var(--r-sm);
       text-decoration: none;
       font-weight: 700;
@@ -138,80 +120,81 @@
       contain: layout style;
     }
 
-    /* Card */
+    /* Card: one quiet glass surface. A single soft sheen at the top is
+       the only decoration; the old console grid and double glow made
+       every layer compete with the content. */
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
     .card {
       display: flex;
       flex-direction: column;
       height: 100%;
       min-height: 0;
       width: 100%;
-      border-radius: var(--r-xl);
-      padding: var(--s-4);
-      background: linear-gradient(180deg, rgba(17, 26, 36, 0.78), rgba(17, 26, 36, 0.58));
+      border-radius: 18px;
+      padding: 12px 14px 10px;
+      background: linear-gradient(180deg, rgba(17, 26, 36, 0.82), rgba(17, 26, 36, 0.6));
       border: 1px solid var(--border);
       box-shadow:
-        0 28px 60px -26px rgba(0, 0, 0, 0.7),
-        inset 0 1px 0 rgba(255, 255, 255, 0.06);
-      backdrop-filter: blur(14px) saturate(1.1);
-      -webkit-backdrop-filter: blur(14px) saturate(1.1);
+        0 24px 52px -28px rgba(0, 0, 0, 0.7),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(12px) saturate(1.05);
+      -webkit-backdrop-filter: blur(12px) saturate(1.05);
       position: relative;
       overflow: hidden;
       contain: paint;
+      animation: cardIn 0.22s var(--ease) both;
     }
-
-    /* Top sheen, cyan glow, and a faint console grid, masked to the header. */
     .card::before {
       content: "";
       position: absolute;
       inset: 0;
       pointer-events: none;
-      background-image:
-        radial-gradient(640px 180px at 30% 0%, rgba(255,255,255,0.07), transparent 55%),
-        radial-gradient(520px 220px at 82% 6%, rgba(34,211,238,0.12), transparent 60%),
-        linear-gradient(rgba(34,211,238,0.05) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(34,211,238,0.05) 1px, transparent 1px);
-      background-size: auto, auto, 24px 24px, 24px 24px;
-      -webkit-mask-image: linear-gradient(180deg, #000 0, #000 92px, transparent 168px);
-      mask-image: linear-gradient(180deg, #000 0, #000 92px, transparent 168px);
+      background:
+        radial-gradient(480px 130px at 30% 0%, rgba(255, 255, 255, 0.06), transparent 60%),
+        radial-gradient(420px 150px at 85% 0%, rgba(34, 211, 238, 0.09), transparent 60%);
+      -webkit-mask-image: linear-gradient(180deg, #000 0, #000 60px, transparent 130px);
+      mask-image: linear-gradient(180deg, #000 0, #000 60px, transparent 130px);
     }
     .card > * { position: relative; }
 
-    /* Header */
+    /* Header: identity + version + theme, one 32px row. */
     .card-header {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: var(--s-3);
-      margin-bottom: var(--s-2);
+      gap: 8px;
+      margin-bottom: 8px;
+      flex: 0 0 auto;
     }
 
     .header-left {
       display: flex;
       align-items: center;
-      gap: var(--s-3);
+      gap: 8px;
       min-width: 0;
+      flex: 1 1 auto;
     }
 
     .app-mark {
-      width: 38px;
-      height: 38px;
-      border-radius: 11px;
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
       display: grid;
       place-items: center;
       background: var(--surface3);
-      border: 1px solid rgba(34, 211, 238, 0.28);
-      box-shadow:
-        0 8px 18px -12px rgba(34, 211, 238, 0.55),
-        inset 0 1px 0 rgba(255,255,255,0.08);
+      border: 1px solid rgba(34, 211, 238, 0.26);
+      box-shadow: 0 6px 14px -10px rgba(34, 211, 238, 0.5);
       flex: 0 0 auto;
       overflow: hidden;
     }
     /* The icon artwork is itself a rounded dark tile, so it fills the
        mark edge-to-edge instead of floating inside it. */
     .app-mark img {
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
       will-change: transform;
       transition: transform 0.25s var(--ease);
     }
@@ -219,27 +202,32 @@
 
     h1 {
       margin: 0;
-      font-size: 18px;
+      font-size: 13px;
       line-height: 1.2;
-      font-weight: 800;
-      letter-spacing: -0.02em;
+      font-weight: 750;
+      letter-spacing: -0.01em;
+      color: var(--text);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      background: linear-gradient(135deg, #fff, #cbd5e1);
-      -webkit-background-clip: text;
-      background-clip: text;
-      -webkit-text-fill-color: transparent;
+      min-width: 0;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 0 0 auto;
     }
 
     .badge {
-      padding: 5px 9px;
+      padding: 3px 6px;
       border-radius: var(--r-sm);
-      background: rgba(34, 211, 238, 0.10);
-      border: 1px solid rgba(34, 211, 238, 0.28);
+      background: rgba(34, 211, 238, 0.09);
+      border: 1px solid rgba(34, 211, 238, 0.24);
       color: var(--primary-strong);
       font-family: var(--font-mono);
-      font-size: 10px;
+      font-size: 9px;
       font-weight: 700;
       letter-spacing: 0.04em;
       white-space: nowrap;
@@ -247,14 +235,35 @@
       flex: 0 0 auto;
     }
 
-    .subtitle {
-      margin: 2px 0 var(--s-3) 0;
-      font-size: 12px;
-      color: var(--muted);
-      opacity: 0.95;
+    /* Theme switcher pill (popup variant), lives in the header now */
+    .theme-switcher-popup {
+      display: inline-flex;
+      gap: 2px;
+      padding: 2px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      border-radius: var(--r-pill);
+      flex: 0 0 auto;
     }
-    .subtitle br { display: none; }
-    .subtitle span { display: block; }
+    .theme-switcher-popup button {
+      display: inline-flex;
+      align-items: center;
+      background: transparent;
+      border: none;
+      color: var(--dim);
+      font-family: inherit;
+      font-size: 9.5px;
+      font-weight: 800;
+      padding: 4px 6px;
+      border-radius: var(--r-pill);
+      cursor: pointer;
+      transition: color var(--t-fast), background var(--t-fast);
+    }
+    .theme-switcher-popup button:hover { color: var(--text); }
+    .theme-switcher-popup button[aria-pressed="true"] {
+      background: var(--primary);
+      color: var(--on-primary);
+    }
 
     /* Screen reader only */
     .sr-only {
@@ -269,60 +278,57 @@
       border: 0;
     }
 
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
     /* Banner: pin hint */
     .pin-hint {
       display: none;
       align-items: flex-start;
       gap: 10px;
-      padding: 12px;
-      margin-bottom: var(--s-3);
+      padding: 10px 12px;
+      margin-bottom: 8px;
       border-radius: var(--r-md);
-      background: linear-gradient(135deg, rgba(34, 211, 238, 0.14), rgba(56, 189, 248, 0.08));
-      border: 1px solid rgba(34, 211, 238, 0.25);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+      background: linear-gradient(135deg, rgba(34, 211, 238, 0.13), rgba(56, 189, 248, 0.06));
+      border: 1px solid rgba(34, 211, 238, 0.24);
       animation: slideDown 0.22s var(--ease);
     }
     .pin-hint.show { display: flex; }
-    .pin-hint-icon { font-size: 18px; line-height: 1.2; margin-top: 1px; }
-    .pin-hint-title { font-size: 12px; font-weight: 800; color: #a5f3fc; margin-bottom: 2px; }
+    .pin-hint-icon { color: var(--primary); margin-top: 1px; flex: 0 0 auto; }
+    .pin-hint-title { font-size: 12px; font-weight: 800; color: #a5f3fc; margin-bottom: 1px; }
     .pin-hint-text { font-size: 11px; color: var(--muted); line-height: 1.35; }
     .pin-hint-close {
       margin-left: auto;
-      background: rgba(255,255,255,0.05);
+      background: rgba(255, 255, 255, 0.05);
       border: 1px solid var(--border);
       color: var(--muted);
       cursor: pointer;
-      padding: 6px 8px;
-      border-radius: 10px;
+      padding: 5px 8px;
+      border-radius: 9px;
       line-height: 1;
       opacity: 0.85;
-      transition: transform var(--t-fast), opacity var(--t-fast), background var(--t-fast), border-color var(--t-fast);
+      transition: opacity var(--t-fast), background var(--t-fast), border-color var(--t-fast);
       flex: 0 0 auto;
     }
-    .pin-hint-close:hover { opacity: 1; background: rgba(255,255,255,0.08); border-color: var(--border2); transform: translateY(-1px); }
-    .pin-hint-close:active { transform: translateY(0) scale(0.98); }
-
-    @keyframes slideDown {
-      from { opacity: 0; transform: translateY(-8px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
+    .pin-hint-close:hover { opacity: 1; background: rgba(255, 255, 255, 0.08); border-color: var(--border2); }
 
     /* Banner: Gmail host access (Firefox lets users revoke it) */
     .access-banner {
       display: none;
       align-items: flex-start;
       gap: 10px;
-      padding: 12px;
-      margin-bottom: var(--s-3);
+      padding: 10px 12px;
+      margin-bottom: 8px;
       border-radius: var(--r-md);
-      background: linear-gradient(135deg, rgba(251, 191, 36, 0.14), rgba(245, 158, 11, 0.07));
-      border: 1px solid rgba(251, 191, 36, 0.30);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+      background: linear-gradient(135deg, rgba(251, 191, 36, 0.13), rgba(245, 158, 11, 0.06));
+      border: 1px solid rgba(251, 191, 36, 0.3);
       animation: slideDown 0.22s var(--ease);
     }
     .access-banner.show { display: flex; }
     .access-banner-icon { color: #fbbf24; margin-top: 1px; flex: 0 0 auto; }
-    .access-banner-title { font-size: 12px; font-weight: 800; color: #fde68a; margin-bottom: 2px; }
+    .access-banner-title { font-size: 12px; font-weight: 800; color: #fde68a; margin-bottom: 1px; }
     .access-banner-text { font-size: 11px; color: var(--muted); line-height: 1.35; }
     .access-banner-btn {
       margin-left: auto;
@@ -334,388 +340,64 @@
       font-weight: 800;
       font-size: 11px;
       padding: 7px 12px;
-      border-radius: 10px;
+      border-radius: 9px;
       line-height: 1;
-      transition: transform var(--t-fast), background var(--t-fast), border-color var(--t-fast);
+      transition: background var(--t-fast), border-color var(--t-fast);
       flex: 0 0 auto;
     }
-    .access-banner-btn:hover { background: rgba(251, 191, 36, 0.26); transform: translateY(-1px); }
-    .access-banner-btn:active { transform: translateY(0) scale(0.98); }
+    .access-banner-btn:hover { background: rgba(251, 191, 36, 0.26); }
 
-    /* Sections (generic) */
-    .section {
-      background: linear-gradient(180deg, rgba(6, 9, 15, 0.30), rgba(6, 9, 15, 0.20));
-      border: 1px solid var(--border);
-      border-radius: var(--r-lg);
-      margin-bottom: var(--s-4);
-      overflow: hidden;
-      transition: border-color var(--t-fast), background var(--t-fast);
-    }
-    .section:focus-within { border-color: rgba(34, 211, 238, 0.34); }
-    section.section { padding: var(--s-4); }
-
-    /* Details sections */
-    details.section { padding: 0; }
-    summary.section-title {
-      display: flex;
+    /* Snooze banner */
+    .snooze-banner {
+      display: none;
       align-items: center;
-      justify-content: space-between;
-      gap: var(--s-3);
-      padding: var(--s-4);
-      cursor: pointer;
-      list-style: none;
-      user-select: none;
-
-      font-family: var(--font-mono);
-      font-size: 10px;
+      gap: 8px;
+      padding: 9px 12px;
+      margin-bottom: 8px;
+      border-radius: var(--r-md);
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(6, 9, 15, 0.1));
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      color: #fcd34d;
+      font-size: 11px;
       font-weight: 700;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--dim);
-
-      transition: background var(--t-fast), color var(--t-fast);
     }
-    summary.section-title::-webkit-details-marker { display: none; }
-    summary.section-title::marker { content: ""; }
-    summary.section-title:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+    .snooze-banner.show { display: flex; }
 
-    .section-content {
-      padding: 0 var(--s-4) var(--s-4) var(--s-4);
-      border-top: 1px solid transparent;
+    /* Multi-account selector */
+    .account-selector {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
     }
-    details[open] .section-content {
-      border-top-color: rgba(255,255,255,0.06);
-      padding-top: var(--s-4);
-      animation: sectionReveal 0.25s var(--ease);
-    }
-
-    @keyframes sectionReveal {
-      from { opacity: 0; transform: translateY(-6px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .section-title-left,
-    .section-title-right {
+    .account-pill {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      min-width: 0;
-    }
-    .section-emoji { display: inline-flex; align-items: center; color: var(--muted); }
-    .section--reassurance > summary .section-emoji { color: #6ee7b7; }
-
-    /* Inline-SVG icons share these defaults; size comes from width/height attrs */
-    .pin-hint-icon { color: var(--primary); }
-    .linkish svg, .quick-action-btn svg, .cta-btn svg,
-    .rating-prompt-btn svg, .theme-switcher-popup button svg { flex: 0 0 auto; }
-    .reassurance-safe svg { color: #6ee7b7; }
-    .linkish.tip svg { color: #f9a8d4; }
-
-    .chevron {
-      color: var(--muted);
-      transition: transform var(--t), color var(--t);
-      flex: 0 0 auto;
-    }
-    details[open] .chevron { transform: rotate(180deg); color: var(--primary); }
-
-    /* Reassurance (safe box) */
-    .section--reassurance {
-      background: linear-gradient(180deg, rgba(16,185,129,0.10), rgba(6,9,15,0.22));
-      border-color: rgba(16,185,129,0.22);
-    }
-    .section--reassurance > summary.section-title:hover { background: rgba(16,185,129,0.10); }
-    .section--reassurance[open] .chevron { color: #6ee7b7; }
-    .section--reassurance[open] .section-content { border-top-color: rgba(16,185,129,0.16); }
-
-    .reassurance-list {
-      margin: 0 0 10px 0;
-      padding-left: 18px;
-      font-size: 11px;
-      color: var(--muted);
-      line-height: 1.6;
-    }
-    .reassurance-list li { margin-bottom: 6px; }
-    .reassurance-list li:last-child { margin-bottom: 0; }
-    .reassurance-list li::marker { color: rgba(110,231,183,0.95); }
-
-    .reassurance-safe {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px;
-      background: rgba(16,185,129,0.10);
-      border: 1px solid rgba(16,185,129,0.16);
-      border-radius: var(--r-md);
-      font-size: 11px;
-      font-weight: 700;
-      color: #6ee7b7;
-    }
-
-    /* Monthly clean CTA */
-    @keyframes borderGlow {
-      0%, 100% { border-color: rgba(16,185,129,0.28); box-shadow: 0 16px 30px -22px rgba(16,185,129,0.85), inset 0 1px 0 rgba(255,255,255,0.08); }
-      50% { border-color: rgba(16,185,129,0.50); box-shadow: 0 16px 30px -22px rgba(16,185,129,0.85), inset 0 1px 0 rgba(255,255,255,0.08), 0 0 20px -4px rgba(16,185,129,0.25); }
-    }
-
-    .monthly-clean-btn {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--s-3);
-      padding: 14px;
-      margin-bottom: var(--s-4);
+      gap: 4px;
+      padding: 3px 10px;
       border-radius: var(--r-pill);
+      font-size: 11px;
+      font-weight: 500;
+      background: rgba(17, 26, 36, 0.56);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      color: var(--muted);
       cursor: pointer;
-      border: 1px solid rgba(16,185,129,0.28);
-      background:
-        linear-gradient(135deg, rgba(16,185,129,0.18), rgba(6,9,15,0.10));
-      color: #6ee7b7;
-      font-family: inherit;
-      font-size: inherit;
-      transition: transform var(--t-fast), box-shadow var(--t-fast), border-color var(--t-fast), background var(--t-fast);
-      touch-action: manipulation;
-      box-shadow:
-        0 16px 30px -22px rgba(16,185,129,0.85),
-        inset 0 1px 0 rgba(255,255,255,0.08);
-      will-change: transform;
-      animation: borderGlow 3s ease-in-out infinite;
+      transition: border-color var(--t-fast), background var(--t-fast), color var(--t-fast);
     }
-
-    .monthly-clean-btn:hover {
-      transform: translateY(-1px);
-      border-color: rgba(16,185,129,0.46);
-      background: linear-gradient(135deg, rgba(16,185,129,0.26), rgba(6,9,15,0.12));
-      animation: none;
-    }
-    .monthly-clean-btn:active { transform: translateY(0) scale(0.99); animation: none; }
-
-    .monthly-clean-btn .icon {
-      font-size: 18px;
-      width: 26px;
-      height: 26px;
-      display: grid;
-      place-items: center;
-      border-radius: 10px;
-      background: rgba(16,185,129,0.12);
-      border: 1px solid rgba(16,185,129,0.18);
-      flex: 0 0 auto;
-    }
-
-    .monthly-clean-btn .label-text { flex: 1; min-width: 0; text-align: left; }
-    .monthly-clean-btn .label-main { display: block; font-weight: 900; letter-spacing: 0.01em; }
-    .monthly-clean-btn .label-sub { display: block; font-size: 10px; opacity: 0.84; font-weight: 600; color: rgba(167, 243, 208, 0.95); }
-
-    .monthly-clean-btn .badge-recommended {
-      padding: 4px 10px;
-      border-radius: var(--r-pill);
-      font-size: 9px;
-      font-weight: 900;
-      letter-spacing: 0.09em;
-      text-transform: uppercase;
-      background: rgba(16,185,129,0.16);
-      border: 1px solid rgba(16,185,129,0.22);
-      color: #a7f3d0;
-      flex: 0 0 auto;
-    }
-
-    /* 6.0 focused target presets */
-    .target-presets { margin: 0 0 var(--s-4); }
-    .target-presets-label {
-      display: block;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      opacity: 0.6;
-      margin-bottom: 6px;
-    }
-    .target-chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
-    .target-chip {
-      flex: 1 1 auto;
-      padding: 7px 10px;
-      border-radius: var(--r-pill);
-      border: 1px solid rgba(148,163,184,0.28);
-      background: rgba(148,163,184,0.08);
-      color: inherit;
-      font-family: inherit;
-      font-size: 11px;
-      font-weight: 700;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: transform var(--t-fast), border-color var(--t-fast), background var(--t-fast);
-      touch-action: manipulation;
-    }
-    .target-chip:hover { border-color: rgba(148,163,184,0.5); background: rgba(148,163,184,0.14); }
-    .target-chip:active { transform: scale(0.97); }
-
-    /* 7.0: subscriptions scan + bulk unsubscribe */
-    .subs-hint {
-      margin: 0 0 var(--s-3);
-      font-size: 12px;
-      line-height: 1.55;
-      color: var(--muted);
-    }
-    .subs-scan-btn,
-    .subs-unsub-btn {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 2px;
-      width: 100%;
-      padding: 10px 12px;
-      border-radius: 10px;
-      border: 1px solid rgba(34, 211, 238, 0.35);
-      background: rgba(34, 211, 238, 0.10);
+    .account-pill.active {
+      background: rgba(34, 211, 238, 0.2);
+      border-color: rgba(34, 211, 238, 0.4);
       color: var(--text);
-      cursor: pointer;
-      font: inherit;
-      transition: border-color 0.15s var(--ease), background 0.15s var(--ease), transform 0.1s var(--ease);
     }
-    .subs-scan-btn:hover,
-    .subs-unsub-btn:hover { border-color: rgba(34, 211, 238, 0.6); background: rgba(34, 211, 238, 0.16); }
-    .subs-scan-btn:active,
-    .subs-unsub-btn:active { transform: scale(0.98); }
-    .subs-scan-btn:disabled,
-    .subs-unsub-btn:disabled { opacity: 0.6; cursor: wait; }
-    .subs-scan-btn .label-main,
-    .subs-unsub-btn .label-main { font-size: 13px; font-weight: 600; }
-    .subs-scan-btn .label-sub,
-    .subs-unsub-btn .label-sub { font-size: 11px; color: var(--muted); }
-    .subs-unsub-btn { margin-top: var(--s-3); }
-    .subs-unsub-btn.locked { border-color: rgba(148, 163, 184, 0.35); background: rgba(148, 163, 184, 0.08); }
-    .subs-status {
-      min-height: 0;
-      margin-top: var(--s-2);
-      font-size: 12px;
-      color: var(--muted);
-    }
-    .subs-status:empty { display: none; }
-    .subs-toolbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-top: var(--s-3);
-      font-size: 12px;
-      color: var(--muted);
-    }
-    .subs-selectall { display: flex; align-items: center; gap: 6px; cursor: pointer; }
-    .subs-list { margin-top: var(--s-2); max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
-    .subs-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 8px;
-      border-radius: 8px;
-      border: 1px solid rgba(148, 163, 184, 0.16);
-      background: rgba(148, 163, 184, 0.05);
-    }
-    .subs-row-label { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; cursor: pointer; }
-    .subs-row-text { display: flex; flex-direction: column; min-width: 0; }
-    .subs-row-name { font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .subs-row-email { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .subs-row-count {
-      flex-shrink: 0;
-      font-size: 10.5px;
-      color: var(--muted);
-      border: 1px solid rgba(148, 163, 184, 0.28);
-      border-radius: 999px;
-      padding: 1px 7px;
-    }
-    .subs-row-status { flex-shrink: 0; font-size: 10.5px; border-radius: 999px; padding: 1px 7px; }
-    .subs-row-status.ok { color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.4); }
-    .subs-row-status.warn { color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.4); }
-    .subs-row-status.err { color: #fda4af; border: 1px solid rgba(244, 63, 94, 0.4); }
-    .subs-upsell {
-      margin: var(--s-3) 0 0;
-      font-size: 11.5px;
-      line-height: 1.5;
-      color: var(--muted);
-    }
-    .subs-upsell-links { display: flex; gap: 10px; margin-top: 4px; align-items: center; }
-    .subs-upsell-links a { color: rgb(34, 211, 238); text-decoration: none; font-weight: 600; }
-    .subs-upsell-links a:hover { text-decoration: underline; }
+    .account-pill:hover { border-color: rgba(255, 255, 255, 0.15); }
 
-    /* Storage X-ray (7.2): rides the subs-* component styles; only the
-       total banner, MB chip and the free-tier locked row are its own. */
-    .xray-total {
-      display: none;
-      align-items: baseline;
-      gap: 8px;
-      margin: 10px 0 6px;
-      padding: 10px 12px;
-      border-radius: var(--r-md);
-      background: linear-gradient(135deg, rgba(34, 211, 238, 0.12), rgba(16, 185, 129, 0.08));
-      border: 1px solid rgba(34, 211, 238, 0.25);
-    }
-    .xray-total.show { display: flex; }
-    .xray-total-mb { font-size: 16px; font-weight: 800; color: var(--primary-strong, #7bf1fd); white-space: nowrap; }
-    .xray-total-sub { font-size: 11px; color: var(--muted); }
-    .xray-mb {
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--primary-strong, #7bf1fd);
-      white-space: nowrap;
-      flex: 0 0 auto;
-    }
-    .xray-locked {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 12px;
-      margin-top: 6px;
-      border-radius: var(--r-md);
-      border: 1px dashed rgba(34, 211, 238, 0.35);
-      color: var(--muted);
-      font-size: 11px;
-      line-height: 1.4;
-    }
-    .xray-locked-mb { color: var(--primary-strong, #7bf1fd); font-weight: 800; white-space: nowrap; }
-    .xray-age {
-      display: none;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-top: 8px;
-      font-size: 11px;
-      color: var(--muted);
-    }
-    .xray-age.show { display: flex; }
-    .xray-age select {
-      background: rgba(255, 255, 255, 0.05);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 4px 8px;
-      font-size: 11px;
-    }
-    html[data-theme="light"] .xray-total-mb,
-    html[data-theme="light"] .xray-mb,
-    html[data-theme="light"] .xray-locked-mb { color: #0e7490; }
-    .pro-pill {
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      color: #6ee7b7;
-      border: 1px solid rgba(16, 185, 129, 0.4);
-      border-radius: 999px;
-      padding: 1px 7px;
-      text-transform: uppercase;
-    }
-    .target-chip.active {
-      border-color: rgba(16,185,129,0.55);
-      background: rgba(16,185,129,0.18);
-      color: #6ee7b7;
-    }
-
-    /* 7.3: tab bar + panels. The bar sits under the header; the active
-       panel is the only scroll container in the popup. Colors ride the
-       shared tokens so light and dark both come out styled. */
+    /* Tab bar: sits under the header; the active panel is the only
+       scroll container in the popup. */
     .tab-bar {
       display: flex;
-      gap: 4px;
-      padding: 4px;
-      margin-bottom: var(--s-3);
+      gap: 3px;
+      padding: 3px;
+      margin-bottom: 8px;
       background: var(--bg-input);
       border: 1px solid var(--border);
       border-radius: var(--r-md);
@@ -727,7 +409,7 @@
       align-items: center;
       justify-content: center;
       gap: 6px;
-      padding: 8px 4px;
+      padding: 7px 4px;
       border: none;
       border-radius: var(--r-sm);
       background: transparent;
@@ -752,97 +434,256 @@
     .tab-panels {
       flex: 1 1 auto;
       min-height: 0;
-      margin-bottom: var(--s-2);
+      margin-bottom: 2px;
     }
     .tab-panel {
       height: 100%;
       overflow-y: auto;
       overflow-x: hidden;
-      padding: 4px 4px 8px;
+      padding: 2px 6px 10px 2px;
       scrollbar-gutter: stable;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(148, 163, 184, 0.32) transparent;
+    }
+    .tab-panel::-webkit-scrollbar { width: 8px; }
+    .tab-panel::-webkit-scrollbar-track { background: transparent; }
+    .tab-panel::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.28);
+      border-radius: var(--r-pill);
+      border: 2px solid transparent;
+      background-clip: content-box;
     }
     .tab-panel[hidden] { display: none; }
 
-    /* The old details wrappers used to mask this, but with panel content
-       laid bare the hidden attribute must always win, even over
-       display:flex component rules (UA [hidden] loses ties to authors). */
+    /* Component rules below use display:flex, which would beat the UA
+       [hidden] rule at equal importance; the guard keeps hidden hidden. */
     [hidden] { display: none !important; }
 
     /* Small eyebrow row at the top of the Unsubscribe/Storage panels:
-       carries the descriptive title the old summaries had + the Pro pill. */
+       carries the descriptive title + the Pro pill. */
     .panel-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-      margin: 0 0 8px;
+      margin: 0 0 6px;
+    }
+
+    /* Sections (generic details/summary surfaces) */
+    .section {
+      background: linear-gradient(180deg, rgba(6, 9, 15, 0.28), rgba(6, 9, 15, 0.18));
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      margin-bottom: 10px;
+      overflow: hidden;
+      transition: border-color var(--t-fast);
+    }
+    .section:focus-within { border-color: rgba(34, 211, 238, 0.3); }
+
+    details.section { padding: 0; }
+    summary.section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--s-3);
+      padding: 10px 12px;
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: var(--dim);
+
+      transition: background var(--t-fast), color var(--t-fast);
+    }
+    summary.section-title::-webkit-details-marker { display: none; }
+    summary.section-title::marker { content: ""; }
+    summary.section-title:hover { background: rgba(255, 255, 255, 0.04); color: var(--text); }
+
+    .section-content {
+      padding: 0 12px 12px;
+      border-top: 1px solid transparent;
+    }
+    details[open] .section-content {
+      border-top-color: rgba(255, 255, 255, 0.06);
+      padding-top: 10px;
+      animation: sectionReveal 0.22s var(--ease);
+    }
+
+    @keyframes sectionReveal {
+      from { opacity: 0; transform: translateY(-5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .section-title-left,
+    .section-title-right {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    .section-emoji { display: inline-flex; align-items: center; color: var(--muted); }
+    .section--reassurance > summary .section-emoji { color: #6ee7b7; }
+
+    .chevron {
+      color: var(--muted);
+      transition: transform var(--t), color var(--t);
+      flex: 0 0 auto;
+    }
+    details[open] .chevron { transform: rotate(180deg); color: var(--primary); }
+
+    /* Reassurance (safe box) */
+    .section--reassurance {
+      background: linear-gradient(180deg, rgba(16, 185, 129, 0.08), rgba(6, 9, 15, 0.2));
+      border-color: rgba(16, 185, 129, 0.2);
+    }
+    .section--reassurance > summary.section-title:hover { background: rgba(16, 185, 129, 0.08); }
+    .section--reassurance[open] .chevron { color: #6ee7b7; }
+    .section--reassurance[open] .section-content { border-top-color: rgba(16, 185, 129, 0.14); }
+
+    .reassurance-copy {
+      margin: 0;
+      font-size: 11px;
+      line-height: 1.55;
+      color: var(--muted);
+    }
+    .reassurance-copy strong { color: #6ee7b7; font-weight: 700; }
+
+    /* Preset group: Monthly (featured) + one-category targets share one
+       visual family, so "pick what to clean" reads as a single choice. */
+    .preset-stack { margin: 0 0 10px; }
+
+    .monthly-clean-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      border-radius: var(--r-md);
+      cursor: pointer;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(16, 185, 129, 0.04));
+      color: #6ee7b7;
+      font-family: inherit;
+      font-size: inherit;
+      text-align: left;
+      transition: border-color var(--t-fast), background var(--t-fast), transform var(--t-fast);
+      touch-action: manipulation;
+    }
+    .monthly-clean-btn:hover {
+      border-color: rgba(16, 185, 129, 0.5);
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.22), rgba(16, 185, 129, 0.07));
+      transform: translateY(-1px);
+    }
+    .monthly-clean-btn:active { transform: translateY(0) scale(0.99); }
+
+    .monthly-clean-btn .icon {
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.18);
+      flex: 0 0 auto;
+    }
+
+    .monthly-clean-btn .label-text { flex: 1; min-width: 0; }
+    .monthly-clean-btn .label-main { display: block; font-size: 12.5px; font-weight: 800; letter-spacing: 0.01em; }
+    .monthly-clean-btn .label-sub { display: block; font-size: 10.5px; font-weight: 600; color: rgba(167, 243, 208, 0.85); }
+
+    .monthly-clean-btn .badge-recommended {
+      padding: 3px 8px;
+      border-radius: var(--r-pill);
+      font-size: 8.5px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: rgba(16, 185, 129, 0.16);
+      border: 1px solid rgba(16, 185, 129, 0.22);
+      color: #a7f3d0;
+      flex: 0 0 auto;
+    }
+
+    /* Focused one-category targets: a steady 2x2 grid instead of a
+       ragged pill row, so nothing wraps or clips mid-chip. */
+    .target-presets { margin: 8px 0 0; }
+    .target-presets-label {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 6px;
+    }
+    .target-chip-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .target-chip {
+      padding: 8px 6px;
+      border-radius: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      background: rgba(148, 163, 184, 0.06);
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: border-color var(--t-fast), background var(--t-fast), color var(--t-fast), transform var(--t-fast);
+      touch-action: manipulation;
+    }
+    .target-chip:hover {
+      border-color: rgba(148, 163, 184, 0.45);
+      background: rgba(148, 163, 184, 0.12);
+      color: var(--text);
+    }
+    .target-chip:active { transform: scale(0.98); }
+    .target-chip.active {
+      border-color: rgba(16, 185, 129, 0.55);
+      background: rgba(16, 185, 129, 0.16);
+      color: #6ee7b7;
     }
 
     /* Group labels inside the Advanced disclosure */
     .adv-group-label {
       display: block;
       font-family: var(--font-mono);
-      font-size: 10px;
+      font-size: 9.5px;
       font-weight: 700;
-      letter-spacing: 0.14em;
+      letter-spacing: 0.13em;
       text-transform: uppercase;
       color: var(--dim);
-      margin: 0 0 var(--s-3);
+      margin: 0 0 10px;
     }
     .adv-group-label + .toggles { margin-top: 2px; }
-    .field + .adv-group-label { margin-top: var(--s-4); }
+    .field + .adv-group-label { margin-top: 14px; }
 
-    /* Back to the form from the post-run result state */
-    .result-back-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      width: 100%;
-      margin-top: var(--s-3);
-      padding: 10px 12px;
-      border-radius: var(--r-pill);
-      border: 1px solid var(--border);
-      background: var(--bg-surface);
-      color: var(--muted);
-      font-family: inherit;
-      font-size: 11px;
-      font-weight: 800;
-      cursor: pointer;
-      transition: transform var(--t-fast), background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
-      touch-action: manipulation;
-    }
-    .result-back-btn:hover {
-      background: var(--bg-surface-hover);
-      border-color: var(--border2);
-      color: var(--text);
-      transform: translateY(-1px);
-    }
-    .result-back-btn:active { transform: translateY(0) scale(0.98); }
-
-    /* Section titles inside non-details sections */
-    section.section .section-title {
-      display: block;
-      font-family: var(--font-mono);
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--dim);
-      margin-bottom: var(--s-3);
-    }
+    /* Advanced sits below the main action; give it air from the
+       progress/status cluster above it. */
+    #advancedSection { margin-top: 12px; margin-bottom: 8px; }
 
     /* Fields */
     .field {
       display: flex;
       flex-direction: column;
-      gap: 6px;
-      margin-bottom: 14px;
+      gap: 5px;
+      margin-bottom: 12px;
     }
     .field:last-child { margin-bottom: 0; }
 
     .field label {
-      font-size: 12px;
+      font-size: 11.5px;
       font-weight: 800;
       color: var(--text-secondary);
       margin-left: 2px;
@@ -854,111 +695,108 @@
       -webkit-appearance: none;
       background-color: var(--bg-input);
       border: 1px solid var(--border);
-      border-radius: var(--r-md);
+      border-radius: 10px;
       color: var(--text);
       font-family: inherit;
-      font-size: 13px;
-      padding: 11px 38px 11px 12px;
+      font-size: 12.5px;
+      padding: 9px 34px 9px 11px;
       outline: none;
       cursor: pointer;
-      transition: background-color var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast), transform var(--t-fast);
+      transition: background-color var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast);
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7' /%3E%3C/svg%3E");
       background-repeat: no-repeat;
-      background-position: right 12px center;
-      background-size: 14px;
+      background-position: right 11px center;
+      background-size: 13px;
     }
     select:hover {
       background-color: var(--bg-input-focus);
       border-color: var(--border2);
-      transform: translateY(-1px);
     }
-    select:active { transform: translateY(0); }
     select:focus {
       border-color: rgba(34, 211, 238, 0.55);
-      box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.18);
+      box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.16);
     }
     select option { background: var(--bg-deep); color: var(--text); }
 
     /* Toggles */
-    .toggles { display: flex; flex-direction: column; gap: 12px; }
+    .toggles { display: flex; flex-direction: column; gap: 8px; }
 
     .toggle {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       cursor: pointer;
       user-select: none;
-      padding: 10px;
-      border-radius: var(--r-md);
+      padding: 8px 10px;
+      border-radius: 10px;
       border: 1px solid transparent;
-      background: rgba(255,255,255,0.02);
-      transition: background var(--t-fast), border-color var(--t-fast), transform var(--t-fast);
+      background: rgba(255, 255, 255, 0.02);
+      transition: background var(--t-fast), border-color var(--t-fast);
     }
     .toggle:hover {
-      background: rgba(255,255,255,0.05);
-      border-color: rgba(255,255,255,0.06);
-      transform: translateY(-1px);
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.06);
     }
-    .toggle:active { transform: translateY(0); }
 
     .toggle input[type="checkbox"] {
       appearance: none;
       -webkit-appearance: none;
-      width: 42px;
-      height: 24px;
+      width: 38px;
+      height: 22px;
       border-radius: var(--r-pill);
       border: 1px solid var(--border);
-      background: rgba(255,255,255,0.10);
+      background: rgba(255, 255, 255, 0.1);
       position: relative;
       cursor: pointer;
       outline: none;
       flex: 0 0 auto;
       transition: background var(--t), border-color var(--t), box-shadow var(--t);
-      box-shadow: inset 0 2px 5px rgba(0,0,0,0.35);
+      box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.35);
     }
     .toggle input[type="checkbox"]::after {
       content: "";
       position: absolute;
       top: 2px;
       left: 2px;
-      width: 18px;
-      height: 18px;
-      border-radius: 9999px;
+      width: 16px;
+      height: 16px;
+      border-radius: var(--r-pill);
       background: #fff;
-      box-shadow: 0 6px 14px -10px rgba(0,0,0,0.9);
+      box-shadow: 0 5px 12px -8px rgba(0, 0, 0, 0.9);
       transition: transform var(--t);
       will-change: transform;
     }
     .toggle input[type="checkbox"]:focus-visible {
-      box-shadow: inset 0 2px 5px rgba(0,0,0,0.35), 0 0 0 2px rgba(34,211,238,0.55);
+      box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.35), 0 0 0 2px rgba(34, 211, 238, 0.55);
       border-color: rgba(34, 211, 238, 0.35);
     }
     .toggle input[type="checkbox"]:checked {
       background: linear-gradient(135deg, var(--primary), var(--primary2));
       border-color: transparent;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 0 12px -2px rgba(34,211,238,0.5);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
     }
-    .toggle input[type="checkbox"]:checked::after { transform: translateX(18px); }
+    .toggle input[type="checkbox"]:checked::after { transform: translateX(16px); }
 
     .toggle:has(input:checked) {
-      background: rgba(34,211,238,0.06);
-      border-color: rgba(34,211,238,0.15);
+      background: rgba(34, 211, 238, 0.05);
+      border-color: rgba(34, 211, 238, 0.14);
     }
 
-    .toggle-content { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-    .toggle-main { font-size: 13px; font-weight: 800; color: var(--text); }
-    .toggle-hint { font-size: 11px; color: var(--dim); line-height: 1.3; }
+    .toggle-content { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .toggle-main { font-size: 12px; font-weight: 800; color: var(--text); }
+    .toggle-hint { font-size: 10.5px; color: var(--dim); line-height: 1.3; }
 
-    .toggle-row { display: flex; gap: 10px; }
-    .toggle-row .toggle { flex: 1; padding: 10px; }
-    .toggle-row .toggle-main { font-size: 12px; }
+    .toggle-row { display: flex; gap: 8px; }
+    .toggle-row .toggle { flex: 1; }
+    .toggle-row .toggle-main { font-size: 11.5px; }
 
-    /* Primary button (Run Cleaner) */
+    /* Primary button (Run Cleaner): the one saturated CTA on the Clean
+       tab. No idle pulse; state changes carry the motion instead. */
     .primary {
       width: 100%;
       border: none;
       border-radius: var(--r-pill);
-      padding: 14px 16px;
+      padding: 12px 16px;
       margin-top: 2px;
       cursor: pointer;
       color: var(--on-primary);
@@ -966,8 +804,8 @@
       font-size: inherit;
       background: linear-gradient(135deg, var(--primary-strong), var(--primary));
       box-shadow:
-        0 18px 36px -22px rgba(34,211,238,0.95),
-        inset 0 1px 0 rgba(255,255,255,0.20);
+        0 16px 32px -20px rgba(34, 211, 238, 0.9),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
       transition: transform var(--t-fast), box-shadow var(--t-fast), opacity var(--t-fast), filter var(--t-fast);
       position: relative;
       overflow: hidden;
@@ -980,31 +818,22 @@
       content: "";
       position: absolute;
       inset: 0;
-      background: linear-gradient(135deg, rgba(255,255,255,0.18), transparent 55%);
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.18), transparent 55%);
       opacity: 0;
       transition: opacity var(--t-fast);
       z-index: 1;
     }
-    .primary:hover:not(:disabled) { transform: translateY(-2px); filter: saturate(1.05); }
+    .primary:hover:not(:disabled) { transform: translateY(-1px); filter: saturate(1.05); }
     .primary:hover:not(:disabled)::before { opacity: 1; }
     .primary:active:not(:disabled) { transform: translateY(0) scale(0.99); }
 
-    .primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; filter: none; animation: none; }
-
-    @keyframes btnPulse {
-      0%, 100% { box-shadow: 0 18px 36px -22px rgba(34,211,238,0.95), inset 0 1px 0 rgba(255,255,255,0.20); }
-      50% { box-shadow: 0 18px 36px -22px rgba(34,211,238,0.95), inset 0 1px 0 rgba(255,255,255,0.20), 0 0 28px -4px rgba(34,211,238,0.35); }
-    }
-    .primary:not(:disabled):not(.loading):not(.success):not(.running) {
-      animation: btnPulse 2.5s ease-in-out infinite;
-    }
-    .primary:hover:not(:disabled) { animation: none; }
+    .primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; filter: none; }
 
     .primary .label {
       display: block;
-      font-size: 14px;
-      font-weight: 1000;
-      letter-spacing: 0.06em;
+      font-size: 13.5px;
+      font-weight: 900;
+      letter-spacing: 0.05em;
       text-transform: uppercase;
       position: relative;
       z-index: 2;
@@ -1012,12 +841,11 @@
     .primary .sub {
       display: block;
       font-size: 10px;
-      opacity: 1;
       font-weight: 700;
-      margin-top: 2px;
+      margin-top: 1px;
       position: relative;
       z-index: 2;
-      color: rgba(4, 24, 29, 0.74);
+      color: rgba(4, 24, 29, 0.72);
     }
 
     /* Button states for JS */
@@ -1031,7 +859,7 @@
       width: 20px;
       height: 20px;
       margin: -10px 0 0 -10px;
-      border: 2px solid rgba(255,255,255,0.32);
+      border: 2px solid rgba(255, 255, 255, 0.32);
       border-top-color: #fff;
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
@@ -1040,17 +868,21 @@
 
     .primary.success {
       background: linear-gradient(135deg, var(--good), #059669);
-      box-shadow: 0 18px 36px -24px rgba(16,185,129,0.9), inset 0 1px 0 rgba(255,255,255,0.20);
+      box-shadow: 0 16px 32px -22px rgba(16, 185, 129, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      color: #fff;
     }
+    .primary.success .sub { color: rgba(255, 255, 255, 0.85); }
     @keyframes runningPulse {
-      0%, 100% { box-shadow: 0 18px 36px -24px rgba(245,158,11,0.85), inset 0 1px 0 rgba(255,255,255,0.20); }
-      50% { box-shadow: 0 18px 36px -24px rgba(245,158,11,0.85), inset 0 1px 0 rgba(255,255,255,0.20), 0 0 24px -4px rgba(245,158,11,0.3); }
+      0%, 100% { box-shadow: 0 16px 32px -22px rgba(245, 158, 11, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.2); }
+      50% { box-shadow: 0 16px 32px -22px rgba(245, 158, 11, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 0 22px -4px rgba(245, 158, 11, 0.3); }
     }
     .primary.running {
       background: linear-gradient(135deg, var(--warn), #d97706);
-      box-shadow: 0 18px 36px -24px rgba(245,158,11,0.85), inset 0 1px 0 rgba(255,255,255,0.20);
+      box-shadow: 0 16px 32px -22px rgba(245, 158, 11, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.2);
       animation: runningPulse 1.5s ease-in-out infinite;
+      color: #1f1300;
     }
+    .primary.running .sub { color: rgba(31, 19, 0, 0.72); }
 
     /* Shortcut hint */
     .shortcut-hint {
@@ -1062,7 +894,7 @@
       transition: opacity var(--t-fast);
       z-index: 2;
       font-size: 9px;
-      color: rgba(226,232,240,0.75);
+      color: rgba(4, 24, 29, 0.6);
       pointer-events: none;
     }
     .primary:hover .shortcut-hint,
@@ -1072,23 +904,23 @@
       display: inline-block;
       padding: 2px 6px;
       border-radius: 6px;
-      background: rgba(6,9,15,0.35);
-      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(6, 9, 15, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       font-size: 9px;
       font-family: var(--font-mono);
-      color: rgba(226,232,240,0.8);
+      color: rgba(226, 232, 240, 0.8);
     }
 
     /* Progress */
     .progress-bar {
       width: 100%;
       height: 6px;
-      background: rgba(255,255,255,0.10);
+      background: rgba(255, 255, 255, 0.1);
       border-radius: var(--r-pill);
       overflow: hidden;
-      margin-top: var(--s-3);
+      margin-top: 10px;
       display: none;
-      border: 1px solid rgba(255,255,255,0.06);
+      border: 1px solid rgba(255, 255, 255, 0.06);
     }
     .progress-bar.show { display: block; }
 
@@ -1107,47 +939,45 @@
     .quick-actions {
       display: none;
       justify-content: center;
-      gap: 10px;
-      margin-top: var(--s-3);
+      gap: 8px;
+      margin-top: 10px;
     }
     .quick-actions.show { display: flex; }
 
     .quick-action-btn {
       border-radius: var(--r-pill);
       border: 1px solid var(--border);
-      background: rgba(255,255,255,0.05);
+      background: rgba(255, 255, 255, 0.05);
       color: var(--muted);
       font-family: inherit;
       font-size: 11px;
       font-weight: 800;
-      padding: 8px 14px;
+      padding: 7px 13px;
       cursor: pointer;
-      transition: transform var(--t-fast), background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+      transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
       touch-action: manipulation;
     }
     .quick-action-btn:hover {
-      background: rgba(255,255,255,0.10);
+      background: rgba(255, 255, 255, 0.1);
       border-color: var(--border2);
       color: var(--text);
-      transform: translateY(-1px);
     }
-    .quick-action-btn:active { transform: translateY(0) scale(0.98); }
 
     .quick-action-btn.danger {
-      border-color: rgba(239,68,68,0.35);
+      border-color: rgba(239, 68, 68, 0.35);
       color: #fca5a5;
     }
-    .quick-action-btn.danger:hover { background: rgba(239,68,68,0.12); }
+    .quick-action-btn.danger:hover { background: rgba(239, 68, 68, 0.12); }
 
     /* Status */
     .status {
-      margin-top: var(--s-4);
+      margin-top: 10px;
       min-height: 18px;
       font-size: 12px;
       text-align: center;
       font-weight: 700;
       color: var(--muted);
-      transition: color 0.3s ease, opacity 0.3s ease, transform 0.3s ease;
+      transition: color 0.3s ease, opacity 0.3s ease;
       word-break: break-word;
       overflow-wrap: anywhere;
     }
@@ -1155,51 +985,71 @@
     .status.status-success { color: #6ee7b7; }
     .status.status-error { color: #fca5a5; }
     .status.status-warning { color: #fcd34d; }
-    .status.status-running { color: #7bf1fd; }
+    .status.status-running { color: var(--primary-strong); }
 
     @keyframes statusPop {
-      0% { transform: scale(0.95); opacity: 0.5; }
-      50% { transform: scale(1.02); }
+      0% { transform: scale(0.97); opacity: 0.5; }
       100% { transform: scale(1); opacity: 1; }
     }
-    .status:not(:empty) { animation: statusPop 0.25s var(--ease); }
+    .status:not(:empty) { animation: statusPop 0.2s var(--ease); }
 
-    /* Result summary */
+    /* Whitelist suggestions */
+    .wl-suggestions {
+      margin-top: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .wl-suggest-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 8px;
+      border-radius: var(--r-pill);
+      font-size: 10px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: #10b981;
+      cursor: pointer;
+      transition: background var(--t-fast);
+    }
+    .wl-suggest-chip:hover { background: rgba(16, 185, 129, 0.22); }
+
+    /* Result summary (post-run view) */
     .result-summary {
       display: none;
-      margin-top: var(--s-4);
-      padding: var(--s-5);
-      border-radius: var(--r-lg);
-      background: linear-gradient(135deg, rgba(16,185,129,0.14), rgba(6,9,15,0.12));
-      border: 1px solid rgba(16,185,129,0.26);
+      margin-top: 10px;
+      padding: var(--s-4);
+      border-radius: var(--r-md);
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.13), rgba(6, 9, 15, 0.12));
+      border: 1px solid rgba(16, 185, 129, 0.26);
       text-align: center;
       animation: slideDown 0.22s var(--ease);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
     }
     .result-summary.show { display: block; }
 
     @keyframes celebrateIcon {
       0% { transform: scale(0) rotate(-20deg); }
-      50% { transform: scale(1.2) rotate(5deg); }
-      70% { transform: scale(0.9) rotate(-2deg); }
+      50% { transform: scale(1.15) rotate(4deg); }
       100% { transform: scale(1) rotate(0deg); }
     }
-    .result-summary-icon { color: #6ee7b7; margin: 0 auto 10px; display: block; animation: celebrateIcon 0.5s var(--ease) both; }
-    .result-summary-title { font-size: 16px; font-weight: 1000; color: #6ee7b7; margin-bottom: 6px; animation: fadeInUp 0.3s var(--ease) 0.15s both; }
-    .result-summary-stats { font-size: 13px; color: #a7f3d0; margin-bottom: 10px; line-height: 1.5; animation: fadeInUp 0.3s var(--ease) 0.25s both; }
+    .result-summary-icon { color: #6ee7b7; margin: 0 auto 8px; display: block; animation: celebrateIcon 0.45s var(--ease) both; }
+    .result-summary-title { font-size: 15px; font-weight: 900; color: #6ee7b7; margin-bottom: 5px; }
+    .result-summary-stats { font-size: 12.5px; color: #a7f3d0; margin-bottom: 8px; line-height: 1.5; }
     .result-summary-stats strong { color: #fff; font-family: var(--font-mono); font-weight: 800; font-variant-numeric: tabular-nums; }
     .result-summary-note {
-      font-size: 11px;
+      font-size: 10.5px;
       color: var(--muted);
-      padding-top: 10px;
-      border-top: 1px solid rgba(16,185,129,0.14);
+      padding-top: 8px;
+      border-top: 1px solid rgba(16, 185, 129, 0.14);
+      line-height: 1.45;
     }
 
-    /* 7.4: recap marker line. Rides the shared tokens so light and dark
-       both come out styled without literal colors. */
+    /* Recap marker line (shown when the result view replays the last
+       cleanup on popup open instead of a run that just finished) */
     .recap-note {
       display: inline-block;
-      margin: 0 auto 10px;
+      margin: 0 auto 8px;
       padding: 4px 10px;
       border-radius: var(--r-pill);
       border: 1px solid var(--border);
@@ -1213,8 +1063,8 @@
     /* Success CTAs */
     .success-ctas {
       display: none;
-      gap: 10px;
-      margin-top: 14px;
+      gap: 8px;
+      margin-top: 10px;
     }
     .success-ctas.show { display: flex; animation: slideDown 0.22s var(--ease) 0.05s both; }
 
@@ -1223,72 +1073,69 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
-      padding: 10px 12px;
+      gap: 7px;
+      padding: 9px 10px;
       border-radius: var(--r-pill);
       border: 1px solid var(--border);
-      background: rgba(255,255,255,0.05);
+      background: rgba(255, 255, 255, 0.05);
       color: var(--muted);
       font-family: inherit;
       font-size: 11px;
       font-weight: 900;
       cursor: pointer;
       text-decoration: none;
-      transition: transform var(--t-fast), background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+      transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
       touch-action: manipulation;
     }
+    .cta-btn svg { flex: 0 0 auto; }
     .cta-btn:hover {
-      background: rgba(255,255,255,0.10);
+      background: rgba(255, 255, 255, 0.1);
       border-color: var(--border2);
       color: var(--text);
-      transform: translateY(-1px);
     }
-    .cta-btn:active { transform: translateY(0) scale(0.98); }
 
     .cta-btn.cta-primary {
       border: none;
       color: #04181d;
       background: linear-gradient(135deg, #fbbf24, #f59e0b);
-      box-shadow: 0 16px 30px -24px rgba(251,191,36,0.9), inset 0 1px 0 rgba(255,255,255,0.22);
+      box-shadow: 0 14px 26px -20px rgba(251, 191, 36, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.22);
     }
-    .cta-btn.cta-primary:hover { transform: translateY(-1px); }
 
     /* Rating prompt */
     .rating-prompt {
       display: none;
-      margin-top: var(--s-4);
+      margin-top: 10px;
       padding: var(--s-4);
-      border-radius: var(--r-lg);
-      background: linear-gradient(135deg, rgba(251,191,36,0.10), rgba(6,9,15,0.12));
-      border: 1px solid rgba(251,191,36,0.22);
+      border-radius: var(--r-md);
+      background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(6, 9, 15, 0.12));
+      border: 1px solid rgba(251, 191, 36, 0.22);
       text-align: center;
       animation: slideDown 0.22s var(--ease);
     }
     .rating-prompt.show { display: block; }
 
     .rating-prompt-text {
-      font-size: 13px;
+      font-size: 12.5px;
       font-weight: 800;
       color: #fcd34d;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }
 
     .rating-stars {
       display: flex;
       justify-content: center;
       gap: 6px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
     .rating-star {
       color: #fbbf24;
       display: inline-flex;
       cursor: pointer;
       user-select: none;
-      transition: transform var(--t-fast), filter var(--t-fast);
-      filter: drop-shadow(0 8px 16px rgba(0,0,0,0.25));
+      transition: transform var(--t-fast);
+      filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.25));
     }
-    .rating-star:hover { transform: scale(1.18); }
-    .rating-star:active { transform: scale(1.04); }
+    .rating-star:hover { transform: scale(1.15); }
     .rating-star:active { transform: scale(1.02); }
 
     .rating-prompt-btn {
@@ -1296,26 +1143,27 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-      padding: 10px 18px;
+      padding: 9px 16px;
       border-radius: var(--r-pill);
       border: none;
       background: linear-gradient(135deg, #fbbf24, #f59e0b);
       color: #04181d;
       font-family: inherit;
       font-size: 12px;
-      font-weight: 1000;
+      font-weight: 900;
       cursor: pointer;
       text-decoration: none;
-      transition: transform var(--t-fast), box-shadow var(--t-fast);
-      box-shadow: 0 16px 30px -26px rgba(251,191,36,0.9), inset 0 1px 0 rgba(255,255,255,0.22);
+      transition: transform var(--t-fast);
+      box-shadow: 0 14px 26px -22px rgba(251, 191, 36, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.22);
       touch-action: manipulation;
     }
+    .rating-prompt-btn svg { flex: 0 0 auto; }
     .rating-prompt-btn:hover { transform: translateY(-1px); }
     .rating-prompt-btn:active { transform: translateY(0) scale(0.98); }
 
     .rating-dismiss {
       display: block;
-      margin: 10px auto 0 auto;
+      margin: 8px auto 0;
       background: none;
       border: none;
       color: var(--dim);
@@ -1323,95 +1171,292 @@
       font-weight: 800;
       font-family: inherit;
       cursor: pointer;
-      padding: 6px 10px;
-      border-radius: 10px;
+      padding: 5px 10px;
+      border-radius: 9px;
       transition: color var(--t-fast), background var(--t-fast);
     }
-    .rating-dismiss:hover { color: var(--muted); background: rgba(255,255,255,0.05); }
+    .rating-dismiss:hover { color: var(--muted); background: rgba(255, 255, 255, 0.05); }
 
-    /* Footer (compact: it shares the fixed card with the tab panels) */
-    .footer {
-      margin-top: var(--s-2);
-      padding-top: 10px;
-      border-top: 1px solid rgba(255,255,255,0.06);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .footer-left { display: flex; gap: 8px; flex-wrap: wrap; }
-
-    .linkish {
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.06);
-      color: var(--dim);
-      font-size: 11px;
-      font-weight: 900;
-      font-family: inherit;
-      cursor: pointer;
-      padding: 6px 9px;
-      border-radius: 12px;
-      transition: transform var(--t-fast), background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
-      text-decoration: none;
+    /* Back to the form from the post-run result state */
+    .result-back-btn {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      white-space: nowrap;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      margin-top: 10px;
+      padding: 9px 12px;
+      border-radius: var(--r-pill);
+      border: 1px solid var(--border);
+      background: var(--bg-surface);
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
       touch-action: manipulation;
     }
-    .linkish:hover {
-      background: rgba(255,255,255,0.06);
-      border-color: rgba(255,255,255,0.10);
+    .result-back-btn:hover {
+      background: var(--bg-surface-hover);
+      border-color: var(--border2);
       color: var(--text);
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px -6px rgba(0,0,0,0.4);
-    }
-    .linkish:active { transform: translateY(0) scale(0.98); box-shadow: none; }
-
-    .linkish.pro {
-      border-color: rgba(16,185,129,0.25);
-      background: rgba(16,185,129,0.06);
-      color: #6ee7b7;
-    }
-    .linkish.pro:hover {
-      background: rgba(16,185,129,0.10);
-      border-color: rgba(16,185,129,0.38);
-      color: #a7f3d0;
     }
 
-    /* Pro promo (compact single pitch; visible on every tab, so it has
-       to stay short inside the fixed-height card) */
-    .pro-promo {
-      margin-top: var(--s-2);
-      padding: 10px 12px;
-      border-radius: 12px;
-      border: 1px solid rgba(16,185,129,0.22);
-      background: linear-gradient(180deg, rgba(16,185,129,0.06), rgba(6,9,15,0.20));
-    }
-    .pro-promo-body {
+    /* Subscriptions + Storage panels share the subs-* component family */
+    .subs-hint {
+      margin: 0 0 10px;
       font-size: 11.5px;
       line-height: 1.5;
       color: var(--muted);
-      margin: 0 0 6px;
+    }
+    .subs-scan-btn,
+    .subs-unsub-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1px;
+      width: 100%;
+      padding: 9px 12px;
+      border-radius: var(--r-md);
+      border: 1px solid rgba(34, 211, 238, 0.35);
+      background: rgba(34, 211, 238, 0.09);
+      color: var(--text);
+      cursor: pointer;
+      font: inherit;
+      text-align: left;
+      transition: border-color var(--t-fast), background var(--t-fast), transform var(--t-fast);
+      touch-action: manipulation;
+    }
+    .subs-scan-btn:hover,
+    .subs-unsub-btn:hover { border-color: rgba(34, 211, 238, 0.6); background: rgba(34, 211, 238, 0.15); }
+    .subs-scan-btn:active,
+    .subs-unsub-btn:active { transform: scale(0.99); }
+    .subs-scan-btn:disabled,
+    .subs-unsub-btn:disabled { opacity: 0.6; cursor: wait; }
+    .subs-scan-btn .label-main,
+    .subs-unsub-btn .label-main { font-size: 12.5px; font-weight: 700; }
+    .subs-scan-btn .label-sub,
+    .subs-unsub-btn .label-sub { font-size: 10.5px; color: var(--muted); }
+    .subs-unsub-btn { margin-top: 10px; }
+    .subs-unsub-btn.locked { border-color: rgba(148, 163, 184, 0.35); background: rgba(148, 163, 184, 0.07); }
+    .subs-status {
+      min-height: 0;
+      margin-top: 6px;
+      font-size: 11.5px;
+      color: var(--muted);
+    }
+    .subs-status:empty { display: none; }
+    .subs-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 10px;
+      font-size: 11.5px;
+      color: var(--muted);
+    }
+    .subs-selectall { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    .subs-list { margin-top: 6px; max-height: 230px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; scrollbar-width: thin; scrollbar-color: rgba(148, 163, 184, 0.32) transparent; }
+    .subs-list::-webkit-scrollbar { width: 8px; }
+    .subs-list::-webkit-scrollbar-track { background: transparent; }
+    .subs-list::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.28);
+      border-radius: var(--r-pill);
+      border: 2px solid transparent;
+      background-clip: content-box;
+    }
+    .subs-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 8px;
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      background: rgba(148, 163, 184, 0.05);
+    }
+    .subs-row-label { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; cursor: pointer; }
+    .subs-row-text { display: flex; flex-direction: column; min-width: 0; }
+    .subs-row-name { font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .subs-row-email { font-size: 10.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .subs-row-count {
+      flex-shrink: 0;
+      font-size: 10.5px;
+      color: var(--muted);
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: var(--r-pill);
+      padding: 1px 7px;
+    }
+    .subs-row-status { flex-shrink: 0; font-size: 10.5px; border-radius: var(--r-pill); padding: 1px 7px; }
+    .subs-row-status.ok { color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.4); }
+    .subs-row-status.warn { color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.4); }
+    .subs-row-status.err { color: #fda4af; border: 1px solid rgba(244, 63, 94, 0.4); }
+    .subs-upsell {
+      margin: 10px 0 0;
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--muted);
+    }
+    .subs-upsell-links { display: flex; gap: 10px; margin-top: 4px; align-items: center; }
+    .subs-upsell-links a { color: var(--primary); text-decoration: none; font-weight: 700; font-size: 11.5px; }
+    .subs-upsell-links a:hover { text-decoration: underline; }
+
+    .pro-pill {
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: #6ee7b7;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      border-radius: var(--r-pill);
+      padding: 1px 7px;
+      text-transform: uppercase;
+      flex: 0 0 auto;
+    }
+
+    /* Storage X-ray: rides the subs-* components; only the total banner,
+       MB chip and the free-tier locked row are its own. */
+    .xray-total {
+      display: none;
+      align-items: baseline;
+      gap: 8px;
+      margin: 8px 0 4px;
+      padding: 9px 12px;
+      border-radius: var(--r-md);
+      background: linear-gradient(135deg, rgba(34, 211, 238, 0.11), rgba(16, 185, 129, 0.07));
+      border: 1px solid rgba(34, 211, 238, 0.24);
+    }
+    .xray-total.show { display: flex; }
+    .xray-total-mb { font-size: 15px; font-weight: 800; color: var(--primary-strong); white-space: nowrap; }
+    .xray-total-sub { font-size: 11px; color: var(--muted); }
+    .xray-mb {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--primary-strong);
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }
+    .xray-locked {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 12px;
+      margin-top: 4px;
+      border-radius: var(--r-md);
+      border: 1px dashed rgba(34, 211, 238, 0.35);
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+    .xray-locked-mb { color: var(--primary-strong); font-weight: 800; white-space: nowrap; }
+    .xray-age {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .xray-age.show { display: flex; }
+    .xray-age select {
+      width: auto;
+      background-color: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px 26px 4px 8px;
+      font-size: 11px;
+      background-position: right 8px center;
+      background-size: 11px;
+    }
+
+    /* Footer: one compact row. Nav left; help + Pro right. */
+    .footer {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 auto;
+    }
+
+    .footer-left { display: flex; gap: 4px; min-width: 0; }
+    .footer-right { display: flex; gap: 4px; align-items: center; flex: 0 0 auto; }
+
+    .linkish {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      color: var(--dim);
+      font-size: 10.5px;
+      font-weight: 800;
+      font-family: inherit;
+      cursor: pointer;
+      padding: 5px 8px;
+      border-radius: 9px;
+      transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+      touch-action: manipulation;
+    }
+    .linkish svg { flex: 0 0 auto; }
+    .linkish:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.1);
+      color: var(--text);
+    }
+
+    .linkish.pro {
+      border-color: rgba(16, 185, 129, 0.25);
+      background: rgba(16, 185, 129, 0.06);
+      color: #6ee7b7;
+    }
+    .linkish.pro:hover {
+      background: rgba(16, 185, 129, 0.1);
+      border-color: rgba(16, 185, 129, 0.38);
+      color: #a7f3d0;
+    }
+
+    /* Pro promo: one slim strip under the footer, visible on every tab
+       until a license lands, so it can't crowd the panels. */
+    .pro-promo {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: 11px;
+      border: 1px solid rgba(16, 185, 129, 0.22);
+      background: linear-gradient(180deg, rgba(16, 185, 129, 0.06), rgba(6, 9, 15, 0.18));
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 0 0 auto;
+    }
+    .pro-promo-body {
+      flex: 1 1 auto;
+      min-width: 0;
+      font-size: 10.5px;
+      line-height: 1.45;
+      color: var(--muted);
+      margin: 0;
     }
     .pro-promo-body strong { color: #6ee7b7; }
-    .pro-promo-actions { display: flex; gap: 10px; align-items: center; }
+    .pro-promo-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 3px;
+      flex: 0 0 auto;
+    }
     .pro-promo-actions a {
       color: #6ee7b7;
-      font-weight: 600;
-      font-size: 12px;
+      font-weight: 800;
+      font-size: 11px;
       text-decoration: none;
+      white-space: nowrap;
     }
     .pro-promo-actions a:hover { text-decoration: underline; }
-    html[data-theme="light"] .pro-promo {
-      background: linear-gradient(180deg, rgba(5, 150, 105, 0.08), rgba(255, 255, 255, 0.55));
-      border-color: rgba(5, 150, 105, 0.24);
-    }
-    html[data-theme="light"] .pro-promo-body strong,
-    html[data-theme="light"] .pro-promo-actions a { color: #047857; }
-
+    .pro-promo-actions .linkish { font-size: 9.5px; padding: 3px 7px; }
 
     /* Toast */
     .toast-container {
@@ -1433,9 +1478,9 @@
       gap: 8px;
       padding: 10px 12px;
       border-radius: var(--r-md);
-      background: rgba(22, 32, 42, 0.92);
-      border: 1px solid rgba(255,255,255,0.08);
-      box-shadow: 0 22px 40px -28px rgba(0,0,0,0.9);
+      background: rgba(22, 32, 42, 0.94);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 22px 40px -28px rgba(0, 0, 0, 0.9);
       color: var(--text);
       font-size: 12px;
 
@@ -1450,238 +1495,6 @@
     .toast-error { border-left: 3px solid var(--bad); }
     .toast-warning { border-left: 3px solid var(--warn); }
     .toast-info { border-left: 3px solid var(--primary); }
-
-    .toast-icon { flex: 0 0 auto; font-size: 14px; }
-
-    /* High contrast / forced colors */
-    @media (prefers-contrast: high) {
-      :root { --border: rgba(255,255,255,0.35); --border2: rgba(255,255,255,0.55); }
-      .card { border-width: 2px; }
-      select, .toggle input[type="checkbox"] { border-width: 2px; }
-    }
-
-    @media (forced-colors: active) {
-      .primary, .cta-btn, .monthly-clean-btn { border: 2px solid CanvasText; }
-      .toggle input[type="checkbox"] { border: 2px solid CanvasText; }
-      .toggle input[type="checkbox"]:checked { background: Highlight; }
-      .tab-bar [role="tab"] { border: 1px solid CanvasText; }
-      .tab-bar [role="tab"][aria-selected="true"] { background: Highlight; color: HighlightText; }
-    }
-
-    /* Print: hide interactive chrome */
-    @media print {
-      html { height: auto; }
-      body { width: auto; height: auto; overflow: visible; background: #fff; color: #000; }
-      .card, .popup-root { height: auto; }
-      .tab-panel { height: auto; overflow: visible; }
-      .primary, .monthly-clean-btn, .quick-actions, .toast-container,
-      .success-ctas, .rating-prompt, .footer, .pro-promo, .tab-bar,
-      .pin-hint, .progress-bar { display: none !important; }
-    }
-
-    /* Multi-account selector */
-    .account-selector {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      margin-bottom: var(--s-3);
-    }
-    .account-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 3px 10px;
-      border-radius: 9999px;
-      font-size: 11px;
-      font-weight: 500;
-      background: rgba(17, 26, 36, 0.56);
-      border: 1px solid rgba(255,255,255,0.07);
-      color: #94a3b8;
-      cursor: pointer;
-      transition: all 140ms cubic-bezier(0.2,0.9,0.2,1);
-    }
-    .account-pill.active {
-      background: rgba(34,211,238,0.2);
-      border-color: rgba(34,211,238,0.4);
-      color: #f1f5f9;
-    }
-    .account-pill:hover { border-color: rgba(255,255,255,0.15); }
-
-    /* Whitelist suggestions */
-    .wl-suggestions {
-      margin-top: var(--s-2);
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-    }
-    .wl-suggest-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 3px;
-      padding: 2px 8px;
-      border-radius: 9999px;
-      font-size: 10px;
-      background: rgba(16,185,129,0.12);
-      border: 1px solid rgba(16,185,129,0.25);
-      color: #10b981;
-      cursor: pointer;
-      transition: all 140ms ease;
-    }
-    .wl-suggest-chip:hover {
-      background: rgba(16,185,129,0.22);
-    }
-
-    /* Stats nav link */
-    .nav-link-stats {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 3px 8px;
-      border-radius: 6px;
-      font-size: 11px;
-      color: #94a3b8;
-      text-decoration: none;
-      cursor: pointer;
-      transition: color 140ms ease;
-    }
-    .nav-link-stats:hover { color: #f1f5f9; }
-
-    /* ===== popup light-theme visuals =====
-       Token values flow from shared.css [data-theme="light"] through the
-       aliases above; only popup-specific surfaces and gradients are restated. */
-    html[data-theme="light"] { --surface3: rgba(236, 244, 247, 0.5); }
-    html[data-theme="light"] body {
-      background:
-        radial-gradient(900px 420px at 15% 5%, rgba(34, 211, 238, 0.10), transparent 55%),
-        radial-gradient(900px 420px at 85% 95%, rgba(56, 189, 248, 0.08), transparent 55%),
-        linear-gradient(180deg, var(--bg), var(--bg2));
-    }
-    html[data-theme="light"] h1 {
-      background: linear-gradient(135deg, #0b1620, #0e7490);
-      -webkit-background-clip: text;
-      background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    html[data-theme="light"] .card {
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.8));
-      box-shadow:
-        0 18px 40px -22px rgba(13, 30, 40, 0.16),
-        inset 0 1px 0 rgba(255, 255, 255, 0.7);
-    }
-    html[data-theme="light"] .toast {
-      background: rgba(255, 255, 255, 0.95);
-      color: var(--text);
-      border-color: rgba(13, 30, 40, 0.08);
-    }
-
-    /* Light-theme contrast fixes for the dark-assuming panels and accents,
-       so light reads as intentional rather than an inverted afterthought. */
-    html[data-theme="light"] .section { background: rgba(255, 255, 255, 0.55); }
-    html[data-theme="light"] .section--reassurance {
-      background: linear-gradient(180deg, rgba(5, 150, 105, 0.10), rgba(255, 255, 255, 0.55));
-      border-color: rgba(5, 150, 105, 0.22);
-    }
-    html[data-theme="light"] .reassurance-safe {
-      color: #047857;
-      background: rgba(5, 150, 105, 0.10);
-      border-color: rgba(5, 150, 105, 0.20);
-    }
-    html[data-theme="light"] .monthly-clean-btn,
-    html[data-theme="light"] .monthly-clean-btn .label-sub,
-    html[data-theme="light"] .monthly-clean-btn .badge-recommended { color: #047857; }
-    html[data-theme="light"] .monthly-clean-btn {
-      background: linear-gradient(135deg, rgba(5, 150, 105, 0.16), rgba(255, 255, 255, 0.5));
-      border-color: rgba(5, 150, 105, 0.30);
-    }
-    html[data-theme="light"] .monthly-clean-btn .icon {
-      background: rgba(5, 150, 105, 0.12);
-      border-color: rgba(5, 150, 105, 0.18);
-    }
-    html[data-theme="light"] .result-summary {
-      background: linear-gradient(135deg, rgba(5, 150, 105, 0.12), rgba(255, 255, 255, 0.6));
-      border-color: rgba(5, 150, 105, 0.26);
-    }
-    html[data-theme="light"] .result-summary-icon,
-    html[data-theme="light"] .result-summary-title { color: #047857; }
-    html[data-theme="light"] .result-summary-stats { color: #065f46; }
-    html[data-theme="light"] .result-summary-stats strong { color: #064e3b; }
-    html[data-theme="light"] .status.status-success { color: #047857; }
-    html[data-theme="light"] .status.status-error { color: #b91c1c; }
-    html[data-theme="light"] .status.status-warning { color: #b45309; }
-    html[data-theme="light"] .status.status-running { color: #0e7490; }
-    html[data-theme="light"] .snooze-banner {
-      color: #b45309;
-      background: linear-gradient(135deg, rgba(245, 158, 11, 0.14), rgba(255, 255, 255, 0.5));
-    }
-    html[data-theme="light"] .primary {
-      color: #04181d;
-      background: linear-gradient(135deg, #7bf1fd, #22d3ee);
-    }
-    html[data-theme="light"] .rating-prompt-text { color: #b45309; }
-    html[data-theme="light"] .rating-star { color: #d97706; }
-    html[data-theme="light"] .quick-action-btn.danger { color: #b91c1c; }
-    html[data-theme="light"] .pin-hint-title { color: #0e7490; }
-    html[data-theme="light"] .access-banner-title { color: #92400e; }
-    html[data-theme="light"] .access-banner-icon { color: #b45309; }
-    html[data-theme="light"] .access-banner-btn {
-      color: #78350f;
-      background: rgba(217, 119, 6, 0.14);
-      border-color: rgba(180, 83, 9, 0.45);
-    }
-    html[data-theme="light"] .toggle input[type="checkbox"] {
-      background: rgba(13, 30, 40, 0.12);
-      border-color: rgba(13, 30, 40, 0.12);
-    }
-    html[data-theme="light"] .linkish {
-      background: rgba(13, 30, 40, 0.04);
-      border-color: rgba(13, 30, 40, 0.10);
-    }
-    html[data-theme="light"] kbd {
-      background: rgba(13, 30, 40, 0.06);
-      color: var(--text-muted);
-      border-color: rgba(13, 30, 40, 0.12);
-    }
-
-    /* Theme switcher pill (popup variant) */
-    .theme-switcher-popup {
-      display: inline-flex;
-      gap: 2px;
-      padding: 2px;
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid var(--border);
-      border-radius: var(--r-pill);
-    }
-    .theme-switcher-popup button {
-      background: transparent;
-      border: none;
-      color: var(--dim);
-      font-family: inherit;
-      font-size: 10px;
-      font-weight: 800;
-      padding: 4px 8px;
-      border-radius: var(--r-pill);
-      cursor: pointer;
-    }
-    .theme-switcher-popup button[aria-pressed="true"] {
-      background: var(--primary);
-      color: #fff;
-    }
-
-    /* Snooze banner */
-    .snooze-banner {
-      display: none;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 12px;
-      margin-bottom: var(--s-3);
-      border-radius: var(--r-md);
-      background: linear-gradient(135deg, rgba(245, 158, 11, 0.16), rgba(6, 9, 15, 0.10));
-      border: 1px solid rgba(245, 158, 11, 0.30);
-      color: #fcd34d;
-      font-size: 11px;
-      font-weight: 700;
-    }
-    .snooze-banner.show { display: flex; }
 
     /* Onboarding overlay */
     .onboarding-backdrop {
@@ -1701,7 +1514,7 @@
       max-width: 320px;
       width: 100%;
       background: linear-gradient(180deg, rgba(17, 26, 36, 0.94), rgba(17, 26, 36, 0.86));
-      border: 1px solid rgba(255, 255, 255, 0.10);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: var(--r-lg);
       padding: 20px;
       color: var(--text);
@@ -1736,7 +1549,7 @@
     .onboarding-dot {
       width: 6px;
       height: 6px;
-      border-radius: 9999px;
+      border-radius: var(--r-pill);
       background: rgba(255, 255, 255, 0.15);
     }
     .onboarding-dot.active { background: var(--primary); }
@@ -1745,7 +1558,7 @@
       border: none;
       border-radius: var(--r-pill);
       background: var(--primary);
-      color: #fff;
+      color: var(--on-primary);
       font-family: inherit;
       font-size: 12px;
       font-weight: 800;
@@ -1780,7 +1593,7 @@
       max-width: 320px;
       width: 100%;
       background: rgba(17, 26, 36, 0.94);
-      border: 1px solid rgba(255, 255, 255, 0.10);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: var(--r-lg);
       padding: 18px;
       color: var(--text);
@@ -1821,6 +1634,166 @@
       font-weight: 800;
       cursor: pointer;
     }
+
+    /* ===== popup light-theme visuals =====
+       Token values flow from shared.css [data-theme="light"] through the
+       aliases above; only popup-specific surfaces and accents restate. */
+    html[data-theme="light"] { --surface3: rgba(236, 244, 247, 0.5); }
+    html[data-theme="light"] body {
+      background:
+        radial-gradient(720px 340px at 18% 0%, rgba(34, 211, 238, 0.1), transparent 60%),
+        radial-gradient(720px 340px at 90% 100%, rgba(56, 189, 248, 0.07), transparent 60%),
+        linear-gradient(180deg, var(--bg), var(--bg2));
+    }
+    html[data-theme="light"] .card {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.82));
+      box-shadow:
+        0 18px 40px -22px rgba(13, 30, 40, 0.16),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    }
+    html[data-theme="light"] .card::before {
+      background:
+        radial-gradient(480px 130px at 30% 0%, rgba(14, 116, 144, 0.05), transparent 60%),
+        radial-gradient(420px 150px at 85% 0%, rgba(34, 211, 238, 0.07), transparent 60%);
+    }
+    html[data-theme="light"] .toast {
+      background: rgba(255, 255, 255, 0.96);
+      color: var(--text);
+      border-color: rgba(13, 30, 40, 0.08);
+    }
+    html[data-theme="light"] .section { background: rgba(255, 255, 255, 0.55); }
+    html[data-theme="light"] .section--reassurance {
+      background: linear-gradient(180deg, rgba(5, 150, 105, 0.1), rgba(255, 255, 255, 0.55));
+      border-color: rgba(5, 150, 105, 0.22);
+    }
+    html[data-theme="light"] .section--reassurance > summary .section-emoji,
+    html[data-theme="light"] .section--reassurance[open] .chevron { color: #047857; }
+    html[data-theme="light"] .reassurance-copy strong { color: #047857; }
+    html[data-theme="light"] .monthly-clean-btn,
+    html[data-theme="light"] .monthly-clean-btn .label-sub,
+    html[data-theme="light"] .monthly-clean-btn .badge-recommended { color: #047857; }
+    html[data-theme="light"] .monthly-clean-btn {
+      background: linear-gradient(135deg, rgba(5, 150, 105, 0.13), rgba(255, 255, 255, 0.5));
+      border-color: rgba(5, 150, 105, 0.3);
+    }
+    html[data-theme="light"] .monthly-clean-btn .icon {
+      background: rgba(5, 150, 105, 0.12);
+      border-color: rgba(5, 150, 105, 0.18);
+    }
+    html[data-theme="light"] .target-chip.active {
+      border-color: rgba(5, 150, 105, 0.5);
+      background: rgba(5, 150, 105, 0.12);
+      color: #047857;
+    }
+    html[data-theme="light"] .result-summary {
+      background: linear-gradient(135deg, rgba(5, 150, 105, 0.12), rgba(255, 255, 255, 0.6));
+      border-color: rgba(5, 150, 105, 0.26);
+    }
+    html[data-theme="light"] .result-summary-icon,
+    html[data-theme="light"] .result-summary-title { color: #047857; }
+    html[data-theme="light"] .result-summary-stats { color: #065f46; }
+    html[data-theme="light"] .result-summary-stats strong { color: #064e3b; }
+    html[data-theme="light"] .status.status-success { color: #047857; }
+    html[data-theme="light"] .status.status-error { color: #b91c1c; }
+    html[data-theme="light"] .status.status-warning { color: #b45309; }
+    html[data-theme="light"] .status.status-running { color: #0e7490; }
+    html[data-theme="light"] .snooze-banner {
+      color: #b45309;
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.14), rgba(255, 255, 255, 0.5));
+    }
+    html[data-theme="light"] .primary {
+      color: #04181d;
+      background: linear-gradient(135deg, #7bf1fd, #22d3ee);
+    }
+    html[data-theme="light"] .rating-prompt-text { color: #b45309; }
+    html[data-theme="light"] .rating-star { color: #d97706; }
+    html[data-theme="light"] .quick-action-btn.danger { color: #b91c1c; }
+    html[data-theme="light"] .pin-hint-title { color: #0e7490; }
+    html[data-theme="light"] .access-banner-title { color: #92400e; }
+    html[data-theme="light"] .access-banner-icon { color: #b45309; }
+    html[data-theme="light"] .access-banner-btn {
+      color: #78350f;
+      background: rgba(217, 119, 6, 0.14);
+      border-color: rgba(180, 83, 9, 0.45);
+    }
+    html[data-theme="light"] .toggle input[type="checkbox"] {
+      background: rgba(13, 30, 40, 0.12);
+      border-color: rgba(13, 30, 40, 0.12);
+    }
+    html[data-theme="light"] .linkish {
+      background: rgba(13, 30, 40, 0.04);
+      border-color: rgba(13, 30, 40, 0.1);
+    }
+    html[data-theme="light"] .linkish:hover { background: rgba(13, 30, 40, 0.08); }
+    html[data-theme="light"] .linkish.pro {
+      background: rgba(5, 150, 105, 0.08);
+      border-color: rgba(5, 150, 105, 0.26);
+      color: #047857;
+    }
+    html[data-theme="light"] kbd {
+      background: rgba(13, 30, 40, 0.06);
+      color: var(--text-muted);
+      border-color: rgba(13, 30, 40, 0.12);
+    }
+    html[data-theme="light"] .shortcut-hint { color: rgba(4, 24, 29, 0.55); }
+    html[data-theme="light"] .xray-total-mb,
+    html[data-theme="light"] .xray-mb,
+    html[data-theme="light"] .xray-locked-mb { color: #0e7490; }
+    html[data-theme="light"] .pro-pill { color: #047857; border-color: rgba(5, 150, 105, 0.4); }
+    html[data-theme="light"] .pro-promo {
+      background: linear-gradient(180deg, rgba(5, 150, 105, 0.08), rgba(255, 255, 255, 0.55));
+      border-color: rgba(5, 150, 105, 0.24);
+    }
+    html[data-theme="light"] .pro-promo-body strong,
+    html[data-theme="light"] .pro-promo-actions a { color: #047857; }
+    html[data-theme="light"] .subs-row-status.ok { color: #047857; }
+    html[data-theme="light"] .subs-row-status.warn { color: #b45309; }
+    html[data-theme="light"] .subs-row-status.err { color: #b91c1c; }
+    html[data-theme="light"] .pin-hint-close { color: var(--text-muted); }
+    html[data-theme="light"] .onboarding-card,
+    html[data-theme="light"] .keyboard-help-card {
+      background: rgba(255, 255, 255, 0.97);
+      border-color: rgba(13, 30, 40, 0.1);
+    }
+    html[data-theme="light"] .onboarding-title { color: #0e7490; }
+    html[data-theme="light"] .keyboard-help-close {
+      background: rgba(13, 30, 40, 0.06);
+    }
+
+    /* Motion is decoration here; honor the OS setting. */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    /* High contrast / forced colors */
+    @media (prefers-contrast: high) {
+      :root { --border: rgba(255, 255, 255, 0.35); --border2: rgba(255, 255, 255, 0.55); }
+      .card { border-width: 2px; }
+      select, .toggle input[type="checkbox"] { border-width: 2px; }
+    }
+
+    @media (forced-colors: active) {
+      .primary, .cta-btn, .monthly-clean-btn, .subs-scan-btn, .subs-unsub-btn { border: 2px solid CanvasText; }
+      .toggle input[type="checkbox"] { border: 2px solid CanvasText; }
+      .toggle input[type="checkbox"]:checked { background: Highlight; }
+      .tab-bar [role="tab"] { border: 1px solid CanvasText; }
+      .tab-bar [role="tab"][aria-selected="true"] { background: Highlight; color: HighlightText; }
+    }
+
+    /* Print: hide interactive chrome */
+    @media print {
+      html { height: auto; }
+      body { width: auto; height: auto; overflow: visible; background: #fff; color: #000; }
+      .card, .popup-root { height: auto; }
+      .tab-panel { height: auto; overflow: visible; }
+      .primary, .monthly-clean-btn, .quick-actions, .toast-container,
+      .success-ctas, .rating-prompt, .footer, .pro-promo, .tab-bar,
+      .pin-hint, .progress-bar { display: none !important; }
+    }
   </style>
 </head>
 
@@ -1833,11 +1806,18 @@
       <header class="card-header">
         <div class="header-left">
           <div class="app-mark" aria-hidden="true">
-            <img src="icons/icon48.png" alt="" width="36" height="36" />
+            <img src="icons/icon48.png" alt="" width="28" height="28" />
           </div>
           <h1 id="gcc-title">Gmail One-Click Cleaner</h1>
         </div>
-        <span class="badge" id="versionBadge" aria-label="Version 7.6.0">v7.6.0</span>
+        <div class="header-actions">
+          <span class="badge" id="versionBadge" aria-label="Version 7.7.0">v7.7.0</span>
+          <div class="theme-switcher-popup" id="themeSwitcher" role="group" aria-label="Color theme">
+            <button type="button" data-theme-value="system" aria-pressed="true" title="Match OS theme" aria-label="Match OS theme"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="12.5" rx="2"/><path d="M9 20.5h6M12 17v3.5"/></svg></button>
+            <button type="button" data-theme-value="light" aria-pressed="false" title="Light theme" aria-label="Light theme"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+            <button type="button" data-theme-value="dark" aria-pressed="false" title="Dark theme" aria-label="Dark theme"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13.5A8 8 0 1 1 10.5 4 6.2 6.2 0 0 0 20 13.5Z"/></svg></button>
+          </div>
+        </div>
       </header>
 
       <!-- Screen-reader-only live region -->
@@ -1847,7 +1827,7 @@
         <svg class="pin-hint-icon" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l-1.2 5.4 2.7 2.7v1.4H7.5v-1.4l2.7-2.7L9 3Z"/><path d="M12 12.5V21"/></svg>
         <div class="pin-hint-content">
           <div class="pin-hint-title">Pin for quick access</div>
-          <div class="pin-hint-text">Pin this extension for a 1-click monthly clean when Gmail feels full.</div>
+          <div class="pin-hint-text">One click on the toolbar icon, one monthly clean.</div>
         </div>
         <button class="pin-hint-close" id="pinHintClose" type="button" aria-label="Dismiss pin hint">×</button>
       </div>
@@ -1870,8 +1850,8 @@
            above the tabs) -->
       <div class="account-selector" id="accountSelector" style="display:none"></div>
 
-      <!-- 7.3: tabbed layout. Clean is the default; Unsubscribe and
-           Storage each own a panel. -->
+      <!-- Tabbed layout: Clean is the default; Unsubscribe and Storage
+           each own a panel. -->
       <div class="tab-bar" id="popupTabs" role="tablist" aria-label="Cleaner sections">
         <button type="button" role="tab" id="tabClean" aria-controls="tabPanelClean" aria-selected="true" tabindex="0">
           <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
@@ -1891,20 +1871,15 @@
       <div class="tab-panel" role="tabpanel" id="tabPanelClean" aria-labelledby="tabClean" tabindex="0">
       <div id="cleanForm">
 
-      <p class="subtitle">
-        <span>Bulk-clean categories like Promotions &amp; Social.</span>
-        <span>Runs locally. Safe to stop anytime.</span>
-      </p>
-
       <details class="section section--reassurance" id="reassurance" open>
         <summary class="section-title" aria-controls="reassuranceContent">
           <span class="section-title-left">
             <span class="section-emoji" aria-hidden="true">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 5.6v5.2c0 4.2 2.9 7 7 8.4 4.1-1.4 7-4.2 7-8.4V5.6L12 3Z"/><path d="M9 12l2 2 4-4.2"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 5.6v5.2c0 4.2 2.9 7 7 8.4 4.1-1.4 7-4.2 7-8.4V5.6L12 3Z"/><path d="M9 12l2 2 4-4.2"/></svg>
             </span>
             <span>How it works (100% safe)</span>
           </span>
-          <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none"
+          <svg class="chevron" width="15" height="15" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
             aria-hidden="true">
             <path d="M6 9l6 6 6-6"></path>
@@ -1912,58 +1887,87 @@
         </summary>
 
         <div class="section-content" id="reassuranceContent">
-          <ul class="reassurance-list" role="list">
-            <li>Searches your Gmail for old promos, social, newsletters &amp; large files</li>
-            <li>Tags matches before moving (so you can audit later)</li>
-            <li>Moves to Trash or Archive, you choose</li>
-          </ul>
-
-          <div class="reassurance-safe" role="status">
-            <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-            Nothing permanently deleted until you empty Trash (30 days)
-          </div>
+          <p class="reassurance-copy">
+            Runs locally, <strong>tags everything first</strong> so you
+            can undo, then moves matches to Trash or Archive.
+            <strong>Nothing is gone for good</strong> until you empty
+            Trash (30 days).
+          </p>
         </div>
       </details>
 
-      <button
-        id="monthlyCleanBtn"
-        class="monthly-clean-btn"
-        type="button"
-        aria-describedby="monthly-hint"
-      >
-        <span class="icon" aria-hidden="true">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="16" rx="2.5"/><path d="M3.5 9h17M8 3v3m8-3v3"/><path d="M7.6 14.2 9 15.6l3.2-3.3" stroke-width="1.6"/></svg>
-        </span>
-        <span class="label-text">
-          <span class="label-main">Monthly Light Clean</span>
-          <span class="label-sub">Safe for repeat use, old promos &amp; junk only</span>
-        </span>
-        <span class="badge-recommended">Recommended</span>
-      </button>
-      <span id="monthly-hint" class="sr-only">Run a safe monthly cleanup targeting old promotions and junk mail</span>
+      <!-- Presets: the featured monthly sweep and the one-category
+           targets read as a single "pick what to clean" group. -->
+      <div class="preset-stack">
+        <button
+          id="monthlyCleanBtn"
+          class="monthly-clean-btn"
+          type="button"
+          aria-describedby="monthly-hint"
+        >
+          <span class="icon" aria-hidden="true">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="16" rx="2.5"/><path d="M3.5 9h17M8 3v3m8-3v3"/><path d="M7.6 14.2 9 15.6l3.2-3.3" stroke-width="1.6"/></svg>
+          </span>
+          <span class="label-text">
+            <span class="label-main">Monthly Light Clean</span>
+            <span class="label-sub">Old promos &amp; junk, safe for repeat use</span>
+          </span>
+          <span class="badge-recommended">Recommended</span>
+        </button>
+        <span id="monthly-hint" class="sr-only">Run a safe monthly cleanup targeting old promotions and junk mail</span>
 
-      <!-- 6.0: focused one-category targets -->
-      <div class="target-presets" id="targetChips" role="group" aria-label="Target one category for this run">
-        <span class="target-presets-label">Or target one thing</span>
-        <div class="target-chip-row">
-          <button type="button" class="target-chip" data-preset="promotions" aria-pressed="false">Promotions</button>
-          <button type="button" class="target-chip" data-preset="attachments" aria-pressed="false">Big attachments</button>
-          <button type="button" class="target-chip" data-preset="social" aria-pressed="false">Social &amp; updates</button>
-          <button type="button" class="target-chip" data-preset="noreply" aria-pressed="false">No-reply</button>
+        <div class="target-presets" id="targetChips" role="group" aria-label="Target one category for this run">
+          <span class="target-presets-label">Or target one thing</span>
+          <div class="target-chip-row">
+            <button type="button" class="target-chip" data-preset="promotions" aria-pressed="false">Promotions</button>
+            <button type="button" class="target-chip" data-preset="attachments" aria-pressed="false">Big attachments</button>
+            <button type="button" class="target-chip" data-preset="social" aria-pressed="false">Social &amp; updates</button>
+            <button type="button" class="target-chip" data-preset="noreply" aria-pressed="false">No-reply</button>
+          </div>
         </div>
       </div>
 
-      <!-- 7.3: strategy + safety live in one collapsed Advanced
-           disclosure; its open state persists across popup opens. -->
+      <button
+        id="runCleanup"
+        class="primary"
+        type="button"
+        aria-describedby="run-hint"
+      >
+        <span class="label">Run Cleaner</span>
+        <span class="sub">Items are tagged before action</span>
+        <span class="shortcut-hint" aria-hidden="true"><kbd>Enter</kbd></span>
+      </button>
+      <span id="run-hint" class="sr-only">Start the Gmail cleanup process</span>
+
+      <div
+        class="progress-bar"
+        id="progressBar"
+        role="progressbar"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow="0"
+        aria-label="Cleanup progress"
+      >
+        <div class="progress-bar-inner" id="progressBarInner"></div>
+      </div>
+
+      <div class="quick-actions" id="quickActions" role="group" aria-label="Quick actions">
+        <button id="cancelBtn" class="quick-action-btn danger" type="button" aria-label="Cancel cleanup">Cancel</button>
+        <button id="openProgressBtn" class="quick-action-btn" type="button" aria-label="Open progress window">Open Progress</button>
+      </div>
+
+      <!-- Strategy + safety live in one collapsed Advanced disclosure
+           below the main action; its open state persists across popup
+           opens. -->
       <details class="section" id="advancedSection">
         <summary class="section-title" aria-controls="advancedContent">
           <span class="section-title-left">
             <span class="section-emoji" aria-hidden="true">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3"/><path d="M2 14h4M10 8h4M18 16h4"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3"/><path d="M2 14h4M10 8h4M18 16h4"/></svg>
             </span>
             <span>Advanced · Strategy &amp; Safety</span>
           </span>
-          <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none"
+          <svg class="chevron" width="15" height="15" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
             aria-hidden="true">
             <path d="M6 9l6 6 6-6"></path>
@@ -2052,35 +2056,6 @@
         </div>
       </details>
 
-      <button
-        id="runCleanup"
-        class="primary"
-        type="button"
-        aria-describedby="run-hint"
-      >
-        <span class="label">Run Cleaner</span>
-        <span class="sub">Items are tagged before action</span>
-        <span class="shortcut-hint" aria-hidden="true"><kbd>Enter</kbd></span>
-      </button>
-      <span id="run-hint" class="sr-only">Start the Gmail cleanup process</span>
-
-      <div
-        class="progress-bar"
-        id="progressBar"
-        role="progressbar"
-        aria-valuemin="0"
-        aria-valuemax="100"
-        aria-valuenow="0"
-        aria-label="Cleanup progress"
-      >
-        <div class="progress-bar-inner" id="progressBarInner"></div>
-      </div>
-
-      <div class="quick-actions" id="quickActions" role="group" aria-label="Quick actions">
-        <button id="cancelBtn" class="quick-action-btn danger" type="button" aria-label="Cancel cleanup">Cancel</button>
-        <button id="openProgressBtn" class="quick-action-btn" type="button" aria-label="Open progress window">Open Progress</button>
-      </div>
-
       <!-- Whitelist Suggestions -->
       <div class="wl-suggestions" id="wlSuggestions" style="display:none"></div>
 
@@ -2088,14 +2063,14 @@
 
       <div id="status" class="status" role="status" aria-live="polite" aria-atomic="true"></div>
 
-      <!-- 7.3: post-run state. Replaces the form until the user heads
-           back; the summary, CTAs and the rating ask all live here. -->
+      <!-- Post-run state. Replaces the form until the user heads back;
+           the summary, CTAs and the rating ask all live here. -->
       <div id="cleanResult" hidden>
 
       <div class="result-summary" id="resultSummary" role="region" aria-labelledby="result-title">
-        <svg class="result-summary-icon" aria-hidden="true" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="13" r="7.5"/><path d="M7.7 13l2.4 2.4 4.4-4.7"/><path d="M19 3.5l.6 1.7 1.7.6-1.7.6-.6 1.7-.6-1.7-1.7-.6 1.7-.6L19 3.5Z" stroke-width="1.1"/></svg>
+        <svg class="result-summary-icon" aria-hidden="true" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="13" r="7.5"/><path d="M7.7 13l2.4 2.4 4.4-4.7"/><path d="M19 3.5l.6 1.7 1.7.6-1.7.6-.6 1.7-.6-1.7-1.7-.6 1.7-.6L19 3.5Z" stroke-width="1.1"/></svg>
         <div class="result-summary-title" id="result-title">Cleanup Complete!</div>
-        <!-- 7.4: recap marker. Shown only when this view replays the last
+        <!-- Recap marker. Shown only when this view replays the last
              cleanup on popup open instead of a run that just finished. -->
         <div class="recap-note" id="recapNote" hidden>Recap: your last cleanup finished while the popup was closed.</div>
         <div class="result-summary-stats">
@@ -2169,10 +2144,9 @@
         </div>
 
         <p class="subs-hint">
-          Deleting hides old mail; unsubscribing stops new mail. The scan finds
-          every list that emails you, then Pro unsubscribes from the ones you
-          pick, using Gmail's own Unsubscribe control. Senders without a
-          one-click option are flagged for manual follow-up.
+          Deleting hides old mail; unsubscribing stops new mail. The free scan
+          lists every sender that mails you, then Pro unsubscribes from the
+          ones you pick using Gmail's own Unsubscribe control.
         </p>
 
         <button id="scanSubsBtn" class="subs-scan-btn" type="button">
@@ -2216,11 +2190,10 @@
         </div>
 
         <p class="subs-hint">
-          See exactly which senders are eating your Gmail storage. The scan
-          sizes up your large mail with Gmail's own search operators and
-          reports a floor estimate; Pro purges the hogs you pick. Purged mail
-          is tagged first and lands in Trash, so the 30-day safety net and
-          the recovery log apply as usual.
+          See which senders eat your Gmail storage. The free scan sizes up
+          large mail and reports a floor estimate; Pro purges the hogs you
+          pick. Purged mail is tagged first and lands in Trash, so the
+          30-day safety net applies as usual.
         </p>
 
         <button id="xrayScanBtn" class="subs-scan-btn" type="button">
@@ -2276,24 +2249,19 @@
       <footer class="footer" role="contentinfo">
         <nav class="footer-left" aria-label="Quick links">
           <button id="openOptions" class="linkish" type="button" aria-label="Open rules settings">
-            <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/></svg> Rules
-          </button>
-          <button id="openDiagnostics" class="linkish" type="button" aria-label="Open diagnostics page">
-            <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76Z"/></svg> Diagnostics
+            <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/></svg> Rules
           </button>
           <button id="openStats" class="linkish" type="button" aria-label="Open statistics page">
-            <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg> Stats
+            <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10M12 20V4M6 20v-6"/></svg> Stats
+          </button>
+          <button id="openDiagnostics" class="linkish" type="button" aria-label="Open diagnostics page">
+            <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76Z"/></svg> Diagnostics
           </button>
         </nav>
 
-        <div style="display:flex; gap:6px; align-items:center;">
-          <div class="theme-switcher-popup" id="themeSwitcher" role="group" aria-label="Color theme">
-            <button type="button" data-theme-value="system" aria-pressed="true" title="Match OS theme">Auto</button>
-            <button type="button" data-theme-value="light" aria-pressed="false" title="Light theme" aria-label="Light theme"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
-            <button type="button" data-theme-value="dark" aria-pressed="false" title="Dark theme" aria-label="Dark theme"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13.5A8 8 0 1 1 10.5 4 6.2 6.2 0 0 0 20 13.5Z"/></svg></button>
-          </div>
+        <div class="footer-right">
           <button id="kbdHelpBtn" class="linkish" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">
-            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/></svg>
+            <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/></svg>
           </button>
           <button
             id="footerProBtn"
@@ -2302,19 +2270,19 @@
             aria-label="Pro license"
             title="Pro license"
           >
-            <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4.5"/><path d="M11.2 11.8 20.5 2.5M15 8l2.5 2.5M18 5l2.5 2.5"/></svg> Pro
+            <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4.5"/><path d="M11.2 11.8 20.5 2.5M15 8l2.5 2.5M18 5l2.5 2.5"/></svg> Pro
           </button>
         </div>
       </footer>
 
-      <!-- 7.0: Pro promo (hidden once a license is active) -->
+      <!-- Pro promo (hidden once a license is active) -->
       <aside class="pro-promo" id="proPromo" aria-label="Pro upgrade" hidden>
         <p class="pro-promo-body">
-          <strong>Pro, one-time $5:</strong> bulk unsubscribe + storage purge.
+          <strong>Pro, $5 once:</strong> bulk unsubscribe + storage purge.
           Everything free stays free.
         </p>
         <div class="pro-promo-actions">
-          <a href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" id="proPromoBuy">Get Pro - $5 lifetime</a>
+          <a href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" id="proPromoBuy">Get Pro</a>
           <button type="button" class="linkish" id="proPromoKey">I have a key</button>
         </div>
       </aside>
