@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "7.7.0";
+  const POPUP_VERSION = "7.8.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -35,6 +35,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 7.3: whether the Advanced disclosure was left open.
     ADVANCED_OPEN: "advancedOpen",
+
+    // 7.8: whether the Suggested disclosure was left open.
+    SMART_OPEN: "smartSectionOpen",
 
     // 7.4: post-run recap. STATS mirrors the service worker's stats key
     // (read-only here); RECAP_SEEN is the "already shown" timestamp.
@@ -103,6 +106,18 @@ document.addEventListener("DOMContentLoaded", () => {
       senders: [],
       totalMb: 0,
       totalCount: 0,
+      running: null
+    },
+
+    // 7.8 Smart Suggestions: stored scan + feedback, plus the config
+    // pieces the render-time veto re-check needs. visibleCount feeds
+    // the toolbar counter.
+    smart: {
+      senders: [],
+      feedback: { bySender: {} },
+      whitelist: [],
+      protectKeywords: [],
+      visibleCount: 0,
       running: null
     }
   };
@@ -347,7 +362,22 @@ document.addEventListener("DOMContentLoaded", () => {
     xrayUpsell: $("xrayUpsell"),
     xrayUpsellText: $("xrayUpsellText"),
     xrayBuyLink: $("xrayBuyLink"),
-    xrayEnterKey: $("xrayEnterKey")
+    xrayEnterKey: $("xrayEnterKey"),
+
+    // 7.8 Smart Suggestions
+    smartSection: $("smartSection"),
+    smartScanBtn: $("smartScanBtn"),
+    smartStatus: $("smartStatus"),
+    smartToolbar: $("smartToolbar"),
+    smartSelectAll: $("smartSelectAll"),
+    smartCount: $("smartCount"),
+    smartList: $("smartList"),
+    smartBulkBtn: $("smartBulkBtn"),
+    smartBulkBtnSub: $("smartBulkBtnSub"),
+    smartUpsell: $("smartUpsell"),
+    smartUpsellText: $("smartUpsellText"),
+    smartBuyLink: $("smartBuyLink"),
+    smartEnterKey: $("smartEnterKey")
   };
 
   const critical = ["runBtn", "statusEl", "intensityEl", "dryRunEl", "safeModeEl"];
@@ -1360,6 +1390,12 @@ document.addEventListener("DOMContentLoaded", () => {
         : "Pro · $5 once (Google One is $20 every year)";
     }
     renderXrayList();
+
+    // 7.8 Smart Suggestions share the same license: the scan and the
+    // top picks are free, the full list and bulk apply are Pro.
+    if (elements.smartBuyLink) elements.smartBuyLink.href = GCC.license.PRO.BUY_URL;
+    if (elements.smartBulkBtn) elements.smartBulkBtn.classList.toggle("locked", !active);
+    renderSmartList();
   };
 
   const getCheckedSubEmails = () =>
@@ -1958,6 +1994,414 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   // =========================
+  // Smart Suggestions (7.8)
+  // =========================
+  // The scan is free and read-only; the full ranked list and bulk
+  // apply are Pro. Applying a suggestion is an ordinary cleanup run
+  // whose rule set comes from GCC.smart.buildActionRule, so every
+  // global guard, tag-before-delete, dry-run, undo and the recap apply
+  // unchanged. Dismissals and confirmed applies feed the local
+  // feedback map that ranks future suggestions.
+
+  const setSmartStatus = (text) => {
+    if (elements.smartStatus) elements.smartStatus.textContent = text || "";
+  };
+
+  const getCheckedSmartEmails = () =>
+    (elements.smartList
+      ? Array.from(elements.smartList.querySelectorAll("input[type='checkbox']:checked"))
+      : []
+    ).map((cb) => cb.getAttribute("data-email")).filter(Boolean);
+
+  const updateSmartCount = () => {
+    if (!elements.smartCount) return;
+    const total = state.smart.visibleCount;
+    const checked = getCheckedSmartEmails().length;
+    elements.smartCount.textContent = checked
+      ? `${checked} of ${total} selected`
+      : `${total} suggestion${total === 1 ? "" : "s"}`;
+  };
+
+  const buildSmartCard = (sender, { withCheckbox }) => {
+    const card = document.createElement("div");
+    card.className = "subs-row smart-card";
+    card.setAttribute("role", "listitem");
+
+    const top = document.createElement("div");
+    top.className = "smart-card-top";
+
+    const text = document.createElement("span");
+    text.className = "subs-row-text";
+    const name = document.createElement("span");
+    name.className = "subs-row-name";
+    name.textContent = sender.name || sender.email;
+    text.appendChild(name);
+    if (sender.name) {
+      const email = document.createElement("span");
+      email.className = "subs-row-email";
+      email.textContent = sender.email;
+      text.appendChild(email);
+    }
+
+    if (withCheckbox) {
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.setAttribute("data-email", sender.email);
+      checkbox.addEventListener("change", updateSmartCount);
+      const label = document.createElement("label");
+      label.className = "subs-row-label";
+      label.appendChild(checkbox);
+      label.appendChild(text);
+      top.appendChild(label);
+    } else {
+      top.appendChild(text);
+    }
+
+    const reason = document.createElement("div");
+    reason.className = "smart-reason";
+    reason.textContent = GCC.smart.reasonText(sender);
+
+    const actions = document.createElement("div");
+    actions.className = "smart-card-actions";
+    const action = GCC.smart.primaryAction(sender);
+    const applyBtn = document.createElement("button");
+    applyBtn.type = "button";
+    applyBtn.className = "smart-apply-btn";
+    applyBtn.textContent = GCC.smart.ACTION_LABELS[action] || "Clean up";
+    applyBtn.addEventListener("click", () => handleSmartApply(sender, action));
+    actions.appendChild(applyBtn);
+
+    const dismiss = document.createElement("button");
+    dismiss.type = "button";
+    dismiss.className = "smart-dismiss-btn";
+    dismiss.textContent = "Dismiss";
+    dismiss.setAttribute("aria-label", `Dismiss the suggestion for ${sender.email}`);
+    dismiss.addEventListener("click", () => handleSmartDismiss(sender.email));
+    actions.appendChild(dismiss);
+
+    card.appendChild(top);
+    card.appendChild(reason);
+    card.appendChild(actions);
+    return card;
+  };
+
+  const renderSmartList = () => {
+    if (!elements.smartList) return;
+    elements.smartList.textContent = "";
+    const active = state.subs.licenseActive;
+    // Vetoes beat any score (whitelist and protected keywords can
+    // change after a scan), then feedback-aware ranking.
+    const eligible = GCC.smart.recommend(
+      state.smart.senders,
+      state.smart.feedback,
+      { whitelist: state.smart.whitelist, protectKeywords: state.smart.protectKeywords }
+    );
+    const hasAny = eligible.length > 0;
+    state.smart.visibleCount = eligible.length;
+
+    if (elements.smartToolbar) elements.smartToolbar.hidden = !hasAny || !active;
+    if (elements.smartBulkBtn) elements.smartBulkBtn.hidden = !hasAny || !active;
+    if (elements.smartUpsell) elements.smartUpsell.hidden = active || !hasAny;
+    if (elements.smartUpsellText && !active) {
+      const hidden = Math.max(0, eligible.length - GCC.smart.LIMITS.FREE_VISIBLE);
+      elements.smartUpsellText.textContent = GCC.popupUi.smartUpsellLine(hidden);
+    }
+    if (!hasAny) {
+      updateSmartCount();
+      return;
+    }
+
+    const freeCap = GCC.smart.LIMITS.FREE_VISIBLE;
+    const visible = active ? eligible : eligible.slice(0, freeCap);
+    for (const sender of visible) {
+      elements.smartList.appendChild(buildSmartCard(sender, { withCheckbox: active }));
+    }
+
+    if (!active && eligible.length > freeCap) {
+      const locked = document.createElement("div");
+      locked.className = "xray-locked";
+      locked.textContent = GCC.popupUi.smartUpsellLine(eligible.length - freeCap);
+      elements.smartList.appendChild(locked);
+    }
+
+    updateSmartCount();
+  };
+
+  const loadStoredSmartScan = async () => {
+    if (!GCC.hasChrome() || !chrome.runtime?.sendMessage) return;
+    try {
+      state.smart.whitelist = await getWhitelist();
+      state.smart.protectKeywords = await getProtectKeywords();
+      const resp = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({ type: "gmailCleanerGetSmartScan" }, resolve);
+      });
+      if (resp?.ok) {
+        state.smart.senders = Array.isArray(resp.scan?.senders) ? resp.scan.senders : [];
+        state.smart.feedback = resp.feedback && typeof resp.feedback === "object"
+          ? resp.feedback
+          : { bySender: {} };
+        renderSmartList();
+      }
+    } catch (e) {
+      log("warn", "loadStoredSmartScan failed", e);
+    }
+  };
+
+  // Senders earlier scans already measured ride into the smart scan's
+  // discovery phase for free.
+  const buildSmartKnownSenders = () => {
+    const byEmail = new Map();
+    for (const s of state.subs.senders || []) {
+      if (!s?.email) continue;
+      byEmail.set(s.email, { email: s.email, name: s.name || "", count: Number(s.count) || 1, estMb: 0 });
+    }
+    for (const s of state.xray.senders || []) {
+      if (!s?.email) continue;
+      const existing = byEmail.get(s.email);
+      if (existing) {
+        existing.count = Math.max(existing.count, Number(s.count) || 1);
+        existing.estMb = Math.max(existing.estMb, Number(s.estMb) || 0);
+      } else {
+        byEmail.set(s.email, { email: s.email, name: s.name || "", count: Number(s.count) || 1, estMb: Number(s.estMb) || 0 });
+      }
+    }
+    return [...byEmail.values()].slice(0, 100);
+  };
+
+  const handleSmartScan = async () => {
+    if (state.smart.running) return;
+    try {
+      state.smart.running = "smartScan";
+      if (elements.smartScanBtn) elements.smartScanBtn.disabled = true;
+      setSmartStatus("Scanning for suggestions (this one takes a minute or two)...");
+      const tabId = await injectEngineRun(
+        {
+          runKind: "smartScan",
+          debugMode: state.debugMode,
+          whitelist: await getWhitelist(),
+          protectKeywords: await getProtectKeywords(),
+          smartKnownSenders: buildSmartKnownSenders()
+        },
+        setSmartStatus
+      );
+      if (tabId === null) {
+        state.smart.running = null;
+        if (elements.smartScanBtn) elements.smartScanBtn.disabled = false;
+      }
+    } catch (err) {
+      log("error", "smart scan start failed", err);
+      showToast(`scan failed: ${err?.message || "unknown error"}`, "error");
+      setSmartStatus("");
+      state.smart.running = null;
+      if (elements.smartScanBtn) elements.smartScanBtn.disabled = false;
+    }
+  };
+
+  const finishSmartRun = () => {
+    state.smart.running = null;
+    if (elements.smartScanBtn) elements.smartScanBtn.disabled = false;
+  };
+
+  const handleSmartProgress = (msg) => {
+    const { phase, status, detail, done } = msg;
+
+    if (!done && phase !== "done") {
+      const line = [status, detail].filter(Boolean).join(" ");
+      if (line) setSmartStatus(line);
+      return;
+    }
+
+    if (phase === "error") {
+      setSmartStatus(`Failed: ${detail || "unknown error"}`);
+      showToast("suggestion scan failed", "error");
+      finishSmartRun();
+      return;
+    }
+    if (phase === "cancelled") {
+      setSmartStatus("Stopped.");
+      finishSmartRun();
+      return;
+    }
+
+    if (Array.isArray(msg.scanSenders)) {
+      setSmartStatus(status || "Scan complete.");
+      // The worker union-merges rescans; read the authoritative list
+      // back after it lands.
+      setTimeout(() => { loadStoredSmartScan().catch(() => {}); }, 400);
+      showToast("suggestion scan complete", "success");
+      if (elements.smartSection) elements.smartSection.open = true;
+    }
+    finishSmartRun();
+  };
+
+  // One shared runner for single-card apply and Pro bulk apply: a
+  // normal cleanup scoped by rulesOverride, with the pending-apply
+  // marker stamped pre-inject so the worker can confirm "applied" on
+  // the matching done message (the popup closes long before then).
+  const startSmartApplyRun = async (emails, queries, archive) => {
+    if (state.isRunning || state.smart.running) return;
+
+    state.isRunning = true;
+    try {
+      if (!(await GCC.gmailAccess.check())) {
+        refreshBanners().catch(() => {});
+        setSmartStatus("Allow Gmail access at the top of this popup first.");
+        showToast("gmail access needed", "warning");
+        state.isRunning = false;
+        return;
+      }
+
+      const gmailTab = await findGmailTab();
+      if (!gmailTab?.id) {
+        showOpenGmailHelper();
+        state.isRunning = false;
+        return;
+      }
+
+      const claim = await tryClaimRun(gmailTab.id);
+      if (!claim.ok) {
+        showToast("a cleanup is already running", "warning");
+        state.isRunning = false;
+        return;
+      }
+
+      const config = await buildConfig();
+      config.runId = claim.claim.runId;
+      config.rulesOverride = queries;
+      // The suggestion's query carries its own age scope; the global
+      // minimum age would stack a second, stricter filter on top.
+      config.minAge = null;
+      // The suggestion names its own action; it overrides the form's
+      // action dropdown for this run only.
+      config.archiveInsteadOfDelete = Boolean(archive);
+
+      state.currentGmailTabId = gmailTab.id;
+      setSmartStatus(config.dryRun
+        ? "Dry run: counting what this suggestion would clean..."
+        : `Cleaning up ${emails.length} sender${emails.length === 1 ? "" : "s"}...`);
+
+      if (!config.dryRun) {
+        GCC.sendMessage({
+          type: "gmailCleanerSmartApplyStarted",
+          runId: config.runId,
+          senders: emails
+        }).catch(() => {});
+      }
+
+      const progressUrl = chrome.runtime.getURL(`progress.html?gmailTabId=${gmailTab.id}`);
+      const existingProgress = await findProgressTab(gmailTab.id);
+      if (existingProgress?.id) await tabsUpdate(existingProgress.id, { active: true });
+      else await tabsCreate({ url: progressUrl, active: true });
+
+      let alreadyAttached = false;
+      try {
+        const [result] = await scriptingExecuteScript({
+          target: { tabId: gmailTab.id },
+          func: () => !!window.GCC_ATTACHED
+        });
+        alreadyAttached = result?.result === true;
+      } catch {
+        // Tab might not be ready, proceed with injection
+      }
+      if (alreadyAttached) {
+        showToast("cleanup already running", "warning");
+        await clearActiveRun();
+        state.isRunning = false;
+        return;
+      }
+
+      await scriptingExecuteScript({
+        target: { tabId: gmailTab.id },
+        func: (cfg) => { window.GMAIL_CLEANER_CONFIG = cfg; },
+        args: [config]
+      });
+      await scriptingExecuteScript({
+        target: { tabId: gmailTab.id },
+        files: ["contentScript.js"]
+      });
+
+      await bumpRunCount();
+      showToast(config.dryRun ? "suggestion dry run started" : "suggestion applied", "success");
+      setTimeout(safeClosePopup, 200);
+    } catch (err) {
+      const msg = err?.message || String(err);
+      log("error", "startSmartApplyRun error:", err);
+      setSmartStatus(`Failed to start: ${msg}`);
+      showToast(`apply failed: ${msg}`, "error");
+      await clearActiveRun();
+      state.isRunning = false;
+      state.currentGmailTabId = null;
+    }
+  };
+
+  const handleSmartApply = async (sender, action) => {
+    const rule = GCC.smart.buildActionRule(sender, action);
+    if (!rule) {
+      showToast("could not build a safe rule for this sender", "warning");
+      return;
+    }
+
+    // The unsubscribe action rides the existing Pro path with its
+    // existing gate; everything else is a free cleanup run.
+    if (rule.runKind === "unsubscribe") {
+      if (!state.subs.licenseActive) {
+        if (elements.smartUpsell) elements.smartUpsell.hidden = false;
+        showToast("bulk unsubscribe is a Pro feature ($5, one-time)", "info");
+        return;
+      }
+      if (state.subs.running) return;
+      state.subs.running = "unsubscribe";
+      setSmartStatus(`Unsubscribing from ${sender.email}...`);
+      const tabId = await injectSubscriptionRun("unsubscribe", rule.senders);
+      if (tabId === null) state.subs.running = null;
+      return;
+    }
+
+    await startSmartApplyRun([sender.email], [rule.query], rule.archive);
+  };
+
+  const handleSmartBulkApply = async () => {
+    if (!state.subs.licenseActive) {
+      if (elements.smartUpsell) elements.smartUpsell.hidden = false;
+      showToast("bulk apply is a Pro feature ($5, one-time)", "info");
+      return;
+    }
+    const emails = getCheckedSmartEmails();
+    if (!emails.length) {
+      showToast("pick at least one suggestion first", "warning");
+      return;
+    }
+    const query = GCC.smart.buildBulkRule(emails);
+    if (!query) {
+      showToast("no valid senders selected", "warning");
+      return;
+    }
+    // Marker list = the sanitized set the query actually targets.
+    const targeted = GCC.storageXray.sanitizeEmails(emails);
+    await startSmartApplyRun(targeted, [query], false);
+  };
+
+  const handleSmartDismiss = (email) => {
+    state.smart.feedback = GCC.smart.recordFeedback(state.smart.feedback, email, "dismissed");
+    renderSmartList();
+    GCC.sendMessage({ type: "gmailCleanerSmartFeedback", email, action: "dismissed" }).catch(() => {});
+    showToast("dismissed for 90 days", "info");
+  };
+
+  // Open state persists across popup opens, same local-flag pattern
+  // as the Advanced disclosure.
+  const initSmartDisclosure = async () => {
+    if (!elements.smartSection) return;
+    const r = await storageGet("local", STORAGE_KEYS.SMART_OPEN);
+    elements.smartSection.open = Boolean(r?.[STORAGE_KEYS.SMART_OPEN]);
+    elements.smartSection.addEventListener("toggle", () => {
+      storageSet("local", {
+        [STORAGE_KEYS.SMART_OPEN]: Boolean(elements.smartSection.open)
+      }).catch(() => {});
+    });
+  };
+
+  // =========================
   // Quick actions
   // =========================
 
@@ -2164,6 +2608,11 @@ document.addEventListener("DOMContentLoaded", () => {
           handleXrayProgress(msg);
           return;
         }
+        // 7.8: the suggestion scan renders into the Suggested section.
+        if (msg.runKind === "smartScan") {
+          handleSmartProgress(msg);
+          return;
+        }
         // 7.6: restore runs are started and watched from the recovery
         // log on the Stats page; the popup has no surface for them.
         if (msg.runKind === "restoreRun") return;
@@ -2258,6 +2707,9 @@ document.addEventListener("DOMContentLoaded", () => {
           // If this run was an X-ray purge, the background just marked
           // the senders; refresh the stored scan so chips update.
           setTimeout(() => { loadStoredStorageScan().catch(() => {}); }, 600);
+          // Same for a smart apply: the worker just recorded the
+          // "applied" feedback; refresh so ranking reflects it.
+          setTimeout(() => { loadStoredSmartScan().catch(() => {}); }, 600);
         }
       } catch (e) {
         log("warn", "onMessage handler failed", e);
@@ -2458,6 +2910,18 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.proPromoKey?.addEventListener("click", openProOptions);
     elements.footerProBtn?.addEventListener("click", openProOptions);
     elements.xrayEnterKey?.addEventListener("click", openProOptions);
+    elements.smartEnterKey?.addEventListener("click", openProOptions);
+
+    // 7.8 Smart Suggestions
+    elements.smartScanBtn?.addEventListener("click", handleSmartScan);
+    elements.smartBulkBtn?.addEventListener("click", handleSmartBulkApply);
+    elements.smartSelectAll?.addEventListener("change", () => {
+      const checked = !!elements.smartSelectAll.checked;
+      elements.smartList
+        ?.querySelectorAll("input[type='checkbox']:not(:disabled)")
+        .forEach((cb) => { cb.checked = checked; });
+      updateSmartCount();
+    });
 
     // 7.1 Gmail host access grant (must run inside this click gesture)
     elements.gmailAccessBtn?.addEventListener("click", async () => {
@@ -2523,6 +2987,9 @@ document.addEventListener("DOMContentLoaded", () => {
     loadStoredSubscriptions().catch((e) => log("warn", "subs load failed", e));
     // 7.2 storage X-ray: last scan (best-effort).
     loadStoredStorageScan().catch((e) => log("warn", "xray load failed", e));
+    // 7.8 Smart Suggestions: disclosure state + stored scan.
+    await initSmartDisclosure();
+    loadStoredSmartScan().catch((e) => log("warn", "smart load failed", e));
 
     log("info", "ready");
   };

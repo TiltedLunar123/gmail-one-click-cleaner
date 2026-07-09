@@ -3,6 +3,41 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 7.8.0 - Smart Suggestions
+
+### Added
+- **The extension now recommends what to clean instead of making you
+  configure it.** A new collapsible "Suggested" section at the top of
+  the Clean tab runs one free, read-only scan that finds the senders
+  worth cleaning and says why, in plain English ("142 emails, 96%
+  unread, mostly older than 6 months"). Each card carries one primary
+  action (delete old mail, archive all, or purge large mail) and a
+  Dismiss control.
+- **Hard vetoes before anything is suggested.** A sender is never
+  recommended when they match your whitelist or protected keywords,
+  when any of their mail is starred, or when your Sent folder shows
+  you actually write to them. Vetoes beat every score, and the scan
+  spends at most about 15 correspondence checks per pass.
+- **Applying a suggestion is an ordinary cleanup run.** The suggestion
+  only supplies the search query; tag-before-delete, dry run, the
+  undo log, stats and the post-run recap all apply unchanged. Nothing
+  new can touch mail.
+- **A local feedback loop ranks future suggestions.** Dismissed
+  senders stay silent for 90 days; an applied suggestion slightly
+  boosts other senders from the same domain. The map lives in local
+  storage, bounded, and never leaves the device.
+- **Pro:** the full ranked suggestion list (the top 3 stay free) and
+  bulk apply of checked suggestions in one run. Existing Pro keys
+  unlock both automatically.
+
+### Internal
+- New read-only engine run kind `smartScan`, modeled on the
+  subscription and storage scans; sender addresses pass the same
+  strict email check before entering any query. Results persist under
+  `smartScan` (union-merged across rescans), feedback under
+  `smartFeedback`, and apply confirmation follows the same pending
+  marker pattern the storage purge uses.
+
 ## 7.7.0 - Popup redesign
 
 ### Changed

@@ -11,6 +11,12 @@ A browser extension that bulk-cleans Gmail in one click. Run configurable cleanu
 
 ## Features
 
+### Smart Suggestions
+The extension recommends what to clean instead of making you configure it. One free, read-only scan finds the senders worth cleaning and says why in plain English ("142 emails, 96% unread, mostly older than 6 months").
+- **Hard vetoes first** - a sender is never suggested when they match your whitelist or protected keywords, when any of their mail is starred, or when your Sent folder shows you write to them.
+- **One-click apply** - each suggestion runs as an ordinary cleanup (tag first, dry-run honored, undo log, stats), so nothing new can touch mail. Dismissed suggestions stay silent for 90 days.
+- **Pro** - the full ranked list (top 3 stay free) and bulk apply of checked suggestions in one run.
+
 ### Cleanup Modes
 - **Live Mode** - Automatically labels and moves matching emails to Trash or Archive
 - **Review Mode** - Pause before each batch so you can approve or skip
@@ -46,7 +52,7 @@ When Google says your storage is full, the question is *what exactly is eating i
 
 ## Pro
 
-Pro is a **one-time $5 purchase** (no subscription) that unlocks bulk unsubscribe and the full Storage X-ray. Everything that is free today stays free forever. Compare: Google One storage starts at about $20 per year, forever.
+Pro is a **one-time $5 purchase** (no subscription) that unlocks bulk unsubscribe, the full Storage X-ray, and the full Smart Suggestions list with bulk apply. Everything that is free today stays free forever. Compare: Google One storage starts at about $20 per year, forever.
 
 - Your license key is verified **entirely on your device** with a built-in public key. The extension never contacts a server, not even to check the license.
 - The key is a signed token with no personal data. Stored in Chrome sync, so Pro follows you to your other signed-in browsers.

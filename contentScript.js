@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "7.7.0";
+  const GCC_CONTENT_VERSION = "7.8.0";
 
   // =========================
   // Timing & behavior constants
@@ -444,13 +444,20 @@
       // rules engine; "subscriptionScan" / "unsubscribe" run the
       // subscriptions engine. 7.2 adds "storageScan" (read-only size
       // tiers), 7.6 adds "restoreRun" (move a logged run's mail back to
-      // the Inbox). unsubSenders is re-sanitized at run start; keeping
+      // the Inbox), 7.8 adds "smartScan" (read-only recommendation
+      // scan). unsubSenders is re-sanitized at run start; keeping
       // raw strings here is fine.
-      runKind: ["cleanup", "subscriptionScan", "unsubscribe", "storageScan", "restoreRun"].includes(config.runKind)
+      runKind: ["cleanup", "subscriptionScan", "unsubscribe", "storageScan", "restoreRun", "smartScan"].includes(config.runKind)
         ? config.runKind
         : "cleanup",
       unsubSenders: Array.isArray(config.unsubSenders)
         ? config.unsubSenders.filter((s) => typeof s === "string").slice(0, 25)
+        : [],
+      // 7.8 smart scan: senders earlier scans already measured, so the
+      // discovery phase can include them without spending queries.
+      // Re-sanitized (strict email shape) at run start.
+      smartKnownSenders: Array.isArray(config.smartKnownSenders)
+        ? config.smartKnownSenders.slice(0, 100)
         : [],
       // 7.6 restore run: the undo entry's label and mode. Double quotes
       // are stripped so the label can never break out of the quoted
@@ -4017,6 +4024,364 @@
   }
 
   // =========================
+  // Smart Suggestions scan (7.8)
+  // =========================
+  // Read-only, like the subscription and storage scans: discover heavy
+  // senders, measure how the user actually treats their mail (unread
+  // ratio, old-mail share, machine-address shape) and hard-veto
+  // anything that looks like a human relationship BEFORE it can be
+  // recommended. The scan recommends; it never acts. Applying a
+  // suggestion is an ordinary cleanup run (rulesOverride) started from
+  // the popup, so every guard, tag-before-delete, undo and stats apply
+  // unchanged.
+
+  const SMART_SCAN = Object.freeze({
+    // Signal queries cost 3 searches per sender, veto queries up to 2
+    // more, so both phases are hard-capped: at most 10 senders get
+    // measured and at most 15 correspondence checks run per scan.
+    MAX_SIGNAL_SENDERS: 10,
+    MAX_VETO_SENDERS: 15,
+    MAX_KNOWN_SENDERS: 100,
+    MAX_RESULTS: 50,
+    ROW_SAMPLE_CAP: 100
+  });
+
+  // Strict email shape doubles as query-injection protection, the same
+  // boundary as sanitizeSenderList: anything that passes cannot break
+  // out of the from:( ... ) / to:( ... ) group it is placed in.
+  const SMART_EMAIL_RE = /^[a-z0-9!#$%&'*+/=?^_`{|}~.-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
+
+  // Machine-sender local-part shapes. A hit is a clutter SIGNAL that
+  // raises the score; it is never a veto.
+  const SMART_SHAPE_RE = /(no-?reply|do-?not-?reply|donotreply|notifications?|newsletters?|marketing|mailer|bounces?)/;
+
+  function smartSenderShape(email) {
+    const local = String(email || "").toLowerCase().split("@")[0] || "";
+    return SMART_SHAPE_RE.test(local);
+  }
+
+  function sanitizeSmartKnownSenders(input) {
+    if (!Array.isArray(input)) return [];
+    const out = [];
+    const seen = new Set();
+    for (const raw of input) {
+      const email = String(raw?.email || "").trim().toLowerCase();
+      if (!email || email.length > 320 || !SMART_EMAIL_RE.test(email)) continue;
+      if (seen.has(email)) continue;
+      seen.add(email);
+      out.push({
+        email,
+        name: String(raw?.name || "").slice(0, 120),
+        count: Math.max(1, Math.min(99999, Number(raw?.count) || 1)),
+        estMb: Math.max(0, Math.min(1024 * 1024, Math.round(Number(raw?.estMb) || 0)))
+      });
+      if (out.length >= SMART_SCAN.MAX_KNOWN_SENDERS) break;
+    }
+    return out;
+  }
+
+  // Whitelist semantics mirrored from the query builder: exact email,
+  // *@domain wildcard, bare domain (subdomains included). Whitelisted
+  // senders are dropped before a single query is spent on them.
+  function smartSenderWhitelisted(email, whitelist) {
+    const target = String(email || "").toLowerCase();
+    for (const raw of whitelist || []) {
+      const entry = String(raw || "").trim().toLowerCase();
+      if (!entry) continue;
+      if (entry.startsWith("*@")) {
+        if (target.endsWith(entry.slice(1))) return true;
+      } else if (entry.includes("@")) {
+        if (target === entry) return true;
+      } else if (target.endsWith("@" + entry) || target.endsWith("." + entry)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Protected keywords shield mail by subject; the sender-level
+  // reading is conservative: a protected word anywhere in the address
+  // or display name disqualifies the sender from recommendations.
+  function smartSenderProtected(email, name, protectKeywords) {
+    const hay = (String(email || "") + " " + String(name || "")).toLowerCase();
+    for (const raw of protectKeywords || []) {
+      const key = String(raw || "").trim().toLowerCase();
+      if (key && hay.includes(key)) return true;
+    }
+    return false;
+  }
+
+  function buildSmartSignalQueries(email) {
+    return Object.freeze({
+      base: `from:(${email})`,
+      unread: `from:(${email}) is:unread older_than:1m`,
+      old: `from:(${email}) older_than:6m`
+    });
+  }
+
+  function buildSmartVetoQueries(email) {
+    return Object.freeze({
+      starred: `from:(${email}) is:starred`,
+      sent: `in:sent to:(${email})`
+    });
+  }
+
+  // How many conversations the current result page represents: the
+  // pagination total when Gmail shows one, else the visible row count,
+  // zero once the empty state settled.
+  function countCurrentResults() {
+    if (hasNoResults()) return 0;
+    const total = estimateTotalResults();
+    if (Number.isFinite(total) && total > 0) return total;
+    return getGridRowCount() ?? 0;
+  }
+
+  // Engine-local copy of GCC.smart.score: the content script runs
+  // inside Gmail and cannot reference GCC. The smart-scan test suite
+  // pins the two implementations against each other.
+  function scoreSmartSignals(signals) {
+    const s = signals || {};
+    const count = Math.max(0, Number(s.count) || 0);
+    if (!count) return 0;
+    const clamp01 = (n) => Math.max(0, Math.min(1, Number(n) || 0));
+    const volumePts = Math.min(25, Math.round(Math.log10(count + 1) * 10));
+    const unreadPts = Math.round(45 * clamp01(s.unreadRatio));
+    const oldPts = Math.round(15 * clamp01(s.oldShare));
+    const shapePts = s.shape ? 15 : 0;
+    return Math.min(100, volumePts + unreadPts + oldPts + shapePts);
+  }
+
+  // Signal sampling for one sender. fetchCount(query) -> count is
+  // injected so fixtures can drive this without Gmail navigation; the
+  // live runner passes an openSearch wrapper. A sender whose base
+  // query matches nothing short-circuits: no further queries.
+  async function gatherSmartSignals(sender, fetchCount) {
+    const queries = buildSmartSignalQueries(sender.email);
+    const total = await fetchCount(queries.base);
+    if (!total) return null;
+    const unread = await fetchCount(queries.unread);
+    const old = await fetchCount(queries.old);
+    const clamp01 = (n) => Math.max(0, Math.min(1, Number(n) || 0));
+    const signals = {
+      count: total,
+      unreadRatio: clamp01(unread / total),
+      oldShare: clamp01(old / total),
+      shape: smartSenderShape(sender.email)
+    };
+    if (Number(sender.estMb) > 0) signals.estMb = Number(sender.estMb);
+    return signals;
+  }
+
+  // Hard vetoes, one query at a time; the first hit stops the rest.
+  // Starred mail means the user curates this sender; any row in Sent
+  // addressed to them means a human relationship.
+  async function runSmartVetoes(email, fetchCount) {
+    const queries = buildSmartVetoQueries(email);
+    if (await fetchCount(queries.starred)) return { vetoed: true, reason: "starred" };
+    if (await fetchCount(queries.sent)) return { vetoed: true, reason: "correspondence" };
+    return { vetoed: false, reason: "" };
+  }
+
+  async function smartScan() {
+    if (RUNNING) {
+      debugLog("Run already in progress, ignoring smart scan request");
+      return;
+    }
+    RUNNING = true;
+    CANCELLED = false;
+    const originHash = location.hash;
+
+    const fetchCount = async (query) => {
+      if (CANCELLED) throw new CancellationError("Scan cancelled by user");
+      await openSearch(query);
+      return countCurrentResults();
+    };
+
+    try {
+      if (!isGmailTab()) {
+        alert("Gmail Cleaner: please run this from a Gmail tab.");
+        return;
+      }
+
+      safeSendImmediate({
+        runKind: "smartScan",
+        phase: "starting",
+        status: "Looking for easy wins...",
+        detail: "Finding heavy senders, then checking how you treat their mail.",
+        percent: 0
+      });
+
+      // Discovery: the subscription discovery searches, then the
+      // senders earlier scans already measured (zero extra queries).
+      const bySender = new Map();
+      const discovery = buildSubscriptionScanQueries();
+      for (let i = 0; i < discovery.length; i++) {
+        if (CANCELLED) throw new CancellationError("Scan cancelled by user");
+        safeSendImmediate({
+          runKind: "smartScan",
+          phase: "running",
+          status: `Finding senders (${i + 1}/${discovery.length})...`,
+          detail: discovery[i],
+          percent: Math.round((i / discovery.length) * 20)
+        });
+        try {
+          await openSearch(discovery[i]);
+        } catch (e) {
+          if (e instanceof CancellationError) throw e;
+          debugLog("Smart discovery query failed, continuing", { query: discovery[i], error: e?.message });
+          continue;
+        }
+        for (const entry of sampleSubscriptionRows({ cap: SMART_SCAN.ROW_SAMPLE_CAP })) {
+          const existing = bySender.get(entry.email);
+          if (existing) {
+            existing.count += 1;
+          } else {
+            bySender.set(entry.email, { email: entry.email, name: entry.name, count: 1, estMb: 0 });
+          }
+        }
+      }
+      for (const known of sanitizeSmartKnownSenders(CONFIG.smartKnownSenders)) {
+        const existing = bySender.get(known.email);
+        if (existing) {
+          // Counts describe the same mailbox, so merging takes the
+          // larger claim instead of double-counting.
+          existing.count = Math.max(existing.count, known.count);
+          existing.estMb = Math.max(existing.estMb || 0, known.estMb);
+          if (!existing.name) existing.name = known.name;
+        } else {
+          bySender.set(known.email, { ...known });
+        }
+      }
+
+      // Free vetoes before any per-sender query is spent, then the
+      // heaviest senders win the capped signal budget.
+      const candidates = [...bySender.values()]
+        .filter((s) => SMART_EMAIL_RE.test(s.email))
+        .filter((s) => !smartSenderWhitelisted(s.email, CONFIG.whitelist))
+        .filter((s) => !smartSenderProtected(s.email, s.name, CONFIG.protectKeywords))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, SMART_SCAN.MAX_SIGNAL_SENDERS);
+
+      const scored = [];
+      for (let i = 0; i < candidates.length; i++) {
+        safeSendImmediate({
+          runKind: "smartScan",
+          phase: "running",
+          status: `Measuring senders (${i + 1}/${candidates.length})...`,
+          detail: candidates[i].email,
+          percent: 20 + Math.round((i / Math.max(1, candidates.length)) * 50)
+        });
+        let signals = null;
+        try {
+          signals = await gatherSmartSignals(candidates[i], fetchCount);
+        } catch (e) {
+          if (e instanceof CancellationError) throw e;
+          debugLog("Smart signal sampling failed, skipping sender", { email: candidates[i].email, error: e?.message });
+          continue;
+        }
+        if (!signals) continue;
+        scored.push({
+          email: candidates[i].email,
+          name: candidates[i].name || "",
+          score: scoreSmartSignals(signals),
+          signals,
+          estCount: signals.count
+        });
+      }
+      scored.sort((a, b) => b.score - a.score);
+
+      const senders = [];
+      let vetoBudget = SMART_SCAN.MAX_VETO_SENDERS;
+      for (let i = 0; i < scored.length; i++) {
+        if (vetoBudget <= 0 || senders.length >= SMART_SCAN.MAX_RESULTS) break;
+        vetoBudget -= 1;
+        safeSendImmediate({
+          runKind: "smartScan",
+          phase: "running",
+          status: `Checking relationships (${i + 1}/${scored.length})...`,
+          detail: scored[i].email,
+          percent: 70 + Math.round((i / Math.max(1, scored.length)) * 30)
+        });
+        let verdict = null;
+        try {
+          verdict = await runSmartVetoes(scored[i].email, fetchCount);
+        } catch (e) {
+          if (e instanceof CancellationError) throw e;
+          // A veto check that cannot complete fails SAFE: the sender
+          // is simply not recommended this scan.
+          debugLog("Smart veto check failed, dropping sender", { email: scored[i].email, error: e?.message });
+          continue;
+        }
+        if (verdict.vetoed) {
+          debugLog("Smart candidate vetoed", { email: scored[i].email, reason: verdict.reason });
+          continue;
+        }
+        senders.push(scored[i]);
+      }
+
+      try {
+        if (hasChromeRuntime()) {
+          chrome.runtime.sendMessage({
+            type: "gmailCleanerSmartScanResult",
+            senders
+          });
+        }
+      } catch (e) {
+        debugLog("Failed to send smart scan result to background", { error: e?.message });
+      }
+
+      safeSendImmediate({
+        runKind: "smartScan",
+        phase: "done",
+        status: senders.length
+          ? `Found ${senders.length} suggestion${senders.length === 1 ? "" : "s"}.`
+          : "No suggestions this time.",
+        detail: senders.length
+          ? "Each one comes with the reason and a one-click cleanup."
+          : "Nothing stood out as safe, obvious clutter.",
+        percent: 100,
+        done: true,
+        scanSenders: senders
+      });
+    } catch (e) {
+      if (e instanceof CancellationError) {
+        safeSendImmediate({
+          runKind: "smartScan",
+          phase: "cancelled",
+          status: "Scan cancelled.",
+          detail: "Stopped by user.",
+          done: true,
+          percent: 100
+        });
+      } else {
+        logError(e, "smart scan");
+        safeSendImmediate({
+          runKind: "smartScan",
+          phase: "error",
+          status: "Scan failed.",
+          detail: e instanceof Error ? e.message : String(e),
+          done: true,
+          percent: 100
+        });
+      }
+    } finally {
+      RUNNING = false;
+      try {
+        if (typeof window !== "undefined") window.GCC_ATTACHED = false;
+      } catch {}
+      try {
+        if (originHash && location.hash !== originHash) location.hash = originHash;
+      } catch {}
+    }
+  }
+
+  function startSmartScan() {
+    if (!RUNNING) {
+      smartScan().catch((e) => logError(e, "startSmartScan"));
+    }
+  }
+
+  // =========================
   // Restore run (7.6)
   // =========================
   // Every tag-before-delete cleanup labels its mail before moving it,
@@ -4706,6 +5071,18 @@
       STORAGE_XRAY,
       foldStorageSample,
       estimateMbPerEmail,
+      // 7.8 smart scan fixtures
+      SMART_SCAN,
+      smartSenderShape,
+      sanitizeSmartKnownSenders,
+      smartSenderWhitelisted,
+      smartSenderProtected,
+      buildSmartSignalQueries,
+      buildSmartVetoQueries,
+      countCurrentResults,
+      scoreSmartSignals,
+      gatherSmartSignals,
+      runSmartVetoes,
       // 7.6 restore fixtures
       buildRestoreQuery,
       isDeleteForeverLabel,
@@ -4727,6 +5104,8 @@
     startUnsubscribeRun(CONFIG.unsubSenders);
   } else if (CONFIG.runKind === "storageScan") {
     startStorageScan();
+  } else if (CONFIG.runKind === "smartScan") {
+    startSmartScan();
   } else if (CONFIG.runKind === "restoreRun") {
     startRestoreRun();
   } else {

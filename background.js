@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "7.7.0";
+  const SW_VERSION = "7.8.0";
 
   // =========================
   // Storage Keys
@@ -23,7 +23,10 @@
     SUBSCRIPTIONS: "subscriptionScan",
     STORAGE_XRAY: "storageXray",
     XRAY_PENDING: "storageXrayPendingPurge",
-    LAYOUT_CHANGE: "layoutChangeNotice"
+    LAYOUT_CHANGE: "layoutChangeNotice",
+    SMART_SCAN: "smartScan",
+    SMART_FEEDBACK: "smartFeedback",
+    SMART_PENDING: "smartPendingApply"
   });
 
   // chrome.storage.sync caps: 8KB per item, 102KB total. The options
@@ -454,6 +457,39 @@
           .then(() => sendResponse({ ok: true }));
         return true;
 
+      // Smart Suggestions (7.8): persist the latest recommendation
+      // scan, union-merged so senders measured on earlier scans keep
+      // their place while new ones join.
+      case "gmailCleanerSmartScanResult":
+        withStorageLock(() => recordSmartScan(msg.senders)).then(() => sendResponse({ ok: true }));
+        return true;
+
+      case "gmailCleanerGetSmartScan":
+        chrome.storage.local.get([STORAGE_KEYS.SMART_SCAN, STORAGE_KEYS.SMART_FEEDBACK])
+          .then((r) => sendResponse({
+            ok: true,
+            scan: r?.[STORAGE_KEYS.SMART_SCAN] || null,
+            feedback: r?.[STORAGE_KEYS.SMART_FEEDBACK] || null
+          }))
+          .catch((err) => sendResponse({ ok: false, error: err?.message || "Failed" }));
+        return true;
+
+      // Smart Suggestions (7.8): dismissals arrive directly from the
+      // popup; "applied" is only ever written by the pending-apply
+      // marker below, once a real run confirms.
+      case "gmailCleanerSmartFeedback":
+        withStorageLock(() => recordSmartFeedback([{ email: msg.email, action: msg.action }]))
+          .then(() => sendResponse({ ok: true }));
+        return true;
+
+      // Smart Suggestions (7.8): the popup registers which senders an
+      // apply run targets; gmailCleanerDone consumes it, same marker
+      // pattern as the X-ray purge.
+      case "gmailCleanerSmartApplyStarted":
+        withStorageLock(() => recordPendingSmartApply(msg.runId, msg.senders))
+          .then(() => sendResponse({ ok: true }));
+        return true;
+
       case "gmailCleanerDone":
         // Clean up active run state when cleanup finishes
         chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: null })
@@ -465,6 +501,12 @@
         if (msg.summary) {
           withStorageLock(() => resolvePendingStoragePurge(msg.summary))
             .catch((e) => console.warn("[GCC SW] purge resolve failed:", e?.message || e));
+        }
+        // Smart Suggestions (7.8): if this run was a registered apply,
+        // record "applied" feedback for its senders.
+        if (msg.summary) {
+          withStorageLock(() => resolvePendingSmartApply(msg.summary))
+            .catch((e) => console.warn("[GCC SW] smart apply resolve failed:", e?.message || e));
         }
         // Surface a desktop notification if the user opted in.
         if (msg.summary) {
@@ -732,6 +774,131 @@
       }
     } catch (e) {
       console.error("[GCC SW] resolvePendingStoragePurge failed:", e);
+    }
+  }
+
+  // =========================
+  // Smart Suggestions store (7.8)
+  // =========================
+  // Two local-storage objects. smartScan { updatedAt, senders: [{
+  // email, name, score, signals, estCount }] } is UNION-merged across
+  // rescans: each scan only measures a handful of senders, so senders
+  // from earlier scans keep their place and a re-measured sender takes
+  // its fresh values. smartFeedback { bySender: { email: { action,
+  // at } } } drives the popup's ranking (dismissed = silenced 90 days,
+  // applied = same-domain boost); the map is bounded and the oldest
+  // entries fall off first. Bounding mirrors GCC.smart.recordFeedback,
+  // duplicated here because the worker is self-contained.
+
+  const SMART_EMAIL_RE = /^[a-z0-9!#$%&'*+/=?^_`{|}~.-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
+  const SMART_MAX_LIST = 50;
+  const SMART_MAX_FEEDBACK = 300;
+
+  function sanitizeSmartSignals(raw) {
+    const clamp01 = (n) => Math.max(0, Math.min(1, Number(n) || 0));
+    const signals = {
+      count: Math.max(0, Math.min(999999, Number(raw?.count) || 0)),
+      unreadRatio: clamp01(raw?.unreadRatio),
+      oldShare: clamp01(raw?.oldShare),
+      shape: Boolean(raw?.shape)
+    };
+    const estMb = Math.max(0, Math.min(1024 * 1024, Math.round(Number(raw?.estMb) || 0)));
+    if (estMb > 0) signals.estMb = estMb;
+    return signals;
+  }
+
+  async function recordSmartScan(senders) {
+    if (!Array.isArray(senders)) return;
+    try {
+      const result = await chrome.storage.local.get(STORAGE_KEYS.SMART_SCAN);
+      const prev = result?.[STORAGE_KEYS.SMART_SCAN] || {};
+      const byEmail = Object.create(null);
+      for (const entry of prev.senders || []) {
+        if (entry?.email) byEmail[entry.email] = entry;
+      }
+      for (const raw of senders.slice(0, SMART_MAX_LIST)) {
+        const email = String(raw?.email || "").trim().toLowerCase();
+        if (!email || email.length > 320 || !SMART_EMAIL_RE.test(email)) continue;
+        byEmail[email] = {
+          email,
+          name: String(raw?.name || "").slice(0, 120),
+          score: Math.max(0, Math.min(100, Math.round(Number(raw?.score) || 0))),
+          signals: sanitizeSmartSignals(raw?.signals),
+          estCount: Math.max(0, Math.min(999999, Number(raw?.estCount) || 0))
+        };
+      }
+      const merged = Object.values(byEmail)
+        .sort((a, b) => b.score - a.score || b.estCount - a.estCount)
+        .slice(0, SMART_MAX_LIST);
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.SMART_SCAN]: { updatedAt: Date.now(), senders: merged }
+      });
+    } catch (e) {
+      console.error("[GCC SW] recordSmartScan failed:", e);
+    }
+  }
+
+  async function recordSmartFeedback(entries) {
+    if (!Array.isArray(entries) || entries.length === 0) return;
+    try {
+      const result = await chrome.storage.local.get(STORAGE_KEYS.SMART_FEEDBACK);
+      const bySender = { ...(result?.[STORAGE_KEYS.SMART_FEEDBACK]?.bySender || {}) };
+      for (const raw of entries) {
+        const email = String(raw?.email || "").trim().toLowerCase();
+        const action = raw?.action === "applied" ? "applied"
+          : raw?.action === "dismissed" ? "dismissed" : "";
+        if (!action || !email || email.length > 320 || !SMART_EMAIL_RE.test(email)) continue;
+        bySender[email] = { action, at: Date.now() };
+      }
+      let list = Object.entries(bySender);
+      if (list.length > SMART_MAX_FEEDBACK) {
+        list.sort((a, b) => (Number(a[1]?.at) || 0) - (Number(b[1]?.at) || 0));
+        list = list.slice(list.length - SMART_MAX_FEEDBACK);
+      }
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.SMART_FEEDBACK]: { bySender: Object.fromEntries(list) }
+      });
+    } catch (e) {
+      console.error("[GCC SW] recordSmartFeedback failed:", e);
+    }
+  }
+
+  async function recordPendingSmartApply(runId, senders) {
+    const id = String(runId || "");
+    const list = Array.isArray(senders)
+      ? senders.filter((s) => typeof s === "string").slice(0, 25)
+      : [];
+    if (!id || list.length === 0) return;
+    try {
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.SMART_PENDING]: { runId: id, senders: list, startedAt: Date.now() }
+      });
+    } catch (e) {
+      console.error("[GCC SW] recordPendingSmartApply failed:", e);
+    }
+  }
+
+  async function resolvePendingSmartApply(summary) {
+    try {
+      const result = await chrome.storage.local.get(STORAGE_KEYS.SMART_PENDING);
+      const pending = result?.[STORAGE_KEYS.SMART_PENDING];
+      if (!pending?.runId) return;
+
+      // Stale guard, same TTL as the purge marker.
+      const stale = Date.now() - (Number(pending.startedAt) || 0) > 1000 * 60 * 60 * 2;
+      if (String(summary?.runId || "") !== pending.runId) {
+        if (stale) await chrome.storage.local.set({ [STORAGE_KEYS.SMART_PENDING]: null });
+        return;
+      }
+
+      // This run was the apply: consume the marker either way, but only
+      // record feedback when mail was actually affected for real.
+      await chrome.storage.local.set({ [STORAGE_KEYS.SMART_PENDING]: null });
+      if (summary?.dryRun || !(Number(summary?.count) > 0)) return;
+
+      await recordSmartFeedback(pending.senders.map((email) => ({ email, action: "applied" })));
+    } catch (e) {
+      console.error("[GCC SW] resolvePendingSmartApply failed:", e);
     }
   }
 

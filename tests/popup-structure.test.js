@@ -48,7 +48,12 @@ const POPUP_JS_IDS = [
   "xrayProPill", "xrayScanBtn", "xrayStatus", "xrayTotal", "xrayTotalMb",
   "xrayTotalSub", "xrayToolbar", "xraySelectAll", "xrayCount", "xrayList",
   "xrayAgeRow", "xrayAge", "xrayPurgeBtn", "xrayPurgeBtnSub",
-  "xrayUpsell", "xrayUpsellText", "xrayBuyLink", "xrayEnterKey"
+  "xrayUpsell", "xrayUpsellText", "xrayBuyLink", "xrayEnterKey",
+  // 7.8 Smart Suggestions
+  "smartSection", "smartContent", "smartScanBtn", "smartStatus",
+  "smartToolbar", "smartSelectAll", "smartCount", "smartList",
+  "smartBulkBtn", "smartBulkBtnSub", "smartUpsell", "smartUpsellText",
+  "smartBuyLink", "smartEnterKey"
 ];
 
 describe("popup.html: id inventory", () => {
@@ -125,6 +130,32 @@ describe("popup.html: nodes landed in the right containers", () => {
     expect(within("reassurance", "cleanForm")).toBe(true);
   });
 
+  test("the Suggested section leads the Clean tab, collapsed by default", () => {
+    const smart = byId("smartSection");
+    expect(smart.tagName).toBe("DETAILS");
+    // Collapsed on a fresh install so the Clean tab keeps the 600px
+    // height budget; popup.js restores the persisted open state.
+    expect(smart.hasAttribute("open")).toBe(false);
+    expect(within("smartSection", "cleanForm")).toBe(true);
+    // At the TOP: before the reassurance block, not a fourth tab.
+    expect(smart.compareDocumentPosition(byId("reassurance")) &
+      Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(byId("popupTabs").querySelectorAll("[role=tab]").length).toBe(3);
+  });
+
+  test("the Suggested section owns all its controls", () => {
+    ["smartContent", "smartScanBtn", "smartStatus", "smartToolbar",
+      "smartSelectAll", "smartCount", "smartList", "smartBulkBtn",
+      "smartBulkBtnSub", "smartUpsell", "smartUpsellText", "smartBuyLink",
+      "smartEnterKey"].forEach((id) => {
+      expect(within(id, "smartSection")).toBe(true);
+    });
+    // Toolbar, bulk button and upsell ship hidden; the scan reveals them.
+    expect(byId("smartToolbar").hasAttribute("hidden")).toBe(true);
+    expect(byId("smartBulkBtn").hasAttribute("hidden")).toBe(true);
+    expect(byId("smartUpsell").hasAttribute("hidden")).toBe(true);
+  });
+
   test("the result view wraps summary, CTAs, rating and the way back", () => {
     ["resultSummary", "successCtas", "ratingPrompt", "resultBackBtn"].forEach((id) => {
       expect(within(id, "cleanResult")).toBe(true);
@@ -175,8 +206,10 @@ describe("popup.html: nodes landed in the right containers", () => {
   test("upsell paragraphs start with the swappable text span", () => {
     expect(byId("subsUpsell").firstElementChild.id).toBe("subsUpsellText");
     expect(byId("xrayUpsell").firstElementChild.id).toBe("xrayUpsellText");
+    expect(byId("smartUpsell").firstElementChild.id).toBe("smartUpsellText");
     expect(byId("subsUpsellText").textContent).toContain("$5");
     expect(byId("xrayUpsellText").textContent).toContain("$5");
+    expect(byId("smartUpsellText").textContent).toContain("$5");
   });
 });
 

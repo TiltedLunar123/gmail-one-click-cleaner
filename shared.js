@@ -995,6 +995,15 @@ const GCC = (() => {
   const recapCleanedCount = (entry) =>
     (Number(entry?.deleted) || 0) + (Number(entry?.archived) || 0);
 
+  // 7.8: first line of the Suggested locked row. Leads with how many
+  // ranked suggestions sit behind the free cap; before a scan produces
+  // any, falls back to the static pitch.
+  const smartUpsellLine = (hiddenCount) => {
+    const n = Math.max(0, Math.floor(Number(hiddenCount) || 0));
+    if (!n) return "Pro is $5 once: it unlocks the full suggestion list and bulk apply.";
+    return `${n} more suggestion${n === 1 ? "" : "s"} ready. Pro unlocks the full list and applies them in bulk for $5.`;
+  };
+
   const popupUi = Object.freeze({
     RATING_MIN_CLEANED,
     RATING_MIN_FREED_MB,
@@ -1004,6 +1013,7 @@ const GCC = (() => {
     reassuranceOpen,
     subsUpsellLine,
     xrayUpsellLine,
+    smartUpsellLine,
     pickRecapEntry,
     recapSeenMarker,
     recapAction,
@@ -1054,6 +1064,247 @@ const GCC = (() => {
   const restore = Object.freeze({
     TRASH_WINDOW_MS: RESTORE_TRASH_WINDOW_MS,
     eligibility: restoreEligibility
+  });
+
+  // =========================
+  // Smart Suggestions (7.8)
+  // =========================
+  // Pure policy behind the Suggested section on the Clean tab. The
+  // engine's smartScan gathers per-sender signals (volume, unread
+  // ratio, share of old mail, machine-address shape) and hard-vetoes
+  // starred / whitelisted / corresponded-with senders BEFORE anything
+  // is persisted; these helpers turn the survivors into ranked,
+  // explainable recommendations and map each one onto an EXISTING run
+  // path. Nothing here executes anything: the output is a
+  // rulesOverride query (or an unsubscribe sender list) that walks the
+  // same guarded paths every other run does.
+
+  const SMART_LIMITS = Object.freeze({
+    MAX_LIST: 50,
+    FREE_VISIBLE: 3,
+    MAX_BULK_PER_RUN: 25,
+    DISMISS_TTL_MS: 90 * 24 * 60 * 60 * 1000,
+    MAX_FEEDBACK: 300,
+    DOMAIN_BOOST: 6
+  });
+
+  const SMART_ACTIONS = Object.freeze(["deleteOld", "archiveAll", "purgeLarge", "unsubscribe"]);
+
+  const SMART_ACTION_LABELS = Object.freeze({
+    deleteOld: "Delete old mail",
+    archiveAll: "Archive all",
+    purgeLarge: "Purge large mail",
+    unsubscribe: "Unsubscribe"
+  });
+
+  const clamp01 = (n) => Math.max(0, Math.min(1, Number(n) || 0));
+
+  // Signals -> 0..100. Never-opened mail is the strongest clutter
+  // signal, so the unread ratio carries the biggest share; volume is
+  // log-scaled so a 10k-email sender cannot drown every other signal.
+  const smartScore = (signals) => {
+    const s = signals || {};
+    const count = Math.max(0, Number(s.count) || 0);
+    if (!count) return 0;
+    const volumePts = Math.min(25, Math.round(Math.log10(count + 1) * 10));
+    const unreadPts = Math.round(45 * clamp01(s.unreadRatio));
+    const oldPts = Math.round(15 * clamp01(s.oldShare));
+    const shapePts = s.shape ? 15 : 0;
+    return Math.min(100, volumePts + unreadPts + oldPts + shapePts);
+  };
+
+  // Whitelist entry semantics, mirrored from the engine's query
+  // builder: exact email, *@domain wildcard, bare domain (which also
+  // covers subdomains).
+  const whitelistCoversSender = (entry, email) => {
+    const e = String(entry || "").trim().toLowerCase();
+    if (!e) return false;
+    if (e.startsWith("*@")) return email.endsWith(e.slice(1));
+    if (e.includes("@")) return email === e;
+    return email.endsWith("@" + e) || email.endsWith("." + e);
+  };
+
+  // Hard vetoes win over any score. Engine-side flags (starred,
+  // corresponded) ride in on signals; whitelist and protected keywords
+  // are re-checked here because the user can change both after a scan.
+  // Protected keywords shield mail by subject, so the sender-level
+  // reading is conservative: a protected word in the address or the
+  // display name disqualifies the sender.
+  const smartVetoReasons = (sender, config = {}) => {
+    const reasons = [];
+    const email = String(sender?.email || "").trim().toLowerCase();
+    if (!STORAGE_EMAIL_RE.test(email)) reasons.push("invalid");
+    const sig = sender?.signals || {};
+    if (sig.starred) reasons.push("starred");
+    if (sig.corresponded) reasons.push("correspondence");
+    const wl = Array.isArray(config.whitelist) ? config.whitelist : [];
+    if (email && wl.some((entry) => whitelistCoversSender(entry, email))) {
+      reasons.push("whitelisted");
+    }
+    const kw = Array.isArray(config.protectKeywords) ? config.protectKeywords : [];
+    const hay = (email + " " + String(sender?.name || "")).toLowerCase();
+    if (kw.some((k) => {
+      const key = String(k || "").trim().toLowerCase();
+      return key && hay.includes(key);
+    })) {
+      reasons.push("protected");
+    }
+    return reasons;
+  };
+
+  // Feedback map: { bySender: { email: { action, at } } }. Bounded so
+  // it can never grow past a few storage KB: past the cap the oldest
+  // entries fall off first.
+  const smartRecordFeedback = (feedback, email, action, now = Date.now()) => {
+    const bySender = { ...(feedback?.bySender || {}) };
+    const clean = String(email || "").trim().toLowerCase();
+    if (STORAGE_EMAIL_RE.test(clean) && (action === "applied" || action === "dismissed")) {
+      bySender[clean] = { action, at: Number(now) || 0 };
+    }
+    const entries = Object.entries(bySender);
+    if (entries.length > SMART_LIMITS.MAX_FEEDBACK) {
+      entries.sort((a, b) => (Number(a[1]?.at) || 0) - (Number(b[1]?.at) || 0));
+      return { bySender: Object.fromEntries(entries.slice(entries.length - SMART_LIMITS.MAX_FEEDBACK)) };
+    }
+    return { bySender };
+  };
+
+  // A dismissal silences the sender for 90 days, then decays so a
+  // still-noisy sender can come back.
+  const smartIsDismissed = (feedback, email, now = Date.now()) => {
+    const fb = feedback?.bySender?.[String(email || "").trim().toLowerCase()];
+    if (!fb || fb.action !== "dismissed") return false;
+    return (now - (Number(fb.at) || 0)) < SMART_LIMITS.DISMISS_TTL_MS;
+  };
+
+  // An applied suggestion boosts future senders from the same domain a
+  // little: the user showed intent to clean that kind of mail.
+  const smartDomainBoost = (feedback, email) => {
+    const domain = String(email || "").toLowerCase().split("@")[1] || "";
+    if (!domain) return 0;
+    for (const [addr, fb] of Object.entries(feedback?.bySender || {})) {
+      if (fb?.action === "applied" && (addr.split("@")[1] || "") === domain) {
+        return SMART_LIMITS.DOMAIN_BOOST;
+      }
+    }
+    return 0;
+  };
+
+  const smartRankSenders = (senders, feedback, now = Date.now()) => {
+    if (!Array.isArray(senders)) return [];
+    return senders
+      .filter((s) => s && typeof s.email === "string" && STORAGE_EMAIL_RE.test(s.email.trim().toLowerCase()))
+      .filter((s) => !smartIsDismissed(feedback, s.email, now))
+      .map((s) => {
+        const stored = typeof s.score === "number" && Number.isFinite(s.score)
+          ? s.score
+          : smartScore(s.signals);
+        return {
+          ...s,
+          email: s.email.trim().toLowerCase(),
+          name: typeof s.name === "string" ? s.name.slice(0, 120) : "",
+          estCount: Math.max(0, Math.min(999999, Number(s.estCount) || 0)),
+          score: Math.min(100, Math.max(0, stored) + smartDomainBoost(feedback, s.email))
+        };
+      })
+      .sort((a, b) => b.score - a.score || b.estCount - a.estCount)
+      .slice(0, SMART_LIMITS.MAX_LIST);
+  };
+
+  // The one call sites should use: vetoes first (they beat any score),
+  // then feedback-aware ranking.
+  const smartRecommend = (senders, feedback, config = {}, now = Date.now()) => {
+    if (!Array.isArray(senders)) return [];
+    return smartRankSenders(
+      senders.filter((s) => smartVetoReasons(s, config).length === 0),
+      feedback,
+      now
+    );
+  };
+
+  // Map a recommendation onto an existing run path. cleanup rules ride
+  // rulesOverride (every guard, tag-before-delete, undo and stats
+  // apply); unsubscribe rides the existing Pro unsubscribe engine.
+  // Returns null when the sender or action cannot make a safe rule.
+  const smartBuildActionRule = (sender, action) => {
+    const email = String(sender?.email || "").trim().toLowerCase();
+    if (!STORAGE_EMAIL_RE.test(email) || email.length > 320) return null;
+    if (!SMART_ACTIONS.includes(action)) return null;
+    if (action === "unsubscribe") {
+      return { runKind: "unsubscribe", senders: [email] };
+    }
+    if (action === "purgeLarge") {
+      const query = buildStoragePurgeQuery([email], "6m");
+      return query ? { runKind: "cleanup", query, archive: false } : null;
+    }
+    if (action === "archiveAll") {
+      return { runKind: "cleanup", query: `from:(${email})`, archive: true };
+    }
+    return { runKind: "cleanup", query: `from:(${email}) older_than:6m`, archive: false };
+  };
+
+  // Bulk apply (Pro): one cleanup run over every checked sender, the
+  // same conservative shape as deleteOld. "" when nothing valid
+  // survives; callers must treat that as a no-op.
+  const smartBuildBulkRule = (emails) => {
+    if (!Array.isArray(emails)) return "";
+    const clean = [];
+    const seen = new Set();
+    for (const raw of emails) {
+      if (typeof raw !== "string") continue;
+      const email = raw.trim().toLowerCase();
+      if (!email || email.length > 320 || !STORAGE_EMAIL_RE.test(email) || seen.has(email)) continue;
+      seen.add(email);
+      clean.push(email);
+      if (clean.length >= SMART_LIMITS.MAX_BULK_PER_RUN) break;
+    }
+    if (!clean.length) return "";
+    return `from:(${clean.join(" OR ")}) older_than:6m`;
+  };
+
+  // Which action a card leads with. Storage hogs get the purge, mail
+  // the user never opens gets the delete, everything else gets the
+  // reversible archive. All three are free cleanup runs; the Pro
+  // unsubscribe action stays available through buildActionRule for
+  // surfaces that want it.
+  const smartPrimaryAction = (sender) => {
+    const sig = sender?.signals || {};
+    if ((Number(sig.estMb) || 0) >= 100) return "purgeLarge";
+    if (clamp01(sig.unreadRatio) >= 0.5) return "deleteOld";
+    return "archiveAll";
+  };
+
+  // Plain-English reason line, e.g. "142 emails, 96% unread, mostly
+  // older than 6 months".
+  const smartReasonText = (sender) => {
+    const sig = sender?.signals || {};
+    const count = Math.max(0, Number(sender?.estCount ?? sig.count) || 0);
+    const parts = [`${count.toLocaleString()} email${count === 1 ? "" : "s"}`];
+    const unread = Number(sig.unreadRatio);
+    if (Number.isFinite(unread) && unread > 0) {
+      parts.push(`${Math.round(clamp01(unread) * 100)}% unread`);
+    }
+    if (clamp01(sig.oldShare) >= 0.5) parts.push("mostly older than 6 months");
+    if (sig.shape) parts.push("no-reply sender");
+    const mb = Number(sig.estMb) || 0;
+    if (mb >= 50) parts.push(`at least ${formatMb(mb)}`);
+    return parts.join(", ");
+  };
+
+  const smart = Object.freeze({
+    LIMITS: SMART_LIMITS,
+    ACTIONS: SMART_ACTIONS,
+    ACTION_LABELS: SMART_ACTION_LABELS,
+    score: smartScore,
+    vetoReasons: smartVetoReasons,
+    recordFeedback: smartRecordFeedback,
+    isDismissed: smartIsDismissed,
+    rankSenders: smartRankSenders,
+    recommend: smartRecommend,
+    buildActionRule: smartBuildActionRule,
+    buildBulkRule: smartBuildBulkRule,
+    primaryAction: smartPrimaryAction,
+    reasonText: smartReasonText
   });
 
   // =========================
@@ -1197,6 +1448,9 @@ const GCC = (() => {
     tablist,
 
     // New in 7.6
-    restore
+    restore,
+
+    // New in 7.8
+    smart
   });
 })();
