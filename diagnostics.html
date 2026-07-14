@@ -656,7 +656,11 @@
     html[data-theme="light"] tbody tr:hover { background: var(--bg-surface-hover); }
     html[data-theme="light"] .btn-ghost { color: var(--text-secondary); }
     html[data-theme="light"] .badge,
-    html[data-theme="light"] .tag-primary { color: var(--primary); }
+    html[data-theme="light"] .tag-primary { color: var(--primary-hover); }
+    html[data-theme="light"] kbd {
+      background: rgba(13, 30, 40, 0.06);
+      color: var(--text-secondary);
+    }
     html[data-theme="light"] .tag-success,
     html[data-theme="light"] .text-success { color: #047857; }
     html[data-theme="light"] .tag-info { color: #0369a1; }
@@ -710,7 +714,7 @@
     <header class="page-header">
       <div class="title-row">
         <h1 id="main-content" tabindex="-1">Gmail One-Click Cleaner Diagnostics</h1>
-        <span class="badge" aria-label="Version 7.8.0">v7.8.0</span>
+        <span class="badge" aria-label="Version 7.8.1">v7.8.1</span>
         <span class="badge-secondary" id="diagVersionBadge" aria-label="Runtime snapshot">runtime snapshot</span>
         <div class="theme-switcher" id="themeSwitcher" role="group" aria-label="Color theme" style="margin-left:auto;">
           <button type="button" data-theme-value="system" aria-pressed="true">Auto</button>

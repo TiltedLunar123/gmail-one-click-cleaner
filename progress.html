@@ -525,7 +525,8 @@
     #details .log-warning { color: #fcd34d; }
     #details .log-error { color: #fca5a5; }
     #details .log-timestamp {
-      color: #64748b;
+      /* Terminal bg is near-black in both themes; slate-500 sat at 4.2:1 */
+      color: #7b8ca1;
       margin-right: 8px;
       user-select: none;
     }
@@ -744,6 +745,21 @@
     html[data-theme="light"] .ghost-btn:hover:not(:disabled),
     html[data-theme="light"] .icon-btn:hover { color: var(--text-main); }
     html[data-theme="light"] #tipPrompt a { color: var(--primary); }
+    html[data-theme="light"] .ghost-btn[aria-pressed="true"] { color: var(--primary-hover); }
+    html[data-theme="light"] .pill { color: #047857; }
+    html[data-theme="light"] #summary .pill {
+      background: rgba(13, 30, 40, 0.05);
+      color: var(--text-secondary);
+    }
+    html[data-theme="light"] .tag { color: var(--primary-hover); }
+    html[data-theme="light"] .tag[data-phase="searching"] { color: var(--primary-hover); }
+    html[data-theme="light"] .tag[data-phase="cleaning"] { color: #92400e; }
+    html[data-theme="light"] .tag[data-phase="complete"] { color: #047857; }
+    html[data-theme="light"] .tag[data-phase="error"] { color: #b91c1c; }
+    html[data-theme="light"] .shortcut-item kbd {
+      background: rgba(13, 30, 40, 0.06);
+      color: var(--text-secondary);
+    }
 
     @media (max-width: 640px) {
       .wrap { margin: 20px auto; padding: 0 16px 20px; }
@@ -787,7 +803,7 @@
           </p>
         </div>
         <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
-          <span class="pill" id="versionPill" aria-label="Status: Live progress">v7.8.0</span>
+          <span class="pill" id="versionPill" aria-label="Status: Live progress">v7.8.1</span>
           <div class="theme-switcher" id="themeSwitcher" role="group" aria-label="Color theme">
             <button type="button" data-theme-value="system" aria-pressed="true">Auto</button>
             <button type="button" data-theme-value="light" aria-pressed="false">Light</button>

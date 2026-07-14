@@ -3,6 +3,26 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 7.8.1 - Light theme contrast
+
+### Fixed
+- **Light theme text is readable everywhere.** Every page was audited
+  for WCAG AA contrast (4.5:1) in both themes. In light mode, several
+  Options labels rendered near-white on white, the explainer note was
+  a gray-on-gray box, and rule pills, code chips, keyboard hints and
+  the snooze button kept colors tuned for the dark theme. All of them
+  now use dark, legible colors when the light theme is active.
+- **Dim helper text got darker in both themes.** Secondary labels
+  (section eyebrows, table headers, empty states, "Or target one
+  thing", toggle hints) sat just below the readability threshold and
+  now clear it in light and dark mode alike.
+- **Progress page in light mode.** Run-phase tags, the version pill,
+  summary chips and keyboard shortcut keys no longer use neon
+  dark-theme colors on light backgrounds, and log timestamps in the
+  terminal view are brighter.
+- Version badges in the popup and diagnostics pages and the red
+  "Clear Log" button on the stats page also meet contrast now.
+
 ## 7.8.0 - Smart Suggestions
 
 ### Added

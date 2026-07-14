@@ -45,7 +45,8 @@
   --text-main: #e6f1f5;
   --text-secondary: #c5d6dd;
   --text-muted: #8aa0ab;
-  --text-dim: #5d7280;
+  /* Must clear 4.5:1 on --bg-surface cards, not just --bg-deep */
+  --text-dim: #6e8494;
 
   --border-subtle: rgba(180, 220, 235, 0.08);
   --border-medium: rgba(180, 220, 235, 0.14);
@@ -120,7 +121,7 @@
   --warning-bg: rgba(180, 83, 9, 0.1);
   --warning-border: rgba(180, 83, 9, 0.26);
 
-  --danger: #dc2626;
+  --danger: #b91c1c;
   --danger-bg: rgba(220, 38, 38, 0.1);
   --danger-border: rgba(220, 38, 38, 0.26);
 
@@ -131,7 +132,8 @@
   --text-main: #0b1620;
   --text-secondary: #243642;
   --text-muted: #4a5f6b;
-  --text-dim: #6b7f8a;
+  /* Must clear 4.5:1 on pure-white cards, not just --bg-deep */
+  --text-dim: #546e7c;
 
   --border-subtle: rgba(13, 30, 40, 0.08);
   --border-medium: rgba(13, 30, 40, 0.14);

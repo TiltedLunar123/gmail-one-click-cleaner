@@ -123,7 +123,7 @@
     }
 
     .subtitle strong {
-      color: #f1f5f9;
+      color: var(--text-main);
       font-weight: 500;
     }
 
@@ -443,7 +443,7 @@
     .setting-label {
       font-size: 14px;
       font-weight: 500;
-      color: #f1f5f9;
+      color: var(--text-main);
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -898,6 +898,33 @@
       background: rgba(255, 255, 255, 0.06);
       color: var(--text-main);
       border: 1px solid var(--border-subtle);
+    }
+
+    /* Light-theme overrides: the base rules above lean on dark-tuned
+       literals (ink washes, neon pill text). Every text color here was
+       picked to clear 4.5:1 on its composited light background. */
+    [data-theme="light"] .audit-note { background: rgba(13, 30, 40, 0.05); }
+    [data-theme="light"] .audit-note code { background: rgba(13, 30, 40, 0.08); }
+    [data-theme="light"] .hint code { color: var(--primary); }
+    [data-theme="light"] .pill-light { color: #047857; }
+    [data-theme="light"] .pill-normal { color: var(--primary); }
+    [data-theme="light"] .pill-deep { color: #9a3412; }
+    [data-theme="light"] .pill-protection { color: #075985; }
+    [data-theme="light"] textarea::placeholder { color: var(--text-muted); }
+    [data-theme="light"] .char-count {
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.85);
+      border-color: rgba(13, 30, 40, 0.12);
+    }
+    [data-theme="light"] .shortcut-hint { color: var(--text-muted); }
+    [data-theme="light"] kbd {
+      background: rgba(13, 30, 40, 0.06);
+      color: var(--text-secondary);
+    }
+    [data-theme="light"] .snooze-btn { color: #ffffff; }
+    [data-theme="light"] .snooze-btn.snooze-clear {
+      background: rgba(13, 30, 40, 0.05);
+      color: var(--text-main);
     }
   </style>
 </head>
