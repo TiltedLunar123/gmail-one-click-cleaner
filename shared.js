@@ -922,9 +922,11 @@ const GCC = (() => {
   };
 
   // A run earns the rating ask only when it was real (not a dry run)
-  // and big enough that the user just felt the benefit.
-  const RATING_MIN_CLEANED = 200;
-  const RATING_MIN_FREED_MB = 100;
+  // and big enough that the user just felt the benefit. 7.9.1 lowered
+  // the bar: repeat maintenance runs clean far less than a first sweep
+  // but belong to the happiest users, and they never reached 200.
+  const RATING_MIN_CLEANED = 50;
+  const RATING_MIN_FREED_MB = 25;
 
   const ratingRunQualifies = ({ dryRun = false, cleaned = 0, freedMb = 0 } = {}) => {
     if (dryRun) return false;

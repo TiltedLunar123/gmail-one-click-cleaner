@@ -55,14 +55,14 @@ describe("GCC.popupUi.ratingRunQualifies", () => {
     expect(UI.ratingRunQualifies({ dryRun: true, cleaned: 100000, freedMb: 5000 })).toBe(false);
   });
 
-  test("qualifies at 200 cleaned emails, not at 199", () => {
-    expect(UI.ratingRunQualifies({ dryRun: false, cleaned: 200, freedMb: 0 })).toBe(true);
-    expect(UI.ratingRunQualifies({ dryRun: false, cleaned: 199, freedMb: 0 })).toBe(false);
+  test("qualifies at 50 cleaned emails, not at 49", () => {
+    expect(UI.ratingRunQualifies({ dryRun: false, cleaned: 50, freedMb: 0 })).toBe(true);
+    expect(UI.ratingRunQualifies({ dryRun: false, cleaned: 49, freedMb: 0 })).toBe(false);
   });
 
-  test("qualifies at 100 MB freed, not just under", () => {
-    expect(UI.ratingRunQualifies({ dryRun: false, cleaned: 0, freedMb: 100 })).toBe(true);
-    expect(UI.ratingRunQualifies({ dryRun: false, cleaned: 0, freedMb: 99.9 })).toBe(false);
+  test("qualifies at 25 MB freed, not just under", () => {
+    expect(UI.ratingRunQualifies({ dryRun: false, cleaned: 0, freedMb: 25 })).toBe(true);
+    expect(UI.ratingRunQualifies({ dryRun: false, cleaned: 0, freedMb: 24.9 })).toBe(false);
   });
 
   test("either threshold alone is enough", () => {
@@ -77,8 +77,8 @@ describe("GCC.popupUi.ratingRunQualifies", () => {
   });
 
   test("thresholds are exported for the UI copy", () => {
-    expect(UI.RATING_MIN_CLEANED).toBe(200);
-    expect(UI.RATING_MIN_FREED_MB).toBe(100);
+    expect(UI.RATING_MIN_CLEANED).toBe(50);
+    expect(UI.RATING_MIN_FREED_MB).toBe(25);
   });
 });
 
