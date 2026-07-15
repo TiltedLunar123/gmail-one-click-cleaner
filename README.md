@@ -15,6 +15,7 @@ A browser extension that bulk-cleans Gmail in one click. Run configurable cleanu
 The extension recommends what to clean instead of making you configure it. One free, read-only scan finds the senders worth cleaning and says why in plain English ("142 emails, 96% unread, mostly older than 6 months").
 - **Hard vetoes first** - a sender is never suggested when they match your whitelist or protected keywords, when any of their mail is starred, or when your Sent folder shows you write to them.
 - **One-click apply** - each suggestion runs as an ordinary cleanup (tag first, dry-run honored, undo log, stats), so nothing new can touch mail. Dismissed suggestions stay silent for 90 days.
+- **The right action per sender** - storage hogs lead with a purge, stopped floods with a delete, and a sender who still emails weekly while you never open them leads with Unsubscribe (Pro), because deleting would not stop the next batch.
 - **Pro** - the full ranked list (top 3 stay free) and bulk apply of checked suggestions in one run.
 
 ### Cleanup Modes

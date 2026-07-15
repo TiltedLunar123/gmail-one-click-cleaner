@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "7.9.2";
+  const POPUP_VERSION = "7.10.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,

@@ -269,6 +269,36 @@ describe("GCC.smart presentation policy", () => {
     expect(S.primaryAction(mkSender({ signals: { count: 40, unreadRatio: 0.1 } }))).toBe("archiveAll");
   });
 
+  test("primaryAction: unsubscribe leads for an active flood the user never opens", () => {
+    const active = { count: 60, unreadRatio: 0.9, oldShare: 0.2, shape: true };
+    expect(S.primaryAction(mkSender({ signals: active }))).toBe("unsubscribe");
+    // At the exact thresholds it still leads.
+    expect(
+      S.primaryAction(mkSender({ signals: { count: 10, unreadRatio: 0.8, oldShare: 0.6 } }))
+    ).toBe("unsubscribe");
+  });
+
+  test("primaryAction: unsubscribe never beats the purge and needs volume, unread and recency", () => {
+    // Storage hog stays a purge even when it is an active flood.
+    expect(
+      S.primaryAction(mkSender({ signals: { count: 60, unreadRatio: 0.9, oldShare: 0.2, estMb: 300 } }))
+    ).toBe("purgeLarge");
+    // Flow mostly stopped (default oldShare 0.7): deleting wins.
+    expect(S.primaryAction(mkSender())).toBe("deleteOld");
+    // Too few emails to call it a flood.
+    expect(
+      S.primaryAction(mkSender({ signals: { count: 5, unreadRatio: 0.95, oldShare: 0.1 } }))
+    ).toBe("deleteOld");
+    // Sometimes read: not an ignore-everything sender.
+    expect(
+      S.primaryAction(mkSender({ signals: { count: 60, unreadRatio: 0.6, oldShare: 0.2 } }))
+    ).toBe("deleteOld");
+    // Missing recency data never claims an active flood.
+    expect(
+      S.primaryAction(mkSender({ signals: { count: 60, unreadRatio: 0.9 } }))
+    ).toBe("deleteOld");
+  });
+
   test("rankSenders caps the list for the popup", () => {
     const many = Array.from({ length: 80 }, (_, i) =>
       mkSender({ email: `s${i}@bulk.com`, estCount: i })

@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const OPTIONS_VERSION = "7.9.2";
+  const OPTIONS_VERSION = "7.10.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,

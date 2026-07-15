@@ -1264,14 +1264,29 @@ const GCC = (() => {
     return `from:(${clean.join(" OR ")}) older_than:6m`;
   };
 
-  // Which action a card leads with. Storage hogs get the purge, mail
-  // the user never opens gets the delete, everything else gets the
-  // reversible archive. All three are free cleanup runs; the Pro
-  // unsubscribe action stays available through buildActionRule for
-  // surfaces that want it.
+  // Which action a card leads with. Storage hogs get the purge. An
+  // active flood the user never opens (recent mail still arriving,
+  // nearly all unread) leads with the Pro unsubscribe: deleting it
+  // would not stop the next batch. Mail whose flow has mostly stopped
+  // gets the delete, everything else the reversible archive. The
+  // unsubscribe branch requires a measured oldShare: without recency
+  // data the card never claims a sender is still flooding.
+  const SMART_UNSUB_MIN_UNREAD = 0.8;
+  const SMART_UNSUB_MAX_OLD_SHARE = 0.6;
+  const SMART_UNSUB_MIN_COUNT = 10;
+
   const smartPrimaryAction = (sender) => {
     const sig = sender?.signals || {};
     if ((Number(sig.estMb) || 0) >= 100) return "purgeLarge";
+    const oldShare = Number(sig.oldShare);
+    if (
+      (Number(sig.count) || 0) >= SMART_UNSUB_MIN_COUNT &&
+      clamp01(sig.unreadRatio) >= SMART_UNSUB_MIN_UNREAD &&
+      Number.isFinite(oldShare) &&
+      clamp01(oldShare) <= SMART_UNSUB_MAX_OLD_SHARE
+    ) {
+      return "unsubscribe";
+    }
     if (clamp01(sig.unreadRatio) >= 0.5) return "deleteOld";
     return "archiveAll";
   };
