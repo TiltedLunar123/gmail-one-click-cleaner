@@ -1,0 +1,10 @@
+{
+  "appName": {
+    "message": "Gmail E-Mails Massenweise Löschen - Gmail One-Click Cleaner",
+    "description": "Extension name shown in the browser and as the store listing title."
+  },
+  "appDesc": {
+    "message": "Gmail-Speicher schnell freigeben. Alte E-Mails, große Anhänge und Werbung massenhaft löschen. Newsletter massenhaft abbestellen.",
+    "description": "Store listing summary. Hard cap 132 characters."
+  }
+}

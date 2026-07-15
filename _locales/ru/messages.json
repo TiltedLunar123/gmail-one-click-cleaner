@@ -1,0 +1,10 @@
+{
+  "appName": {
+    "message": "Массовое Удаление Писем Gmail - Gmail One-Click Cleaner",
+    "description": "Extension name shown in the browser and as the store listing title."
+  },
+  "appDesc": {
+    "message": "Быстро освободите хранилище Gmail. Массово удаляйте старые письма, крупные вложения и промо. Массовая отписка от рассылок.",
+    "description": "Store listing summary. Hard cap 132 characters."
+  }
+}

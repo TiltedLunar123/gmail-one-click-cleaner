@@ -1,0 +1,10 @@
+{
+  "appName": {
+    "message": "Supprimer les E-mails Gmail en Masse - Gmail One-Click Cleaner",
+    "description": "Extension name shown in the browser and as the store listing title."
+  },
+  "appDesc": {
+    "message": "Libérez vite de l'espace Gmail. Supprimez en masse e-mails anciens, grosses pièces jointes et promos. Désabonnement en masse inclus.",
+    "description": "Store listing summary. Hard cap 132 characters."
+  }
+}

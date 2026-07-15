@@ -1,0 +1,10 @@
+{
+  "appName": {
+    "message": "Gmailメール一括削除 - Gmail One-Click Cleaner",
+    "description": "Extension name shown in the browser and as the store listing title."
+  },
+  "appDesc": {
+    "message": "Gmailの容量をすばやく解放。古いメール、大きな添付ファイル、プロモを一括削除。メルマガの一括登録解除も、ワンクリックで元に戻すことも可能。",
+    "description": "Store listing summary. Hard cap 132 characters."
+  }
+}
