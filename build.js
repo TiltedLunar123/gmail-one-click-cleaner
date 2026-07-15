@@ -39,7 +39,7 @@ const FILES = [
   "stats.js"
 ];
 
-const DIRS = ["icons"];
+const DIRS = ["icons", "_locales"];
 
 // Firefox MV3 requires a stable add-on ID (AMO refuses unsigned/ID-less
 // submissions) and uses event pages: background.scripts, not

@@ -1,0 +1,10 @@
+{
+  "appName": {
+    "message": "Excluir E-mails do Gmail em Massa - Gmail One-Click Cleaner",
+    "description": "Extension name shown in the browser and as the store listing title."
+  },
+  "appDesc": {
+    "message": "Libere espaço no Gmail rápido. Exclua em massa e-mails antigos, anexos grandes e promoções. Cancele inscrições em massa e desfaça.",
+    "description": "Store listing summary. Hard cap 132 characters."
+  }
+}

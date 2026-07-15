@@ -1,0 +1,10 @@
+{
+  "appName": {
+    "message": "Bulk Delete Gmail Emails - Gmail One-Click Cleaner",
+    "description": "Extension name shown in the browser and as the store listing title."
+  },
+  "appDesc": {
+    "message": "Free up Gmail storage fast. Bulk delete old emails, large attachments & promos. Bulk unsubscribe from lists, schedules & undo.",
+    "description": "Store listing summary. Hard cap 132 characters."
+  }
+}
