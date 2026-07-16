@@ -20,6 +20,11 @@ This log tracks user-visible behavior, UI changes, and important internal fixes.
   like every other run. No new permissions, no new Gmail surface.
 
 ### Changed
+- **Locked Pro controls now open checkout directly.** Toggling
+  Auto-Pilot, clicking Unsubscribe selected, Purge selected or bulk
+  apply without a license used to show a pitch line and stop; the
+  click now goes straight to the $9.99 lifetime checkout page. The
+  inline Get Pro links stay for anyone who wants to read first.
 - **No Gmail tab? The extension opens one for you.** Run Cleaner, every
   scan, purge, bulk apply and Restore used to stop with "open Gmail
   first". They now open Gmail in a background tab, wait for it to

@@ -1436,6 +1436,21 @@ document.addEventListener("DOMContentLoaded", () => {
     renderSmartList();
   };
 
+  // 7.12: locked Pro controls go straight to checkout. The click on
+  // "Unsubscribe selected" or the Auto-Pilot toggle already said "I
+  // want this"; making the user hunt for a second Get Pro link is
+  // where the sale gets lost. Falls back to the inline upsell (which
+  // carries the same link) when a tab cannot open.
+  const openProCheckout = async (fallbackUpsell) => {
+    const tab = await tabsCreate({ url: GCC.license.PRO.BUY_URL, active: true });
+    if (tab) {
+      setTimeout(safeClosePopup, 150);
+      return;
+    }
+    if (fallbackUpsell) fallbackUpsell.hidden = false;
+    showToast("could not open checkout - use the Get Pro link", "warning");
+  };
+
   const getCheckedSubEmails = () =>
     (elements.subsList
       ? Array.from(elements.subsList.querySelectorAll("input[type='checkbox']:checked"))
@@ -1605,8 +1620,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (state.subs.running) return;
 
     if (!state.subs.licenseActive) {
-      if (elements.subsUpsell) elements.subsUpsell.hidden = false;
-      showToast("bulk unsubscribe is a Pro feature ($9.99, one-time)", "info");
+      await openProCheckout(elements.subsUpsell);
       return;
     }
 
@@ -1916,8 +1930,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (state.isRunning || state.xray.running) return;
 
     if (!state.subs.licenseActive) {
-      if (elements.xrayUpsell) elements.xrayUpsell.hidden = false;
-      showToast("purging is a Pro feature ($9.99, one-time)", "info");
+      await openProCheckout(elements.xrayUpsell);
       return;
     }
 
@@ -2380,8 +2393,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // existing gate; everything else is a free cleanup run.
     if (rule.runKind === "unsubscribe") {
       if (!state.subs.licenseActive) {
-        if (elements.smartUpsell) elements.smartUpsell.hidden = false;
-        showToast("bulk unsubscribe is a Pro feature ($9.99, one-time)", "info");
+        await openProCheckout(elements.smartUpsell);
         return;
       }
       if (state.subs.running) return;
@@ -2397,8 +2409,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const handleSmartBulkApply = async () => {
     if (!state.subs.licenseActive) {
-      if (elements.smartUpsell) elements.smartUpsell.hidden = false;
-      showToast("bulk apply is a Pro feature ($9.99, one-time)", "info");
+      await openProCheckout(elements.smartUpsell);
       return;
     }
     const emails = getCheckedSmartEmails();
@@ -2498,8 +2509,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!state.subs.licenseActive) {
       elements.autoPilotToggle.checked = false;
       syncSwitchAria(elements.autoPilotToggle);
-      if (elements.autoPilotUpsell) elements.autoPilotUpsell.hidden = false;
-      showToast("Auto-Pilot is a Pro feature ($9.99, one-time)", "info");
+      await openProCheckout(elements.autoPilotUpsell);
       return;
     }
     const resp = await GCC.sendMessage({ type: "gmailCleanerSetAutoPilot", enabled: wanted });
@@ -3054,13 +3064,13 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // 7.12 Auto-Pilot. A disabled checkbox fires no change event, so
-    // the locked-state pitch hangs off a click on the label itself.
+    // the locked toggle's click lands on the label and goes straight
+    // to checkout.
     elements.autoPilotToggle?.addEventListener("change", handleAutoPilotToggle);
     elements.autoPilotConfirmBtn?.addEventListener("click", handleAutoPilotConfirm);
     elements.autoPilotToggle?.closest("label")?.addEventListener("click", () => {
       if (state.subs.licenseActive) return;
-      if (elements.autoPilotUpsell) elements.autoPilotUpsell.hidden = false;
-      showToast("Auto-Pilot is a Pro feature ($9.99, one-time)", "info");
+      openProCheckout(elements.autoPilotUpsell).catch(() => {});
     });
 
     // 7.1 Gmail host access grant (must run inside this click gesture)
