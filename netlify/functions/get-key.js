@@ -72,8 +72,15 @@ async function handler(event) {
 
   const apiKey = process.env.STRIPE_SECRET_KEY || "";
   const privateKeyPem = process.env.LICENSE_PRIVATE_KEY || "";
-  const paymentLinkId = process.env.STRIPE_PAYMENT_LINK_ID || "";
-  if (!apiKey || !privateKeyPem || !paymentLinkId) {
+  // Comma-separated list since the $9.99 move: Stripe payment links
+  // cannot be repriced, so the original $5 link (whose URL ships in
+  // old extension versions) and the $9.99 link are both legitimate
+  // purchase sources. Anything else still gets a 402.
+  const paymentLinkIds = (process.env.STRIPE_PAYMENT_LINK_ID || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!apiKey || !privateKeyPem || paymentLinkIds.length === 0) {
     // Fail closed: never mint on trust when config is incomplete.
     return respond(503, { error: "activation is not configured yet; your payment is safe, contact support with your receipt" });
   }
@@ -93,7 +100,7 @@ async function handler(event) {
   }
 
   const paid = session.data.payment_status === "paid";
-  const rightProduct = session.data.payment_link === paymentLinkId;
+  const rightProduct = paymentLinkIds.includes(session.data.payment_link);
   if (!paid || !rightProduct) {
     return respond(402, { error: "this session is not a completed Pro purchase" });
   }

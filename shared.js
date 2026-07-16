@@ -663,7 +663,7 @@ const GCC = (() => {
 
   const PRO = Object.freeze({
     PRICE_LABEL: "$9.99 lifetime",
-    BUY_URL: "https://buy.stripe.com/fZubJ23jZe7U1MI7NFdUY00",
+    BUY_URL: "https://buy.stripe.com/7sY4gA07N9RE1MIc3VdUY04",
     SUPPORT_URL: "https://github.com/TiltedLunar123/gmail-one-click-cleaner#pro",
     STORAGE_KEY: "proLicense"
   });

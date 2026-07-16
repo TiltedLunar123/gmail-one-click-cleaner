@@ -66,6 +66,28 @@ describe("get-key function", () => {
     expect((await handler(request(SESSION_ID))).statusCode).toBe(402);
   });
 
+  test("accepts sessions from any configured payment link (comma list)", async () => {
+    // Since the $9.99 move two links sell Pro: the unrepriceable $5
+    // link shipped in old versions and the current $9.99 link. Buyers
+    // from both must be able to (re)issue their key.
+    process.env.STRIPE_PAYMENT_LINK_ID = "plink_OLD5DOLLAR, plink_NEW999";
+
+    stripeRespondsWith(200, { payment_status: "paid", payment_link: "plink_OLD5DOLLAR", created: 1 });
+    expect((await handler(request(SESSION_ID))).statusCode).toBe(200);
+
+    stripeRespondsWith(200, { payment_status: "paid", payment_link: "plink_NEW999", created: 1 });
+    expect((await handler(request(SESSION_ID))).statusCode).toBe(200);
+
+    stripeRespondsWith(200, { payment_status: "paid", payment_link: "plink_NEITHER", created: 1 });
+    expect((await handler(request(SESSION_ID))).statusCode).toBe(402);
+
+    // A list that trims to nothing still fails closed.
+    process.env.STRIPE_PAYMENT_LINK_ID = " , ";
+    global.fetch = jest.fn();
+    expect((await handler(request(SESSION_ID))).statusCode).toBe(503);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
   test("rejects malformed session ids before touching Stripe", async () => {
     global.fetch = jest.fn();
     for (const bad of [undefined, "", "hacktheplanet", "cs_live_short", "pi_live_" + "a".repeat(20)]) {
