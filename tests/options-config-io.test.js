@@ -223,7 +223,7 @@ describe("options.js config export/import data layer", () => {
       expect(payload.rules.normal).toContain("category:promotions older_than:1y");
       expect(payload.whitelist).toEqual(["user@example.com"]);
       expect(payload.debugMode).toBe(true);
-      expect(payload.version).toBe("7.12.0");
+      expect(payload.version).toBe("7.12.1");
       expect(payload.extensionName).toBe("Gmail One-Click Cleaner");
     });
   });

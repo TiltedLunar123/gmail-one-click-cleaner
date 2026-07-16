@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
-## 7.12.0 - Auto-Pilot
+## 7.12.1 - Auto-Pilot
 
 ### Added
 - **Auto-Pilot (Pro).** A weekly scheduled Smart Suggestions sweep that
