@@ -514,6 +514,48 @@
 
     #details { scrollbar-width: thin; scrollbar-color: #334155 transparent; }
 
+    /* Hidden log: the terminal and its toolbar fold away; one quiet
+       strip keeps the entry count and latest line in view and clicks
+       back open. Class-driven (not [hidden]) because .logs-actions is
+       display:flex, which would beat the UA hidden rule. */
+    .logs-container.collapsed .logs-actions,
+    .logs-container.collapsed #details { display: none; }
+    .logs-collapsed { display: none; }
+    .logs-container.collapsed .logs-collapsed {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 8px 12px;
+      border-radius: var(--radius-md);
+      background: var(--bg-terminal);
+      border: 1px solid var(--border-subtle);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: #94a3b8;
+      cursor: pointer;
+      text-align: left;
+      transition: border-color var(--transition-fast), color var(--transition-fast);
+    }
+    .logs-container.collapsed .logs-collapsed:hover {
+      border-color: var(--border-focus);
+      color: #cbd5e1;
+    }
+    .logs-collapsed-count {
+      flex: 0 0 auto;
+      color: #7b8ca1;
+      border: 1px solid var(--border-subtle);
+      border-radius: 999px;
+      padding: 1px 8px;
+    }
+    .logs-collapsed-last {
+      flex: 1 1 auto;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     #details > div {
       margin-bottom: 2px;
       word-break: break-word;
@@ -840,8 +882,8 @@
           <button id="reinjectBtn" type="button" class="ghost-btn" title="Re-inject the content script">
             Re-inject
           </button>
-          <button id="toggleLogs" type="button" class="ghost-btn" aria-pressed="false" aria-controls="details" title="Toggle log visibility">
-            Logs
+          <button id="toggleLogs" type="button" class="ghost-btn" aria-pressed="true" aria-controls="details" title="Show or hide the activity log">
+            Hide logs
           </button>
         </div>
       </nav>
@@ -875,6 +917,13 @@
             <button id="clearLogsBtn" type="button" class="icon-btn" title="Clear logs" aria-label="Clear logs">Clear</button>
           </div>
         </div>
+        <!-- Hidden-log summary strip: entry count + the latest line,
+             kept live, and itself a click target to reopen. -->
+        <button id="logsCollapsedBar" type="button" class="logs-collapsed" title="Show the activity log">
+          <span class="logs-collapsed-count" id="logsCollapsedCount">0 entries</span>
+          <span class="logs-collapsed-last" id="logsCollapsedLast">No activity yet</span>
+        </button>
+
         <div id="details" role="log" aria-live="off" aria-label="Cleanup activity log">
           <div class="empty-state">Waiting for first signal…</div>
         </div>

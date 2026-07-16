@@ -75,7 +75,7 @@
     lastPhase: PHASES.STARTING,
     done: false,
     mode: "live",
-    logsExpanded: false, // "expanded" = max height removed
+    logsVisible: true, // the whole log section shows/hides as one unit
     rows: [],
     tipShown: false,
     isReconnecting: false,
@@ -110,6 +110,10 @@
     details: document.getElementById("details"),
     copyLogsBtn: document.getElementById("copyLogsBtn"),
     clearLogsBtn: document.getElementById("clearLogsBtn"),
+    logsContainer: document.querySelector(".logs-container"),
+    logsCollapsedBar: document.getElementById("logsCollapsedBar"),
+    logsCollapsedCount: document.getElementById("logsCollapsedCount"),
+    logsCollapsedLast: document.getElementById("logsCollapsedLast"),
 
     // Control buttons
     cancel: document.getElementById("cancelBtn"),
@@ -299,6 +303,9 @@
     }
 
     ui.details.scrollTop = ui.details.scrollHeight;
+
+    // A hidden log keeps its one-line summary live.
+    if (!state.logsVisible) updateCollapsedLogsSummary();
   };
 
   const clearLogs = () => {
@@ -312,6 +319,7 @@
     emptyState.textContent = "Log cleared";
     ui.details.appendChild(emptyState);
 
+    if (!state.logsVisible) updateCollapsedLogsSummary();
     showToast("log cleared", "info");
   };
 
@@ -857,22 +865,43 @@
     }
   };
 
-  const handleToggleLogs = () => {
-    if (!ui.details || !ui.toggleLogs) return;
+  // The old toggle only flipped the box between a 240px scroll and
+  // full height, which read as doing nothing. Hide logs now folds the
+  // whole section into a one-line strip that keeps the entry count
+  // and the latest line in view (and is itself a click target to
+  // bring the log back).
+  const updateCollapsedLogsSummary = () => {
+    const n = state.logHistory.length;
+    if (ui.logsCollapsedCount) {
+      ui.logsCollapsedCount.textContent = `${n} ${n === 1 ? "entry" : "entries"}`;
+    }
+    if (ui.logsCollapsedLast) {
+      ui.logsCollapsedLast.textContent =
+        state.logHistory[n - 1] || "No activity yet";
+    }
+    if (ui.toggleLogs && !state.logsVisible) {
+      ui.toggleLogs.textContent = `Show logs (${n})`;
+    }
+  };
 
-    // If logsExpanded=true -> collapse to default height
-    state.logsExpanded = !state.logsExpanded;
-
-    if (state.logsExpanded) {
-      ui.details.style.maxHeight = "none";
-      ui.details.style.overflowY = "visible";
-      ui.toggleLogs.textContent = "Collapse";
-      ui.toggleLogs.setAttribute("aria-pressed", "true");
+  const renderLogsVisibility = () => {
+    if (!ui.logsContainer || !ui.toggleLogs) return;
+    ui.logsContainer.classList.toggle("collapsed", !state.logsVisible);
+    ui.toggleLogs.setAttribute("aria-pressed", state.logsVisible ? "true" : "false");
+    if (state.logsVisible) {
+      ui.toggleLogs.textContent = "Hide logs";
     } else {
-      ui.details.style.maxHeight = "240px";
-      ui.details.style.overflowY = "auto";
-      ui.toggleLogs.textContent = "Logs";
-      ui.toggleLogs.setAttribute("aria-pressed", "false");
+      updateCollapsedLogsSummary();
+    }
+  };
+
+  const handleToggleLogs = () => {
+    if (!ui.logsContainer || !ui.toggleLogs) return;
+    state.logsVisible = !state.logsVisible;
+    renderLogsVisibility();
+    // Reopening lands pinned to the newest line, like a live tail.
+    if (state.logsVisible && ui.details) {
+      ui.details.scrollTop = ui.details.scrollHeight;
     }
   };
 
@@ -1023,6 +1052,7 @@
     ui.reconnect?.addEventListener("click", handleReconnect);
     ui.reinject?.addEventListener("click", handleReinject);
     ui.toggleLogs?.addEventListener("click", handleToggleLogs);
+    ui.logsCollapsedBar?.addEventListener("click", handleToggleLogs);
 
     ui.copyLogsBtn?.addEventListener("click", copyLogs);
     ui.clearLogsBtn?.addEventListener("click", clearLogs);
@@ -1086,20 +1116,14 @@
 
     if (ui.versionPill) ui.versionPill.textContent = `v${PROGRESS_VERSION}`;
 
-    // align toggle button initial pressed state (your HTML starts aria-pressed="true")
-    if (ui.toggleLogs) {
-      const pressed = ui.toggleLogs.getAttribute("aria-pressed") === "true";
-      state.logsExpanded = pressed; // treat "pressed" as expanded
-      if (pressed && ui.details) {
-        ui.details.style.maxHeight = "none";
-        ui.details.style.overflowY = "visible";
-        ui.toggleLogs.textContent = "Collapse";
-      } else if (ui.details) {
-        ui.details.style.maxHeight = "240px";
-        ui.details.style.overflowY = "auto";
-        ui.toggleLogs.textContent = "Logs";
-      }
-    }
+    // Logs start visible; the button and the collapsed strip both
+    // render from the same state.
+    renderLogsVisibility();
+
+    // Wire controls before the bad-URL bail-out below so the log
+    // tools (hide, filter, copy) still work on the error screen; the
+    // run buttons get disabled there anyway.
+    wireEventListeners();
 
     if (!gmailTabId) {
       setStatus("Could not read Gmail tab ID from URL. Close this and try again.");
@@ -1119,7 +1143,6 @@
     setStatusLoading(`Waiting for Gmail tab ${gmailTabId} to send progress…`);
     appendLog(`Connected to Gmail tab ${gmailTabId}`, LOG_LEVELS.INFO);
 
-    wireEventListeners();
     startAutoReconnect();
 
     log("info", "Progress page ready.");

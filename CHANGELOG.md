@@ -20,6 +20,13 @@ This log tracks user-visible behavior, UI changes, and important internal fixes.
   like every other run. No new permissions, no new Gmail surface.
 
 ### Changed
+- **The progress page's log toggle actually collapses now.** The old
+  button only switched the log box between a capped height and full
+  height, which usually looked like nothing happened. Hide logs now
+  folds the whole section into a single line that keeps the entry
+  count and the newest log entry in view, updates live, and clicks
+  back open (reopening lands on the newest line). The log tools also
+  work on the bad-URL error screen instead of being dead buttons.
 - **Locked Pro controls now open checkout directly.** Toggling
   Auto-Pilot, clicking Unsubscribe selected, Purge selected or bulk
   apply without a license used to show a pitch line and stop; the
