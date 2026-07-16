@@ -2,9 +2,9 @@
  * @jest-environment node
  *
  * GCC.popupUi (7.3): pure decision logic behind the tabbed popup.
- * Banner arbitration, the rating-prompt threshold, the reassurance
- * default, and the number-led upsell lines are all plain functions, so
- * they get direct coverage here.
+ * Banner arbitration, the rating-prompt threshold, and the number-led
+ * upsell lines are all plain functions, so they get direct coverage
+ * here.
  */
 const fs = require("fs");
 const path = require("path");
@@ -82,30 +82,35 @@ describe("GCC.popupUi.ratingRunQualifies", () => {
   });
 });
 
-describe("GCC.popupUi.reassuranceOpen", () => {
-  test("open before any recorded run", () => {
-    expect(UI.reassuranceOpen(0)).toBe(true);
-    expect(UI.reassuranceOpen(undefined)).toBe(true);
-    expect(UI.reassuranceOpen("junk")).toBe(true);
+describe("GCC.popupUi.autoPilotUpsellLine", () => {
+  test("static fallback before any suggestions exist", () => {
+    const line = UI.autoPilotUpsellLine(0);
+    expect(line).toBe("Pro is $9.99 once: Auto-Pilot keeps your inbox clean every week, automatically.");
+    expect(UI.autoPilotUpsellLine(undefined)).toBe(line);
+    expect(UI.autoPilotUpsellLine(-2)).toBe(line);
   });
 
-  test("collapsed once the first cleanup is recorded", () => {
-    expect(UI.reassuranceOpen(1)).toBe(false);
-    expect(UI.reassuranceOpen(42)).toBe(false);
+  test("leads with the live suggestion count", () => {
+    const line = UI.autoPilotUpsellLine(7);
+    expect(line).toBe("7 suggestions are sitting here right now. Auto-Pilot sweeps them for you every week on Pro ($9.99 once).");
+  });
+
+  test("singular form for one suggestion", () => {
+    expect(UI.autoPilotUpsellLine(1)).toContain("1 suggestion is sitting");
   });
 });
 
 describe("GCC.popupUi.subsUpsellLine", () => {
   test("static fallback before any scan", () => {
     const line = UI.subsUpsellLine(0);
-    expect(line).toBe("One $5 payment unlocks bulk unsubscribe forever.");
+    expect(line).toBe("One $9.99 payment unlocks bulk unsubscribe forever.");
     expect(UI.subsUpsellLine(undefined)).toBe(line);
     expect(UI.subsUpsellLine(-3)).toBe(line);
   });
 
   test("leads with the scan count once one exists", () => {
     const line = UI.subsUpsellLine(47);
-    expect(line).toBe("Found 47 mailing lists emailing you. Pro unsubscribes from the ones you pick for $5.");
+    expect(line).toBe("Found 47 mailing lists emailing you. Pro unsubscribes from the ones you pick for $9.99.");
   });
 
   test("singular form for a single list", () => {
@@ -197,14 +202,14 @@ describe("GCC.popupUi.recapAction / recapCleanedCount", () => {
 describe("GCC.popupUi.xrayUpsellLine", () => {
   test("static fallback before any scan", () => {
     const line = UI.xrayUpsellLine(0, 0);
-    expect(line).toBe("Pro is $5 once: it unlocks the full ranked list and one-click purge.");
+    expect(line).toBe("Pro is $9.99 once: it unlocks the full ranked list and one-click purge.");
     expect(UI.xrayUpsellLine(5, 0)).toBe(line);
     expect(UI.xrayUpsellLine(0, 100)).toBe(line);
   });
 
   test("leads with senders and a floor-estimate size", () => {
     const line = UI.xrayUpsellLine(9, 412);
-    expect(line).toBe("9 senders are holding at least 412.0 MB. Pro purges the ones you pick for $5.");
+    expect(line).toBe("9 senders are holding at least 412.0 MB. Pro purges the ones you pick for $9.99.");
   });
 
   test("singular form and GB scaling", () => {

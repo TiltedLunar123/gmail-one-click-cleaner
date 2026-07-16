@@ -53,7 +53,11 @@ const POPUP_JS_IDS = [
   "smartSection", "smartContent", "smartScanBtn", "smartStatus",
   "smartToolbar", "smartSelectAll", "smartCount", "smartList",
   "smartBulkBtn", "smartBulkBtnSub", "smartUpsell", "smartUpsellText",
-  "smartBuyLink", "smartEnterKey"
+  "smartBuyLink", "smartEnterKey",
+  // 7.12 Auto-Pilot
+  "autoPilotToggle", "autoPilotStatus", "autoPilotConfirm",
+  "autoPilotConfirmText", "autoPilotConfirmBtn", "autoPilotUpsell",
+  "autoPilotUpsellText", "autoPilotBuyLink"
 ];
 
 describe("popup.html: id inventory", () => {
@@ -124,9 +128,11 @@ describe("popup.html: nodes landed in the right containers", () => {
     expect(byId("advancedSection").hasAttribute("open")).toBe(false);
   });
 
-  test("the reassurance block ships open and sits on the Clean tab", () => {
+  test("the reassurance block ships collapsed to one line on the Clean tab", () => {
+    // 7.12: the fresh-install Clean tab keeps the Run button above the
+    // fold, so "How it works" is a single quiet line until clicked.
     expect(byId("reassurance").tagName).toBe("DETAILS");
-    expect(byId("reassurance").hasAttribute("open")).toBe(true);
+    expect(byId("reassurance").hasAttribute("open")).toBe(false);
     expect(within("reassurance", "cleanForm")).toBe(true);
   });
 
@@ -154,6 +160,25 @@ describe("popup.html: nodes landed in the right containers", () => {
     expect(byId("smartToolbar").hasAttribute("hidden")).toBe(true);
     expect(byId("smartBulkBtn").hasAttribute("hidden")).toBe(true);
     expect(byId("smartUpsell").hasAttribute("hidden")).toBe(true);
+  });
+
+  test("Auto-Pilot is its own Clean-tab section, not buried in a disclosure (7.12)", () => {
+    ["autoPilotToggle", "autoPilotStatus", "autoPilotConfirm",
+      "autoPilotConfirmText", "autoPilotConfirmBtn", "autoPilotUpsell",
+      "autoPilotUpsellText", "autoPilotBuyLink"].forEach((id) => {
+      expect(within(id, "cleanForm")).toBe(true);
+      expect(within(id, "smartSection")).toBe(false);
+      expect(within(id, "advancedSection")).toBe(false);
+    });
+    // Below the Run button: discoverable without opening anything,
+    // without costing the Run button its above-the-fold spot.
+    expect(byId("runCleanup").compareDocumentPosition(byId("autoPilotToggle")) &
+      Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Confirm row and upsell ship hidden; popup.js reveals them from
+    // the worker's settings snapshot.
+    expect(byId("autoPilotConfirm").hasAttribute("hidden")).toBe(true);
+    expect(byId("autoPilotUpsell").hasAttribute("hidden")).toBe(true);
+    expect(byId("autoPilotToggle").getAttribute("role")).toBe("switch");
   });
 
   test("the result view wraps summary, CTAs, rating and the way back", () => {
@@ -207,9 +232,19 @@ describe("popup.html: nodes landed in the right containers", () => {
     expect(byId("subsUpsell").firstElementChild.id).toBe("subsUpsellText");
     expect(byId("xrayUpsell").firstElementChild.id).toBe("xrayUpsellText");
     expect(byId("smartUpsell").firstElementChild.id).toBe("smartUpsellText");
-    expect(byId("subsUpsellText").textContent).toContain("$5");
-    expect(byId("xrayUpsellText").textContent).toContain("$5");
-    expect(byId("smartUpsellText").textContent).toContain("$5");
+    expect(byId("autoPilotUpsell").firstElementChild.id).toBe("autoPilotUpsellText");
+    expect(byId("subsUpsellText").textContent).toContain("$9.99");
+    expect(byId("xrayUpsellText").textContent).toContain("$9.99");
+    expect(byId("smartUpsellText").textContent).toContain("$9.99");
+    expect(byId("autoPilotUpsellText").textContent).toContain("$9.99");
+  });
+
+  test("the version badge sits in the footer, not the header (7.12)", () => {
+    const badge = byId("versionBadge");
+    expect(badge).not.toBeNull();
+    const footer = doc.querySelector("footer.footer");
+    expect(footer.contains(badge)).toBe(true);
+    expect(doc.querySelector("header.card-header").contains(badge)).toBe(false);
   });
 });
 

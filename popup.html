@@ -283,12 +283,13 @@
       to { opacity: 1; transform: translateY(0); }
     }
 
-    /* Banner: pin hint */
+    /* Banner: pin hint. One quiet line; it dismisses forever and
+       hides itself once the browser reports the icon already pinned. */
     .pin-hint {
       display: none;
-      align-items: flex-start;
-      gap: 10px;
-      padding: 10px 12px;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
       margin-bottom: 8px;
       border-radius: var(--r-md);
       background: linear-gradient(135deg, rgba(34, 211, 238, 0.13), rgba(56, 189, 248, 0.06));
@@ -296,9 +297,15 @@
       animation: slideDown 0.22s var(--ease);
     }
     .pin-hint.show { display: flex; }
-    .pin-hint-icon { color: var(--primary); margin-top: 1px; flex: 0 0 auto; }
-    .pin-hint-title { font-size: 12px; font-weight: 800; color: #a5f3fc; margin-bottom: 1px; }
-    .pin-hint-text { font-size: 11px; color: var(--muted); line-height: 1.35; }
+    .pin-hint-icon { color: var(--primary); flex: 0 0 auto; }
+    .pin-hint-text {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      line-height: 1.35;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
     .pin-hint-close {
       margin-left: auto;
       background: rgba(255, 255, 255, 0.05);
@@ -396,7 +403,7 @@
     .tab-bar {
       display: flex;
       gap: 3px;
-      padding: 3px;
+      padding: 2px;
       margin-bottom: 8px;
       background: var(--bg-input);
       border: 1px solid var(--border);
@@ -409,7 +416,7 @@
       align-items: center;
       justify-content: center;
       gap: 6px;
-      padding: 7px 4px;
+      padding: 6px 4px;
       border: none;
       border-radius: var(--r-sm);
       background: transparent;
@@ -440,7 +447,7 @@
       height: 100%;
       overflow-y: auto;
       overflow-x: hidden;
-      padding: 2px 6px 10px 2px;
+      padding: 2px 6px 6px 2px;
       scrollbar-gutter: stable;
       scrollbar-width: thin;
       scrollbar-color: rgba(148, 163, 184, 0.32) transparent;
@@ -460,7 +467,8 @@
     [hidden] { display: none !important; }
 
     /* Small eyebrow row at the top of the Unsubscribe/Storage panels:
-       carries the descriptive title + the Pro pill. */
+       carries the descriptive title + the Pro pill. 7.12: sentence
+       case, same quiet treatment as the Clean tab's section labels. */
     .panel-head {
       display: flex;
       align-items: center;
@@ -468,13 +476,23 @@
       gap: 8px;
       margin: 0 0 6px;
     }
+    .panel-head .eyebrow {
+      font-family: var(--font);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      text-transform: none;
+      color: var(--muted);
+    }
 
-    /* Sections (generic details/summary surfaces) */
+    /* Sections (generic details/summary surfaces). 7.12: labels are
+       sentence-case and quiet; the mono all-caps eyebrows shouted over
+       the content they introduced. */
     .section {
       background: linear-gradient(180deg, rgba(6, 9, 15, 0.28), rgba(6, 9, 15, 0.18));
       border: 1px solid var(--border);
       border-radius: var(--r-md);
-      margin-bottom: 10px;
+      margin-bottom: 6px;
       overflow: hidden;
       transition: border-color var(--t-fast);
     }
@@ -486,16 +504,15 @@
       align-items: center;
       justify-content: space-between;
       gap: var(--s-3);
-      padding: 10px 12px;
+      padding: 8px 12px;
       cursor: pointer;
       list-style: none;
       user-select: none;
 
-      font-family: var(--font-mono);
-      font-size: 9.5px;
+      font-family: var(--font);
+      font-size: 11px;
       font-weight: 700;
-      letter-spacing: 0.13em;
-      text-transform: uppercase;
+      letter-spacing: 0.01em;
       color: var(--dim);
 
       transition: background var(--t-fast), color var(--t-fast);
@@ -536,15 +553,9 @@
     }
     details[open] .chevron { transform: rotate(180deg); color: var(--primary); }
 
-    /* Reassurance (safe box) */
-    .section--reassurance {
-      background: linear-gradient(180deg, rgba(16, 185, 129, 0.08), rgba(6, 9, 15, 0.2));
-      border-color: rgba(16, 185, 129, 0.2);
-    }
-    .section--reassurance > summary.section-title:hover { background: rgba(16, 185, 129, 0.08); }
-    .section--reassurance[open] .chevron { color: #6ee7b7; }
-    .section--reassurance[open] .section-content { border-top-color: rgba(16, 185, 129, 0.14); }
-
+    /* Reassurance: one quiet line when closed (the default); the green
+       lives only in the shield icon so the row never competes with the
+       Run button. */
     .reassurance-copy {
       margin: 0;
       font-size: 11px;
@@ -553,21 +564,22 @@
     }
     .reassurance-copy strong { color: #6ee7b7; font-weight: 700; }
 
-    /* Preset group: Monthly (featured) + one-category targets share one
-       visual family, so "pick what to clean" reads as a single choice. */
-    .preset-stack { margin: 0 0 10px; }
+    /* Preset group: Monthly + one-category targets share one quiet
+       visual family, so "pick what to clean" reads as a single choice
+       and the Run button below stays the only saturated control. */
+    .preset-stack { margin: 0 0 6px; }
 
     .monthly-clean-btn {
       width: 100%;
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 9px 12px;
+      padding: 7px 12px;
       border-radius: var(--r-md);
       cursor: pointer;
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      background: linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(16, 185, 129, 0.04));
-      color: #6ee7b7;
+      border: 1px solid var(--border);
+      background: var(--bg-surface-2);
+      color: var(--text);
       font-family: inherit;
       font-size: inherit;
       text-align: left;
@@ -575,8 +587,8 @@
       touch-action: manipulation;
     }
     .monthly-clean-btn:hover {
-      border-color: rgba(16, 185, 129, 0.5);
-      background: linear-gradient(135deg, rgba(16, 185, 129, 0.22), rgba(16, 185, 129, 0.07));
+      border-color: var(--border2);
+      background: var(--bg-surface-hover);
       transform: translateY(-1px);
     }
     .monthly-clean-btn:active { transform: translateY(0) scale(0.99); }
@@ -589,38 +601,36 @@
       border-radius: 8px;
       background: rgba(16, 185, 129, 0.12);
       border: 1px solid rgba(16, 185, 129, 0.18);
+      color: #6ee7b7;
       flex: 0 0 auto;
     }
 
     .monthly-clean-btn .label-text { flex: 1; min-width: 0; }
     .monthly-clean-btn .label-main { display: block; font-size: 12.5px; font-weight: 800; letter-spacing: 0.01em; }
-    .monthly-clean-btn .label-sub { display: block; font-size: 10.5px; font-weight: 600; color: rgba(167, 243, 208, 0.85); }
+    .monthly-clean-btn .label-sub { display: block; font-size: 10.5px; font-weight: 600; color: var(--muted); }
 
     .monthly-clean-btn .badge-recommended {
       padding: 3px 8px;
       border-radius: var(--r-pill);
       font-size: 8.5px;
-      font-weight: 900;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      background: rgba(16, 185, 129, 0.16);
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      background: rgba(16, 185, 129, 0.1);
       border: 1px solid rgba(16, 185, 129, 0.22);
-      color: #a7f3d0;
+      color: #6ee7b7;
       flex: 0 0 auto;
     }
 
     /* Focused one-category targets: a steady 2x2 grid instead of a
        ragged pill row, so nothing wraps or clips mid-chip. */
-    .target-presets { margin: 8px 0 0; }
+    .target-presets { margin: 6px 0 0; }
     .target-presets-label {
       display: block;
-      font-family: var(--font-mono);
-      font-size: 9.5px;
+      font-size: 11px;
       font-weight: 700;
-      letter-spacing: 0.13em;
-      text-transform: uppercase;
+      letter-spacing: 0.01em;
       color: var(--dim);
-      margin-bottom: 6px;
+      margin-bottom: 4px;
     }
     .target-chip-row {
       display: grid;
@@ -628,7 +638,7 @@
       gap: 6px;
     }
     .target-chip {
-      padding: 8px 6px;
+      padding: 7px 6px;
       border-radius: 10px;
       border: 1px solid rgba(148, 163, 184, 0.24);
       background: rgba(148, 163, 184, 0.06);
@@ -658,11 +668,9 @@
     /* Group labels inside the Advanced disclosure */
     .adv-group-label {
       display: block;
-      font-family: var(--font-mono);
-      font-size: 9.5px;
+      font-size: 11px;
       font-weight: 700;
-      letter-spacing: 0.13em;
-      text-transform: uppercase;
+      letter-spacing: 0.01em;
       color: var(--dim);
       margin: 0 0 10px;
     }
@@ -796,7 +804,7 @@
       width: 100%;
       border: none;
       border-radius: var(--r-pill);
-      padding: 12px 16px;
+      padding: 10px 16px;
       margin-top: 2px;
       cursor: pointer;
       color: var(--on-primary);
@@ -1405,6 +1413,33 @@
     }
     .smart-dismiss-btn:hover { color: var(--text); background: rgba(148, 163, 184, 0.12); }
 
+    /* 7.12 Auto-Pilot: its own quiet section under the Run button so
+       it is discoverable without opening anything. The confirm row is
+       the only action and it stays in the accent family, unsaturated. */
+    .autopilot {
+      margin-top: 8px;
+      margin-bottom: 0;
+      padding: 3px 4px 4px;
+    }
+    .autopilot .toggle { padding: 6px 8px; background: transparent; border: none; }
+    .autopilot .toggle-main { display: inline-flex; align-items: center; gap: 6px; }
+    .autopilot .subs-status { margin: 0 10px 6px; }
+    .autopilot .subs-upsell { margin: 0 10px 8px; }
+    .autopilot-confirm {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+      margin: 2px 8px 8px;
+      padding: 9px 10px;
+      border-radius: var(--r-md);
+      border: 1px solid rgba(34, 211, 238, 0.3);
+      background: rgba(34, 211, 238, 0.07);
+      font-size: 11px;
+      line-height: 1.45;
+      color: var(--text-secondary);
+    }
+
     /* Footer: one compact row. Nav left; help + Pro right. */
     .footer {
       margin-top: 8px;
@@ -1413,22 +1448,31 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 8px;
+      gap: 4px;
       flex: 0 0 auto;
     }
 
-    .footer-left { display: flex; gap: 4px; min-width: 0; }
-    .footer-right { display: flex; gap: 4px; align-items: center; flex: 0 0 auto; }
+    .footer-left { display: flex; gap: 3px; min-width: 0; }
+    .footer-right { display: flex; gap: 3px; align-items: center; flex: 0 0 auto; }
+
+    /* In the footer the version reads as plain quiet text; the boxed
+       badge chrome would not fit the 380px row next to the nav. */
+    .footer .badge {
+      background: transparent;
+      border: none;
+      padding: 2px 1px;
+      color: var(--dim);
+    }
 
     .linkish {
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid rgba(255, 255, 255, 0.06);
       color: var(--dim);
-      font-size: 10.5px;
+      font-size: 10px;
       font-weight: 800;
       font-family: inherit;
       cursor: pointer;
-      padding: 5px 8px;
+      padding: 5px 6px;
       border-radius: 9px;
       transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
       text-decoration: none;
@@ -1459,8 +1503,8 @@
     /* Pro promo: one slim strip under the footer, visible on every tab
        until a license lands, so it can't crowd the panels. */
     .pro-promo {
-      margin-top: 8px;
-      padding: 8px 10px;
+      margin-top: 6px;
+      padding: 6px 10px;
       border-radius: 11px;
       border: 1px solid rgba(16, 185, 129, 0.22);
       background: linear-gradient(180deg, rgba(16, 185, 129, 0.06), rgba(6, 9, 15, 0.18));
@@ -1674,18 +1718,26 @@
 
     /* ===== popup light-theme visuals =====
        Token values flow from shared.css [data-theme="light"] through the
-       aliases above; only popup-specific surfaces and accents restate. */
-    html[data-theme="light"] { --surface3: rgba(236, 244, 247, 0.5); }
+       aliases above; only popup-specific surfaces and accents restate.
+       7.12: the page behind the card is a step darker and every surface
+       carries a real border, so the light theme has the same depth
+       hierarchy the dark theme gets for free. */
+    html[data-theme="light"] {
+      --surface3: rgba(236, 244, 247, 0.5);
+      --bg: #d9e6ec;
+      --bg2: #e9f1f4;
+    }
     html[data-theme="light"] body {
       background:
-        radial-gradient(720px 340px at 18% 0%, rgba(34, 211, 238, 0.1), transparent 60%),
-        radial-gradient(720px 340px at 90% 100%, rgba(56, 189, 248, 0.07), transparent 60%),
+        radial-gradient(720px 340px at 18% 0%, rgba(14, 116, 144, 0.08), transparent 60%),
+        radial-gradient(720px 340px at 90% 100%, rgba(2, 132, 199, 0.06), transparent 60%),
         linear-gradient(180deg, var(--bg), var(--bg2));
     }
     html[data-theme="light"] .card {
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.82));
+      background: linear-gradient(180deg, #ffffff, #fbfdfe);
+      border-color: rgba(13, 30, 40, 0.12);
       box-shadow:
-        0 18px 40px -22px rgba(13, 30, 40, 0.16),
+        0 18px 40px -22px rgba(13, 30, 40, 0.28),
         inset 0 1px 0 rgba(255, 255, 255, 0.7);
     }
     html[data-theme="light"] .card::before {
@@ -1698,24 +1750,57 @@
       color: var(--text);
       border-color: rgba(13, 30, 40, 0.08);
     }
-    html[data-theme="light"] .section { background: rgba(255, 255, 255, 0.55); }
-    html[data-theme="light"] .section--reassurance {
-      background: linear-gradient(180deg, rgba(5, 150, 105, 0.1), rgba(255, 255, 255, 0.55));
-      border-color: rgba(5, 150, 105, 0.22);
+    html[data-theme="light"] .section {
+      background: #f2f7f9;
+      border-color: rgba(13, 30, 40, 0.1);
     }
-    html[data-theme="light"] .section--reassurance > summary .section-emoji,
-    html[data-theme="light"] .section--reassurance[open] .chevron { color: #047857; }
+    html[data-theme="light"] summary.section-title:hover { background: rgba(13, 30, 40, 0.05); }
+    html[data-theme="light"] details[open] .section-content { border-top-color: rgba(13, 30, 40, 0.08); }
+    html[data-theme="light"] .section--reassurance > summary .section-emoji { color: #047857; }
     html[data-theme="light"] .reassurance-copy strong { color: #047857; }
-    html[data-theme="light"] .monthly-clean-btn,
-    html[data-theme="light"] .monthly-clean-btn .label-sub,
-    html[data-theme="light"] .monthly-clean-btn .badge-recommended { color: #047857; }
+    html[data-theme="light"] .tab-bar {
+      background: rgba(13, 30, 40, 0.05);
+      border-color: rgba(13, 30, 40, 0.1);
+    }
     html[data-theme="light"] .monthly-clean-btn {
-      background: linear-gradient(135deg, rgba(5, 150, 105, 0.13), rgba(255, 255, 255, 0.5));
-      border-color: rgba(5, 150, 105, 0.3);
+      background: #ffffff;
+      border-color: rgba(13, 30, 40, 0.14);
+      color: var(--text);
+    }
+    html[data-theme="light"] .monthly-clean-btn:hover {
+      background: #f2f7f9;
+      border-color: rgba(13, 30, 40, 0.22);
     }
     html[data-theme="light"] .monthly-clean-btn .icon {
-      background: rgba(5, 150, 105, 0.12);
-      border-color: rgba(5, 150, 105, 0.18);
+      background: rgba(5, 150, 105, 0.1);
+      border-color: rgba(5, 150, 105, 0.2);
+      color: #047857;
+    }
+    html[data-theme="light"] .monthly-clean-btn .badge-recommended {
+      background: rgba(5, 150, 105, 0.08);
+      border-color: rgba(5, 150, 105, 0.24);
+      color: #047857;
+    }
+    html[data-theme="light"] .target-chip {
+      background: #ffffff;
+      border-color: rgba(13, 30, 40, 0.14);
+    }
+    html[data-theme="light"] .target-chip:hover {
+      background: #f2f7f9;
+      border-color: rgba(13, 30, 40, 0.24);
+    }
+    html[data-theme="light"] .toggle { background: rgba(13, 30, 40, 0.03); }
+    html[data-theme="light"] .toggle:hover {
+      background: rgba(13, 30, 40, 0.06);
+      border-color: rgba(13, 30, 40, 0.08);
+    }
+    html[data-theme="light"] .subs-row {
+      background: #ffffff;
+      border-color: rgba(13, 30, 40, 0.12);
+    }
+    html[data-theme="light"] .autopilot-confirm {
+      background: rgba(14, 116, 144, 0.07);
+      border-color: rgba(14, 116, 144, 0.3);
     }
     html[data-theme="light"] .target-chip.active {
       border-color: rgba(5, 150, 105, 0.5);
@@ -1745,7 +1830,6 @@
     html[data-theme="light"] .rating-prompt-text { color: #b45309; }
     html[data-theme="light"] .rating-star { color: #d97706; }
     html[data-theme="light"] .quick-action-btn.danger { color: #b91c1c; }
-    html[data-theme="light"] .pin-hint-title { color: #0e7490; }
     html[data-theme="light"] .access-banner-title { color: #92400e; }
     html[data-theme="light"] .access-banner-icon { color: #b45309; }
     html[data-theme="light"] .access-banner-btn {
@@ -1849,7 +1933,6 @@
           <h1 id="gcc-title">Gmail One-Click Cleaner</h1>
         </div>
         <div class="header-actions">
-          <span class="badge" id="versionBadge" aria-label="Version 7.10.0">v7.10.0</span>
           <div class="theme-switcher-popup" id="themeSwitcher" role="group" aria-label="Color theme">
             <button type="button" data-theme-value="system" aria-pressed="true" title="Match OS theme" aria-label="Match OS theme"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="12.5" rx="2"/><path d="M9 20.5h6M12 17v3.5"/></svg></button>
             <button type="button" data-theme-value="light" aria-pressed="false" title="Light theme" aria-label="Light theme"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
@@ -1862,11 +1945,8 @@
       <div id="srStatus" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
       <div class="pin-hint" id="pinHint" role="alert" aria-live="polite">
-        <svg class="pin-hint-icon" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l-1.2 5.4 2.7 2.7v1.4H7.5v-1.4l2.7-2.7L9 3Z"/><path d="M12 12.5V21"/></svg>
-        <div class="pin-hint-content">
-          <div class="pin-hint-title">Pin for quick access</div>
-          <div class="pin-hint-text">One click on the toolbar icon, one monthly clean.</div>
-        </div>
+        <svg class="pin-hint-icon" aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l-1.2 5.4 2.7 2.7v1.4H7.5v-1.4l2.7-2.7L9 3Z"/><path d="M12 12.5V21"/></svg>
+        <div class="pin-hint-text">Pin the toolbar icon for one-click monthly cleans.</div>
         <button class="pin-hint-close" id="pinHintClose" type="button" aria-label="Dismiss pin hint">×</button>
       </div>
 
@@ -1919,7 +1999,7 @@
             <span class="section-emoji" aria-hidden="true">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.4c.7.6 1 1.5 1 2.6h6c0-1.1.3-2 1-2.6A6 6 0 0 0 12 3Z"/></svg>
             </span>
-            <span>Suggested · What to clean</span>
+            <span>Suggested · what to clean</span>
           </span>
           <svg class="chevron" width="15" height="15" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -1958,23 +2038,24 @@
           </button>
 
           <p class="subs-upsell" id="smartUpsell" hidden>
-            <span id="smartUpsellText">Pro is $5 once: it unlocks the full suggestion list and bulk apply.</span>
+            <span id="smartUpsellText">Pro is $9.99 once: it unlocks the full suggestion list and bulk apply.</span>
             The top picks above stay free forever.
             <span class="subs-upsell-links">
-              <a href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" id="smartBuyLink">Get Pro - $5 lifetime</a>
+              <a href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" id="smartBuyLink">Get Pro - $9.99 lifetime</a>
               <button type="button" class="linkish" id="smartEnterKey">I have a key</button>
             </span>
           </p>
+
         </div>
       </details>
 
-      <details class="section section--reassurance" id="reassurance" open>
+      <details class="section section--reassurance" id="reassurance">
         <summary class="section-title" aria-controls="reassuranceContent">
           <span class="section-title-left">
             <span class="section-emoji" aria-hidden="true">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 5.6v5.2c0 4.2 2.9 7 7 8.4 4.1-1.4 7-4.2 7-8.4V5.6L12 3Z"/><path d="M9 12l2 2 4-4.2"/></svg>
             </span>
-            <span>How it works (100% safe)</span>
+            <span>How it works · safe by design</span>
           </span>
           <svg class="chevron" width="15" height="15" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -2053,6 +2134,34 @@
         <button id="openProgressBtn" class="quick-action-btn" type="button" aria-label="Open progress window">Open Progress</button>
       </div>
 
+      <!-- 7.12 Auto-Pilot (Pro): the Smart Suggestions sweep on a
+           weekly alarm, right on the Clean tab so it is discoverable.
+           The first scheduled run is always a dry-run preview; the
+           confirm row below turns real sweeps on. -->
+      <div class="section autopilot">
+        <label class="toggle">
+          <input id="autoPilotToggle" type="checkbox" role="switch" aria-describedby="autopilot-hint" />
+          <div class="toggle-content">
+            <span class="toggle-main">Auto-Pilot <span class="pro-pill">Pro</span></span>
+            <span class="toggle-hint" id="autopilot-hint">Archives new clutter for you once a week. Tagged first, archive only, Restore applies.</span>
+          </div>
+        </label>
+
+        <div id="autoPilotStatus" class="subs-status" role="status" aria-live="polite"></div>
+
+        <div class="autopilot-confirm" id="autoPilotConfirm" hidden>
+          <span id="autoPilotConfirmText"></span>
+          <button type="button" class="smart-apply-btn" id="autoPilotConfirmBtn">Turn on for real</button>
+        </div>
+
+        <p class="subs-upsell" id="autoPilotUpsell" hidden>
+          <span id="autoPilotUpsellText">Pro is $9.99 once: Auto-Pilot keeps your inbox clean every week, automatically.</span>
+          <span class="subs-upsell-links">
+            <a href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" id="autoPilotBuyLink">Get Pro - $9.99 lifetime</a>
+          </span>
+        </p>
+      </div>
+
       <!-- Strategy + safety live in one collapsed Advanced disclosure
            below the main action; its open state persists across popup
            opens. -->
@@ -2062,7 +2171,7 @@
             <span class="section-emoji" aria-hidden="true">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3"/><path d="M2 14h4M10 8h4M18 16h4"/></svg>
             </span>
-            <span>Advanced · Strategy &amp; Safety</span>
+            <span>Advanced · strategy &amp; safety</span>
           </span>
           <svg class="chevron" width="15" height="15" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -2072,7 +2181,7 @@
         </summary>
 
         <div class="section-content" id="advancedContent">
-        <span id="strategy-title" class="adv-group-label">Cleanup Strategy</span>
+        <span id="strategy-title" class="adv-group-label">Cleanup strategy</span>
 
         <div class="field">
           <label for="intensity">Rule Intensity</label>
@@ -2105,7 +2214,7 @@
           <span id="age-hint" class="sr-only">Only clean emails older than this age</span>
         </div>
 
-        <span class="adv-group-label">Safety &amp; Guardrails</span>
+        <span class="adv-group-label">Safety &amp; guardrails</span>
 
           <div class="toggles" role="group" aria-label="Safety options">
 
@@ -2265,14 +2374,14 @@
 
         <button id="unsubBtn" class="subs-unsub-btn" type="button" hidden>
           <span class="label-main">Unsubscribe selected</span>
-          <span class="label-sub" id="unsubBtnSub">Pro · $5 lifetime</span>
+          <span class="label-sub" id="unsubBtnSub">Pro · $9.99 lifetime</span>
         </button>
 
         <p class="subs-upsell" id="subsUpsell" hidden>
-          <span id="subsUpsellText">One $5 payment unlocks bulk unsubscribe forever.</span>
+          <span id="subsUpsellText">One $9.99 payment unlocks bulk unsubscribe forever.</span>
           No subscription, no account, and the key is verified on your device.
           <span class="subs-upsell-links">
-            <a href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" id="subsBuyLink">Get Pro - $5 lifetime</a>
+            <a href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" id="subsBuyLink">Get Pro - $9.99 lifetime</a>
             <button type="button" class="linkish" id="subsEnterKey">I have a key</button>
           </span>
         </p>
@@ -2327,14 +2436,14 @@
 
         <button id="xrayPurgeBtn" class="subs-unsub-btn" type="button" hidden>
           <span class="label-main">Purge selected</span>
-          <span class="label-sub" id="xrayPurgeBtnSub">Pro · $5 lifetime</span>
+          <span class="label-sub" id="xrayPurgeBtnSub">Pro · $9.99 lifetime</span>
         </button>
 
         <p class="subs-upsell" id="xrayUpsell" hidden>
-          <span id="xrayUpsellText">Pro is $5 once: it unlocks the full ranked list and one-click purge.</span>
+          <span id="xrayUpsellText">Pro is $9.99 once: it unlocks the full ranked list and one-click purge.</span>
           Google One wants $20 every year for more storage.
           <span class="subs-upsell-links">
-            <a href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" id="xrayBuyLink">Get Pro - $5 lifetime</a>
+            <a href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" id="xrayBuyLink">Get Pro - $9.99 lifetime</a>
             <button type="button" class="linkish" id="xrayEnterKey">I have a key</button>
           </span>
         </p>
@@ -2357,6 +2466,7 @@
         </nav>
 
         <div class="footer-right">
+          <span class="badge" id="versionBadge" aria-label="Version 7.12.0">v7.12.0</span>
           <button id="kbdHelpBtn" class="linkish" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">
             <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/></svg>
           </button>
@@ -2375,8 +2485,8 @@
       <!-- Pro promo (hidden once a license is active) -->
       <aside class="pro-promo" id="proPromo" aria-label="Pro upgrade" hidden>
         <p class="pro-promo-body">
-          <strong>Pro, $5 once:</strong> bulk unsubscribe + storage purge.
-          Everything free stays free.
+          <strong>Pro, $9.99 once:</strong> bulk unsubscribe, storage purge,
+          Auto-Pilot. Everything free stays free.
         </p>
         <div class="pro-promo-actions">
           <a href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" id="proPromoBuy">Get Pro</a>

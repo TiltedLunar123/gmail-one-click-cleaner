@@ -2,41 +2,176 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Gmail One-Click Cleaner</title>
+  <title>Gmail One-Click Cleaner Pro - $9.99 once, yours forever</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="One $9.99 payment unlocks bulk unsubscribe, storage purge, the full suggestion list, and weekly Auto-Pilot sweeps. No subscription, ever." />
   <meta name="color-scheme" content="dark" />
   <link rel="icon" type="image/png" sizes="128x128" href="./icon128.png" />
   <style>
+    :root {
+      --bg: #06090f;
+      --surface: rgba(17, 26, 36, 0.75);
+      --border: rgba(148, 163, 184, 0.2);
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #22d3ee;
+      --ok: #6ee7b7;
+      --gold: #fbbf24;
+    }
+    * { box-sizing: border-box; }
     body {
       margin: 0;
       min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: #06090f;
-      color: #e2e8f0;
+      background-color: var(--bg);
+      background-image:
+        radial-gradient(at 0% 0%, rgba(34, 211, 238, 0.14) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.12) 0px, transparent 50%);
+      color: var(--text);
       font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-      text-align: center;
-      padding: 24px;
+      line-height: 1.6;
+      padding: 40px 20px 60px;
     }
-    a { color: #22d3ee; }
-    p { color: #94a3b8; line-height: 1.6; }
+    main { max-width: 640px; margin: 0 auto; }
+    h1 { font-size: 28px; line-height: 1.25; margin: 0 0 10px; }
+    h1 .price { color: var(--accent); white-space: nowrap; }
+    h2 { font-size: 16px; margin: 34px 0 12px; }
+    .lede { color: var(--muted); font-size: 16px; margin: 0 0 18px; }
+    .proof {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 18px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 14px;
+      margin: 0 0 26px;
+    }
+    .proof .stars { color: var(--gold); letter-spacing: 2px; }
+    .proof strong { color: var(--text); }
+    .buy {
+      display: inline-block;
+      background: linear-gradient(135deg, #7bf1fd, #22d3ee);
+      color: #04181d;
+      font-weight: 800;
+      font-size: 17px;
+      padding: 14px 28px;
+      border-radius: 12px;
+      text-decoration: none;
+      box-shadow: 0 18px 40px -18px rgba(34, 211, 238, 0.8);
+    }
+    .buy:hover { filter: saturate(1.1) brightness(1.03); }
+    .buy-sub { display: block; color: var(--muted); font-size: 13px; margin-top: 10px; }
+    .pillars { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+    .pillars li {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 14.5px;
+      color: var(--muted);
+    }
+    .pillars strong { display: block; color: var(--text); font-size: 15px; margin-bottom: 2px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      font-size: 14.5px;
+    }
+    th, td { text-align: left; padding: 11px 14px; border-top: 1px solid var(--border); }
+    thead th { border-top: none; color: var(--muted); font-size: 13px; font-weight: 600; }
+    td.price-cell { white-space: nowrap; }
+    tr.this-one td { color: var(--ok); font-weight: 700; }
+    .fineprint { margin-top: 34px; font-size: 13px; color: var(--muted); }
+    a { color: var(--accent); }
+    .lifetime {
+      background: var(--surface);
+      border: 1px solid rgba(110, 231, 183, 0.3);
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: var(--muted);
+      font-size: 14.5px;
+    }
+    .lifetime strong { color: var(--ok); }
   </style>
 </head>
 <body>
   <main>
-    <h1>Gmail One-Click Cleaner</h1>
-    <p>
-      Bulk-clean Gmail clutter, unsubscribe from mailing lists, and purge the
-      senders eating your storage. Smart Suggestions finds what to clean for
-      you, with the reason. Pro is $5 once and unlocks bulk unsubscribe, the
-      full storage list, and the full suggestion list with bulk apply; more
-      Google One storage is about $20 every year.<br />
-      <a href="https://chromewebstore.google.com/detail/bmcfpljakkpcbinhgiahncpcbhmihgpc" rel="noopener">Install from the Chrome Web Store</a>
-      &nbsp;·&nbsp;
-      <a href="https://github.com/TiltedLunar123/gmail-one-click-cleaner" rel="noopener">Source on GitHub</a>
+    <h1>Gmail One-Click Cleaner Pro<br /><span class="price">$9.99 once.</span> Yours forever.</h1>
+    <p class="lede">
+      The free cleaner already bulk-deletes clutter with a one-click undo.
+      Pro stops the clutter from coming back, and now keeps the inbox
+      clean for you, every single week.
     </p>
-    <p>Bought Pro? Your license key is on the page Stripe sent you to after checkout.</p>
+
+    <p class="proof">
+      <span><span class="stars">&#9733;&#9733;&#9733;&#9733;&#189;</span> <strong>4.5 stars</strong> on the Chrome Web Store</span>
+      <span><strong>1,000+</strong> users</span>
+      <span>Open source, runs 100% locally</span>
+    </p>
+
+    <p>
+      <a class="buy" href="https://buy.stripe.com/fZubJ23jZe7U1MI7NFdUY00" rel="noopener">Get Pro - $9.99 lifetime</a>
+      <span class="buy-sub">One payment via Stripe. Your key appears right after checkout and works offline, on all your signed-in browsers.</span>
+    </p>
+
+    <h2>What Pro unlocks</h2>
+    <ul class="pillars">
+      <li>
+        <strong>Auto-Pilot</strong>
+        Keeps your inbox clean every week, automatically. A scheduled sweep
+        finds the new clutter and archives it: tagged first, archive only,
+        one-click restore, and the very first run is a preview that touches
+        nothing until you approve it.
+      </li>
+      <li>
+        <strong>Bulk unsubscribe</strong>
+        Pick every mailing list you never read and leave them all in one
+        pass, using Gmail's own Unsubscribe control. Deleting hides old
+        mail; this stops the new mail.
+      </li>
+      <li>
+        <strong>Storage X-ray purge</strong>
+        See exactly which senders eat your storage, then purge the ones you
+        pick in one click. Skip the $20-per-year Google One upsell.
+      </li>
+      <li>
+        <strong>Full Smart Suggestions + bulk apply</strong>
+        The complete ranked list of what is worth cleaning and why, applied
+        in one run. The top picks stay free forever.
+      </li>
+    </ul>
+
+    <h2>One payment vs. everyone else's subscription</h2>
+    <table>
+      <thead>
+        <tr><th>Tool</th><th>Price</th><th>After 3 years</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Clean Email</td><td class="price-cell">$9.99 / month</td><td class="price-cell">$359.64</td></tr>
+        <tr><td>Mailstrom</td><td class="price-cell">$9 / month</td><td class="price-cell">$324.00</td></tr>
+        <tr class="this-one"><td>Gmail One-Click Cleaner Pro</td><td class="price-cell">$9.99 once</td><td class="price-cell">$9.99</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Lifetime means lifetime</h2>
+    <p class="lifetime">
+      <strong>One payment, every future feature included.</strong> Pro
+      started with bulk unsubscribe; Storage X-ray, the full suggestion
+      list and Auto-Pilot were all added later, and every existing key
+      unlocked them on day one. Your key is verified on your device with a
+      built-in public key; the extension never phones home, not even to
+      check the license.
+    </p>
+
+    <p class="fineprint">
+      Not installed yet? <a href="https://chromewebstore.google.com/detail/bmcfpljakkpcbinhgiahncpcbhmihgpc" rel="noopener">Get the free extension on the Chrome Web Store</a>
+      &nbsp;&middot;&nbsp;
+      <a href="https://github.com/TiltedLunar123/gmail-one-click-cleaner" rel="noopener">Source on GitHub</a><br />
+      Bought Pro already? Your license key is on the page Stripe sent you
+      to after checkout; revisiting that same link re-issues it any time.
+    </p>
   </main>
 </body>
 </html>

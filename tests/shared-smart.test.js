@@ -308,7 +308,7 @@ describe("GCC.smart presentation policy", () => {
 
   test("smartUpsellLine leads with the hidden count", () => {
     expect(GCC.popupUi.smartUpsellLine(7)).toContain("7 more suggestions");
-    expect(GCC.popupUi.smartUpsellLine(7)).toContain("$5");
-    expect(GCC.popupUi.smartUpsellLine(0)).toContain("$5");
+    expect(GCC.popupUi.smartUpsellLine(7)).toContain("$9.99");
+    expect(GCC.popupUi.smartUpsellLine(0)).toContain("$9.99");
   });
 });

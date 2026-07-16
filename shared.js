@@ -662,7 +662,7 @@ const GCC = (() => {
   // exact payload bytes.
 
   const PRO = Object.freeze({
-    PRICE_LABEL: "$5 lifetime",
+    PRICE_LABEL: "$9.99 lifetime",
     BUY_URL: "https://buy.stripe.com/fZubJ23jZe7U1MI7NFdUY00",
     SUPPORT_URL: "https://github.com/TiltedLunar123/gmail-one-click-cleaner#pro",
     STORAGE_KEY: "proLicense"
@@ -935,26 +935,22 @@ const GCC = (() => {
     return count >= RATING_MIN_CLEANED || mb >= RATING_MIN_FREED_MB;
   };
 
-  // "How it works" starts open for newcomers and collapses once the
-  // first cleanup has been recorded (the popup's run counter).
-  const reassuranceOpen = (runSuccessCount) => !(Number(runSuccessCount) > 0);
-
   // First lines of the Pro upsells. Lead with the user's own scan
   // numbers once a scan exists; before that, fall back to the static
   // pitch. Claims mirror what the features do: the user picks the
   // senders, and storage figures are floor estimates.
   const subsUpsellLine = (senderCount) => {
     const n = Math.max(0, Math.floor(Number(senderCount) || 0));
-    if (!n) return "One $5 payment unlocks bulk unsubscribe forever.";
-    return `Found ${n} mailing list${n === 1 ? "" : "s"} emailing you. Pro unsubscribes from the ones you pick for $5.`;
+    if (!n) return "One $9.99 payment unlocks bulk unsubscribe forever.";
+    return `Found ${n} mailing list${n === 1 ? "" : "s"} emailing you. Pro unsubscribes from the ones you pick for $9.99.`;
   };
 
   const xrayUpsellLine = (senderCount, totalMb) => {
     const n = Math.max(0, Math.floor(Number(senderCount) || 0));
     const mb = Math.max(0, Number(totalMb) || 0);
-    if (!n || !mb) return "Pro is $5 once: it unlocks the full ranked list and one-click purge.";
+    if (!n || !mb) return "Pro is $9.99 once: it unlocks the full ranked list and one-click purge.";
     const who = n === 1 ? "1 sender is" : `${n} senders are`;
-    return `${who} holding at least ${formatMb(mb)}. Pro purges the ones you pick for $5.`;
+    return `${who} holding at least ${formatMb(mb)}. Pro purges the ones you pick for $9.99.`;
   };
 
   // 7.4: post-run recap. The popup closes itself when a run starts, so
@@ -1002,8 +998,17 @@ const GCC = (() => {
   // any, falls back to the static pitch.
   const smartUpsellLine = (hiddenCount) => {
     const n = Math.max(0, Math.floor(Number(hiddenCount) || 0));
-    if (!n) return "Pro is $5 once: it unlocks the full suggestion list and bulk apply.";
-    return `${n} more suggestion${n === 1 ? "" : "s"} ready. Pro unlocks the full list and applies them in bulk for $5.`;
+    if (!n) return "Pro is $9.99 once: it unlocks the full suggestion list and bulk apply.";
+    return `${n} more suggestion${n === 1 ? "" : "s"} ready. Pro unlocks the full list and applies them in bulk for $9.99.`;
+  };
+
+  // 7.12: first line of the locked Auto-Pilot row. Leads with how many
+  // suggestions are sitting there right now; before a scan produces
+  // any, falls back to the static pitch.
+  const autoPilotUpsellLine = (suggestionCount) => {
+    const n = Math.max(0, Math.floor(Number(suggestionCount) || 0));
+    if (!n) return "Pro is $9.99 once: Auto-Pilot keeps your inbox clean every week, automatically.";
+    return `${n} suggestion${n === 1 ? " is" : "s are"} sitting here right now. Auto-Pilot sweeps them for you every week on Pro ($9.99 once).`;
   };
 
   const popupUi = Object.freeze({
@@ -1012,10 +1017,10 @@ const GCC = (() => {
     RECAP_SEEN_SKEW_MS,
     pickBanner,
     ratingRunQualifies,
-    reassuranceOpen,
     subsUpsellLine,
     xrayUpsellLine,
     smartUpsellLine,
+    autoPilotUpsellLine,
     pickRecapEntry,
     recapSeenMarker,
     recapAction,

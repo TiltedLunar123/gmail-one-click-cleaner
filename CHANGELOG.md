@@ -3,6 +3,42 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 7.12.0 - Auto-Pilot
+
+### Added
+- **Auto-Pilot (Pro).** A weekly scheduled Smart Suggestions sweep that
+  keeps the inbox clean automatically. Each sweep runs the same
+  read-only suggestion scan the popup offers, then archives the top
+  recommendations in one ordinary cleanup run: archive only (Auto-Pilot
+  never deletes), at most 25 senders per sweep, tag-before-action stays
+  on so one-click Restore works, and the whitelist, protected keywords,
+  starred and important guards all apply unchanged. The first scheduled
+  sweep is always a dry run: the popup reports "would have archived N
+  emails" and waits for an explicit confirm before any sweep goes live.
+  The license is verified on-device before every sweep, sweeps honour
+  vacation mode, and runs land in stats history and the Recovery Log
+  like every other run. No new permissions, no new Gmail surface.
+
+### Changed
+- **The popup opens calm.** On a fresh install the Clean tab now fits
+  the Run button on screen without scrolling: the "How it works"
+  reassurance collapses to a single quiet line (its content stays one
+  click away), the Monthly Light Clean preset joins the target chips as
+  one quiet "pick what to clean" family, and the shouting all-caps
+  section labels are now small sentence-case lines. Run Cleaner is the
+  only saturated control on the tab. The version badge moved from the
+  header to the footer, so the header is just the title and the theme
+  switcher.
+- **The light theme has real surfaces.** The page behind the card is a
+  step darker, the card is solid white with a visible border, and
+  sections, preset buttons, chips and rows carry their own borders
+  instead of dissolving into the background. Both themes still meet
+  WCAG AA (4.5:1) for text.
+- **Pro is now $9.99, still one payment for life.** Existing keys are
+  untouched and everything free stays free. Pro now has four pillars:
+  bulk unsubscribe, Storage X-ray purge, the full Smart Suggestions
+  list with bulk apply, and Auto-Pilot.
+
 ## 7.8.1 - Light theme contrast
 
 ### Fixed

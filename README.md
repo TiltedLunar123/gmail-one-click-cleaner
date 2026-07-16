@@ -18,6 +18,12 @@ The extension recommends what to clean instead of making you configure it. One f
 - **The right action per sender** - storage hogs lead with a purge, stopped floods with a delete, and a sender who still emails weekly while you never open them leads with Unsubscribe (Pro), because deleting would not stop the next batch.
 - **Pro** - the full ranked list (top 3 stay free) and bulk apply of checked suggestions in one run.
 
+### Auto-Pilot (Pro)
+The same Smart Suggestions sweep, on a weekly schedule, so the inbox stays clean without you opening the popup.
+- **Preview first** - the first scheduled sweep is always a dry run. The popup shows "would have archived N emails" and waits for an explicit confirm before any sweep touches mail.
+- **Archive only** - Auto-Pilot never deletes, whatever a suggestion would normally lead with. Everything it moves is tagged first, capped at 25 senders per sweep, and shows up in stats and the Recovery Log like any other run.
+- **Every guard applies** - whitelist, protected keywords, starred and important mail are all respected, and the license is verified on-device before each sweep. No new permissions.
+
 ### Cleanup Modes
 - **Live Mode** - Automatically labels and moves matching emails to Trash or Archive
 - **Review Mode** - Pause before each batch so you can approve or skip
@@ -53,7 +59,7 @@ When Google says your storage is full, the question is *what exactly is eating i
 
 ## Pro
 
-Pro is a **one-time $5 purchase** (no subscription) that unlocks bulk unsubscribe, the full Storage X-ray, and the full Smart Suggestions list with bulk apply. Everything that is free today stays free forever. Compare: Google One storage starts at about $20 per year, forever.
+Pro is a **one-time $9.99 purchase** (no subscription) that unlocks four things: bulk unsubscribe, the full Storage X-ray with one-click purge, the full Smart Suggestions list with bulk apply, and Auto-Pilot, which keeps your inbox clean every week, automatically. Everything that is free today stays free forever. Compare: Google One storage starts at about $20 per year, forever, and inbox-cleaning subscriptions run about $10 per month.
 
 - Your license key is verified **entirely on your device** with a built-in public key. The extension never contacts a server, not even to check the license.
 - The key is a signed token with no personal data. Stored in Chrome sync, so Pro follows you to your other signed-in browsers.

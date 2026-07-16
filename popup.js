@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "7.10.0";
+  const POPUP_VERSION = "7.12.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -119,7 +119,11 @@ document.addEventListener("DOMContentLoaded", () => {
       protectKeywords: [],
       visibleCount: 0,
       running: null
-    }
+    },
+
+    // 7.12 Auto-Pilot: the worker's settings + last-run snapshot
+    // ({ enabled, confirmed, lastRun, preview, pendingStage }).
+    autoPilot: null
   };
 
   // 6.0: one-click category targets. Each runs a small, safe rule set
@@ -270,7 +274,6 @@ document.addEventListener("DOMContentLoaded", () => {
     cleanForm: $("cleanForm"),
     cleanResult: $("cleanResult"),
     resultBackBtn: $("resultBackBtn"),
-    reassurance: $("reassurance"),
     advancedSection: $("advancedSection"),
 
     pinHint: $("pinHint"),
@@ -377,7 +380,17 @@ document.addEventListener("DOMContentLoaded", () => {
     smartUpsell: $("smartUpsell"),
     smartUpsellText: $("smartUpsellText"),
     smartBuyLink: $("smartBuyLink"),
-    smartEnterKey: $("smartEnterKey")
+    smartEnterKey: $("smartEnterKey"),
+
+    // 7.12 Auto-Pilot
+    autoPilotToggle: $("autoPilotToggle"),
+    autoPilotStatus: $("autoPilotStatus"),
+    autoPilotConfirm: $("autoPilotConfirm"),
+    autoPilotConfirmText: $("autoPilotConfirmText"),
+    autoPilotConfirmBtn: $("autoPilotConfirmBtn"),
+    autoPilotUpsell: $("autoPilotUpsell"),
+    autoPilotUpsellText: $("autoPilotUpsellText"),
+    autoPilotBuyLink: $("autoPilotBuyLink")
   };
 
   const critical = ["runBtn", "statusEl", "intensityEl", "dryRunEl", "safeModeEl"];
@@ -987,21 +1000,38 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.runBtn?.focus();
   };
 
+  // 7.12: the browser knows whether the toolbar icon is already
+  // pinned (chrome.action.getUserSettings, Chrome 91+ / Firefox 90+).
+  // true / false when the API answers, null when it is unavailable so
+  // the caller falls back to the dismissal flag alone.
+  const getPinnedState = async () => {
+    try {
+      if (!GCC.hasChrome() || !chrome.action?.getUserSettings) return null;
+      const settings = await chrome.action.getUserSettings();
+      return typeof settings?.isOnToolbar === "boolean" ? settings.isOnToolbar : null;
+    } catch {
+      return null;
+    }
+  };
+
   // 7.3: at most one banner shows at a time. Eligibility for all three
   // is gathered here and GCC.popupUi.pickBanner arbitrates (Gmail
   // access, then snooze, then pin hint), so a grant or a dismissal
   // re-runs the whole decision instead of leaving stale banners up.
+  // The pin hint needs BOTH: never dismissed and not already pinned;
+  // dismissing it is permanent (a local flag that never expires).
   const refreshBanners = async () => {
-    const [accessOk, snoozeUntil, pinFlag] = await Promise.all([
+    const [accessOk, snoozeUntil, pinFlag, pinned] = await Promise.all([
       GCC.gmailAccess.check(),
       getSnoozeUntil(),
-      storageGet("local", STORAGE_KEYS.PIN_DISMISSED)
+      storageGet("local", STORAGE_KEYS.PIN_DISMISSED),
+      getPinnedState()
     ]);
 
     const which = GCC.popupUi.pickBanner({
       accessNeeded: !accessOk,
       snoozed: Boolean(snoozeUntil),
-      pinEligible: !pinFlag?.[STORAGE_KEYS.PIN_DISMISSED]
+      pinEligible: !pinFlag?.[STORAGE_KEYS.PIN_DISMISSED] && pinned !== true
     });
 
     if (which === "snooze" && elements.snoozeBannerText) {
@@ -1104,15 +1134,6 @@ document.addEventListener("DOMContentLoaded", () => {
       cleaned: GCC.popupUi.recapCleanedCount(entry),
       freedMb: Number(entry.freedMb) || 0
     });
-  };
-
-  // 7.3: "How it works" ships open in the markup for newcomers and
-  // collapses once the popup's run counter records the first cleanup.
-  const initReassurance = async () => {
-    if (!elements.reassurance) return;
-    const r = await storageGet("local", STORAGE_KEYS.RUN_COUNT);
-    elements.reassurance.open =
-      GCC.popupUi.reassuranceOpen(r?.[STORAGE_KEYS.RUN_COUNT]);
   };
 
   // 7.3: the Advanced disclosure keeps its open state across popup
@@ -1373,7 +1394,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.unsubBtnSub) {
       elements.unsubBtnSub.textContent = active
         ? "Uses Gmail's own Unsubscribe control"
-        : "Pro · $5 lifetime";
+        : "Pro · $9.99 lifetime";
     }
     if (elements.unsubBtn) elements.unsubBtn.classList.toggle("locked", !active);
     if (elements.subsBuyLink) elements.subsBuyLink.href = GCC.license.PRO.BUY_URL;
@@ -1387,7 +1408,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.xrayPurgeBtnSub) {
       elements.xrayPurgeBtnSub.textContent = active
         ? "Tagged first, then Trash - undo applies"
-        : "Pro · $5 once (Google One is $20 every year)";
+        : "Pro · $9.99 once (Google One is $20 every year)";
     }
     renderXrayList();
 
@@ -1572,7 +1593,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (!state.subs.licenseActive) {
       if (elements.subsUpsell) elements.subsUpsell.hidden = false;
-      showToast("bulk unsubscribe is a Pro feature ($5, one-time)", "info");
+      showToast("bulk unsubscribe is a Pro feature ($9.99, one-time)", "info");
       return;
     }
 
@@ -1883,7 +1904,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (!state.subs.licenseActive) {
       if (elements.xrayUpsell) elements.xrayUpsell.hidden = false;
-      showToast("purging is a Pro feature ($5, one-time)", "info");
+      showToast("purging is a Pro feature ($9.99, one-time)", "info");
       return;
     }
 
@@ -2108,6 +2129,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (!hasAny) {
       updateSmartCount();
+      renderAutoPilot();
       return;
     }
 
@@ -2125,6 +2147,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     updateSmartCount();
+    // The Auto-Pilot upsell leads with the fresh suggestion count.
+    renderAutoPilot();
   };
 
   const loadStoredSmartScan = async () => {
@@ -2346,7 +2370,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (rule.runKind === "unsubscribe") {
       if (!state.subs.licenseActive) {
         if (elements.smartUpsell) elements.smartUpsell.hidden = false;
-        showToast("bulk unsubscribe is a Pro feature ($5, one-time)", "info");
+        showToast("bulk unsubscribe is a Pro feature ($9.99, one-time)", "info");
         return;
       }
       if (state.subs.running) return;
@@ -2363,7 +2387,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const handleSmartBulkApply = async () => {
     if (!state.subs.licenseActive) {
       if (elements.smartUpsell) elements.smartUpsell.hidden = false;
-      showToast("bulk apply is a Pro feature ($5, one-time)", "info");
+      showToast("bulk apply is a Pro feature ($9.99, one-time)", "info");
       return;
     }
     const emails = getCheckedSmartEmails();
@@ -2399,6 +2423,101 @@ document.addEventListener("DOMContentLoaded", () => {
         [STORAGE_KEYS.SMART_OPEN]: Boolean(elements.smartSection.open)
       }).catch(() => {});
     });
+  };
+
+  // =========================
+  // Auto-Pilot (7.12, Pro)
+  // =========================
+  // The worker owns the schedule and the sweeps; the popup only reads
+  // the settings snapshot and flips the toggle. Free users see the
+  // toggle locked with the usual number-led upsell. The preview
+  // confirm is an inline button (window.confirm is a silent no-op in
+  // Firefox popups): until it is clicked every scheduled sweep stays a
+  // dry run.
+
+  const renderAutoPilot = () => {
+    if (!elements.autoPilotToggle) return;
+    const active = state.subs.licenseActive;
+    const ap = state.autoPilot;
+
+    elements.autoPilotToggle.disabled = !active;
+    elements.autoPilotToggle.checked = Boolean(active && ap?.enabled);
+    syncSwitchAria(elements.autoPilotToggle);
+
+    if (elements.autoPilotUpsell) elements.autoPilotUpsell.hidden = active;
+    if (elements.autoPilotUpsellText && !active) {
+      elements.autoPilotUpsellText.textContent =
+        GCC.popupUi.autoPilotUpsellLine(state.smart.visibleCount);
+    }
+    if (elements.autoPilotBuyLink) elements.autoPilotBuyLink.href = GCC.license.PRO.BUY_URL;
+
+    let statusText = "";
+    if (active && ap?.enabled) {
+      if (ap.pendingStage) {
+        statusText = "A sweep is running right now.";
+      } else if (ap.lastRun && ap.lastRun.at) {
+        const n = Math.max(0, Number(ap.lastRun.count) || 0);
+        const verb = ap.lastRun.dryRun ? "would have archived" : "archived";
+        statusText = `Last sweep ${verb} ${GCC.formatNumber(n)} email${n === 1 ? "" : "s"}, ${GCC.relativeTime(ap.lastRun.at)}.`;
+      } else {
+        statusText = "First sweep runs soon as a preview. Nothing is archived until you confirm below.";
+      }
+    }
+    if (elements.autoPilotStatus) elements.autoPilotStatus.textContent = statusText;
+
+    const showConfirm = Boolean(active && ap?.enabled && !ap?.confirmed && ap?.preview);
+    if (elements.autoPilotConfirm) elements.autoPilotConfirm.hidden = !showConfirm;
+    if (showConfirm && elements.autoPilotConfirmText) {
+      const n = Math.max(0, Number(ap.preview.count) || 0);
+      elements.autoPilotConfirmText.textContent =
+        `Auto-Pilot preview: would have archived ${GCC.formatNumber(n)} email${n === 1 ? "" : "s"}. Turn on for real?`;
+    }
+  };
+
+  const loadAutoPilot = async () => {
+    if (GCC.hasChrome() && chrome.runtime?.sendMessage) {
+      const resp = await GCC.sendMessage({ type: "gmailCleanerGetAutoPilot" });
+      if (resp?.ok && resp.autoPilot) state.autoPilot = resp.autoPilot;
+    }
+    renderAutoPilot();
+  };
+
+  const handleAutoPilotToggle = async () => {
+    const wanted = Boolean(elements.autoPilotToggle?.checked);
+    if (!state.subs.licenseActive) {
+      elements.autoPilotToggle.checked = false;
+      syncSwitchAria(elements.autoPilotToggle);
+      if (elements.autoPilotUpsell) elements.autoPilotUpsell.hidden = false;
+      showToast("Auto-Pilot is a Pro feature ($9.99, one-time)", "info");
+      return;
+    }
+    const resp = await GCC.sendMessage({ type: "gmailCleanerSetAutoPilot", enabled: wanted });
+    if (resp?.ok && resp.autoPilot) {
+      state.autoPilot = resp.autoPilot;
+      showToast(
+        wanted ? "Auto-Pilot on - the first sweep is a preview" : "Auto-Pilot off",
+        wanted ? "success" : "info"
+      );
+    } else {
+      showToast(
+        resp?.error === "pro_required"
+          ? "Auto-Pilot needs an active Pro license"
+          : "could not update Auto-Pilot",
+        "warning"
+      );
+    }
+    renderAutoPilot();
+  };
+
+  const handleAutoPilotConfirm = async () => {
+    const resp = await GCC.sendMessage({ type: "gmailCleanerConfirmAutoPilot" });
+    if (resp?.ok && resp.autoPilot) {
+      state.autoPilot = resp.autoPilot;
+      showToast("Auto-Pilot is live - weekly sweeps now archive for real", "success");
+    } else {
+      showToast("could not confirm Auto-Pilot", "warning");
+    }
+    renderAutoPilot();
   };
 
   // =========================
@@ -2923,6 +3042,16 @@ document.addEventListener("DOMContentLoaded", () => {
       updateSmartCount();
     });
 
+    // 7.12 Auto-Pilot. A disabled checkbox fires no change event, so
+    // the locked-state pitch hangs off a click on the label itself.
+    elements.autoPilotToggle?.addEventListener("change", handleAutoPilotToggle);
+    elements.autoPilotConfirmBtn?.addEventListener("click", handleAutoPilotConfirm);
+    elements.autoPilotToggle?.closest("label")?.addEventListener("click", () => {
+      if (state.subs.licenseActive) return;
+      if (elements.autoPilotUpsell) elements.autoPilotUpsell.hidden = false;
+      showToast("Auto-Pilot is a Pro feature ($9.99, one-time)", "info");
+    });
+
     // 7.1 Gmail host access grant (must run inside this click gesture)
     elements.gmailAccessBtn?.addEventListener("click", async () => {
       const granted = await GCC.gmailAccess.request();
@@ -2971,7 +3100,6 @@ document.addEventListener("DOMContentLoaded", () => {
     setupEventListeners();
 
     await initAdvancedDisclosure();
-    await initReassurance();
     await restoreLastConfig();
     await restoreActiveRunUI();
     // 7.4: replay the last unseen cleanup (active runs win inside).
@@ -2990,6 +3118,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // 7.8 Smart Suggestions: disclosure state + stored scan.
     await initSmartDisclosure();
     loadStoredSmartScan().catch((e) => log("warn", "smart load failed", e));
+    // 7.12 Auto-Pilot: settings snapshot (best-effort).
+    loadAutoPilot().catch((e) => log("warn", "autopilot load failed", e));
 
     log("info", "ready");
   };

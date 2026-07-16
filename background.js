@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "7.10.0";
+  const SW_VERSION = "7.12.0";
 
   // =========================
   // Storage Keys
@@ -26,7 +26,9 @@
     LAYOUT_CHANGE: "layoutChangeNotice",
     SMART_SCAN: "smartScan",
     SMART_FEEDBACK: "smartFeedback",
-    SMART_PENDING: "smartPendingApply"
+    SMART_PENDING: "smartPendingApply",
+    AUTOPILOT: "autoPilot",
+    AUTOPILOT_STATE: "autoPilotState"
   });
 
   // chrome.storage.sync caps: 8KB per item, 102KB total. The options
@@ -70,6 +72,7 @@
 
   const ALARM_PREFIX = "gcc_schedule_";
   const STATS_CLEANUP_ALARM = "gcc_stats_cleanup";
+  const AUTOPILOT_ALARM = "gcc_autopilot";
 
   // =========================
   // Lifecycle
@@ -83,11 +86,13 @@
 
     // Restore saved schedules
     await restoreScheduledAlarms();
+    await restoreAutoPilotAlarm();
   });
 
   chrome.runtime.onStartup.addListener(async () => {
     console.log("[GCC SW] Browser startup");
     await restoreScheduledAlarms();
+    await restoreAutoPilotAlarm();
   });
 
   // Clean up ACTIVE_RUN if the Gmail tab is closed mid-run
@@ -113,6 +118,11 @@
   chrome.alarms.onAlarm.addListener(async (alarm) => {
     if (alarm.name === STATS_CLEANUP_ALARM) {
       await pruneOldStats();
+      return;
+    }
+
+    if (alarm.name === AUTOPILOT_ALARM) {
+      await runAutoPilot();
       return;
     }
 
@@ -332,6 +342,14 @@
             console.warn("[GCC SW] Failed to record layout change:", e);
           }
         }
+        // Auto-Pilot (7.12): terminal progress messages drive the
+        // sweep's stage machine. Fire-and-forget like the layout
+        // record, and only terminal messages touch storage so the
+        // per-pass progress beats stay free.
+        if (msg.done || msg.phase === "done" || msg.phase === "cancelled" || msg.phase === "error") {
+          withStorageLock(() => handleAutoPilotProgress(msg))
+            .catch((e) => console.warn("[GCC SW] autopilot progress failed:", e?.message || e));
+        }
         break;
 
       // Stats recording
@@ -490,6 +508,25 @@
           .then(() => sendResponse({ ok: true }));
         return true;
 
+      // Auto-Pilot (7.12): popup settings surface.
+      case "gmailCleanerGetAutoPilot":
+        getAutoPilotForPopup()
+          .then((autoPilot) => sendResponse({ ok: true, autoPilot }))
+          .catch((err) => sendResponse({ ok: false, error: err?.message || "Failed" }));
+        return true;
+
+      case "gmailCleanerSetAutoPilot":
+        setAutoPilotEnabled(Boolean(msg.enabled))
+          .then((result) => sendResponse(result))
+          .catch((err) => sendResponse({ ok: false, error: err?.message || "Failed" }));
+        return true;
+
+      case "gmailCleanerConfirmAutoPilot":
+        confirmAutoPilot()
+          .then((result) => sendResponse(result))
+          .catch((err) => sendResponse({ ok: false, error: err?.message || "Failed" }));
+        return true;
+
       case "gmailCleanerDone":
         // Clean up active run state when cleanup finishes
         chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: null })
@@ -507,6 +544,12 @@
         if (msg.summary) {
           withStorageLock(() => resolvePendingSmartApply(msg.summary))
             .catch((e) => console.warn("[GCC SW] smart apply resolve failed:", e?.message || e));
+        }
+        // Auto-Pilot (7.12): if this run was the sweep's apply stage,
+        // close it out (preview tally or live last-run summary).
+        if (msg.summary) {
+          withStorageLock(() => resolveAutoPilotDone(msg.summary))
+            .catch((e) => console.warn("[GCC SW] autopilot resolve failed:", e?.message || e));
         }
         // Surface a desktop notification if the user opted in.
         if (msg.summary) {
@@ -903,6 +946,612 @@
   }
 
   // =========================
+  // Pro license check (7.12)
+  // =========================
+  // Auto-Pilot runs unattended, so the worker verifies the stored key
+  // itself before every run instead of trusting a flag the popup set.
+  // The parse + ECDSA P-256 verify duplicate GCC.license (the worker is
+  // self-contained and cannot load shared.js); the autopilot test suite
+  // pins the public JWK and the verify behavior against the shared
+  // implementation. The keypair and key format are frozen: this block
+  // only READS keys, exactly like the popup gates do.
+
+  const LICENSE_PUBLIC_JWK = Object.freeze({
+    kty: "EC",
+    crv: "P-256",
+    x: "H__q7WFppVTV82Txv9zzk-D_uiTwt5qDda_wYvUlq_8",
+    y: "3o5uhLw4utuNyDMaGJrIY3Dgbw14PVPWlsMg68lpFhY"
+  });
+
+  const LICENSE_STORAGE_KEY = "proLicense";
+
+  // Test seam only: the autopilot suite verifies against an ephemeral
+  // keypair. Never set outside tests; production always verifies
+  // against LICENSE_PUBLIC_JWK.
+  let _testLicenseJwk = null;
+
+  function b64urlToBytes(input) {
+    const b64 = String(input).replace(/-/g, "+").replace(/_/g, "/");
+    const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+    const bin = atob(padded);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+
+  async function verifyProLicenseKey(rawKey) {
+    const key = String(rawKey || "").trim();
+    const parts = key.split(".");
+    if (parts.length !== 3 || parts[0] !== "GCC1") return false;
+    if (!/^[A-Za-z0-9_-]+$/.test(parts[1]) || !/^[A-Za-z0-9_-]+$/.test(parts[2])) return false;
+    let payload;
+    try {
+      payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(parts[1])));
+    } catch {
+      return false;
+    }
+    if (!payload || payload.v !== 1 || payload.plan !== "pro") return false;
+    try {
+      const pubKey = await crypto.subtle.importKey(
+        "jwk",
+        _testLicenseJwk || LICENSE_PUBLIC_JWK,
+        { name: "ECDSA", namedCurve: "P-256" },
+        false,
+        ["verify"]
+      );
+      return await crypto.subtle.verify(
+        { name: "ECDSA", hash: "SHA-256" },
+        pubKey,
+        b64urlToBytes(parts[2]),
+        new TextEncoder().encode(parts[1])
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  async function hasProLicense() {
+    try {
+      const r = await chrome.storage.sync.get(LICENSE_STORAGE_KEY);
+      const key = r?.[LICENSE_STORAGE_KEY];
+      if (!key) return false;
+      return await verifyProLicenseKey(key);
+    } catch {
+      return false;
+    }
+  }
+
+  // =========================
+  // Auto-Pilot (7.12, Pro)
+  // =========================
+  // A weekly scheduled Smart Suggestions sweep: read-only smartScan,
+  // then one archive-only cleanup over the top recommendations. It
+  // composes machinery that already exists (the alarm anchoring above,
+  // the smartScan run kind, the rulesOverride cleanup path and the
+  // smartPendingApply marker); nothing here touches new Gmail DOM.
+  //
+  // Storage:
+  //   sync  autoPilot        { enabled, confirmed, lastRunAt }
+  //   local autoPilotState   { pending, preview, lastRun }
+  //     pending: { stage: "scan"|"apply", runId, dryRun, observedCount,
+  //                startedAt } while a sweep is in flight
+  //     preview: { count, at } the first sweep's dry-run tally, kept
+  //              until the user confirms live mode
+  //     lastRun: { at, count, dryRun } the compact popup summary
+  //
+  // Preview-first: until autoPilot.confirmed is true every sweep runs
+  // as a dry run. The popup shows "would have archived N" with a
+  // one-time confirm; only after that do sweeps go live. Guardrails on
+  // live sweeps: archive only (never delete), at most
+  // AUTOPILOT_MAX_PER_RUN senders, tag-before-action stays on, and the
+  // engine's whitelist / protected-keyword / starred / important
+  // guards all apply unchanged.
+
+  const AUTOPILOT_INTERVAL_MINUTES = 10080; // weekly
+  const AUTOPILOT_MAX_PER_RUN = 25; // mirrors GCC.smart.LIMITS.MAX_BULK_PER_RUN
+  const AUTOPILOT_DISMISS_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+  const AUTOPILOT_DOMAIN_BOOST = 6;
+  const AUTOPILOT_PENDING_TTL_MS = 1000 * 60 * 60 * 2; // same as run TTL
+
+  async function getAutoPilotConfig() {
+    try {
+      const r = await chrome.storage.sync.get(STORAGE_KEYS.AUTOPILOT);
+      const cfg = r?.[STORAGE_KEYS.AUTOPILOT];
+      return {
+        enabled: Boolean(cfg?.enabled),
+        confirmed: Boolean(cfg?.confirmed),
+        lastRunAt: Number(cfg?.lastRunAt) || 0
+      };
+    } catch {
+      return { enabled: false, confirmed: false, lastRunAt: 0 };
+    }
+  }
+
+  async function getAutoPilotState() {
+    try {
+      const r = await chrome.storage.local.get(STORAGE_KEYS.AUTOPILOT_STATE);
+      const s = r?.[STORAGE_KEYS.AUTOPILOT_STATE];
+      return s && typeof s === "object" ? s : {};
+    } catch {
+      return {};
+    }
+  }
+
+  async function setAutoPilotState(patch) {
+    const state = await getAutoPilotState();
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.AUTOPILOT_STATE]: { ...state, ...patch }
+    });
+  }
+
+  async function restoreAutoPilotAlarm() {
+    try {
+      const cfg = await getAutoPilotConfig();
+      await chrome.alarms.clear(AUTOPILOT_ALARM);
+      if (!cfg.enabled) return;
+      // Same anchoring as the schedules above: next fire is last run
+      // plus the interval, so browser restarts never defer the sweep;
+      // a brand-new enable fires the preview about a minute out.
+      const now = Date.now();
+      const nextDue = cfg.lastRunAt
+        ? cfg.lastRunAt + AUTOPILOT_INTERVAL_MINUTES * 60 * 1000
+        : now + 60 * 1000;
+      chrome.alarms.create(AUTOPILOT_ALARM, {
+        when: nextDue > now ? nextDue : now + 60 * 1000,
+        periodInMinutes: AUTOPILOT_INTERVAL_MINUTES
+      });
+    } catch (e) {
+      console.error("[GCC SW] restoreAutoPilotAlarm failed:", e);
+    }
+  }
+
+  // ---- recommendation selection ----
+  // Engine-local copies of the GCC.smart policy pieces the sweep needs
+  // (whitelist coverage, protected keywords, dismissal TTL, domain
+  // boost, ranking, the bulk rule). Duplicated because the worker is
+  // self-contained; the autopilot test suite pins each one against the
+  // shared implementation so they cannot drift.
+
+  function autoPilotWhitelistCovers(entry, email) {
+    const e = String(entry || "").trim().toLowerCase();
+    if (!e) return false;
+    if (e.startsWith("*@")) return email.endsWith(e.slice(1));
+    if (e.includes("@")) return email === e;
+    return email.endsWith("@" + e) || email.endsWith("." + e);
+  }
+
+  function autoPilotSenderVetoed(sender, whitelist, protectKeywords) {
+    const email = String(sender?.email || "").trim().toLowerCase();
+    if (!SMART_EMAIL_RE.test(email)) return true;
+    const sig = sender?.signals || {};
+    if (sig.starred || sig.corresponded) return true;
+    if ((whitelist || []).some((w) => autoPilotWhitelistCovers(w, email))) return true;
+    const hay = (email + " " + String(sender?.name || "")).toLowerCase();
+    return (protectKeywords || []).some((k) => {
+      const key = String(k || "").trim().toLowerCase();
+      return key && hay.includes(key);
+    });
+  }
+
+  function autoPilotIsDismissed(feedback, email, now) {
+    const fb = feedback?.bySender?.[String(email || "").trim().toLowerCase()];
+    if (!fb || fb.action !== "dismissed") return false;
+    return (now - (Number(fb.at) || 0)) < AUTOPILOT_DISMISS_TTL_MS;
+  }
+
+  function autoPilotDomainBoost(feedback, email) {
+    const domain = String(email || "").toLowerCase().split("@")[1] || "";
+    if (!domain) return 0;
+    for (const [addr, fb] of Object.entries(feedback?.bySender || {})) {
+      if (fb?.action === "applied" && (addr.split("@")[1] || "") === domain) {
+        return AUTOPILOT_DOMAIN_BOOST;
+      }
+    }
+    return 0;
+  }
+
+  function autoPilotPickSenders(senders, feedback, whitelist, protectKeywords, now = Date.now()) {
+    if (!Array.isArray(senders)) return [];
+    return senders
+      .filter((s) => s && typeof s.email === "string")
+      .filter((s) => !autoPilotSenderVetoed(s, whitelist, protectKeywords))
+      .filter((s) => !autoPilotIsDismissed(feedback, s.email, now))
+      .map((s) => ({
+        email: s.email.trim().toLowerCase(),
+        score: Math.min(100, Math.max(0, Number(s.score) || 0) + autoPilotDomainBoost(feedback, s.email)),
+        estCount: Math.max(0, Math.min(999999, Number(s.estCount) || 0))
+      }))
+      .sort((a, b) => b.score - a.score || b.estCount - a.estCount)
+      .slice(0, AUTOPILOT_MAX_PER_RUN)
+      .map((s) => s.email);
+  }
+
+  function autoPilotBuildRule(emails) {
+    if (!Array.isArray(emails)) return "";
+    const clean = [];
+    const seen = new Set();
+    for (const raw of emails) {
+      if (typeof raw !== "string") continue;
+      const email = raw.trim().toLowerCase();
+      if (!email || email.length > 320 || !SMART_EMAIL_RE.test(email) || seen.has(email)) continue;
+      seen.add(email);
+      clean.push(email);
+      if (clean.length >= AUTOPILOT_MAX_PER_RUN) break;
+    }
+    if (!clean.length) return "";
+    return `from:(${clean.join(" OR ")}) older_than:6m`;
+  }
+
+  // ---- run stages ----
+  // MV3 restarts the worker between the alarm, the scan finishing and
+  // the apply finishing, so every stage transition lives in storage
+  // (autoPilotState.pending) and is driven by the messages the engine
+  // already sends: smartScan progress "done" starts the apply, the
+  // cleanup's gmailCleanerDone (which carries runId) closes it out.
+
+  async function findGmailTabForAutoPilot() {
+    const gmailTabs = await chrome.tabs.query({ url: "https://mail.google.com/*" });
+    if (!gmailTabs.length) return null;
+    const gmailTab = gmailTabs.find((t) => t.active) || gmailTabs[0];
+    try {
+      await chrome.tabs.get(gmailTab.id);
+    } catch {
+      return null;
+    }
+    return gmailTab;
+  }
+
+  async function runAutoPilot() {
+    try {
+      const cfg = await getAutoPilotConfig();
+      if (!cfg.enabled) return;
+
+      if (!(await hasProLicense())) {
+        console.log("[GCC SW] Auto-Pilot: no valid Pro license, skipping sweep");
+        return;
+      }
+
+      // Scheduled work honours snooze / vacation mode.
+      if (await getSnoozeUntil()) {
+        console.log("[GCC SW] Auto-Pilot: snooze active, skipping sweep");
+        return;
+      }
+
+      // Never stomp a run in flight (manual or scheduled).
+      if (await hasActiveRun()) {
+        console.log("[GCC SW] Auto-Pilot: another run is active, skipping sweep");
+        return;
+      }
+
+      const state = await getAutoPilotState();
+      const pending = state.pending;
+      if (pending && Date.now() - (Number(pending.startedAt) || 0) < AUTOPILOT_PENDING_TTL_MS) {
+        console.log("[GCC SW] Auto-Pilot: previous sweep still pending, skipping");
+        return;
+      }
+
+      const gmailTab = await findGmailTabForAutoPilot();
+      if (!gmailTab) {
+        console.log("[GCC SW] Auto-Pilot: no Gmail tab open, skipping sweep");
+        return;
+      }
+
+      // Stage 1: the read-only smart scan. Known senders from earlier
+      // scans ride along so discovery costs nothing extra for them.
+      const [syncData, localData] = await Promise.all([
+        chrome.storage.sync.get([STORAGE_KEYS.WHITELIST, STORAGE_KEYS.PROTECT_KEYWORDS]),
+        chrome.storage.local.get([
+          STORAGE_KEYS.SMART_SCAN,
+          STORAGE_KEYS.SUBSCRIPTIONS,
+          STORAGE_KEYS.STORAGE_XRAY
+        ])
+      ]);
+      const whitelist = Array.isArray(syncData?.[STORAGE_KEYS.WHITELIST])
+        ? syncData[STORAGE_KEYS.WHITELIST]
+        : [];
+      const protectKeywords = Array.isArray(syncData?.[STORAGE_KEYS.PROTECT_KEYWORDS])
+        ? syncData[STORAGE_KEYS.PROTECT_KEYWORDS]
+        : [];
+      const known = new Map();
+      for (const src of [
+        localData?.[STORAGE_KEYS.SMART_SCAN]?.senders,
+        localData?.[STORAGE_KEYS.SUBSCRIPTIONS]?.senders,
+        localData?.[STORAGE_KEYS.STORAGE_XRAY]?.senders
+      ]) {
+        for (const s of src || []) {
+          if (!s?.email || known.has(s.email)) continue;
+          known.set(s.email, {
+            email: s.email,
+            name: s.name || "",
+            count: Number(s.estCount ?? s.count) || 1,
+            estMb: Number(s.signals?.estMb ?? s.estMb) || 0
+          });
+          if (known.size >= 100) break;
+        }
+      }
+
+      await setAutoPilotState({
+        pending: { stage: "scan", startedAt: Date.now() }
+      });
+
+      const scanConfig = {
+        runKind: "smartScan",
+        whitelist,
+        protectKeywords,
+        smartKnownSenders: [...known.values()],
+        debugMode: false,
+        version: SW_VERSION
+      };
+
+      await chrome.scripting.executeScript({
+        target: { tabId: gmailTab.id },
+        func: (cfg2) => { window.GMAIL_CLEANER_CONFIG = cfg2; },
+        args: [scanConfig]
+      });
+      await chrome.scripting.executeScript({
+        target: { tabId: gmailTab.id },
+        files: ["contentScript.js"]
+      });
+
+      console.log("[GCC SW] Auto-Pilot: scan stage started");
+    } catch (e) {
+      console.error("[GCC SW] runAutoPilot failed:", e);
+      await setAutoPilotState({ pending: null }).catch(() => {});
+    }
+  }
+
+  // Stage 2: the scan finished; pick the top recommendations and run
+  // one archive-only cleanup over them.
+  async function startAutoPilotApply() {
+    let claimedRunId = "";
+    try {
+      const cfg = await getAutoPilotConfig();
+      if (!cfg.enabled || !(await hasProLicense())) {
+        await setAutoPilotState({ pending: null });
+        return;
+      }
+
+      const [syncData, localData] = await Promise.all([
+        chrome.storage.sync.get([STORAGE_KEYS.WHITELIST, STORAGE_KEYS.PROTECT_KEYWORDS]),
+        chrome.storage.local.get([STORAGE_KEYS.SMART_SCAN, STORAGE_KEYS.SMART_FEEDBACK])
+      ]);
+      const whitelist = Array.isArray(syncData?.[STORAGE_KEYS.WHITELIST])
+        ? syncData[STORAGE_KEYS.WHITELIST]
+        : [];
+      const protectKeywords = Array.isArray(syncData?.[STORAGE_KEYS.PROTECT_KEYWORDS])
+        ? syncData[STORAGE_KEYS.PROTECT_KEYWORDS]
+        : [];
+      const senders = autoPilotPickSenders(
+        localData?.[STORAGE_KEYS.SMART_SCAN]?.senders,
+        localData?.[STORAGE_KEYS.SMART_FEEDBACK],
+        whitelist,
+        protectKeywords
+      );
+      const rule = autoPilotBuildRule(senders);
+
+      if (!rule) {
+        // Nothing safe to sweep: record the visit so the popup can say
+        // so, and anchor the next weekly fire.
+        const now = Date.now();
+        await setAutoPilotState({
+          pending: null,
+          lastRun: { at: now, count: 0, dryRun: !cfg.confirmed }
+        });
+        await safeSyncSet(
+          { [STORAGE_KEYS.AUTOPILOT]: { ...cfg, lastRunAt: now } },
+          "autoPilot"
+        );
+        console.log("[GCC SW] Auto-Pilot: no eligible suggestions, nothing to sweep");
+        return;
+      }
+
+      const gmailTab = await findGmailTabForAutoPilot();
+      if (!gmailTab || (await hasActiveRun())) {
+        await setAutoPilotState({ pending: null });
+        return;
+      }
+
+      const dryRun = !cfg.confirmed;
+      const runId = `autopilot_${Date.now()}`;
+
+      // Claim the run marker so a popup opened mid-sweep refuses to
+      // start a second run, exactly like scheduled cleanups do.
+      const claim = { gmailTabId: gmailTab.id, runId, startedAt: Date.now(), source: "autopilot" };
+      try {
+        await chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: claim });
+      } catch {}
+      await chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_RUN]: claim });
+      claimedRunId = runId;
+
+      // Live sweeps register the pending-apply marker so confirmed
+      // applies feed the same feedback loop popup applies do.
+      if (!dryRun) {
+        await recordPendingSmartApply(runId, senders);
+      }
+
+      await setAutoPilotState({
+        pending: { stage: "apply", runId, dryRun, senderCount: senders.length, startedAt: Date.now() }
+      });
+
+      const config = {
+        // Archive only in v1: never delete, whatever the per-sender
+        // recommendation would have led with.
+        archiveInsteadOfDelete: true,
+        rulesOverride: [rule],
+        // The rule carries its own older_than:6m; a global minimum age
+        // would stack a second, stricter filter on top.
+        minAge: null,
+        intensity: "light",
+        dryRun,
+        safeMode: true,
+        tagBeforeDelete: true,
+        tagLabelPrefix: "GmailCleaner",
+        guardSkipStarred: true,
+        guardSkipImportant: true,
+        guardSkipUnread: true,
+        guardSkipUserLabels: true,
+        reviewMode: false,
+        debugMode: false,
+        whitelist,
+        protectKeywords,
+        version: SW_VERSION,
+        scheduled: true,
+        runId
+      };
+
+      await chrome.scripting.executeScript({
+        target: { tabId: gmailTab.id },
+        func: (cfg2) => { window.GMAIL_CLEANER_CONFIG = cfg2; },
+        args: [config]
+      });
+      await chrome.scripting.executeScript({
+        target: { tabId: gmailTab.id },
+        files: ["contentScript.js"]
+      });
+
+      console.log(`[GCC SW] Auto-Pilot: ${dryRun ? "preview (dry run)" : "live"} apply started over ${senders.length} sender(s)`);
+    } catch (e) {
+      console.error("[GCC SW] startAutoPilotApply failed:", e);
+      await setAutoPilotState({ pending: null }).catch(() => {});
+      // Injection never happened, so no gmailCleanerDone will arrive
+      // to release the claim; a stale claim would block manual runs
+      // for the whole 2h TTL. Release it only if it is still ours.
+      if (claimedRunId) {
+        try {
+          const r = await chrome.storage.local.get(STORAGE_KEYS.ACTIVE_RUN);
+          if (r?.[STORAGE_KEYS.ACTIVE_RUN]?.runId === claimedRunId) {
+            await chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: null });
+            await chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_RUN]: null });
+          }
+        } catch {}
+      }
+    }
+  }
+
+  // Progress messages drive the stage machine. The scan's "done"
+  // launches the apply; the apply's "done" stats carry the would-have
+  // count a dry run reports (the gmailCleanerDone summary books dry
+  // runs as zero, so the count is captured here).
+  async function handleAutoPilotProgress(msg) {
+    try {
+      const state = await getAutoPilotState();
+      const pending = state.pending;
+      if (!pending) return;
+
+      if (Date.now() - (Number(pending.startedAt) || 0) > AUTOPILOT_PENDING_TTL_MS) {
+        await setAutoPilotState({ pending: null });
+        return;
+      }
+
+      const terminal = msg.done || msg.phase === "done" || msg.phase === "cancelled" || msg.phase === "error";
+      if (!terminal) return;
+
+      if (pending.stage === "scan" && msg.runKind === "smartScan") {
+        if (msg.phase === "done") {
+          // Serialize behind the store writes the scan just queued so
+          // the apply reads the union-merged sender list.
+          withStorageLock(() => startAutoPilotApply())
+            .catch((e) => console.warn("[GCC SW] autopilot apply stage failed:", e?.message || e));
+        } else {
+          await setAutoPilotState({ pending: null });
+        }
+        return;
+      }
+
+      if (pending.stage === "apply" && !msg.runKind) {
+        if (msg.phase === "done" && msg.stats) {
+          const modeMatches = (msg.stats.mode === "dry") === Boolean(pending.dryRun);
+          if (modeMatches) {
+            await setAutoPilotState({
+              pending: { ...pending, observedCount: Math.max(0, Number(msg.stats.runCount) || 0) }
+            });
+          }
+        } else if (msg.phase === "error" || msg.phase === "cancelled") {
+          await setAutoPilotState({ pending: null });
+        }
+      }
+    } catch (e) {
+      console.warn("[GCC SW] handleAutoPilotProgress failed:", e?.message || e);
+    }
+  }
+
+  // gmailCleanerDone carries the runId, so it is the authoritative
+  // close-out for the apply stage.
+  async function resolveAutoPilotDone(summary) {
+    try {
+      const state = await getAutoPilotState();
+      const pending = state.pending;
+      if (!pending || pending.stage !== "apply") return;
+      if (String(summary?.runId || "") !== String(pending.runId || "")) return;
+
+      const cfg = await getAutoPilotConfig();
+      const now = Date.now();
+      const count = Number.isFinite(Number(pending.observedCount))
+        ? Number(pending.observedCount)
+        : Math.max(0, Number(summary?.count) || 0);
+      const patch = {
+        pending: null,
+        lastRun: { at: now, count, dryRun: Boolean(pending.dryRun) }
+      };
+      if (pending.dryRun) {
+        // The anti-1-star mechanism: the first sweep's would-have tally
+        // waits in the popup for an explicit "turn on for real".
+        patch.preview = { count, at: now };
+      } else {
+        patch.preview = null;
+      }
+      await setAutoPilotState(patch);
+      await safeSyncSet(
+        { [STORAGE_KEYS.AUTOPILOT]: { ...cfg, lastRunAt: now } },
+        "autoPilot"
+      );
+      console.log(`[GCC SW] Auto-Pilot: sweep finished (${pending.dryRun ? "preview" : "live"}, ${count} affected)`);
+    } catch (e) {
+      console.error("[GCC SW] resolveAutoPilotDone failed:", e);
+    }
+  }
+
+  // ---- popup-facing settings ----
+
+  async function getAutoPilotForPopup() {
+    const [cfg, state] = await Promise.all([getAutoPilotConfig(), getAutoPilotState()]);
+    return {
+      enabled: cfg.enabled,
+      confirmed: cfg.confirmed,
+      lastRun: state.lastRun || null,
+      preview: state.preview || null,
+      pendingStage: state.pending?.stage || null
+    };
+  }
+
+  async function setAutoPilotEnabled(enabled) {
+    const cfg = await getAutoPilotConfig();
+    if (enabled && !(await hasProLicense())) {
+      return { ok: false, error: "pro_required" };
+    }
+    const next = { ...cfg, enabled: Boolean(enabled) };
+    await safeSyncSet({ [STORAGE_KEYS.AUTOPILOT]: next }, "autoPilot");
+    if (!enabled) {
+      await setAutoPilotState({ pending: null });
+    }
+    await restoreAutoPilotAlarm();
+    return { ok: true, autoPilot: await getAutoPilotForPopup() };
+  }
+
+  async function confirmAutoPilot() {
+    const cfg = await getAutoPilotConfig();
+    if (!(await hasProLicense())) {
+      return { ok: false, error: "pro_required" };
+    }
+    await safeSyncSet(
+      { [STORAGE_KEYS.AUTOPILOT]: { ...cfg, confirmed: true } },
+      "autoPilot"
+    );
+    await setAutoPilotState({ preview: null });
+    return { ok: true, autoPilot: await getAutoPilotForPopup() };
+  }
+
+  // =========================
   // Completion notification
   // =========================
 
@@ -1265,5 +1914,25 @@
       console.error("[GCC SW] extractAccountFromUrl failed:", e);
       return 0;
     }
+  }
+
+  // Test seam, mirroring the content script's GCC_TEST_MODE pattern:
+  // the autopilot suite pins the worker's duplicated policy pieces
+  // against GCC.smart / GCC.license. Production never sets the flag.
+  if (typeof globalThis !== "undefined" && globalThis.GCC_SW_TEST_MODE) {
+    globalThis.GCC_SW_INTERNALS = {
+      LICENSE_PUBLIC_JWK,
+      verifyProLicenseKey,
+      hasProLicense,
+      autoPilotWhitelistCovers,
+      autoPilotSenderVetoed,
+      autoPilotIsDismissed,
+      autoPilotDomainBoost,
+      autoPilotPickSenders,
+      autoPilotBuildRule,
+      runAutoPilot,
+      restoreAutoPilotAlarm,
+      setTestLicenseJwk: (jwk) => { _testLicenseJwk = jwk; }
+    };
   }
 })();
