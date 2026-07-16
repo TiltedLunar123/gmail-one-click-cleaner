@@ -282,9 +282,51 @@ async function findGmailTab() {
   }
 }
 
+// 7.12: no Gmail tab open is handled for the user, same as the popup.
+// The tab opens in the background (this page keeps focus and streams
+// restore progress) and the wait tolerates Gmail's slow first paint.
+const GMAIL_OPEN_TIMEOUT_MS = 30000;
+
+async function openGmailAndWait() {
+  let created = null;
+  try {
+    created = await GCC.promisify(chrome.tabs.create.bind(chrome.tabs), {
+      url: "https://mail.google.com/mail/u/0/#inbox",
+      active: false
+    });
+  } catch {
+    return null;
+  }
+  if (!created?.id) return null;
+  GCC.showToast("Opening Gmail in the background...", "info");
+  const deadline = Date.now() + GMAIL_OPEN_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    await GCC.sleep(400);
+    let tab = null;
+    try {
+      tab = await GCC.promisify(chrome.tabs.get.bind(chrome.tabs), created.id);
+    } catch {
+      return null;
+    }
+    if (tab?.status !== "complete") continue;
+    if (tab.url?.startsWith("https://mail.google.com/")) {
+      await GCC.sleep(1200);
+      return tab;
+    }
+    if (tab.url) {
+      // Signed-out redirect: no host access there, nothing to inject.
+      GCC.showToast("Sign in to Gmail in the tab that just opened, then retry", "warning");
+      return null;
+    }
+  }
+  GCC.showToast("Gmail is taking too long to load, try again shortly", "warning");
+  return null;
+}
+
 // Same injection shape the popup uses for the auxiliary run kinds:
-// refuse without the Gmail grant, refuse without a Gmail tab, refuse a
-// tab that already has a run attached, then config + contentScript.js.
+// refuse without the Gmail grant, auto-open Gmail when no tab exists,
+// refuse a tab that already has a run attached, then config +
+// contentScript.js.
 async function injectRestoreRun(entry) {
   if (!GCC.hasChromeScripting() || !GCC.hasChromeTabs()) {
     GCC.showToast("Extension APIs unavailable on this page", "error");
@@ -294,10 +336,15 @@ async function injectRestoreRun(entry) {
     GCC.showToast("Allow Gmail access from the extension popup first", "warning");
     return null;
   }
-  const gmailTab = await findGmailTab();
+  let gmailTab = await findGmailTab();
   if (!gmailTab) {
-    GCC.showToast("Open mail.google.com in a tab, then try again", "warning");
-    return null;
+    setRestoreStatus("No Gmail tab open. Opening Gmail...");
+    gmailTab = await openGmailAndWait();
+    if (!gmailTab) {
+      setRestoreStatus("");
+      GCC.showToast("Could not get a Gmail tab ready, try again", "warning");
+      return null;
+    }
   }
 
   try {

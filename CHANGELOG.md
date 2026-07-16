@@ -20,6 +20,11 @@ This log tracks user-visible behavior, UI changes, and important internal fixes.
   like every other run. No new permissions, no new Gmail surface.
 
 ### Changed
+- **No Gmail tab? The extension opens one for you.** Run Cleaner, every
+  scan, purge, bulk apply and Restore used to stop with "open Gmail
+  first". They now open Gmail in a background tab, wait for it to
+  load, and carry on by themselves. If Gmail asks you to sign in, the
+  tab is brought forward and the popup says so instead of guessing.
 - **The popup opens calm.** On a fresh install the Clean tab now fits
   the Run button on screen without scrolling: the "How it works"
   reassurance collapses to a single quiet line (its content stays one

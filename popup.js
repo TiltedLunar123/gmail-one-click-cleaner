@@ -882,37 +882,56 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  const showOpenGmailHelper = () => {
-    setStatus("open gmail first, then try again", STATUS_TYPES.WARNING);
+  // 7.12: no Gmail tab is not the user's problem to fix. Every run
+  // path opens one automatically and waits for it to finish loading.
+  // The tab opens in the BACKGROUND on purpose: an active tab steals
+  // focus, which closes this popup and kills the run mid-start (the
+  // engine drives background Gmail tabs fine; schedules always have).
+  // On failure the reason lands in setStatusFn and null comes back.
+  const GMAIL_OPEN_TIMEOUT_MS = 30000;
 
-    const existing = elements.statusEl.querySelector(".open-gmail-helper");
-    if (existing) return;
-
-    const openBtn = document.createElement("button");
-    openBtn.type = "button";
-    openBtn.className = "open-gmail-helper quick-action-btn";
-    openBtn.textContent = "open gmail";
-    openBtn.style.marginTop = "8px";
-
-    openBtn.addEventListener("click", async () => {
-      const existingGmail = await findGmailTab();
-      if (existingGmail?.id) {
-        await tabsUpdate(existingGmail.id, { active: true });
-        showToast("switching to gmail…", "info");
-        setTimeout(safeClosePopup, 150);
-        return;
+  const openGmailAndWait = async (setStatusFn) => {
+    setStatusFn("No Gmail tab open. Opening Gmail for you...");
+    const created = await tabsCreate({ url: CONFIG.GMAIL_INBOX_URL, active: false });
+    if (!created?.id) {
+      setStatusFn("Could not open Gmail. Open mail.google.com and try again.");
+      return null;
+    }
+    showToast("opening gmail in the background…", "info");
+    const deadline = Date.now() + GMAIL_OPEN_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      await GCC.sleep(400);
+      let tab = null;
+      try {
+        tab = await GCC.promisify(chrome.tabs.get.bind(chrome.tabs), created.id);
+      } catch {
+        setStatusFn("The Gmail tab closed before it finished loading.");
+        return null;
       }
-
-      await tabsCreate({ url: CONFIG.GMAIL_INBOX_URL, active: true });
-      showToast("opening gmail…", "info");
-      setTimeout(safeClosePopup, 150);
-    });
-
-    elements.statusEl.appendChild(openBtn);
+      if (tab?.status !== "complete") continue;
+      if (tab.url?.startsWith(CONFIG.GMAIL_URL)) {
+        // Let the Gmail app paint before the engine starts querying.
+        await GCC.sleep(1200);
+        return tab;
+      }
+      // Signed-out profiles bounce to accounts.google.com, where the
+      // extension has no host access and injection cannot work.
+      if (tab.url) {
+        await tabsUpdate(tab.id, { active: true });
+        setStatusFn("Sign in to Gmail in the tab that just opened, then run again.");
+        return null;
+      }
+    }
+    setStatusFn("Gmail is taking too long to load. Try again in a moment.");
+    return null;
   };
 
-  const removeOpenGmailHelper = () => {
-    elements.statusEl?.querySelector(".open-gmail-helper")?.remove();
+  // Every run kind funnels through here: reuse an open Gmail tab or
+  // auto-open one and wait for it.
+  const findOrOpenGmailTab = async (setStatusFn) => {
+    const existing = await findGmailTab();
+    if (existing?.id) return existing;
+    return await openGmailAndWait(setStatusFn);
   };
 
   const findProgressTab = async (gmailTabId) => {
@@ -1228,7 +1247,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     state.isRunning = true;
-    removeOpenGmailHelper();
     showFormState();
 
     setRunButtonState({
@@ -1242,9 +1260,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let claimedRunId = null;
     try {
-      const gmailTab = await findGmailTab();
+      const gmailTab = await findOrOpenGmailTab((m) => setStatus(m, STATUS_TYPES.RUNNING));
       if (!gmailTab?.id) {
-        showOpenGmailHelper();
         resetRunButton();
         hideProgress();
         state.isRunning = false;
@@ -1530,12 +1547,8 @@ document.addEventListener("DOMContentLoaded", () => {
       return null;
     }
 
-    const gmailTab = await findGmailTab();
-    if (!gmailTab) {
-      showToast("open Gmail in a tab first", "warning");
-      setStatusFn("Open mail.google.com in a tab, then try again.");
-      return null;
-    }
+    const gmailTab = await findOrOpenGmailTab(setStatusFn);
+    if (!gmailTab) return null;
 
     try {
       const [attached] = await scriptingExecuteScript({
@@ -1932,9 +1945,8 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      const gmailTab = await findGmailTab();
+      const gmailTab = await findOrOpenGmailTab(setXrayStatus);
       if (!gmailTab?.id) {
-        showOpenGmailHelper();
         state.isRunning = false;
         return;
       }
@@ -2275,9 +2287,8 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      const gmailTab = await findGmailTab();
+      const gmailTab = await findOrOpenGmailTab(setSmartStatus);
       if (!gmailTab?.id) {
-        showOpenGmailHelper();
         state.isRunning = false;
         return;
       }
