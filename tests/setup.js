@@ -1,3 +1,15 @@
+// Globals this environment doesn't hand us. Node exposed WebCrypto on
+// globalThis in 19, so on 18 there is no `crypto` at all; jsdom has one
+// but it carries no `subtle`. Either way, fall back to node:crypto.
+const nodeCrypto = require("node:crypto");
+const { TextEncoder, TextDecoder } = require("node:util");
+
+if (!global.TextEncoder) global.TextEncoder = TextEncoder;
+if (!global.TextDecoder) global.TextDecoder = TextDecoder;
+if (!global.crypto || !global.crypto.subtle) {
+  Object.defineProperty(global, "crypto", { value: nodeCrypto.webcrypto, configurable: true });
+}
+
 // Global Chrome API mock for all tests
 const storageBacking = { local: {}, sync: {}, session: {} };
 
