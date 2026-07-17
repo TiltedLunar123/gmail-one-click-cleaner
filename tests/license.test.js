@@ -11,14 +11,8 @@
 const fs = require("fs");
 const path = require("path");
 const nodeCrypto = require("node:crypto");
-const { TextEncoder, TextDecoder } = require("node:util");
 
-// jsdom lacks TextEncoder/TextDecoder and WebCrypto's subtle API.
-if (!global.TextEncoder) global.TextEncoder = TextEncoder;
-if (!global.TextDecoder) global.TextDecoder = TextDecoder;
-if (!global.crypto || !global.crypto.subtle) {
-  Object.defineProperty(global, "crypto", { value: nodeCrypto.webcrypto, configurable: true });
-}
+// TextEncoder/TextDecoder and WebCrypto's subtle come from tests/setup.js.
 
 const SHARED_SRC = fs.readFileSync(path.join(__dirname, "..", "shared.js"), "utf-8");
 const { mintKey } = require("../netlify/functions/get-key.js")._internal;
