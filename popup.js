@@ -2,11 +2,18 @@
 document.addEventListener("DOMContentLoaded", () => {
   "use strict";
 
+  // 7.13: swap the inline English for catalog messages BEFORE anything
+  // captures label text (originalLabel below must see the final copy).
+  // No-ops outside a real extension context, so tests and the plain
+  // HTTP render harness keep their English markup.
+  GCC.i18n.apply(document);
+  const t = GCC.i18n.t;
+
   // =========================
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "7.12.1";
+  const POPUP_VERSION = "7.13.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -321,6 +328,10 @@ document.addEventListener("DOMContentLoaded", () => {
     // 7.1 Gmail host access (Firefox lets users revoke it)
     gmailAccessBanner: $("gmailAccessBanner"),
     gmailAccessBtn: $("gmailAccessBtn"),
+
+    // 7.13 install-source guard
+    installSourceBanner: $("installSourceBanner"),
+    installSourceStoreBtn: $("installSourceStoreBtn"),
     kbdHelpBtn: $("kbdHelpBtn"),
     kbdHelp: $("keyboardHelp"),
     kbdHelpClose: $("kbdHelpClose"),
@@ -483,8 +494,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const showButtonSuccess = () => {
     setRunButtonState({
       disabled: true,
-      label: "started",
-      sub: "check the progress tab",
+      label: t("btnStarted", "started"),
+      sub: t("btnStartedSub", "check the progress tab"),
       state: BUTTON_STATES.SUCCESS
     });
 
@@ -531,7 +542,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.resultCount) elements.resultCount.textContent = String(Math.max(0, Number(count || 0)));
     if (elements.resultSize) elements.resultSize.textContent = GCC.formatBytes(freedBytes);
     const note = elements.resultSummary.querySelector("span[style]");
-    if (note) note.textContent = action === "archive" ? "(all archived to All Mail)" : "(all moved to Trash)";
+    if (note) {
+      note.textContent = action === "archive"
+        ? t("resultArchiveNote", "(all archived to All Mail)")
+        : t("resultTrashNote", "(all moved to Trash)");
+    }
     elements.resultSummary.classList.add("show");
   };
 
@@ -818,7 +833,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const pill = document.createElement("button");
         pill.type = "button";
         pill.className = "account-pill" + (idx === 0 ? " active" : "");
-        pill.textContent = tab.title ? tab.title.replace(/ - Gmail.*$/, "").slice(0, 25) : "Account " + tab.account;
+        pill.textContent = tab.title
+          ? tab.title.replace(/ - Gmail.*$/, "").slice(0, 25)
+          : t("accountPill", "Account " + tab.account, [String(tab.account)]);
         pill.dataset.tabId = tab.id;
         pill.addEventListener("click", () => {
           elements.accountSelector.querySelectorAll(".account-pill").forEach(pill => pill.classList.remove("active"));
@@ -857,7 +874,7 @@ document.addEventListener("DOMContentLoaded", () => {
       label.style.fontSize = "10px";
       label.style.color = "#64748b";
       label.style.marginRight = "4px";
-      label.textContent = "Protect:";
+      label.textContent = t("protectLabel", "Protect:");
       elements.wlSuggestions.appendChild(label);
 
       filtered.slice(0, 5).forEach(s => {
@@ -871,7 +888,7 @@ document.addEventListener("DOMContentLoaded", () => {
           if (!wl.includes(s.sender)) {
             wl.push(s.sender);
             await storageSet("sync", { whitelist: wl });
-            showToast("added " + s.sender + " to whitelist", "success");
+            showToast(t("addedToWhitelist", "added " + s.sender + " to whitelist", [s.sender]), "success");
             chip.remove();
           }
         });
@@ -891,13 +908,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const GMAIL_OPEN_TIMEOUT_MS = 30000;
 
   const openGmailAndWait = async (setStatusFn) => {
-    setStatusFn("No Gmail tab open. Opening Gmail for you...");
+    setStatusFn(t("gmailOpening", "No Gmail tab open. Opening Gmail for you..."));
     const created = await tabsCreate({ url: CONFIG.GMAIL_INBOX_URL, active: false });
     if (!created?.id) {
-      setStatusFn("Could not open Gmail. Open mail.google.com and try again.");
+      setStatusFn(t("gmailOpenFailed", "Could not open Gmail. Open mail.google.com and try again."));
       return null;
     }
-    showToast("opening gmail in the background…", "info");
+    showToast(t("gmailOpeningToast", "opening gmail in the background…"), "info");
     const deadline = Date.now() + GMAIL_OPEN_TIMEOUT_MS;
     while (Date.now() < deadline) {
       await GCC.sleep(400);
@@ -905,7 +922,7 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         tab = await GCC.promisify(chrome.tabs.get.bind(chrome.tabs), created.id);
       } catch {
-        setStatusFn("The Gmail tab closed before it finished loading.");
+        setStatusFn(t("gmailTabClosedEarly", "The Gmail tab closed before it finished loading."));
         return null;
       }
       if (tab?.status !== "complete") continue;
@@ -918,11 +935,11 @@ document.addEventListener("DOMContentLoaded", () => {
       // extension has no host access and injection cannot work.
       if (tab.url) {
         await tabsUpdate(tab.id, { active: true });
-        setStatusFn("Sign in to Gmail in the tab that just opened, then run again.");
+        setStatusFn(t("gmailSignInFirst", "Sign in to Gmail in the tab that just opened, then run again."));
         return null;
       }
     }
-    setStatusFn("Gmail is taking too long to load. Try again in a moment.");
+    setStatusFn(t("gmailTooSlow", "Gmail is taking too long to load. Try again in a moment."));
     return null;
   };
 
@@ -973,7 +990,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     syncSwitchAria(elements.safeModeEl);
 
-    showToast("monthly preset applied", "success");
+    showToast(t("monthlyApplied", "monthly preset applied"), "success");
     elements.runBtn.focus();
     try {
       elements.runBtn.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -1007,7 +1024,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Toggle off if the same chip is clicked again.
     if (state.activePreset === key) {
       clearTargetPreset();
-      showToast("target cleared - using full rule set", "info");
+      showToast(t("targetCleared", "target cleared - using full rule set"), "info");
       return;
     }
 
@@ -1015,7 +1032,9 @@ document.addEventListener("DOMContentLoaded", () => {
     state.rulesOverride = preset.rules.slice();
     updateTargetChips();
 
-    showToast(`targeting ${preset.label.toLowerCase()} only`, "success");
+    const chipKeys = { promotions: "chipPromotions", attachments: "chipAttachments", social: "chipSocial", noreply: "chipNoreply" };
+    const localizedLabel = t(chipKeys[key] || "", preset.label);
+    showToast(t("targetingOnly", `targeting ${preset.label.toLowerCase()} only`, [localizedLabel]), "success");
     elements.runBtn?.focus();
   };
 
@@ -1040,14 +1059,16 @@ document.addEventListener("DOMContentLoaded", () => {
   // The pin hint needs BOTH: never dismissed and not already pinned;
   // dismissing it is permanent (a local flag that never expires).
   const refreshBanners = async () => {
-    const [accessOk, snoozeUntil, pinFlag, pinned] = await Promise.all([
+    const [accessOk, snoozeUntil, pinFlag, pinned, installType] = await Promise.all([
       GCC.gmailAccess.check(),
       getSnoozeUntil(),
       storageGet("local", STORAGE_KEYS.PIN_DISMISSED),
-      getPinnedState()
+      getPinnedState(),
+      GCC.installSource.get()
     ]);
 
     const which = GCC.popupUi.pickBanner({
+      sourceUntrusted: GCC.installSource.isUntrusted(installType),
       accessNeeded: !accessOk,
       snoozed: Boolean(snoozeUntil),
       pinEligible: !pinFlag?.[STORAGE_KEYS.PIN_DISMISSED] && pinned !== true
@@ -1055,10 +1076,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (which === "snooze" && elements.snoozeBannerText) {
       const days = Math.max(1, Math.ceil((snoozeUntil - Date.now()) / (24 * 60 * 60 * 1000)));
-      elements.snoozeBannerText.textContent =
-        `Schedules snoozed (~${days} day${days === 1 ? "" : "s"} left). Manual runs still work.`;
+      elements.snoozeBannerText.textContent = days === 1
+        ? t("snoozeOneDay", "Schedules snoozed (~1 day left). Manual runs still work.")
+        : t("snoozeManyDays", `Schedules snoozed (~${days} days left). Manual runs still work.`, [String(days)]);
     }
 
+    elements.installSourceBanner?.classList.toggle("show", which === "source");
     elements.gmailAccessBanner?.classList.toggle("show", which === "access");
     elements.snoozeBanner?.classList.toggle("show", which === "snooze");
     elements.pinHint?.classList.toggle("show", which === "pin");
@@ -1122,8 +1145,9 @@ document.addEventListener("DOMContentLoaded", () => {
       action: GCC.popupUi.recapAction(entry)
     });
     if (elements.recapNote) {
+      const when = GCC.relativeTime(entry.timestamp);
       elements.recapNote.textContent =
-        `Recap: your last cleanup finished ${GCC.relativeTime(entry.timestamp)}, while the popup was closed.`;
+        t("recapDynamic", `Recap: your last cleanup finished ${when}, while the popup was closed.`, [when]);
       elements.recapNote.hidden = false;
     }
     showSuccessCtas();
@@ -1223,11 +1247,11 @@ document.addEventListener("DOMContentLoaded", () => {
         state.deepConfirmArmed = true;
         setRunButtonState({
           disabled: false,
-          label: "confirm deep clean?",
-          sub: "click again to run it - dry run is the safe preview",
+          label: t("deepConfirmLabel", "confirm deep clean?"),
+          sub: t("deepConfirmSub", "click again to run it - dry run is the safe preview"),
           state: BUTTON_STATES.IDLE
         });
-        setStatus("deep targets many categories - click run again to confirm", STATUS_TYPES.WARNING);
+        setStatus(t("deepConfirmStatus", "deep targets many categories - click run again to confirm"), STATUS_TYPES.WARNING);
         if (state.deepConfirmTimer) clearTimeout(state.deepConfirmTimer);
         state.deepConfirmTimer = setTimeout(disarmDeepConfirm, 8000);
         return;
@@ -1241,8 +1265,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // revoke it (or hold a pre-127 profile that never granted it).
     if (!(await GCC.gmailAccess.check())) {
       refreshBanners().catch(() => {});
-      setStatus("allow Gmail access above, then run again", STATUS_TYPES.WARNING);
-      showToast("gmail access needed", "warning");
+      setStatus(t("allowAccessStatus", "allow Gmail access above, then run again"), STATUS_TYPES.WARNING);
+      showToast(t("accessNeededToast", "gmail access needed"), "warning");
       return;
     }
 
@@ -1251,11 +1275,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     setRunButtonState({
       disabled: true,
-      label: "starting…",
-      sub: "finding gmail tab",
+      label: t("btnStarting", "starting…"),
+      sub: t("btnStartingSub", "finding gmail tab"),
       state: BUTTON_STATES.LOADING
     });
-    setStatus("finding a gmail tab…", STATUS_TYPES.RUNNING);
+    setStatus(t("findingTabStatus", "finding a gmail tab…"), STATUS_TYPES.RUNNING);
     showProgress(10);
 
     let claimedRunId = null;
@@ -1275,11 +1299,11 @@ document.addEventListener("DOMContentLoaded", () => {
         log("info", "Claim failed", claim);
         showToast(
           claim.reason === "already_active"
-            ? "a cleanup is already running"
-            : "another popup just started a cleanup",
+            ? t("alreadyRunningToast", "a cleanup is already running")
+            : t("otherPopupToast", "another popup just started a cleanup"),
           "warning"
         );
-        setStatus("cleanup already in progress", STATUS_TYPES.WARNING, true);
+        setStatus(t("alreadyInProgress", "cleanup already in progress"), STATUS_TYPES.WARNING, true);
         resetRunButton();
         hideProgress();
         state.isRunning = false;
@@ -1295,17 +1319,23 @@ document.addEventListener("DOMContentLoaded", () => {
       config.runId = claimedRunId;
       await persistLastConfig(config);
 
-      const destination = config.archiveInsteadOfDelete ? "all mail" : "trash";
-      const modeLabel = config.dryRun ? "dry-run" : "live";
-
       setRunButtonState({
         disabled: true,
-        label: config.dryRun ? "dry-run…" : "running…",
-        sub: config.dryRun ? "counting matches" : `tagging then moving to ${destination}`,
+        label: config.dryRun ? t("btnDryRunning", "dry-run…") : t("btnRunning", "running…"),
+        sub: config.dryRun
+          ? t("btnCountingSub", "counting matches")
+          : (config.archiveInsteadOfDelete
+            ? t("btnMovingArchiveSub", "tagging then moving to all mail")
+            : t("btnMovingTrashSub", "tagging then moving to trash")),
         state: BUTTON_STATES.RUNNING
       });
 
-      setStatus(`${modeLabel} started, opening progress…`, STATUS_TYPES.RUNNING);
+      setStatus(
+        config.dryRun
+          ? t("dryStartedStatus", "dry-run started, opening progress…")
+          : t("liveStartedStatus", "live started, opening progress…"),
+        STATUS_TYPES.RUNNING
+      );
       updateProgress(55);
 
       // Open progress page first (popup usually closes after this)
@@ -1331,7 +1361,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (alreadyAttached) {
         log("info", "Content script already attached, skipping injection");
-        showToast("cleanup already running", "warning");
+        showToast(t("alreadyRunningToast", "a cleanup is already running"), "warning");
         await clearActiveRun();
         claimedRunId = null;
         resetRunButton();
@@ -1358,15 +1388,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
       updateProgress(100);
       showButtonSuccess();
-      showToast("cleanup started", "success");
+      showToast(t("cleanupStartedToast", "cleanup started"), "success");
 
       setTimeout(safeClosePopup, 200);
     } catch (err) {
       const msg = err?.message || String(err);
       log("error", "runCleanup error:", err);
 
-      setStatus(`error: ${msg}`, STATUS_TYPES.ERROR);
-      showToast(`failed: ${msg}`, "error");
+      setStatus(t("errorPrefix", `error: ${msg}`, [msg]), STATUS_TYPES.ERROR);
+      showToast(t("failedPrefix", `failed: ${msg}`, [msg]), "error");
 
       resetRunButton();
       hideProgress();
@@ -1385,13 +1415,13 @@ document.addEventListener("DOMContentLoaded", () => {
   // gate lives here in the UI: the engine itself is not license-aware.
 
   const SUBS_STATUS_LABELS = Object.freeze({
-    unsubscribed: { text: "Unsubscribed", cls: "ok" },
-    manual: { text: "Manual step needed", cls: "warn" },
-    no_button: { text: "No 1-click option", cls: "warn" },
-    no_dialog: { text: "Unconfirmed", cls: "warn" },
-    unknown_dialog: { text: "Unconfirmed", cls: "warn" },
-    not_found: { text: "No mail found", cls: "warn" },
-    error: { text: "Failed", cls: "err" }
+    unsubscribed: { text: t("subsStatusUnsubscribed", "Unsubscribed"), cls: "ok" },
+    manual: { text: t("subsStatusManual", "Manual step needed"), cls: "warn" },
+    no_button: { text: t("subsStatusNoButton", "No 1-click option"), cls: "warn" },
+    no_dialog: { text: t("subsStatusUnconfirmed", "Unconfirmed"), cls: "warn" },
+    unknown_dialog: { text: t("subsStatusUnconfirmed", "Unconfirmed"), cls: "warn" },
+    not_found: { text: t("subsStatusNotFound", "No mail found"), cls: "warn" },
+    error: { text: t("subsStatusFailed", "Failed"), cls: "err" }
   });
 
   const setSubsStatus = (text) => {
@@ -1410,8 +1440,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.subsUpsell) elements.subsUpsell.hidden = active;
     if (elements.unsubBtnSub) {
       elements.unsubBtnSub.textContent = active
-        ? "Uses Gmail's own Unsubscribe control"
-        : "Pro · $9.99 lifetime";
+        ? t("unsubActiveSub", "Uses Gmail's own Unsubscribe control")
+        : t("proPriceSub", "Pro · $9.99 lifetime");
     }
     if (elements.unsubBtn) elements.unsubBtn.classList.toggle("locked", !active);
     if (elements.subsBuyLink) elements.subsBuyLink.href = GCC.license.PRO.BUY_URL;
@@ -1424,8 +1454,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.xrayPurgeBtn) elements.xrayPurgeBtn.classList.toggle("locked", !active);
     if (elements.xrayPurgeBtnSub) {
       elements.xrayPurgeBtnSub.textContent = active
-        ? "Tagged first, then Trash - undo applies"
-        : "Pro · $9.99 once (Google One is $20 every year)";
+        ? t("smartBulkSub", "Tagged first, then Trash - undo applies")
+        : t("xrayProSub", "Pro · $9.99 once (Google One is $20 every year)");
     }
     renderXrayList();
 
@@ -1448,7 +1478,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     if (fallbackUpsell) fallbackUpsell.hidden = false;
-    showToast("could not open checkout - use the Get Pro link", "warning");
+    showToast(t("checkoutFailedToast", "could not open checkout - use the Get Pro link"), "warning");
   };
 
   const getCheckedSubEmails = () =>
@@ -1462,8 +1492,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const total = state.subs.senders.length;
     const checked = getCheckedSubEmails().length;
     elements.subsCount.textContent = checked
-      ? `${checked} of ${total} selected`
-      : `${total} sender${total === 1 ? "" : "s"} found`;
+      ? t("nOfMSelected", `${checked} of ${total} selected`, [String(checked), String(total)])
+      : (total === 1
+        ? t("oneSenderFound", "1 sender found")
+        : t("nSendersFound", `${total} senders found`, [String(total)]));
   };
 
   // 7.3: once a scan exists, the upsell leads with the user's own
@@ -1526,7 +1558,9 @@ document.addEventListener("DOMContentLoaded", () => {
       } else {
         const count = document.createElement("span");
         count.className = "subs-row-count";
-        count.textContent = `${sender.count} email${sender.count === 1 ? "" : "s"}`;
+        count.textContent = sender.count === 1
+          ? t("reasonOneEmail", "1 email")
+          : t("reasonManyEmails", `${sender.count} emails`, [String(sender.count)]);
         row.appendChild(count);
       }
 
@@ -1600,7 +1634,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       state.subs.running = "subscriptionScan";
       if (elements.scanSubsBtn) elements.scanSubsBtn.disabled = true;
-      setSubsStatus("Scanning your mailbox for subscription senders...");
+      setSubsStatus(t("subsScanning", "Scanning your mailbox for subscription senders..."));
       const tabId = await injectSubscriptionRun("subscriptionScan");
       if (tabId === null) {
         state.subs.running = null;
@@ -1609,7 +1643,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch (err) {
       log("error", "scan start failed", err);
-      showToast(`scan failed: ${err?.message || "unknown error"}`, "error");
+      showToast(t("scanFailedPrefix", `scan failed: ${err?.message || "unknown error"}`, [err?.message || "unknown error"]), "error");
       setSubsStatus("");
       state.subs.running = null;
       if (elements.scanSubsBtn) elements.scanSubsBtn.disabled = false;
@@ -1626,19 +1660,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const emails = getCheckedSubEmails();
     if (!emails.length) {
-      showToast("pick at least one sender first", "warning");
+      showToast(t("pickOneSender", "pick at least one sender first"), "warning");
       return;
     }
     const capped = emails.slice(0, 25);
     if (emails.length > capped.length) {
-      showToast("running the first 25; re-run for the rest", "info");
+      showToast(t("firstTwentyFive", "running the first 25; re-run for the rest"), "info");
     }
 
     try {
       state.subs.running = "unsubscribe";
       if (elements.unsubBtn) elements.unsubBtn.disabled = true;
       if (elements.scanSubsBtn) elements.scanSubsBtn.disabled = true;
-      setSubsStatus(`Unsubscribing from ${capped.length} sender${capped.length === 1 ? "" : "s"}...`);
+      setSubsStatus(capped.length === 1
+        ? t("unsubbingOne", "Unsubscribing from 1 sender...")
+        : t("unsubbingMany", `Unsubscribing from ${capped.length} senders...`, [String(capped.length)]));
       const tabId = await injectSubscriptionRun("unsubscribe", capped);
       if (tabId === null) {
         state.subs.running = null;
@@ -1647,7 +1683,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch (err) {
       log("error", "unsubscribe start failed", err);
-      showToast(`unsubscribe failed: ${err?.message || "unknown error"}`, "error");
+      showToast(t("unsubFailedPrefix", `unsubscribe failed: ${err?.message || "unknown error"}`, [err?.message || "unknown error"]), "error");
       setSubsStatus("");
       state.subs.running = null;
       if (elements.unsubBtn) elements.unsubBtn.disabled = false;
@@ -1673,13 +1709,18 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (phase === "error") {
-      setSubsStatus(`Failed: ${detail || "unknown error"}`);
-      showToast(runKind === "unsubscribe" ? "unsubscribe run failed" : "scan failed", "error");
+      setSubsStatus(t("failedDetail", `Failed: ${detail || "unknown error"}`, [detail || "unknown error"]));
+      showToast(
+        runKind === "unsubscribe"
+          ? t("unsubRunFailed", "unsubscribe run failed")
+          : t("scanFailedToast", "scan failed"),
+        "error"
+      );
       finishSubsRun();
       return;
     }
     if (phase === "cancelled") {
-      setSubsStatus("Stopped.");
+      setSubsStatus(t("stoppedStatus", "Stopped."));
       finishSubsRun();
       return;
     }
@@ -1689,9 +1730,9 @@ document.addEventListener("DOMContentLoaded", () => {
       // short beat; render the fresh list immediately for responsiveness.
       state.subs.senders = msg.scanSenders;
       renderSubsList();
-      setSubsStatus(status || "Scan complete.");
+      setSubsStatus(status || t("scanComplete", "Scan complete."));
       setTimeout(() => { loadStoredSubscriptions().catch(() => {}); }, 400);
-      showToast("subscription scan complete", "success");
+      showToast(t("subsScanCompleteToast", "subscription scan complete"), "success");
     } else if (runKind === "unsubscribe" && Array.isArray(msg.unsubResults)) {
       const byEmail = Object.create(null);
       for (const r of msg.unsubResults) byEmail[r.sender] = r.status;
@@ -1699,9 +1740,14 @@ document.addEventListener("DOMContentLoaded", () => {
         if (byEmail[sender.email]) sender.status = byEmail[sender.email];
       }
       renderSubsList();
-      setSubsStatus(status || "Unsubscribe run complete.");
+      setSubsStatus(status || t("unsubRunComplete", "Unsubscribe run complete."));
       const okCount = msg.unsubResults.filter((r) => r.status === "unsubscribed").length;
-      showToast(`unsubscribed from ${okCount} sender${okCount === 1 ? "" : "s"}`, okCount ? "success" : "warning");
+      showToast(
+        okCount === 1
+          ? t("unsubbedFromOne", "unsubscribed from 1 sender")
+          : t("unsubbedFromMany", `unsubscribed from ${okCount} senders`, [String(okCount)]),
+        okCount ? "success" : "warning"
+      );
     }
     finishSubsRun();
   };
@@ -1729,8 +1775,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const total = state.xray.senders.length;
     const checked = getCheckedXrayEmails().length;
     elements.xrayCount.textContent = checked
-      ? `${checked} of ${total} selected`
-      : `${total} sender${total === 1 ? "" : "s"} ranked`;
+      ? t("nOfMSelected", `${checked} of ${total} selected`, [String(checked), String(total)])
+      : (total === 1
+        ? t("oneSenderRanked", "1 sender ranked")
+        : t("nSendersRanked", `${total} senders ranked`, [String(total)]));
   };
 
   const renderXrayTotals = () => {
@@ -1744,8 +1792,10 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.xrayTotalMb.textContent = `≥ ${GCC.formatMb(totalMb)}`;
     }
     if (elements.xrayTotalSub) {
-      elements.xrayTotalSub.textContent =
-        `reclaimable across ${GCC.formatNumber(totalCount)} large email${totalCount === 1 ? "" : "s"}`;
+      const countText = GCC.formatNumber(totalCount);
+      elements.xrayTotalSub.textContent = totalCount === 1
+        ? t("reclaimableOne", "reclaimable across 1 large email")
+        : t("reclaimableMany", `reclaimable across ${countText} large emails`, [countText]);
     }
     elements.xrayTotal.classList.add("show");
   };
@@ -1817,7 +1867,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (sender.status === "purged") {
         const chip = document.createElement("span");
         chip.className = "subs-row-status ok";
-        chip.textContent = "Purged";
+        chip.textContent = t("purgedChip", "Purged");
         row.appendChild(chip);
       }
 
@@ -1837,9 +1887,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const strong = document.createElement("span");
       strong.className = "xray-locked-mb";
       strong.textContent = `≥ ${GCC.formatMb(hiddenMb)}`;
-      locked.appendChild(document.createTextNode(`${hidden.length} more sender${hidden.length === 1 ? "" : "s"} holding `));
+      locked.appendChild(document.createTextNode(
+        hidden.length === 1
+          ? t("xrayLockedOne", "1 more sender holding ")
+          : t("xrayLockedMany", `${hidden.length} more senders holding `, [String(hidden.length)])
+      ));
       locked.appendChild(strong);
-      locked.appendChild(document.createTextNode(" - Pro unlocks the full list and one-click purge."));
+      locked.appendChild(document.createTextNode(t("xrayLockedTail", " - Pro unlocks the full list and one-click purge.")));
       elements.xrayList.appendChild(locked);
     }
 
@@ -1868,7 +1922,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       state.xray.running = "storageScan";
       if (elements.xrayScanBtn) elements.xrayScanBtn.disabled = true;
-      setXrayStatus("Sizing up your mailbox...");
+      setXrayStatus(t("xraySizing", "Sizing up your mailbox..."));
       const tabId = await injectEngineRun(
         { runKind: "storageScan", debugMode: state.debugMode },
         setXrayStatus
@@ -1879,7 +1933,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch (err) {
       log("error", "storage scan start failed", err);
-      showToast(`scan failed: ${err?.message || "unknown error"}`, "error");
+      showToast(t("scanFailedPrefix", `scan failed: ${err?.message || "unknown error"}`, [err?.message || "unknown error"]), "error");
       setXrayStatus("");
       state.xray.running = null;
       if (elements.xrayScanBtn) elements.xrayScanBtn.disabled = false;
@@ -1901,13 +1955,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (phase === "error") {
-      setXrayStatus(`Failed: ${detail || "unknown error"}`);
-      showToast("storage scan failed", "error");
+      setXrayStatus(t("failedDetail", `Failed: ${detail || "unknown error"}`, [detail || "unknown error"]));
+      showToast(t("xrayScanFailed", "storage scan failed"), "error");
       finishXrayRun();
       return;
     }
     if (phase === "cancelled") {
-      setXrayStatus("Stopped.");
+      setXrayStatus(t("stoppedStatus", "Stopped."));
       finishXrayRun();
       return;
     }
@@ -1917,9 +1971,9 @@ document.addEventListener("DOMContentLoaded", () => {
       state.xray.totalMb = Number(msg.totalMb) || 0;
       state.xray.totalCount = Number(msg.totalCount) || 0;
       renderXrayList();
-      setXrayStatus(status || "Scan complete.");
+      setXrayStatus(status || t("scanComplete", "Scan complete."));
       setTimeout(() => { loadStoredStorageScan().catch(() => {}); }, 400);
-      showToast("storage scan complete", "success");
+      showToast(t("xrayScanCompleteToast", "storage scan complete"), "success");
     }
     finishXrayRun();
   };
@@ -1936,14 +1990,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const emails = getCheckedXrayEmails();
     if (!emails.length) {
-      showToast("pick at least one sender first", "warning");
+      showToast(t("pickOneSender", "pick at least one sender first"), "warning");
       return;
     }
 
     const age = elements.xrayAge?.value || "";
     const purgeQuery = GCC.storageXray.buildPurgeQuery(emails, age);
     if (!purgeQuery) {
-      showToast("no valid senders selected", "warning");
+      showToast(t("noValidSenders", "no valid senders selected"), "warning");
       return;
     }
     const targeted = GCC.storageXray.sanitizeEmails(emails);
@@ -1952,8 +2006,8 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       if (!(await GCC.gmailAccess.check())) {
         refreshBanners().catch(() => {});
-        setXrayStatus("Allow Gmail access at the top of this popup first.");
-        showToast("gmail access needed", "warning");
+        setXrayStatus(t("allowAccessFirst", "Allow Gmail access at the top of this popup first."));
+        showToast(t("accessNeededToast", "gmail access needed"), "warning");
         state.isRunning = false;
         return;
       }
@@ -1966,7 +2020,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const claim = await tryClaimRun(gmailTab.id);
       if (!claim.ok) {
-        showToast("a cleanup is already running", "warning");
+        showToast(t("alreadyRunningToast", "a cleanup is already running"), "warning");
         state.isRunning = false;
         return;
       }
@@ -1980,8 +2034,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
       state.currentGmailTabId = gmailTab.id;
       setXrayStatus(config.dryRun
-        ? "Dry run: counting what a purge would remove..."
-        : `Purging large mail from ${targeted.length} sender${targeted.length === 1 ? "" : "s"}...`);
+        ? t("purgeDryCounting", "Dry run: counting what a purge would remove...")
+        : (targeted.length === 1
+          ? t("purgingOne", "Purging large mail from 1 sender...")
+          : t("purgingMany", `Purging large mail from ${targeted.length} senders...`, [String(targeted.length)])));
 
       // Register the target list so the background can mark rows
       // purged when the run finishes (this popup will be long closed).
@@ -2009,7 +2065,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // Tab might not be ready, proceed with injection
       }
       if (alreadyAttached) {
-        showToast("cleanup already running", "warning");
+        showToast(t("alreadyRunningToast", "a cleanup is already running"), "warning");
         await clearActiveRun();
         state.isRunning = false;
         return;
@@ -2026,13 +2082,13 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       await bumpRunCount();
-      showToast(config.dryRun ? "purge dry run started" : "purge started", "success");
+      showToast(config.dryRun ? t("purgeDryStarted", "purge dry run started") : t("purgeStarted", "purge started"), "success");
       setTimeout(safeClosePopup, 200);
     } catch (err) {
       const msg = err?.message || String(err);
       log("error", "handleXrayPurge error:", err);
-      setXrayStatus(`Failed to start: ${msg}`);
-      showToast(`purge failed: ${msg}`, "error");
+      setXrayStatus(t("failedToStart", `Failed to start: ${msg}`, [msg]));
+      showToast(t("purgeFailedPrefix", `purge failed: ${msg}`, [msg]), "error");
       await clearActiveRun();
       state.isRunning = false;
       state.currentGmailTabId = null;
@@ -2064,8 +2120,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const total = state.smart.visibleCount;
     const checked = getCheckedSmartEmails().length;
     elements.smartCount.textContent = checked
-      ? `${checked} of ${total} selected`
-      : `${total} suggestion${total === 1 ? "" : "s"}`;
+      ? t("nOfMSelected", `${checked} of ${total} selected`, [String(checked), String(total)])
+      : (total === 1
+        ? t("oneSuggestion", "1 suggestion")
+        : t("nSuggestions", `${total} suggestions`, [String(total)]));
   };
 
   const buildSmartCard = (sender, { withCheckbox }) => {
@@ -2110,18 +2168,19 @@ document.addEventListener("DOMContentLoaded", () => {
     const actions = document.createElement("div");
     actions.className = "smart-card-actions";
     const action = GCC.smart.primaryAction(sender);
+    const ACTION_KEY = { deleteOld: "actionDeleteOld", archiveAll: "actionArchiveAll", purgeLarge: "actionPurgeLarge", unsubscribe: "actionUnsubscribe" };
     const applyBtn = document.createElement("button");
     applyBtn.type = "button";
     applyBtn.className = "smart-apply-btn";
-    applyBtn.textContent = GCC.smart.ACTION_LABELS[action] || "Clean up";
+    applyBtn.textContent = t(ACTION_KEY[action] || "actionCleanUp", GCC.smart.ACTION_LABELS[action] || "Clean up");
     applyBtn.addEventListener("click", () => handleSmartApply(sender, action));
     actions.appendChild(applyBtn);
 
     const dismiss = document.createElement("button");
     dismiss.type = "button";
     dismiss.className = "smart-dismiss-btn";
-    dismiss.textContent = "Dismiss";
-    dismiss.setAttribute("aria-label", `Dismiss the suggestion for ${sender.email}`);
+    dismiss.textContent = t("dismissBtn", "Dismiss");
+    dismiss.setAttribute("aria-label", t("dismissAria", `Dismiss the suggestion for ${sender.email}`, [sender.email]));
     dismiss.addEventListener("click", () => handleSmartDismiss(sender.email));
     actions.appendChild(dismiss);
 
@@ -2222,7 +2281,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       state.smart.running = "smartScan";
       if (elements.smartScanBtn) elements.smartScanBtn.disabled = true;
-      setSmartStatus("Scanning for suggestions (this one takes a minute or two)...");
+      setSmartStatus(t("smartScanning", "Scanning for suggestions (this one takes a minute or two)..."));
       const tabId = await injectEngineRun(
         {
           runKind: "smartScan",
@@ -2239,7 +2298,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch (err) {
       log("error", "smart scan start failed", err);
-      showToast(`scan failed: ${err?.message || "unknown error"}`, "error");
+      showToast(t("scanFailedPrefix", `scan failed: ${err?.message || "unknown error"}`, [err?.message || "unknown error"]), "error");
       setSmartStatus("");
       state.smart.running = null;
       if (elements.smartScanBtn) elements.smartScanBtn.disabled = false;
@@ -2261,23 +2320,23 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (phase === "error") {
-      setSmartStatus(`Failed: ${detail || "unknown error"}`);
-      showToast("suggestion scan failed", "error");
+      setSmartStatus(t("failedDetail", `Failed: ${detail || "unknown error"}`, [detail || "unknown error"]));
+      showToast(t("smartScanFailed", "suggestion scan failed"), "error");
       finishSmartRun();
       return;
     }
     if (phase === "cancelled") {
-      setSmartStatus("Stopped.");
+      setSmartStatus(t("stoppedStatus", "Stopped."));
       finishSmartRun();
       return;
     }
 
     if (Array.isArray(msg.scanSenders)) {
-      setSmartStatus(status || "Scan complete.");
+      setSmartStatus(status || t("scanComplete", "Scan complete."));
       // The worker union-merges rescans; read the authoritative list
       // back after it lands.
       setTimeout(() => { loadStoredSmartScan().catch(() => {}); }, 400);
-      showToast("suggestion scan complete", "success");
+      showToast(t("smartScanCompleteToast", "suggestion scan complete"), "success");
       if (elements.smartSection) elements.smartSection.open = true;
     }
     finishSmartRun();
@@ -2294,8 +2353,8 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       if (!(await GCC.gmailAccess.check())) {
         refreshBanners().catch(() => {});
-        setSmartStatus("Allow Gmail access at the top of this popup first.");
-        showToast("gmail access needed", "warning");
+        setSmartStatus(t("allowAccessFirst", "Allow Gmail access at the top of this popup first."));
+        showToast(t("accessNeededToast", "gmail access needed"), "warning");
         state.isRunning = false;
         return;
       }
@@ -2308,7 +2367,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const claim = await tryClaimRun(gmailTab.id);
       if (!claim.ok) {
-        showToast("a cleanup is already running", "warning");
+        showToast(t("alreadyRunningToast", "a cleanup is already running"), "warning");
         state.isRunning = false;
         return;
       }
@@ -2325,8 +2384,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
       state.currentGmailTabId = gmailTab.id;
       setSmartStatus(config.dryRun
-        ? "Dry run: counting what this suggestion would clean..."
-        : `Cleaning up ${emails.length} sender${emails.length === 1 ? "" : "s"}...`);
+        ? t("smartDryCounting", "Dry run: counting what this suggestion would clean...")
+        : (emails.length === 1
+          ? t("cleaningOne", "Cleaning up 1 sender...")
+          : t("cleaningMany", `Cleaning up ${emails.length} senders...`, [String(emails.length)])));
 
       if (!config.dryRun) {
         GCC.sendMessage({
@@ -2352,7 +2413,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // Tab might not be ready, proceed with injection
       }
       if (alreadyAttached) {
-        showToast("cleanup already running", "warning");
+        showToast(t("alreadyRunningToast", "a cleanup is already running"), "warning");
         await clearActiveRun();
         state.isRunning = false;
         return;
@@ -2369,13 +2430,13 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       await bumpRunCount();
-      showToast(config.dryRun ? "suggestion dry run started" : "suggestion applied", "success");
+      showToast(config.dryRun ? t("smartDryStarted", "suggestion dry run started") : t("smartApplied", "suggestion applied"), "success");
       setTimeout(safeClosePopup, 200);
     } catch (err) {
       const msg = err?.message || String(err);
       log("error", "startSmartApplyRun error:", err);
-      setSmartStatus(`Failed to start: ${msg}`);
-      showToast(`apply failed: ${msg}`, "error");
+      setSmartStatus(t("failedToStart", `Failed to start: ${msg}`, [msg]));
+      showToast(t("applyFailedPrefix", `apply failed: ${msg}`, [msg]), "error");
       await clearActiveRun();
       state.isRunning = false;
       state.currentGmailTabId = null;
@@ -2385,7 +2446,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const handleSmartApply = async (sender, action) => {
     const rule = GCC.smart.buildActionRule(sender, action);
     if (!rule) {
-      showToast("could not build a safe rule for this sender", "warning");
+      showToast(t("noSafeRule", "could not build a safe rule for this sender"), "warning");
       return;
     }
 
@@ -2398,7 +2459,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       if (state.subs.running) return;
       state.subs.running = "unsubscribe";
-      setSmartStatus(`Unsubscribing from ${sender.email}...`);
+      setSmartStatus(t("unsubbingFrom", `Unsubscribing from ${sender.email}...`, [sender.email]));
       const tabId = await injectSubscriptionRun("unsubscribe", rule.senders);
       if (tabId === null) state.subs.running = null;
       return;
@@ -2414,12 +2475,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     const emails = getCheckedSmartEmails();
     if (!emails.length) {
-      showToast("pick at least one suggestion first", "warning");
+      showToast(t("pickOneSuggestion", "pick at least one suggestion first"), "warning");
       return;
     }
     const query = GCC.smart.buildBulkRule(emails);
     if (!query) {
-      showToast("no valid senders selected", "warning");
+      showToast(t("noValidSenders", "no valid senders selected"), "warning");
       return;
     }
     // Marker list = the sanitized set the query actually targets.
@@ -2431,7 +2492,7 @@ document.addEventListener("DOMContentLoaded", () => {
     state.smart.feedback = GCC.smart.recordFeedback(state.smart.feedback, email, "dismissed");
     renderSmartList();
     GCC.sendMessage({ type: "gmailCleanerSmartFeedback", email, action: "dismissed" }).catch(() => {});
-    showToast("dismissed for 90 days", "info");
+    showToast(t("dismissed90", "dismissed for 90 days"), "info");
   };
 
   // Open state persists across popup opens, same local-flag pattern
@@ -2476,13 +2537,16 @@ document.addEventListener("DOMContentLoaded", () => {
     let statusText = "";
     if (active && ap?.enabled) {
       if (ap.pendingStage) {
-        statusText = "A sweep is running right now.";
+        statusText = t("apSweepRunning", "A sweep is running right now.");
       } else if (ap.lastRun && ap.lastRun.at) {
         const n = Math.max(0, Number(ap.lastRun.count) || 0);
-        const verb = ap.lastRun.dryRun ? "would have archived" : "archived";
-        statusText = `Last sweep ${verb} ${GCC.formatNumber(n)} email${n === 1 ? "" : "s"}, ${GCC.relativeTime(ap.lastRun.at)}.`;
+        const nText = GCC.formatNumber(n);
+        const when = GCC.relativeTime(ap.lastRun.at);
+        statusText = ap.lastRun.dryRun
+          ? t("apLastSweepDry", `Last sweep would have archived ${nText} emails, ${when}.`, [nText, when])
+          : t("apLastSweepLive", `Last sweep archived ${nText} emails, ${when}.`, [nText, when]);
       } else {
-        statusText = "First sweep runs soon as a preview. Nothing is archived until you confirm below.";
+        statusText = t("apFirstSweepSoon", "First sweep runs soon as a preview. Nothing is archived until you confirm below.");
       }
     }
     if (elements.autoPilotStatus) elements.autoPilotStatus.textContent = statusText;
@@ -2491,8 +2555,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.autoPilotConfirm) elements.autoPilotConfirm.hidden = !showConfirm;
     if (showConfirm && elements.autoPilotConfirmText) {
       const n = Math.max(0, Number(ap.preview.count) || 0);
+      const nText = GCC.formatNumber(n);
       elements.autoPilotConfirmText.textContent =
-        `Auto-Pilot preview: would have archived ${GCC.formatNumber(n)} email${n === 1 ? "" : "s"}. Turn on for real?`;
+        t("apPreviewConfirm", `Auto-Pilot preview: would have archived ${nText} emails. Turn on for real?`, [nText]);
     }
   };
 
@@ -2516,14 +2581,14 @@ document.addEventListener("DOMContentLoaded", () => {
     if (resp?.ok && resp.autoPilot) {
       state.autoPilot = resp.autoPilot;
       showToast(
-        wanted ? "Auto-Pilot on - the first sweep is a preview" : "Auto-Pilot off",
+        wanted ? t("apOnToast", "Auto-Pilot on - the first sweep is a preview") : t("apOffToast", "Auto-Pilot off"),
         wanted ? "success" : "info"
       );
     } else {
       showToast(
         resp?.error === "pro_required"
-          ? "Auto-Pilot needs an active Pro license"
-          : "could not update Auto-Pilot",
+          ? t("apNeedsPro", "Auto-Pilot needs an active Pro license")
+          : t("apUpdateFailed", "could not update Auto-Pilot"),
         "warning"
       );
     }
@@ -2534,9 +2599,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const resp = await GCC.sendMessage({ type: "gmailCleanerConfirmAutoPilot" });
     if (resp?.ok && resp.autoPilot) {
       state.autoPilot = resp.autoPilot;
-      showToast("Auto-Pilot is live - weekly sweeps now archive for real", "success");
+      showToast(t("apLiveToast", "Auto-Pilot is live - weekly sweeps now archive for real"), "success");
     } else {
-      showToast("could not confirm Auto-Pilot", "warning");
+      showToast(t("apConfirmFailed", "could not confirm Auto-Pilot"), "warning");
     }
     renderAutoPilot();
   };
@@ -2548,15 +2613,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const handleCancel = async () => {
     const tabId = state.currentGmailTabId;
     if (!tabId) {
-      showToast("no active cleanup found", "warning");
+      showToast(t("noActiveCleanup", "no active cleanup found"), "warning");
       return;
     }
 
     try {
       const resp = await tabsSendMessage(tabId, { type: "gmailCleanerCancel" });
       if (resp?.ok) {
-        showToast("cancel confirmed", "info");
-        setStatus("cleanup cancelled", STATUS_TYPES.WARNING, true);
+        showToast(t("cancelConfirmed", "cancel confirmed"), "info");
+        setStatus(t("cleanupCancelled", "cleanup cancelled"), STATUS_TYPES.WARNING, true);
         await clearActiveRun();
         hideQuickActions();
         resetRunButton();
@@ -2564,8 +2629,8 @@ document.addEventListener("DOMContentLoaded", () => {
         state.currentGmailTabId = null;
         hideProgress();
       } else {
-        showToast("cancel sent but unconfirmed", "warning");
-        setStatus("cancel requested", STATUS_TYPES.WARNING, true);
+        showToast(t("cancelUnconfirmed", "cancel sent but unconfirmed"), "warning");
+        setStatus(t("cancelRequested", "cancel requested"), STATUS_TYPES.WARNING, true);
       }
     } catch (err) {
       // Issue #19: distinguish "tab closed" (recoverable) from real
@@ -2573,13 +2638,13 @@ document.addEventListener("DOMContentLoaded", () => {
       // host permission was revoked or the service worker crashed.
       const kind = err?.gccKind || GCC.classifyChromeError(err).kind;
       if (kind === "tab_closed" || kind === "no_chrome") {
-        showToast("gmail tab unreachable, clearing state", "warning");
+        showToast(t("tabUnreachable", "gmail tab unreachable, clearing state"), "warning");
       } else if (kind === "permission") {
-        showToast("permission denied; reload Gmail and retry", "error");
-        setStatus("can't reach Gmail (permissions)", STATUS_TYPES.ERROR, true);
+        showToast(t("permDeniedToast", "permission denied; reload Gmail and retry"), "error");
+        setStatus(t("permDeniedStatus", "can't reach Gmail (permissions)"), STATUS_TYPES.ERROR, true);
       } else {
-        showToast(`cancel failed: ${err?.message || "unknown error"}`, "error");
-        setStatus(`cancel error: ${err?.message || "unknown"}`, STATUS_TYPES.ERROR, true);
+        showToast(t("cancelFailedPrefix", `cancel failed: ${err?.message || "unknown error"}`, [err?.message || "unknown error"]), "error");
+        setStatus(t("cancelErrorPrefix", `cancel error: ${err?.message || "unknown"}`, [err?.message || "unknown"]), STATUS_TYPES.ERROR, true);
       }
       await clearActiveRun();
       hideQuickActions();
@@ -2593,7 +2658,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const handleOpenProgress = async () => {
     const tabId = state.currentGmailTabId;
     if (!tabId) {
-      showToast("no active cleanup", "warning");
+      showToast(t("noActiveCleanup", "no active cleanup found"), "warning");
       return;
     }
 
@@ -2620,7 +2685,7 @@ document.addEventListener("DOMContentLoaded", () => {
       setTimeout(safeClosePopup, 150);
     } catch (e) {
       log("error", "openOptions failed", e);
-      showToast("failed to open rules", "error");
+      showToast(t("openRulesFailed", "failed to open rules"), "error");
     }
   };
 
@@ -2630,7 +2695,7 @@ document.addEventListener("DOMContentLoaded", () => {
       setTimeout(safeClosePopup, 150);
     } catch (e) {
       log("error", "openDiagnostics failed", e);
-      showToast("failed to open diagnostics", "error");
+      showToast(t("openDiagFailed", "failed to open diagnostics"), "error");
     }
   };
 
@@ -2640,7 +2705,7 @@ document.addEventListener("DOMContentLoaded", () => {
       setTimeout(safeClosePopup, 150);
     } catch (e) {
       log("error", "openStats failed", e);
-      showToast("failed to open stats", "error");
+      showToast(t("openStatsFailed", "failed to open stats"), "error");
     }
   };
 
@@ -2657,14 +2722,14 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         if (navigator.clipboard?.writeText) {
           await navigator.clipboard.writeText(url);
-          showToast("link copied", "success");
+          showToast(t("linkCopied", "link copied"), "success");
         } else {
           await tabsCreate({ url, active: true });
-          showToast("opened share link", "info");
+          showToast(t("openedShareLink", "opened share link"), "info");
         }
       } catch {
         await tabsCreate({ url, active: true });
-        showToast("opened share link", "info");
+        showToast(t("openedShareLink", "opened share link"), "info");
       }
     });
   };
@@ -2708,7 +2773,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (elements.dryRunEl) {
           elements.dryRunEl.checked = !elements.dryRunEl.checked;
           syncSwitchAria(elements.dryRunEl);
-          showToast(`dry run ${elements.dryRunEl.checked ? "on" : "off"}`, "info");
+          showToast(elements.dryRunEl.checked ? t("dryOnToast", "dry run on") : t("dryOffToast", "dry run off"), "info");
           scheduleAutosave();
         }
       }
@@ -2778,7 +2843,7 @@ document.addEventListener("DOMContentLoaded", () => {
           hideQuickActions();
           resetRunButton();
           state.tabs?.select("tabClean");
-          setStatus("canceled", STATUS_TYPES.WARNING, true);
+          setStatus(t("canceledStatus", "canceled"), STATUS_TYPES.WARNING, true);
           state.isRunning = false;
           state.currentGmailTabId = null;
           clearActiveRun().catch(() => {});
@@ -2791,12 +2856,12 @@ document.addEventListener("DOMContentLoaded", () => {
           hideQuickActions();
           resetRunButton();
           state.tabs?.select("tabClean");
-          setStatus(`error: ${m}`, STATUS_TYPES.ERROR);
-          showToast(`failed: ${m}`, "error");
+          setStatus(t("errorPrefix", `error: ${m}`, [m]), STATUS_TYPES.ERROR);
+          showToast(t("failedPrefix", `failed: ${m}`, [m]), "error");
           // 7.4: layout-change errors carry a machine-readable code; the
           // detail already explains it, so just point at Diagnostics.
           if (msg.code === "gmail_layout_changed") {
-            showToast("open Diagnostics (footer) for run details and updates", "info", 6000);
+            showToast(t("layoutChangedToast", "open Diagnostics (footer) for run details and updates"), "info", 6000);
           }
           state.isRunning = false;
           state.currentGmailTabId = null;
@@ -2831,10 +2896,10 @@ document.addEventListener("DOMContentLoaded", () => {
             cleaned: count,
             freedMb
           }).catch(() => {});
-          setStatus("cleanup complete", STATUS_TYPES.SUCCESS, true);
+          setStatus(t("cleanupCompleteStatus", "cleanup complete"), STATUS_TYPES.SUCCESS, true);
 
           GCC.showToast(
-            `Cleanup complete! View recovery log in Stats to undo.`,
+            t("cleanupCompleteToast", "Cleanup complete! View recovery log in Stats to undo."),
             "success",
             8000,
             elements.toastContainer
@@ -2867,10 +2932,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     state.currentGmailTabId = run.gmailTabId;
     showQuickActions();
-    setStatus("looks like a cleanup is already running", STATUS_TYPES.RUNNING);
+    setStatus(t("looksRunningStatus", "looks like a cleanup is already running"), STATUS_TYPES.RUNNING);
     showProgress(35);
 
-    showToast("active cleanup detected", "info", 2000);
+    showToast(t("activeDetectedToast", "active cleanup detected"), "info", 2000);
 
     // keep progress visible for a beat, then hide (UI is best effort anyway)
     setTimeout(() => hideProgress(), 800);
@@ -2964,7 +3029,7 @@ document.addEventListener("DOMContentLoaded", () => {
     steps[currentIdx + 1].hidden = false;
     dots.forEach((d, i) => d.classList.toggle("active", i <= currentIdx + 1));
     if (elements.onbNextBtn && currentIdx + 1 === steps.length - 1) {
-      elements.onbNextBtn.textContent = "Got it";
+      elements.onbNextBtn.textContent = t("gotIt", "Got it");
     }
   };
 
@@ -3079,10 +3144,17 @@ document.addEventListener("DOMContentLoaded", () => {
       if (granted) {
         await refreshBanners();
         setStatus("", STATUS_TYPES.INFO);
-        showToast("gmail access granted", "success");
+        showToast(t("accessGranted", "gmail access granted"), "success");
       } else {
-        showToast("access was not granted", "warning");
+        showToast(t("accessNotGranted", "access was not granted"), "warning");
       }
+    });
+
+    // 7.13 install-source guard: the banner's one action opens the
+    // official listing for this browser so the user can reinstall.
+    elements.installSourceStoreBtn?.addEventListener("click", async () => {
+      await tabsCreate({ url: GCC.storeLinks().listing, active: true });
+      setTimeout(safeClosePopup, 150);
     });
 
     setupShare();
@@ -3099,7 +3171,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!version) return;
       const text = `v${version}`;
       badge.textContent = text;
-      badge.setAttribute("aria-label", `Version ${version}`);
+      badge.setAttribute("aria-label", t("versionAria", `Version ${version}`, [version]));
     } catch (e) {
       log("warn", "syncVersionBadge failed", e);
     }

@@ -105,6 +105,94 @@ const GCC = (() => {
     });
 
   // =========================
+  // Localization (7.13)
+  // =========================
+  // Wrapper over chrome.i18n with inline-English fallback. Pages keep
+  // their English text in the markup / call sites; when a catalog
+  // message exists for the browser's locale it wins, otherwise the
+  // fallback ships unchanged. Test environments and the plain-HTTP
+  // render harness have no chrome.i18n, so they always see English.
+
+  const i18nRaw = (key, subs) => {
+    try {
+      if (typeof chrome !== "undefined" && chrome.i18n?.getMessage) {
+        return chrome.i18n.getMessage(key, subs) || "";
+      }
+    } catch {
+      // chrome.i18n unavailable (tests, plain pages) -> fallback wins
+    }
+    return "";
+  };
+
+  const t = (key, fallback, subs) => i18nRaw(key, subs) || fallback;
+
+  // Static-markup pass: elements opt in with data-i18n (textContent)
+  // and data-i18n-label / data-i18n-title / data-i18n-placeholder
+  // (attributes). Elements with child markup keep their children: the
+  // attribute goes on a plain span around the text instead.
+  const I18N_ATTR_MAP = Object.freeze([
+    ["data-i18n-label", "aria-label"],
+    ["data-i18n-title", "title"],
+    ["data-i18n-placeholder", "placeholder"]
+  ]);
+
+  const applyI18n = (root) => {
+    const scope = root || (typeof document !== "undefined" ? document : null);
+    if (!scope || !i18nRaw("appName")) return false;
+    scope.querySelectorAll("[data-i18n]").forEach((el) => {
+      const msg = i18nRaw(el.getAttribute("data-i18n"));
+      if (msg) el.textContent = msg;
+    });
+    for (const [dataAttr, attr] of I18N_ATTR_MAP) {
+      scope.querySelectorAll(`[${dataAttr}]`).forEach((el) => {
+        const msg = i18nRaw(el.getAttribute(dataAttr));
+        if (msg) el.setAttribute(attr, msg);
+      });
+    }
+    return true;
+  };
+
+  const i18n = Object.freeze({ t, apply: applyI18n });
+
+  // =========================
+  // Install source (7.13)
+  // =========================
+  // chrome.management.getSelf needs no permission and reports how this
+  // copy was installed. "normal" = store, "development" = unpacked,
+  // "admin" = enterprise policy; "sideload"/"other" = planted by
+  // third-party software, the exact channel abused for bot-farm user
+  // inflation and repack distribution. Unknown errs toward trusted so
+  // a flaky API can never lock out a real user.
+
+  const INSTALL_SOURCE_KEY = "installSource";
+  const UNTRUSTED_INSTALL_TYPES = Object.freeze(["sideload", "other"]);
+
+  const installSourceIsUntrusted = (type) =>
+    UNTRUSTED_INSTALL_TYPES.includes(String(type || ""));
+
+  const getInstallSource = async () => {
+    try {
+      if (hasChrome() && chrome.management?.getSelf) {
+        const info = await promisify(
+          chrome.management.getSelf.bind(chrome.management)
+        );
+        if (info?.installType) return info.installType;
+      }
+    } catch {
+      // fall through to the worker's cached value
+    }
+    const r = await storageGet("local", INSTALL_SOURCE_KEY);
+    return r?.[INSTALL_SOURCE_KEY]?.installType || "unknown";
+  };
+
+  const installSource = Object.freeze({
+    KEY: INSTALL_SOURCE_KEY,
+    UNTRUSTED_TYPES: UNTRUSTED_INSTALL_TYPES,
+    isUntrusted: installSourceIsUntrusted,
+    get: getInstallSource
+  });
+
+  // =========================
   // DOM Helpers
   // =========================
 
@@ -236,14 +324,15 @@ const GCC = (() => {
   const relativeTime = (ts) => {
     if (!ts || !Number.isFinite(ts)) return "-";
     const diff = Date.now() - ts;
-    if (diff < 0) return "just now";
+    const justNow = t("relJustNow", "just now");
+    if (diff < 0) return justNow;
     const mins = Math.floor(diff / 60000);
-    if (mins < 1) return "just now";
-    if (mins < 60) return mins + "m ago";
+    if (mins < 1) return justNow;
+    if (mins < 60) return t("relMinsAgo", mins + "m ago", [String(mins)]);
     const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return hrs + "h ago";
+    if (hrs < 24) return t("relHoursAgo", hrs + "h ago", [String(hrs)]);
     const days = Math.floor(hrs / 24);
-    return days + "d ago";
+    return t("relDaysAgo", days + "d ago", [String(days)]);
   };
 
   // =========================
@@ -911,10 +1000,13 @@ const GCC = (() => {
   // starts open, and the number-led first lines of the Pro upsells.
   // The popup owns the DOM; these own the rules.
 
-  // One banner at a time. A missing Gmail grant blocks every feature,
-  // snooze explains why schedules are quiet, and the pin hint is mere
-  // marketing, so that is the priority order.
-  const pickBanner = ({ accessNeeded = false, snoozed = false, pinEligible = false } = {}) => {
+  // One banner at a time. An untrusted install source outranks
+  // everything (the user may not even know this copy exists), a
+  // missing Gmail grant blocks every feature, snooze explains why
+  // schedules are quiet, and the pin hint is mere marketing, so that
+  // is the priority order.
+  const pickBanner = ({ sourceUntrusted = false, accessNeeded = false, snoozed = false, pinEligible = false } = {}) => {
+    if (sourceUntrusted) return "source";
     if (accessNeeded) return "access";
     if (snoozed) return "snooze";
     if (pinEligible) return "pin";
@@ -941,16 +1033,18 @@ const GCC = (() => {
   // senders, and storage figures are floor estimates.
   const subsUpsellLine = (senderCount) => {
     const n = Math.max(0, Math.floor(Number(senderCount) || 0));
-    if (!n) return "One $9.99 payment unlocks bulk unsubscribe forever.";
-    return `Found ${n} mailing list${n === 1 ? "" : "s"} emailing you. Pro unsubscribes from the ones you pick for $9.99.`;
+    if (!n) return t("subsUpsellNone", "One $9.99 payment unlocks bulk unsubscribe forever.");
+    if (n === 1) return t("subsUpsellOne", "Found 1 mailing list emailing you. Pro unsubscribes from the ones you pick for $9.99.");
+    return t("subsUpsellMany", `Found ${n} mailing lists emailing you. Pro unsubscribes from the ones you pick for $9.99.`, [String(n)]);
   };
 
   const xrayUpsellLine = (senderCount, totalMb) => {
     const n = Math.max(0, Math.floor(Number(senderCount) || 0));
     const mb = Math.max(0, Number(totalMb) || 0);
-    if (!n || !mb) return "Pro is $9.99 once: it unlocks the full ranked list and one-click purge.";
-    const who = n === 1 ? "1 sender is" : `${n} senders are`;
-    return `${who} holding at least ${formatMb(mb)}. Pro purges the ones you pick for $9.99.`;
+    if (!n || !mb) return t("xrayUpsellNone", "Pro is $9.99 once: it unlocks the full ranked list and one-click purge.");
+    const mbText = formatMb(mb);
+    if (n === 1) return t("xrayUpsellOne", `1 sender is holding at least ${mbText}. Pro purges the ones you pick for $9.99.`, [mbText]);
+    return t("xrayUpsellMany", `${n} senders are holding at least ${mbText}. Pro purges the ones you pick for $9.99.`, [String(n), mbText]);
   };
 
   // 7.4: post-run recap. The popup closes itself when a run starts, so
@@ -998,8 +1092,9 @@ const GCC = (() => {
   // any, falls back to the static pitch.
   const smartUpsellLine = (hiddenCount) => {
     const n = Math.max(0, Math.floor(Number(hiddenCount) || 0));
-    if (!n) return "Pro is $9.99 once: it unlocks the full suggestion list and bulk apply.";
-    return `${n} more suggestion${n === 1 ? "" : "s"} ready. Pro unlocks the full list and applies them in bulk for $9.99.`;
+    if (!n) return t("smartUpsellNone", "Pro is $9.99 once: it unlocks the full suggestion list and bulk apply.");
+    if (n === 1) return t("smartUpsellOne", "1 more suggestion ready. Pro unlocks the full list and applies them in bulk for $9.99.");
+    return t("smartUpsellMany", `${n} more suggestions ready. Pro unlocks the full list and applies them in bulk for $9.99.`, [String(n)]);
   };
 
   // 7.12: first line of the locked Auto-Pilot row. Leads with how many
@@ -1007,8 +1102,9 @@ const GCC = (() => {
   // any, falls back to the static pitch.
   const autoPilotUpsellLine = (suggestionCount) => {
     const n = Math.max(0, Math.floor(Number(suggestionCount) || 0));
-    if (!n) return "Pro is $9.99 once: Auto-Pilot keeps your inbox clean every week, automatically.";
-    return `${n} suggestion${n === 1 ? " is" : "s are"} sitting here right now. Auto-Pilot sweeps them for you every week on Pro ($9.99 once).`;
+    if (!n) return t("apUpsellNone", "Pro is $9.99 once: Auto-Pilot keeps your inbox clean every week, automatically.");
+    if (n === 1) return t("apUpsellOne", "1 suggestion is sitting here right now. Auto-Pilot sweeps them for you every week on Pro ($9.99 once).");
+    return t("apUpsellMany", `${n} suggestions are sitting here right now. Auto-Pilot sweeps them for you every week on Pro ($9.99 once).`, [String(n)]);
   };
 
   const popupUi = Object.freeze({
@@ -1301,16 +1397,22 @@ const GCC = (() => {
   const smartReasonText = (sender) => {
     const sig = sender?.signals || {};
     const count = Math.max(0, Number(sender?.estCount ?? sig.count) || 0);
-    const parts = [`${count.toLocaleString()} email${count === 1 ? "" : "s"}`];
+    const countText = count.toLocaleString();
+    const parts = [
+      count === 1
+        ? t("reasonOneEmail", "1 email")
+        : t("reasonManyEmails", `${countText} emails`, [countText])
+    ];
     const unread = Number(sig.unreadRatio);
     if (Number.isFinite(unread) && unread > 0) {
-      parts.push(`${Math.round(clamp01(unread) * 100)}% unread`);
+      const pct = String(Math.round(clamp01(unread) * 100));
+      parts.push(t("reasonPctUnread", `${pct}% unread`, [pct]));
     }
-    if (clamp01(sig.oldShare) >= 0.5) parts.push("mostly older than 6 months");
-    if (sig.shape) parts.push("no-reply sender");
+    if (clamp01(sig.oldShare) >= 0.5) parts.push(t("reasonMostlyOld", "mostly older than 6 months"));
+    if (sig.shape) parts.push(t("reasonNoReply", "no-reply sender"));
     const mb = Number(sig.estMb) || 0;
-    if (mb >= 50) parts.push(`at least ${formatMb(mb)}`);
-    return parts.join(", ");
+    if (mb >= 50) parts.push(t("reasonAtLeastMb", `at least ${formatMb(mb)}`, [formatMb(mb)]));
+    return parts.join(t("reasonJoin", ", "));
   };
 
   const smart = Object.freeze({
@@ -1473,6 +1575,10 @@ const GCC = (() => {
     restore,
 
     // New in 7.8
-    smart
+    smart,
+
+    // New in 7.13
+    i18n,
+    installSource
   });
 })();

@@ -3,6 +3,42 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 7.13.0 - Speaks your language
+
+### Added
+- **The popup now speaks 7 languages.** Every control, hint, upsell,
+  status line, toast and the completion notification are localized into
+  Portuguese (Brazil), Spanish, French, German, Russian and Japanese,
+  following the browser's UI language automatically (English stays the
+  default and the fallback). The cleaning engine has been
+  locale-aware since 7.5.0; this release closes the gap for the
+  interface itself. Terminology follows Gmail's own per-language
+  vocabulary (Papierkorb, Papelera, Corbeille, Lixeira, Корзина,
+  ゴミ箱...). The options, stats, progress and diagnostics pages remain
+  English for now, as do rare error branches that quote raw browser
+  errors.
+- **Install-source guard.** The extension now checks how this copy was
+  installed (`chrome.management.getSelf`, no new permissions). Copies
+  planted by third-party software instead of an official store show a
+  permanent warning banner with a link to the real listing, and
+  scheduled cleanups plus Auto-Pilot refuse to run unattended on such
+  copies, so a planted copy can never act on a mailbox by itself.
+  Store installs, unpacked developer builds and enterprise-policy
+  deployments are unaffected. The Diagnostics page now reports the
+  install source next to the version.
+
+### Changed
+- The footer navigation wraps to a second line when a language needs
+  more room than the 380px row offers (Russian does); previously long
+  labels would have collided with the version text.
+
+### Internal
+- New `GCC.i18n` helper (catalog message with inline-English fallback,
+  so tests and plain-page rendering keep working without `chrome.i18n`),
+  full message catalogs for 7 locales, and a catalog integrity suite
+  (key parity across locales, placeholder parity, escaped literal
+  prices, markup/code key coverage). 720 tests across 30 suites.
+
 ## 7.12.1 - Auto-Pilot
 
 ### Added

@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const DIAGNOSTICS_VERSION = "7.12.1";
+  const DIAGNOSTICS_VERSION = "7.13.0";
 
   const CONFIG = Object.freeze({
     MAX_URL_LENGTH: 120,
@@ -274,11 +274,15 @@
       removeLoadingSkeleton(elements.envPlatform);
     }
 
-    // Extension info
+    // Extension info. The install source rides along: "normal" is a
+    // store install; "sideload"/"other" means a third-party program
+    // planted this copy (7.13 guard disables its scheduled runs).
     const manifestInfo = getManifestInfo();
     if (elements.envExtension) {
+      const installType = await GCC.installSource.get().catch(() => "unknown");
       if (manifestInfo) {
-        elements.envExtension.textContent = `${manifestInfo.name} - v${manifestInfo.version}`;
+        elements.envExtension.textContent =
+          `${manifestInfo.name} - v${manifestInfo.version} · install: ${installType}`;
       } else {
         elements.envExtension.textContent = "Gmail One-Click Cleaner - (runtime unavailable)";
       }

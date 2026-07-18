@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "7.12.1";
+  const SW_VERSION = "7.13.0";
 
   // =========================
   // Storage Keys
@@ -28,8 +28,80 @@
     SMART_FEEDBACK: "smartFeedback",
     SMART_PENDING: "smartPendingApply",
     AUTOPILOT: "autoPilot",
-    AUTOPILOT_STATE: "autoPilotState"
+    AUTOPILOT_STATE: "autoPilotState",
+    INSTALL_SOURCE: "installSource"
   });
+
+  // =========================
+  // Localization helper (7.13)
+  // =========================
+  // The worker is self-contained (no shared.js), so it carries its own
+  // tiny chrome.i18n wrapper with inline-English fallback, mirroring
+  // GCC.i18n.t the way the license verifier mirrors GCC.license.
+
+  function bgT(key, fallback, subs) {
+    try {
+      const msg = chrome.i18n?.getMessage?.(key, subs);
+      if (msg) return msg;
+    } catch {
+      // fall through to the fallback
+    }
+    return fallback;
+  }
+
+  // =========================
+  // Install source guard (7.13)
+  // =========================
+  // chrome.management.getSelf needs no permission. "sideload"/"other"
+  // means this copy was planted by third-party software rather than
+  // installed from a store, unpacked by a developer, or deployed by
+  // enterprise policy -- the exact channel behind bot-farm user
+  // inflation and repack distribution. Untrusted copies never run
+  // unattended work (schedules, Auto-Pilot); manual, user-present runs
+  // stay available. Unknown errs toward trusted.
+
+  const UNTRUSTED_INSTALL_TYPES = Object.freeze(["sideload", "other"]);
+
+  function isUntrustedInstallType(type) {
+    return UNTRUSTED_INSTALL_TYPES.includes(String(type || ""));
+  }
+
+  async function getInstallType() {
+    try {
+      if (!chrome.management?.getSelf) return "unknown";
+      const info = await new Promise((resolve) => {
+        try {
+          chrome.management.getSelf((i) => {
+            const err = chrome.runtime?.lastError;
+            resolve(err ? null : i);
+          });
+        } catch {
+          resolve(null);
+        }
+      });
+      return info?.installType || "unknown";
+    } catch {
+      return "unknown";
+    }
+  }
+
+  // Cache for the popup and diagnostics pages (they read the same key
+  // via GCC.installSource when the live API is unavailable).
+  async function refreshInstallSource() {
+    const installType = await getInstallType();
+    try {
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.INSTALL_SOURCE]: { installType, at: Date.now() }
+      });
+    } catch (e) {
+      console.warn("[GCC SW] install source cache write failed:", e?.message || e);
+    }
+    return installType;
+  }
+
+  async function isUntrustedInstall() {
+    return isUntrustedInstallType(await getInstallType());
+  }
 
   // chrome.storage.sync caps: 8KB per item, 102KB total. The options
   // page enforces this for rules; this helper duplicates the check for
@@ -84,6 +156,8 @@
     // Set up periodic stats cleanup alarm (once per day)
     chrome.alarms.create(STATS_CLEANUP_ALARM, { periodInMinutes: 1440 });
 
+    await refreshInstallSource();
+
     // Restore saved schedules
     await restoreScheduledAlarms();
     await restoreAutoPilotAlarm();
@@ -91,6 +165,7 @@
 
   chrome.runtime.onStartup.addListener(async () => {
     console.log("[GCC SW] Browser startup");
+    await refreshInstallSource();
     await restoreScheduledAlarms();
     await restoreAutoPilotAlarm();
   });
@@ -196,6 +271,13 @@
   async function runScheduledCleanup(scheduleId) {
     const MAX_RETRIES = 2;
     const RETRY_DELAY_MS = 5000;
+
+    // 7.13 install-source guard: a copy planted by third-party
+    // software must never act on the mailbox unattended.
+    if (await isUntrustedInstall()) {
+      console.warn(`[GCC SW] Untrusted install source, refusing scheduled run ${scheduleId}`);
+      return;
+    }
 
     // Honour snooze / vacation mode before doing any work.
     const snoozeUntil = await getSnoozeUntil();
@@ -1206,6 +1288,13 @@
       const cfg = await getAutoPilotConfig();
       if (!cfg.enabled) return;
 
+      // 7.13 install-source guard: same rule as schedules, planted
+      // copies never sweep unattended.
+      if (await isUntrustedInstall()) {
+        console.warn("[GCC SW] Auto-Pilot: untrusted install source, refusing sweep");
+        return;
+      }
+
       if (!(await hasProLicense())) {
         console.log("[GCC SW] Auto-Pilot: no valid Pro license, skipping sweep");
         return;
@@ -1561,11 +1650,16 @@
       if (!pref?.[STORAGE_KEYS.NOTIFY_ENABLED]) return;
       if (!chrome.notifications?.create) return;
       const count = Number(summary?.count || 0);
-      const action = summary?.action === "archive" ? "archived" : "moved to Trash";
-      const title = `Gmail Cleaner - ${count} ${count === 1 ? "email" : "emails"} ${action}`;
+      const action = summary?.action === "archive"
+        ? bgT("notifActionArchived", "archived")
+        : bgT("notifActionTrashed", "moved to Trash");
+      const title = count === 1
+        ? bgT("notifTitleOne", `Gmail Cleaner - 1 email ${action}`, [action])
+        : bgT("notifTitleMany", `Gmail Cleaner - ${count} emails ${action}`, [String(count), action]);
+      const freedText = String(summary?.freedMb || 0);
       const msg = summary?.dryRun
-        ? "Dry run finished. No mail was touched."
-        : `Estimated ~${summary?.freedMb || 0} MB freed. Open Stats for details.`;
+        ? bgT("notifDryBody", "Dry run finished. No mail was touched.")
+        : bgT("notifLiveBody", `Estimated ~${freedText} MB freed. Open Stats for details.`, [freedText]);
       // Keep to the four properties every browser accepts: Firefox
       // rejects notification options it does not implement (priority,
       // buttons, requireInteraction) with a type error.

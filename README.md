@@ -11,6 +11,12 @@ A browser extension that bulk-cleans Gmail in one click. Run configurable cleanu
 
 ## Features
 
+### In your language
+The popup is available in English, Portuguese (Brazil), Spanish, French, German, Russian and Japanese, following your browser's UI language automatically. The cleaning engine itself adapts to the language your Gmail runs in (17 locales) independently of the popup language.
+
+### Install-source guard
+The extension checks how its own copy was installed. A copy planted by third-party software (not installed from an official store) shows a permanent warning and never runs scheduled sweeps, so a sideloaded copy cannot act on a mailbox unattended. Get the real extension from the Chrome Web Store, Firefox Add-ons or Edge Add-ons.
+
 ### Smart Suggestions
 The extension recommends what to clean instead of making you configure it. One free, read-only scan finds the senders worth cleaning and says why in plain English ("142 emails, 96% unread, mostly older than 6 months").
 - **Hard vetoes first** - a sender is never suggested when they match your whitelist or protected keywords, when any of their mail is starred, or when your Sent folder shows you write to them.
