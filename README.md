@@ -1,7 +1,8 @@
 # Gmail One-Click Cleaner
 
 [![CI](https://github.com/TiltedLunar123/gmail-one-click-cleaner/actions/workflows/ci.yml/badge.svg)](https://github.com/TiltedLunar123/gmail-one-click-cleaner/actions/workflows/ci.yml)
-[![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-v7.1.0-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/bmcfpljakkpcbinhgiahncpcbhmihgpc)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-Install-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/bmcfpljakkpcbinhgiahncpcbhmihgpc)
+[![Firefox Add-ons](https://img.shields.io/badge/Firefox_Add--ons-Install-FF7139?logo=firefoxbrowser&logoColor=white)](https://addons.mozilla.org/en-US/firefox/addon/gmail-one-click-cleaner/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-blue.svg)]()
 
@@ -63,14 +64,6 @@ When Google says your storage is full, the question is *what exactly is eating i
 - **Scan (free)** - read-only. Walks Gmail's own size searches (`larger:25M`, then the 10 MB and 5 MB tiers) and attributes each large email its tier floor, so every number is a defensible "at least". Shows the total reclaimable estimate and your top three space hogs.
 - **Full list + purge (Pro)** - the complete ranked list with one-click purge for the senders you pick. A purge is a normal cleanup run: matches are tagged first, land in Trash (30-day safety net), respect your whitelist, protected keywords and every global guard, and show up in the recovery log. An age filter (default: older than 6 months) keeps recent mail out of it.
 
-## Pro
-
-Pro is a **one-time $9.99 purchase** (no subscription) that unlocks four things: bulk unsubscribe, the full Storage X-ray with one-click purge, the full Smart Suggestions list with bulk apply, and Auto-Pilot, which keeps your inbox clean every week, automatically. Everything that is free today stays free forever. Compare: Google One storage starts at about $20 per year, forever, and inbox-cleaning subscriptions run about $10 per month.
-
-- Your license key is verified **entirely on your device** with a built-in public key. The extension never contacts a server, not even to check the license.
-- The key is a signed token with no personal data. Stored in Chrome sync, so Pro follows you to your other signed-in browsers.
-- Buy Pro from the popup or the extension's Options page. Your key is shown right after checkout; revisiting that page re-issues it if you lose it.
-
 ### Progress Dashboard
 - Live progress bar with phase tracking
 - Per-rule results table (count, duration, estimated MB freed)
@@ -90,6 +83,14 @@ has:attachment larger:10M older_than:6m
 "unsubscribe" older_than:1y
 ```
 
+## Pro
+
+Pro is a **one-time $9.99 purchase** (no subscription) that unlocks four things: bulk unsubscribe, the full Storage X-ray with one-click purge, the full Smart Suggestions list with bulk apply, and Auto-Pilot, which keeps your inbox clean every week, automatically. Everything that is free today stays free forever. Compare: Google One storage starts at about $20 per year, forever, and inbox-cleaning subscriptions run about $10 per month.
+
+- Your license key is verified **entirely on your device** with a built-in public key. The extension never contacts a server, not even to check the license.
+- The key is a signed token with no personal data. Stored in Chrome sync, so Pro follows you to your other signed-in browsers.
+- Buy Pro from the popup or the extension's Options page. Your key is shown right after checkout; revisiting that page re-issues it if you lose it.
+
 ---
 
 ## Install
@@ -101,7 +102,7 @@ Install from the [Chrome Web Store](https://chromewebstore.google.com/detail/bmc
 Install straight from the [Chrome Web Store](https://chromewebstore.google.com/detail/bmcfpljakkpcbinhgiahncpcbhmihgpc); Edge will ask once to allow extensions from other stores.
 
 ### Firefox
-Install from [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/gmail-one-click-cleaner@gmail-cleaner-pro.netlify.app/). Firefox gets its own build with an event-page background; features are identical. If cleanup ever reports a permission problem, click **Allow** on the Gmail access banner in the popup (Firefox lets you revoke site access per extension).
+Install from [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/gmail-one-click-cleaner/). Firefox gets its own build with an event-page background; features are identical. If cleanup ever reports a permission problem, click **Allow** on the Gmail access banner in the popup (Firefox lets you revoke site access per extension).
 
 ### Developer Mode (Load Unpacked)
 1. Clone this repo:
@@ -132,9 +133,11 @@ gmail-one-click-cleaner/
 ├── diagnostics.html/js   # Troubleshooting tools
 ├── stats.html/js         # Statistics dashboard
 ├── browser-polyfill.js   # Cross-browser compatibility shim
-├── build.js              # Build script (copy, minify, zip)
+├── build.js              # Build script (copy, minify, zip; --target=firefox)
 ├── jest.config.js        # Test configuration
-├── tests/                # Unit & integration tests
+├── tests/                # Jest suites incl. Gmail DOM-fixture tests
+├── _locales/             # Popup & store-listing translations (7 languages)
+├── netlify/              # Pro checkout site + key-issuing function (not shipped in the extension)
 ├── .github/workflows/    # CI pipeline (lint, test, build)
 ├── icons/                # Extension icons (16, 32, 48, 128)
 ├── CHANGELOG.md          # Version history
@@ -153,7 +156,7 @@ gmail-one-click-cleaner/
 - **Minimal permissions** - `activeTab`, `scripting`, `tabs`, `storage`, `alarms`, `notifications` + Gmail host access. No new permissions were added for Pro.
 - **30-day safety net** - Gmail keeps Trash for ~30 days, and every run is labeled before it moves. The Recovery Log's one-click Restore puts a run back in your Inbox; archived runs can come back any time, deleted runs within the 30-day window.
 
-See [SECURITY.md](SECURITY.md) for the full security policy and permissions breakdown.
+See [SECURITY.md](SECURITY.md) for the full security policy and permissions breakdown, and the official [privacy policy](https://secplusmastery.com/extensions#gmail-one-click-cleaner-privacy) for the published listing terms.
 
 ---
 
