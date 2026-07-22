@@ -1,6 +1,6 @@
 # Security Policy - Gmail One-Click Cleaner
 
-Gmail One-Click Cleaner is a Chrome MV3 extension that automates **safe Gmail searches** and bulk cleanup actions. It does **not** exfiltrate email content, attachments, or credentials.
+Gmail One-Click Cleaner is an MV3 browser extension (Chrome, Edge, Brave, Firefox) that automates **safe Gmail searches** and bulk cleanup actions. It does **not** exfiltrate email content, attachments, or credentials.
 
 This document explains what the extension can access, what data (if any) leaves your browser, and how to report issues.
 
@@ -8,11 +8,11 @@ This document explains what the extension can access, what data (if any) leaves 
 
 ## Supported Versions
 
-I aim to support the latest published Chrome Web Store release and the current dev/unpacked build:
+I aim to support the latest published store release (Chrome Web Store and Firefox Add-ons) and the current dev/unpacked build:
 
 | Version | Status | Description |
 | :--- | :--- | :--- |
-| **7.0.x (Stable)** | ✅ Supported | Latest Web Store release (recommended) |
+| **Latest store release (7.x)** | ✅ Supported | Current Chrome Web Store / Firefox Add-ons release (recommended) |
 | **Dev / Unpacked** | ⚠️ Best-effort | Current GitHub or local “Load unpacked” build |
 
 If you find a security issue in an older version, please confirm it still exists in the latest Stable or Dev build before reporting.
@@ -37,6 +37,12 @@ Gmail One-Click Cleaner requests only the permissions needed to automate cleanup
 - `storage`
   - Saves your rules, last-used settings, run history, and small UI preferences.
 
+- `alarms`
+  - Powers scheduled cleanups and the weekly Auto-Pilot sweep (Pro). Timers only; no data involved.
+
+- `notifications`
+  - Shows the local “cleanup finished” notification. Nothing is sent anywhere.
+
 ### Host permissions
 
 - `https://mail.google.com/*`
@@ -55,7 +61,7 @@ Inside Gmail, the extension:
 
 - Uses **Gmail’s own search syntax** (example: `category:promotions older_than:6m`) to target low-value mail.
 
-- **Subscription scan + bulk unsubscribe (7.0):** samples the sender
+- **Subscription scan + bulk unsubscribe:** samples the sender
   addresses behind subscription-style mail so the popup can list who is
   filling your inbox (the scan is read-only and changes nothing). For
   the senders you choose, the extension opens one of their messages and
@@ -66,6 +72,19 @@ Inside Gmail, the extension:
   addresses are validated to a strict email shape before being placed
   in a `from:(...)` search, so a crafted address can never break out of
   the query.
+
+- **Storage X-ray and Smart Suggestions scans:** both are read-only.
+  They walk Gmail’s own size searches (`larger:25M` etc.) and a small
+  set of signal queries (unread ratio, age, starred, Sent activity) to
+  rank senders locally. Applying a suggestion or purge runs as an
+  ordinary cleanup with every guard below intact.
+
+- **Auto-Pilot (Pro):** the weekly scheduled version of the Smart
+  Suggestions sweep. Its first run is always a dry run and it waits for
+  an explicit confirm in the popup before any sweep touches mail. It
+  only ever archives (never deletes), caps each sweep, tags everything
+  first, and verifies the license on-device before each run. It uses no
+  new permissions and no network.
 
 - Applies **local safety logic** before taking action:
   - **Whitelist:** If you set a Global Whitelist, the extension appends exclusions (example: `-from:email@domain.com`) to every query locally.
@@ -112,6 +131,12 @@ The extension stores small values using `chrome.storage` so your settings persis
 - `activeRun` best-effort marker (Gmail tab ID + start time) so the popup can detect an ongoing run
 - Small UI flags (example: `pinHintDismissed`, `ratingPromptDismissed`)
 - Optional run history / last-run stats used for diagnostics and progress summaries (counts, durations, estimates)
+- Scan results from the subscription scan, Storage X-ray, and Smart
+  Suggestions: sender **addresses** with counts, size estimates, and
+  per-sender status. These stay on your device and exist so the popup
+  can show the lists without rescanning. They are the only place any
+  part of your mailbox’s contents is persisted, and it is limited to
+  sender addresses, never message content.
 
 No email bodies, subjects, message IDs, attachment contents, or Gmail credentials are stored or sent.
 
@@ -137,6 +162,20 @@ External network activity happens only when **you** initiate it:
 
 These are normal browser navigations or purchase-flow calls initiated by
 you. Your Gmail content is never part of any of them.
+
+---
+
+## Install-source guard
+
+The extension checks how its own copy was installed (via
+`chrome.management.getSelf`, which needs no extra permission). A copy
+that was planted by third-party software rather than installed from an
+official store shows a permanent warning banner pointing to the real
+listing, and **scheduled cleanups and Auto-Pilot refuse to run** on such
+a copy, so a sideloaded copy can never act on a mailbox unattended.
+Store installs, unpacked developer builds, and enterprise-policy
+deployments are unaffected. The Diagnostics page shows the detected
+install source next to the version.
 
 ---
 
