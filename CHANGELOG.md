@@ -3,6 +3,30 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 7.13.1 - Steadier progress tab
+
+### Fixed
+- **A reused progress tab no longer stays stuck on the previous run.**
+  If you left a finished progress tab open and started another cleanup,
+  the extension brought that tab back to the front without refreshing
+  it, so it kept showing the old run as over: the Cancel button stayed
+  greyed out reading "Run finished" and the reconnect controls stayed
+  disabled, even though a new cleanup really was running. There was no
+  way to stop that run from the dashboard. The tab is now refreshed
+  when it is reused, so it always tracks the run you just started.
+- **Declining a duplicate run no longer leaves a dead dashboard
+  behind.** When a cleanup was already running in the Gmail tab, the
+  extension opened a progress page first and only then noticed and
+  refused, stranding you on a fresh dashboard that sat on "Waiting for
+  Gmail tab" forever. It now checks first and simply tells you a
+  cleanup is already running, opening nothing.
+
+### Changed
+- The "is a run already attached" probe and the progress-tab opener are
+  each written once and shared by all four run paths (cleanup, storage
+  purge, smart apply, and the read-only scans) instead of being copied
+  into each one. No behavior change beyond the two fixes above.
+
 ## 7.13.0 - Speaks your language
 
 ### Added

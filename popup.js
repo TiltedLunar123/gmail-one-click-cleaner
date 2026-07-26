@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "7.13.0";
+  const POPUP_VERSION = "7.13.1";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -234,6 +234,19 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (e) {
       log("warn", "tabs.update failed", e);
       return null;
+    }
+  };
+
+  // Reports whether the reload actually happened, so a caller can fall
+  // back to a fresh tab when the old one turned out to be gone.
+  const tabsReload = async (tabId) => {
+    if (!GCC.hasChromeTabs() || typeof chrome.tabs.reload !== "function") return false;
+    try {
+      await GCC.promisify(chrome.tabs.reload.bind(chrome.tabs), tabId);
+      return true;
+    } catch (e) {
+      log("warn", "tabs.reload failed", e);
+      return false;
     }
   };
 
@@ -972,6 +985,48 @@ document.addEventListener("DOMContentLoaded", () => {
     return null;
   };
 
+  // A progress page never leaves its finished state once a run ends, so
+  // merely focusing a leftover tab for a NEW run handed the user a dead
+  // dashboard: Cancel stayed disabled reading "Run finished" and the
+  // auto-reconnect was already stopped. Reusing the tab now reloads it.
+  // The reload is explicit rather than a re-navigation to the same URL,
+  // because tabs.update is only documented to navigate, and the URL a
+  // leftover tab already carries is the one we would navigate it to.
+  // Callers run the already-attached guard first, so in the ordinary
+  // case no live dashboard is reachable here; a run whose tab refuses
+  // the attached probe can still be reloaded, and that page reconnects
+  // on load, costing only the log lines already on screen.
+  const openProgressTab = async (gmailTabId) => {
+    const progressUrl = chrome.runtime.getURL(`progress.html?gmailTabId=${gmailTabId}`);
+    const existing = await findProgressTab(gmailTabId);
+    if (!existing?.id) {
+      await tabsCreate({ url: progressUrl, active: true });
+      return;
+    }
+    // findProgressTab matched this tab on the same gmailTabId, so it is
+    // already pointed at the right URL and only needs a fresh document.
+    if (!(await tabsReload(existing.id))) {
+      await tabsCreate({ url: progressUrl, active: true });
+      return;
+    }
+    await tabsUpdate(existing.id, { active: true });
+  };
+
+  // True when the engine is already running in that tab. A tab that
+  // cannot answer reads as not attached, so the injection still gets its
+  // attempt and surfaces the real error instead of a wrong refusal.
+  const isEngineAttached = async (tabId) => {
+    try {
+      const [result] = await scriptingExecuteScript({
+        target: { tabId },
+        func: () => !!window.GCC_ATTACHED
+      });
+      return result?.result === true;
+    } catch {
+      return false;
+    }
+  };
+
   // =========================
   // Features: Monthly preset, pin hint, rating
   // =========================
@@ -1338,28 +1393,11 @@ document.addEventListener("DOMContentLoaded", () => {
       );
       updateProgress(55);
 
-      // Open progress page first (popup usually closes after this)
-      const progressUrl = chrome.runtime.getURL(`progress.html?gmailTabId=${gmailTab.id}`);
-
-      // If a progress tab already exists for this Gmail tab, reuse it
-      const existingProgress = await findProgressTab(gmailTab.id);
-      if (existingProgress?.id) await tabsUpdate(existingProgress.id, { active: true });
-      else await tabsCreate({ url: progressUrl, active: true });
-      updateProgress(75);
-
-      // Check if content script is already attached
-      let alreadyAttached = false;
-      try {
-        const [result] = await scriptingExecuteScript({
-          target: { tabId: gmailTab.id },
-          func: () => !!window.GCC_ATTACHED
-        });
-        alreadyAttached = result?.result === true;
-      } catch {
-        // Tab might not be ready, proceed with injection
-      }
-
-      if (alreadyAttached) {
+      // Refuse before anything opens: a run already attached to this
+      // Gmail tab leaves this one nothing to start, and opening a
+      // dashboard for it would only strand the user on a page that never
+      // receives an update.
+      if (await isEngineAttached(gmailTab.id)) {
         log("info", "Content script already attached, skipping injection");
         showToast(t("alreadyRunningToast", "a cleanup is already running"), "warning");
         await clearActiveRun();
@@ -1369,6 +1407,11 @@ document.addEventListener("DOMContentLoaded", () => {
         state.isRunning = false;
         return;
       }
+
+      // Progress page opens before the injection because this popup
+      // usually closes as soon as that tab takes focus.
+      await openProgressTab(gmailTab.id);
+      updateProgress(75);
 
       await scriptingExecuteScript({
         target: { tabId: gmailTab.id },
@@ -1599,17 +1642,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const gmailTab = await findOrOpenGmailTab(setStatusFn);
     if (!gmailTab) return null;
 
-    try {
-      const [attached] = await scriptingExecuteScript({
-        target: { tabId: gmailTab.id },
-        func: () => !!window.GCC_ATTACHED
-      });
-      if (attached?.result === true) {
-        showToast("another run is already in progress", "warning");
-        return null;
-      }
-    } catch {
-      // Tab might not be ready; the injection below will surface real errors.
+    if (await isEngineAttached(gmailTab.id)) {
+      showToast("another run is already in progress", "warning");
+      return null;
     }
 
     await scriptingExecuteScript({
@@ -2049,27 +2084,14 @@ document.addEventListener("DOMContentLoaded", () => {
         }).catch(() => {});
       }
 
-      const progressUrl = chrome.runtime.getURL(`progress.html?gmailTabId=${gmailTab.id}`);
-      const existingProgress = await findProgressTab(gmailTab.id);
-      if (existingProgress?.id) await tabsUpdate(existingProgress.id, { active: true });
-      else await tabsCreate({ url: progressUrl, active: true });
-
-      let alreadyAttached = false;
-      try {
-        const [result] = await scriptingExecuteScript({
-          target: { tabId: gmailTab.id },
-          func: () => !!window.GCC_ATTACHED
-        });
-        alreadyAttached = result?.result === true;
-      } catch {
-        // Tab might not be ready, proceed with injection
-      }
-      if (alreadyAttached) {
+      if (await isEngineAttached(gmailTab.id)) {
         showToast(t("alreadyRunningToast", "a cleanup is already running"), "warning");
         await clearActiveRun();
         state.isRunning = false;
         return;
       }
+
+      await openProgressTab(gmailTab.id);
 
       await scriptingExecuteScript({
         target: { tabId: gmailTab.id },
@@ -2397,27 +2419,14 @@ document.addEventListener("DOMContentLoaded", () => {
         }).catch(() => {});
       }
 
-      const progressUrl = chrome.runtime.getURL(`progress.html?gmailTabId=${gmailTab.id}`);
-      const existingProgress = await findProgressTab(gmailTab.id);
-      if (existingProgress?.id) await tabsUpdate(existingProgress.id, { active: true });
-      else await tabsCreate({ url: progressUrl, active: true });
-
-      let alreadyAttached = false;
-      try {
-        const [result] = await scriptingExecuteScript({
-          target: { tabId: gmailTab.id },
-          func: () => !!window.GCC_ATTACHED
-        });
-        alreadyAttached = result?.result === true;
-      } catch {
-        // Tab might not be ready, proceed with injection
-      }
-      if (alreadyAttached) {
+      if (await isEngineAttached(gmailTab.id)) {
         showToast(t("alreadyRunningToast", "a cleanup is already running"), "warning");
         await clearActiveRun();
         state.isRunning = false;
         return;
       }
+
+      await openProgressTab(gmailTab.id);
 
       await scriptingExecuteScript({
         target: { tabId: gmailTab.id },
