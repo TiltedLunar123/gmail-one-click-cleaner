@@ -751,8 +751,8 @@ const GCC = (() => {
   // exact payload bytes.
 
   const PRO = Object.freeze({
-    PRICE_LABEL: "$9.99 lifetime",
-    BUY_URL: "https://buy.stripe.com/7sY4gA07N9RE1MIc3VdUY04",
+    PRICE_LABEL: "$19.99 lifetime",
+    BUY_URL: "https://buy.stripe.com/4gMaEY6wb7Jwezufg7dUY05",
     SUPPORT_URL: "https://github.com/TiltedLunar123/gmail-one-click-cleaner#pro",
     // Self-serve key recovery: re-issues the key to the address that
     // paid, for buyers who no longer have the post-checkout link.
@@ -1051,18 +1051,18 @@ const GCC = (() => {
   // senders, and storage figures are floor estimates.
   const subsUpsellLine = (senderCount) => {
     const n = Math.max(0, Math.floor(Number(senderCount) || 0));
-    if (!n) return t("subsUpsellNone", "One $9.99 payment unlocks bulk unsubscribe forever.");
-    if (n === 1) return t("subsUpsellOne", "Found 1 mailing list emailing you. Pro unsubscribes from the ones you pick for $9.99.");
-    return t("subsUpsellMany", `Found ${n} mailing lists emailing you. Pro unsubscribes from the ones you pick for $9.99.`, [String(n)]);
+    if (!n) return t("subsUpsellNone", "One $19.99 payment unlocks bulk unsubscribe forever.");
+    if (n === 1) return t("subsUpsellOne", "Found 1 mailing list emailing you. Pro unsubscribes from the ones you pick for $19.99.");
+    return t("subsUpsellMany", `Found ${n} mailing lists emailing you. Pro unsubscribes from the ones you pick for $19.99.`, [String(n)]);
   };
 
   const xrayUpsellLine = (senderCount, totalMb) => {
     const n = Math.max(0, Math.floor(Number(senderCount) || 0));
     const mb = Math.max(0, Number(totalMb) || 0);
-    if (!n || !mb) return t("xrayUpsellNone", "Pro is $9.99 once: it unlocks the full ranked list and one-click purge.");
+    if (!n || !mb) return t("xrayUpsellNone", "Pro is $19.99 once: it unlocks the full ranked list and one-click purge.");
     const mbText = formatMb(mb);
-    if (n === 1) return t("xrayUpsellOne", `1 sender is holding at least ${mbText}. Pro purges the ones you pick for $9.99.`, [mbText]);
-    return t("xrayUpsellMany", `${n} senders are holding at least ${mbText}. Pro purges the ones you pick for $9.99.`, [String(n), mbText]);
+    if (n === 1) return t("xrayUpsellOne", `1 sender is holding at least ${mbText}. Pro purges the ones you pick for $19.99.`, [mbText]);
+    return t("xrayUpsellMany", `${n} senders are holding at least ${mbText}. Pro purges the ones you pick for $19.99.`, [String(n), mbText]);
   };
 
   // 7.4: post-run recap. The popup closes itself when a run starts, so
@@ -1110,9 +1110,9 @@ const GCC = (() => {
   // any, falls back to the static pitch.
   const smartUpsellLine = (hiddenCount) => {
     const n = Math.max(0, Math.floor(Number(hiddenCount) || 0));
-    if (!n) return t("smartUpsellNone", "Pro is $9.99 once: it unlocks the full suggestion list and bulk apply.");
-    if (n === 1) return t("smartUpsellOne", "1 more suggestion ready. Pro unlocks the full list and applies them in bulk for $9.99.");
-    return t("smartUpsellMany", `${n} more suggestions ready. Pro unlocks the full list and applies them in bulk for $9.99.`, [String(n)]);
+    if (!n) return t("smartUpsellNone", "Pro is $19.99 once: it unlocks the full suggestion list and bulk apply.");
+    if (n === 1) return t("smartUpsellOne", "1 more suggestion ready. Pro unlocks the full list and applies them in bulk for $19.99.");
+    return t("smartUpsellMany", `${n} more suggestions ready. Pro unlocks the full list and applies them in bulk for $19.99.`, [String(n)]);
   };
 
   // 7.12: first line of the locked Auto-Pilot row. Leads with how many
@@ -1120,9 +1120,9 @@ const GCC = (() => {
   // any, falls back to the static pitch.
   const autoPilotUpsellLine = (suggestionCount) => {
     const n = Math.max(0, Math.floor(Number(suggestionCount) || 0));
-    if (!n) return t("apUpsellNone", "Pro is $9.99 once: Auto-Pilot keeps your inbox clean every week, automatically.");
-    if (n === 1) return t("apUpsellOne", "1 suggestion is sitting here right now. Auto-Pilot sweeps them for you every week on Pro ($9.99 once).");
-    return t("apUpsellMany", `${n} suggestions are sitting here right now. Auto-Pilot sweeps them for you every week on Pro ($9.99 once).`, [String(n)]);
+    if (!n) return t("apUpsellNone", "Pro is $19.99 once: Auto-Pilot keeps your inbox clean every week, automatically.");
+    if (n === 1) return t("apUpsellOne", "1 suggestion is sitting here right now. Auto-Pilot sweeps them for you every week on Pro ($19.99 once).");
+    return t("apUpsellMany", `${n} suggestions are sitting here right now. Auto-Pilot sweeps them for you every week on Pro ($19.99 once).`, [String(n)]);
   };
 
   const popupUi = Object.freeze({

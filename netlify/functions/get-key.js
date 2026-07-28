@@ -74,7 +74,7 @@ async function handler(event) {
   const privateKeyPem = process.env.LICENSE_PRIVATE_KEY || "";
   // Comma-separated list since the $9.99 move: Stripe payment links
   // cannot be repriced, so the original $5 link (whose URL ships in
-  // old extension versions) and the $9.99 link are both legitimate
+  // old extension versions) and the newer links are all legitimate
   // purchase sources. Anything else still gets a 402.
   const paymentLinkIds = (process.env.STRIPE_PAYMENT_LINK_ID || "")
     .split(",")

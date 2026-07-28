@@ -85,14 +85,14 @@ describe("GCC.popupUi.ratingRunQualifies", () => {
 describe("GCC.popupUi.autoPilotUpsellLine", () => {
   test("static fallback before any suggestions exist", () => {
     const line = UI.autoPilotUpsellLine(0);
-    expect(line).toBe("Pro is $9.99 once: Auto-Pilot keeps your inbox clean every week, automatically.");
+    expect(line).toBe("Pro is $19.99 once: Auto-Pilot keeps your inbox clean every week, automatically.");
     expect(UI.autoPilotUpsellLine(undefined)).toBe(line);
     expect(UI.autoPilotUpsellLine(-2)).toBe(line);
   });
 
   test("leads with the live suggestion count", () => {
     const line = UI.autoPilotUpsellLine(7);
-    expect(line).toBe("7 suggestions are sitting here right now. Auto-Pilot sweeps them for you every week on Pro ($9.99 once).");
+    expect(line).toBe("7 suggestions are sitting here right now. Auto-Pilot sweeps them for you every week on Pro ($19.99 once).");
   });
 
   test("singular form for one suggestion", () => {
@@ -103,14 +103,14 @@ describe("GCC.popupUi.autoPilotUpsellLine", () => {
 describe("GCC.popupUi.subsUpsellLine", () => {
   test("static fallback before any scan", () => {
     const line = UI.subsUpsellLine(0);
-    expect(line).toBe("One $9.99 payment unlocks bulk unsubscribe forever.");
+    expect(line).toBe("One $19.99 payment unlocks bulk unsubscribe forever.");
     expect(UI.subsUpsellLine(undefined)).toBe(line);
     expect(UI.subsUpsellLine(-3)).toBe(line);
   });
 
   test("leads with the scan count once one exists", () => {
     const line = UI.subsUpsellLine(47);
-    expect(line).toBe("Found 47 mailing lists emailing you. Pro unsubscribes from the ones you pick for $9.99.");
+    expect(line).toBe("Found 47 mailing lists emailing you. Pro unsubscribes from the ones you pick for $19.99.");
   });
 
   test("singular form for a single list", () => {
@@ -202,14 +202,14 @@ describe("GCC.popupUi.recapAction / recapCleanedCount", () => {
 describe("GCC.popupUi.xrayUpsellLine", () => {
   test("static fallback before any scan", () => {
     const line = UI.xrayUpsellLine(0, 0);
-    expect(line).toBe("Pro is $9.99 once: it unlocks the full ranked list and one-click purge.");
+    expect(line).toBe("Pro is $19.99 once: it unlocks the full ranked list and one-click purge.");
     expect(UI.xrayUpsellLine(5, 0)).toBe(line);
     expect(UI.xrayUpsellLine(0, 100)).toBe(line);
   });
 
   test("leads with senders and a floor-estimate size", () => {
     const line = UI.xrayUpsellLine(9, 412);
-    expect(line).toBe("9 senders are holding at least 412.0 MB. Pro purges the ones you pick for $9.99.");
+    expect(line).toBe("9 senders are holding at least 412.0 MB. Pro purges the ones you pick for $19.99.");
   });
 
   test("singular form and GB scaling", () => {

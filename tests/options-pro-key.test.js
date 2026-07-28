@@ -31,7 +31,7 @@ const proSectionHtml = () => {
   return OPTIONS_HTML.slice(start, end + "</section>".length);
 };
 
-const BUY_URL = "https://buy.stripe.com/7sY4gA07N9RE1MIc3VdUY04";
+const BUY_URL = "https://buy.stripe.com/4gMaEY6wb7Jwezufg7dUY05";
 
 function load({ active, clipboardFails = false } = {}) {
   document.body.innerHTML = proSectionHtml();
@@ -53,7 +53,7 @@ function load({ active, clipboardFails = false } = {}) {
     sanitizeProtectKeywords: () => [],
     license: {
       PRO: {
-        PRICE_LABEL: "$9.99 lifetime",
+        PRICE_LABEL: "$19.99 lifetime",
         BUY_URL,
         RECOVER_URL: "https://gmail-cleaner-pro.netlify.app/recover.html",
         SUPPORT_EMAIL: "support@example.com",

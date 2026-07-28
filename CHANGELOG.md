@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 7.14.1 - Pro is now $19.99 lifetime
+
+### Changed
+- **Pro is $19.99, still a single payment and still lifetime.** Everyone
+  who already bought keeps everything, at the price they paid, forever,
+  including every feature added from here on. Nothing about an existing
+  key changes. Competing inbox cleaners charge $9 to $10 every month;
+  this stays one payment, and the free tier is untouched.
+
 ## 7.14.0 - Key recovery, safer unattended runs
 
 ### Added
