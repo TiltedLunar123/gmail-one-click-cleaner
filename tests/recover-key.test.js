@@ -34,16 +34,34 @@ const request = (body, headers = {}) => ({
   body: typeof body === "string" ? body : JSON.stringify(body)
 });
 
-// Stripe's list endpoint, keyed by the filters the function sends.
+// Stripe's list endpoint. Sessions are keyed by payment link purely for
+// readability in the tests; the real query only ever filters on email,
+// because Stripe rejects customer_details and payment_link together
+// ("You may only specify one of these parameters"). The function is
+// responsible for discarding links that are not ours.
 const stripeListReturns = (sessionsByLink) => {
   global.fetch = jest.fn(async (url) => {
     const parsed = new URL(url);
-    const link = parsed.searchParams.get("payment_link");
+    // A payment_link filter would make Stripe 400 the whole request.
+    if (parsed.searchParams.get("payment_link")) {
+      return {
+        status: 400,
+        json: async () => ({
+          error: {
+            type: "invalid_request_error",
+            message: "You may only specify one of these parameters: customer_details, payment_link."
+          }
+        })
+      };
+    }
     const email = parsed.searchParams.get("customer_details[email]");
-    const all = sessionsByLink[link] || [];
+    const all = Object.values(sessionsByLink).flat();
     return {
       status: 200,
-      json: async () => ({ data: all.filter((s) => s.customer_details.email === email) })
+      json: async () => ({
+        data: all.filter((s) => s.customer_details.email === email),
+        has_more: false
+      })
     };
   });
 };
@@ -156,16 +174,49 @@ describe("recover-key function", () => {
     expect(bodyOf(res).key).toBeUndefined();
   });
 
-  test("only this product's payment links are ever queried", async () => {
-    // The Stripe account sells other things. Nothing about those may be
-    // reachable through this endpoint.
-    stripeListReturns({ [LINK_ID]: [] });
-    await handler(request({ email: EMAIL }));
+  test("a purchase of another product on this account unlocks nothing", async () => {
+    // The Stripe account sells other things, and an email-only query
+    // returns those sessions too. Discarding them is the security
+    // boundary, so it gets a direct test.
+    const otherProduct = { ...SESSION, payment_link: "plink_SOMETHING_ELSE" };
+    stripeListReturns({ plink_SOMETHING_ELSE: [withEmail(otherProduct, EMAIL)] });
 
+    const res = await handler(request({ email: EMAIL }));
+    expect(res.statusCode).toBe(404);
+    expect(bodyOf(res).key).toBeUndefined();
+  });
+
+  test("never sends a payment_link filter, which Stripe rejects outright", async () => {
+    // Stripe: "You may only specify one of these parameters:
+    // customer_details, payment_link." Sending both 400s the request,
+    // which surfaced as a 502 to real buyers.
+    stripeListReturns({ [LINK_ID]: [withEmail(SESSION, EMAIL)] });
+    const res = await handler(request({ email: EMAIL }));
+
+    expect(res.statusCode).toBe(200);
+    expect(global.fetch.mock.calls.length).toBeGreaterThan(0);
     for (const call of global.fetch.mock.calls) {
-      const link = new URL(call[0]).searchParams.get("payment_link");
-      expect(link).toBe(LINK_ID);
+      const params = new URL(call[0]).searchParams;
+      expect(params.get("payment_link")).toBeNull();
+      expect(params.get("customer_details[email]")).toBeTruthy();
     }
+  });
+
+  test("pages through a long session history to find the purchase", async () => {
+    // An email with many sessions on this shared account could push the
+    // real purchase past the first page.
+    const filler = Array.from({ length: 100 }, (_, i) =>
+      withEmail({ ...SESSION, id: `cs_live_${String(i).padStart(30, "f")}`, payment_link: "plink_OTHER" }, EMAIL));
+    let call = 0;
+    global.fetch = jest.fn(async () => {
+      call += 1;
+      return call === 1
+        ? { status: 200, json: async () => ({ data: filler, has_more: true }) }
+        : { status: 200, json: async () => ({ data: [withEmail(SESSION, EMAIL)], has_more: false }) };
+    });
+
+    expect((await handler(request({ email: EMAIL }))).statusCode).toBe(200);
+    expect(call).toBeGreaterThan(1);
   });
 
   test("matches the address whatever case the buyer typed", async () => {
