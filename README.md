@@ -85,7 +85,7 @@ has:attachment larger:10M older_than:6m
 
 ## Pro
 
-Pro is a **one-time $9.99 purchase** (no subscription) that unlocks four things: bulk unsubscribe, the full Storage X-ray with one-click purge, the full Smart Suggestions list with bulk apply, and Auto-Pilot, which keeps your inbox clean every week, automatically. Everything that is free today stays free forever. Compare: Google One storage starts at about $20 per year, forever, and inbox-cleaning subscriptions run about $10 per month.
+Pro is a **one-time $19.99 purchase** (no subscription) that unlocks four things: bulk unsubscribe, the full Storage X-ray with one-click purge, the full Smart Suggestions list with bulk apply, and Auto-Pilot, which keeps your inbox clean every week, automatically. Everything that is free today stays free forever. Compare: Google One storage starts at about $20 per year, forever, and inbox-cleaning subscriptions run about $10 per month.
 
 - Your license key is verified **entirely on your device** with a built-in public key. The extension never contacts a server, not even to check the license.
 - The key is a signed token with no personal data. Stored in Chrome sync, so Pro follows you to your other signed-in browsers.

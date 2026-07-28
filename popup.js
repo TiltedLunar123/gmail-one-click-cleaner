@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "7.14.0";
+  const POPUP_VERSION = "7.14.1";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -1493,7 +1493,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.unsubBtnSub) {
       elements.unsubBtnSub.textContent = active
         ? t("unsubActiveSub", "Uses Gmail's own Unsubscribe control")
-        : t("proPriceSub", "Pro · $9.99 lifetime");
+        : t("proPriceSub", "Pro · $19.99 lifetime");
     }
     if (elements.unsubBtn) elements.unsubBtn.classList.toggle("locked", !active);
     if (elements.subsBuyLink) elements.subsBuyLink.href = GCC.license.buyUrl("unsubscribe");
@@ -1507,7 +1507,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.xrayPurgeBtnSub) {
       elements.xrayPurgeBtnSub.textContent = active
         ? t("smartBulkSub", "Tagged first, then Trash - undo applies")
-        : t("xrayProSub", "Pro · $9.99 once (Google One is $20 every year)");
+        : t("xrayProSub", "Pro · $19.99 once (Google One is $20 every year)");
     }
     renderXrayList();
 
