@@ -111,12 +111,24 @@ function readEmail(event) {
   return email;
 }
 
-async function listSessions(paymentLinkId, email, apiKey, fetchImpl) {
+// Stripe refuses customer_details and payment_link in the same list call
+// ("You may only specify one of these parameters"), so the email is the
+// query and the payment link is matched here afterwards. That is only a
+// filtering detail: a session on any other payment link still cannot
+// produce a key, it is just discarded locally instead of by Stripe.
+//
+// This account sells more than one product, so an email-only query can
+// return sessions belonging to something else entirely. They are read
+// into memory and dropped; nothing about them is ever returned.
+const PAGE_LIMIT = 100;
+const MAX_PAGES = 5;
+
+async function listSessionsPage(email, apiKey, fetchImpl, startingAfter) {
   const params = new URLSearchParams({
-    payment_link: paymentLinkId,
     "customer_details[email]": email,
-    limit: "100"
+    limit: String(PAGE_LIMIT)
   });
+  if (startingAfter) params.set("starting_after", startingAfter);
   const res = await fetchImpl(`https://api.stripe.com/v1/checkout/sessions?${params}`, {
     headers: { authorization: `Bearer ${apiKey}` }
   });
@@ -124,11 +136,36 @@ async function listSessions(paymentLinkId, email, apiKey, fetchImpl) {
   return { status: res.status, data };
 }
 
-// The oldest paid session wins, so a repeat buyer's recoveries always
-// describe the same purchase instead of alternating between them.
-function pickSession(sessions) {
+// Returns { ok, sessions } - ok false means Stripe could not be read, which
+// must never be reported to the buyer as "no purchase found".
+async function listSessions(email, apiKey, fetchImpl) {
+  const sessions = [];
+  let startingAfter = null;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const result = await listSessionsPage(email, apiKey, fetchImpl, startingAfter);
+    if (result.status !== 200 || !Array.isArray(result.data?.data)) {
+      return { ok: false, sessions: [] };
+    }
+    sessions.push(...result.data.data);
+    if (!result.data.has_more || result.data.data.length === 0) break;
+    startingAfter = result.data.data[result.data.data.length - 1]?.id;
+    if (!startingAfter) break;
+  }
+  return { ok: true, sessions };
+}
+
+// The oldest paid session on one of OUR payment links wins, so a repeat
+// buyer's recoveries always describe the same purchase instead of
+// alternating between them. The payment-link check is the security
+// boundary: it is what stops a purchase of a different product on this
+// same Stripe account from unlocking Pro.
+function pickSession(sessions, paymentLinkIds) {
+  const allowed = new Set(paymentLinkIds || []);
   return sessions
-    .filter((s) => s && s.payment_status === "paid" && typeof s.id === "string")
+    .filter((s) => s
+      && s.payment_status === "paid"
+      && typeof s.id === "string"
+      && allowed.has(s.payment_link))
     .sort((a, b) => (Number(a.created) || 0) - (Number(b.created) || 0)
       || String(a.id).localeCompare(String(b.id)))[0] || null;
 }
@@ -163,22 +200,20 @@ async function handler(event) {
   // address as given and lowercased. Same address = one query.
   const candidates = [...new Set([email, email.toLowerCase()])];
   const found = [];
-  for (const linkId of paymentLinkIds) {
-    for (const candidate of candidates) {
-      let result;
-      try {
-        result = await listSessions(linkId, candidate, apiKey, globalThis.fetch);
-      } catch {
-        return respond(502, { error: "could not reach Stripe, try again shortly" });
-      }
-      if (result.status !== 200 || !Array.isArray(result.data?.data)) {
-        return respond(502, { error: "unexpected Stripe response, try again shortly" });
-      }
-      found.push(...result.data.data);
+  for (const candidate of candidates) {
+    let result;
+    try {
+      result = await listSessions(candidate, apiKey, globalThis.fetch);
+    } catch {
+      return respond(502, { error: "could not reach Stripe, try again shortly" });
     }
+    if (!result.ok) {
+      return respond(502, { error: "unexpected Stripe response, try again shortly" });
+    }
+    found.push(...result.sessions);
   }
 
-  const session = pickSession(found);
+  const session = pickSession(found, paymentLinkIds);
   if (!session) {
     return respond(404, { error: "no completed Pro purchase found for that email address" });
   }
