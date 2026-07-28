@@ -3,6 +3,64 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 7.14.0 - Key recovery, safer unattended runs
+
+### Added
+- **Get your Pro key back with the email you paid with.** Until now the
+  only self-serve route was revisiting the link Stripe sent you after
+  checkout, which is no help once that link is gone. There is now a
+  recovery page that re-issues a working key to the address on the
+  purchase, free and as often as you need. Your existing key keeps
+  working; this just gets you another one.
+- **Your key is readable again from Options.** If Pro is active on one
+  browser, Options now has **Show key** and **Copy key** buttons plus an
+  "email yourself a backup" link, so moving Pro to a second browser or a
+  new computer no longer needs the recovery flow at all. The key stays
+  hidden until you ask for it.
+- **A proper welcome page after checkout**, with the key, a one-click
+  backup, what just unlocked, and the three steps to a first clean
+  inbox.
+
+### Fixed
+- **A failed scheduled cleanup no longer blocks manual runs for two
+  hours.** When a scheduled sweep could not inject into the Gmail tab,
+  it left its "a run is in progress" marker behind and never cleared it.
+  Every manual cleanup after that was refused with "a cleanup is already
+  running" until the marker aged out two hours later. The marker is now
+  released when the run never starts.
+- **Scheduled sweeps and Auto-Pilot no longer walk into a run already in
+  progress.** Scans, restores and the other read-only runs attach to the
+  Gmail tab without setting that marker, so an unattended sweep could not
+  see them: it would inject anyway, get silently ignored, record itself
+  as having run, and strand its marker for two hours. Both now check the
+  tab first and stand down cleanly, leaving the schedule to fire next
+  time.
+- **The progress page will no longer start a second cleaner on top of a
+  live one.** A large run pauses to ask for confirmation in the Gmail
+  tab, which freezes that page's scripting; the progress page read the
+  silence as a dead engine and, after a minute, re-injected. Two engines
+  then worked the same mailbox. Auto-reconnect now checks whether the
+  cleaner is still attached and stops instead, pointing you at the
+  waiting prompt, and the manual Re-inject button asks before overriding.
+- **A cleanup that failed to start could clear a different run's
+  progress marker**, undoing the protection against two runs at once.
+  Each run now only ever releases its own.
+- **Storage purges and smart applies no longer register work for a run
+  that was refused**, which left the worker holding a marker for a run
+  that never happened.
+- **Estimated result totals are read correctly again.** Gmail writes
+  large result counts as "of about 3,200"; the parser expected the digits
+  immediately after "of", failed, and fell back to counting only the
+  current page, so dry runs and bulk actions under-reported what they
+  would affect.
+
+### Changed
+- Each **Get Pro** button now tags its checkout link with which feature
+  it came from, so the sales record itself shows which one convinced
+  people. Nothing is sent from the extension, nothing is recorded for
+  anyone who does not buy, and the tag is a fixed label with no personal
+  data in it. `npm run analytics` reads it back from Stripe.
+
 ## 7.13.1 - Steadier progress tab
 
 ### Fixed

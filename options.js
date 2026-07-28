@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const OPTIONS_VERSION = "7.13.1";
+  const OPTIONS_VERSION = "7.14.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -1252,11 +1252,27 @@
     const keyInput = GCC.$("proKeyInput");
     const activateBtn = GCC.$("proActivateBtn");
     const removeBtn = GCC.$("proRemoveBtn");
+    const showBtn = GCC.$("proShowBtn");
+    const copyBtn = GCC.$("proCopyBtn");
+    const revealEl = GCC.$("proKeyReveal");
+    const backupRow = GCC.$("proBackupRow");
+    const mailBackupLink = GCC.$("proMailBackupLink");
     const statusEl = GCC.$("proStatus");
     const buyLink = GCC.$("proBuyLink");
+    const recoverLink = GCC.$("proRecoverLink");
+    const supportLink = GCC.$("proSupportLink");
     if (!keyInput || !activateBtn || !statusEl) return;
 
-    if (buyLink) buyLink.href = GCC.license.PRO.BUY_URL;
+    if (buyLink) buyLink.href = GCC.license.buyUrl("options");
+    if (recoverLink) recoverLink.href = GCC.license.PRO.RECOVER_URL;
+    if (supportLink) {
+      supportLink.href = `mailto:${GCC.license.PRO.SUPPORT_EMAIL}?subject=${encodeURIComponent("Gmail Cleaner Pro key")}`;
+    }
+
+    // The active key, held only while this page is open. Reading it back
+    // out of storage is the whole point: a buyer who still has Pro on
+    // one browser should never need the recovery flow to reach another.
+    let activeKey = "";
 
     const maskKey = (key) => {
       const parts = String(key).split(".");
@@ -1264,22 +1280,75 @@
       return `GCC1.......${sig.slice(0, 6)}....`;
     };
 
+    const hideReveal = () => {
+      if (revealEl) {
+        revealEl.hidden = true;
+        revealEl.textContent = "";
+      }
+      if (showBtn) showBtn.textContent = "Show key";
+    };
+
     const renderState = async () => {
       const licenseState = await GCC.license.getState();
+      activeKey = licenseState.active ? licenseState.key : "";
+      hideReveal();
       if (licenseState.active) {
         statusEl.textContent = `Pro is active on this browser (key ${maskKey(licenseState.key)}). Bulk unsubscribe is unlocked.`;
         statusEl.style.color = "var(--success, #34d399)";
         keyInput.style.display = "none";
         activateBtn.style.display = "none";
         if (removeBtn) removeBtn.style.display = "";
+        if (showBtn) showBtn.style.display = "";
+        if (copyBtn) copyBtn.style.display = "";
+        if (backupRow) backupRow.hidden = false;
+        if (mailBackupLink) {
+          mailBackupLink.href = "mailto:?subject=" +
+            encodeURIComponent("My Gmail One-Click Cleaner Pro key") +
+            "&body=" +
+            encodeURIComponent(
+              "Keep this somewhere safe. Paste it into Options > Pro License to unlock Pro " +
+              "on any browser.\n\n" + licenseState.key + "\n"
+            );
+        }
       } else {
         statusEl.textContent = "No Pro key on this browser yet.";
         statusEl.style.color = "var(--text-muted)";
         keyInput.style.display = "";
         activateBtn.style.display = "";
         if (removeBtn) removeBtn.style.display = "none";
+        if (showBtn) showBtn.style.display = "none";
+        if (copyBtn) copyBtn.style.display = "none";
+        if (backupRow) backupRow.hidden = true;
       }
     };
+
+    showBtn?.addEventListener("click", () => {
+      if (!revealEl || !activeKey) return;
+      if (revealEl.hidden) {
+        revealEl.textContent = activeKey;
+        revealEl.hidden = false;
+        showBtn.textContent = "Hide key";
+      } else {
+        hideReveal();
+      }
+    });
+
+    copyBtn?.addEventListener("click", async () => {
+      if (!activeKey) return;
+      try {
+        await navigator.clipboard.writeText(activeKey);
+        GCC.showToast("Key copied to clipboard", "success");
+      } catch {
+        // Clipboard can be refused (permissions, insecure context); the
+        // reveal box is always a working fallback.
+        if (revealEl) {
+          revealEl.textContent = activeKey;
+          revealEl.hidden = false;
+          if (showBtn) showBtn.textContent = "Hide key";
+        }
+        GCC.showToast("Could not copy; select the key above and copy it", "warning");
+      }
+    });
 
     activateBtn.addEventListener("click", async () => {
       const raw = keyInput.value.trim();

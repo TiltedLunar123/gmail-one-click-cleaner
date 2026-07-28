@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "7.13.1";
+  const POPUP_VERSION = "7.14.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -735,7 +735,16 @@ document.addEventListener("DOMContentLoaded", () => {
     return { ok: true, claim };
   };
 
-  const clearActiveRun = async () => {
+  // With an expectedRunId this only drops the marker when it is still
+  // the one we claimed. Start paths pass theirs so that an error on the
+  // way up (no Gmail tab, scripting refused) cannot wipe the claim of a
+  // different run that is genuinely in flight. Terminal handlers still
+  // clear unconditionally: by then the run they describe is over.
+  const clearActiveRun = async (expectedRunId = null) => {
+    if (expectedRunId) {
+      const current = await getActiveRun();
+      if (current && current.runId !== expectedRunId) return;
+    }
     await storageSet("session", { [STORAGE_KEYS.ACTIVE_RUN]: null });
     await storageSet("local", { [STORAGE_KEYS.ACTIVE_RUN]: null });
   };
@@ -1400,7 +1409,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (await isEngineAttached(gmailTab.id)) {
         log("info", "Content script already attached, skipping injection");
         showToast(t("alreadyRunningToast", "a cleanup is already running"), "warning");
-        await clearActiveRun();
+        await clearActiveRun(claimedRunId);
         claimedRunId = null;
         resetRunButton();
         hideProgress();
@@ -1447,7 +1456,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       state.isRunning = false;
       state.currentGmailTabId = null;
-      if (claimedRunId) await clearActiveRun();
+      if (claimedRunId) await clearActiveRun(claimedRunId);
     }
   };
 
@@ -1487,13 +1496,13 @@ document.addEventListener("DOMContentLoaded", () => {
         : t("proPriceSub", "Pro · $9.99 lifetime");
     }
     if (elements.unsubBtn) elements.unsubBtn.classList.toggle("locked", !active);
-    if (elements.subsBuyLink) elements.subsBuyLink.href = GCC.license.PRO.BUY_URL;
-    if (elements.proPromoBuy) elements.proPromoBuy.href = GCC.license.PRO.BUY_URL;
+    if (elements.subsBuyLink) elements.subsBuyLink.href = GCC.license.buyUrl("unsubscribe");
+    if (elements.proPromoBuy) elements.proPromoBuy.href = GCC.license.buyUrl("popup_promo");
     if (elements.proPromo) elements.proPromo.hidden = active;
 
     // 7.2 storage X-ray shares the same license.
     if (elements.xrayProPill) elements.xrayProPill.hidden = !active;
-    if (elements.xrayBuyLink) elements.xrayBuyLink.href = GCC.license.PRO.BUY_URL;
+    if (elements.xrayBuyLink) elements.xrayBuyLink.href = GCC.license.buyUrl("storage_xray");
     if (elements.xrayPurgeBtn) elements.xrayPurgeBtn.classList.toggle("locked", !active);
     if (elements.xrayPurgeBtnSub) {
       elements.xrayPurgeBtnSub.textContent = active
@@ -1504,7 +1513,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 7.8 Smart Suggestions share the same license: the scan and the
     // top picks are free, the full list and bulk apply are Pro.
-    if (elements.smartBuyLink) elements.smartBuyLink.href = GCC.license.PRO.BUY_URL;
+    if (elements.smartBuyLink) elements.smartBuyLink.href = GCC.license.buyUrl("smart_suggestions");
     if (elements.smartBulkBtn) elements.smartBulkBtn.classList.toggle("locked", !active);
     renderSmartList();
   };
@@ -1514,8 +1523,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // want this"; making the user hunt for a second Get Pro link is
   // where the sale gets lost. Falls back to the inline upsell (which
   // carries the same link) when a tab cannot open.
-  const openProCheckout = async (fallbackUpsell) => {
-    const tab = await tabsCreate({ url: GCC.license.PRO.BUY_URL, active: true });
+  const openProCheckout = async (fallbackUpsell, source) => {
+    const tab = await tabsCreate({ url: GCC.license.buyUrl(source), active: true });
     if (tab) {
       setTimeout(safeClosePopup, 150);
       return;
@@ -1689,7 +1698,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (state.subs.running) return;
 
     if (!state.subs.licenseActive) {
-      await openProCheckout(elements.subsUpsell);
+      await openProCheckout(elements.subsUpsell, "unsubscribe_locked");
       return;
     }
 
@@ -2019,7 +2028,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (state.isRunning || state.xray.running) return;
 
     if (!state.subs.licenseActive) {
-      await openProCheckout(elements.xrayUpsell);
+      await openProCheckout(elements.xrayUpsell, "storage_xray_locked");
       return;
     }
 
@@ -2038,6 +2047,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const targeted = GCC.storageXray.sanitizeEmails(emails);
 
     state.isRunning = true;
+    let claimedRunId = null;
     try {
       if (!(await GCC.gmailAccess.check())) {
         refreshBanners().catch(() => {});
@@ -2059,6 +2069,7 @@ document.addEventListener("DOMContentLoaded", () => {
         state.isRunning = false;
         return;
       }
+      claimedRunId = claim.claim.runId;
 
       const config = await buildConfig();
       config.runId = claim.claim.runId;
@@ -2074,21 +2085,24 @@ document.addEventListener("DOMContentLoaded", () => {
           ? t("purgingOne", "Purging large mail from 1 sender...")
           : t("purgingMany", `Purging large mail from ${targeted.length} senders...`, [String(targeted.length)])));
 
+      if (await isEngineAttached(gmailTab.id)) {
+        showToast(t("alreadyRunningToast", "a cleanup is already running"), "warning");
+        await clearActiveRun(claimedRunId);
+        claimedRunId = null;
+        state.isRunning = false;
+        return;
+      }
+
       // Register the target list so the background can mark rows
       // purged when the run finishes (this popup will be long closed).
+      // Registered after the guard: a refused run leaves no marker
+      // waiting on a run that never starts.
       if (!config.dryRun) {
         GCC.sendMessage({
           type: "gmailCleanerStorageXrayPurgeStarted",
           runId: config.runId,
           senders: targeted
         }).catch(() => {});
-      }
-
-      if (await isEngineAttached(gmailTab.id)) {
-        showToast(t("alreadyRunningToast", "a cleanup is already running"), "warning");
-        await clearActiveRun();
-        state.isRunning = false;
-        return;
       }
 
       await openProgressTab(gmailTab.id);
@@ -2111,7 +2125,7 @@ document.addEventListener("DOMContentLoaded", () => {
       log("error", "handleXrayPurge error:", err);
       setXrayStatus(t("failedToStart", `Failed to start: ${msg}`, [msg]));
       showToast(t("purgeFailedPrefix", `purge failed: ${msg}`, [msg]), "error");
-      await clearActiveRun();
+      if (claimedRunId) await clearActiveRun(claimedRunId);
       state.isRunning = false;
       state.currentGmailTabId = null;
     }
@@ -2372,6 +2386,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (state.isRunning || state.smart.running) return;
 
     state.isRunning = true;
+    let claimedRunId = null;
     try {
       if (!(await GCC.gmailAccess.check())) {
         refreshBanners().catch(() => {});
@@ -2394,6 +2409,8 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
+      claimedRunId = claim.claim.runId;
+
       const config = await buildConfig();
       config.runId = claim.claim.runId;
       config.rulesOverride = queries;
@@ -2411,19 +2428,22 @@ document.addEventListener("DOMContentLoaded", () => {
           ? t("cleaningOne", "Cleaning up 1 sender...")
           : t("cleaningMany", `Cleaning up ${emails.length} senders...`, [String(emails.length)])));
 
+      if (await isEngineAttached(gmailTab.id)) {
+        showToast(t("alreadyRunningToast", "a cleanup is already running"), "warning");
+        await clearActiveRun(claimedRunId);
+        claimedRunId = null;
+        state.isRunning = false;
+        return;
+      }
+
+      // Stamped after the guard so a refused run leaves no marker
+      // waiting on a run that never starts.
       if (!config.dryRun) {
         GCC.sendMessage({
           type: "gmailCleanerSmartApplyStarted",
           runId: config.runId,
           senders: emails
         }).catch(() => {});
-      }
-
-      if (await isEngineAttached(gmailTab.id)) {
-        showToast(t("alreadyRunningToast", "a cleanup is already running"), "warning");
-        await clearActiveRun();
-        state.isRunning = false;
-        return;
       }
 
       await openProgressTab(gmailTab.id);
@@ -2446,7 +2466,7 @@ document.addEventListener("DOMContentLoaded", () => {
       log("error", "startSmartApplyRun error:", err);
       setSmartStatus(t("failedToStart", `Failed to start: ${msg}`, [msg]));
       showToast(t("applyFailedPrefix", `apply failed: ${msg}`, [msg]), "error");
-      await clearActiveRun();
+      if (claimedRunId) await clearActiveRun(claimedRunId);
       state.isRunning = false;
       state.currentGmailTabId = null;
     }
@@ -2463,7 +2483,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // existing gate; everything else is a free cleanup run.
     if (rule.runKind === "unsubscribe") {
       if (!state.subs.licenseActive) {
-        await openProCheckout(elements.smartUpsell);
+        await openProCheckout(elements.smartUpsell, "smart_unsub_locked");
         return;
       }
       if (state.subs.running) return;
@@ -2479,7 +2499,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const handleSmartBulkApply = async () => {
     if (!state.subs.licenseActive) {
-      await openProCheckout(elements.smartUpsell);
+      await openProCheckout(elements.smartUpsell, "smart_bulk_locked");
       return;
     }
     const emails = getCheckedSmartEmails();
@@ -2541,7 +2561,7 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.autoPilotUpsellText.textContent =
         GCC.popupUi.autoPilotUpsellLine(state.smart.visibleCount);
     }
-    if (elements.autoPilotBuyLink) elements.autoPilotBuyLink.href = GCC.license.PRO.BUY_URL;
+    if (elements.autoPilotBuyLink) elements.autoPilotBuyLink.href = GCC.license.buyUrl("autopilot");
 
     let statusText = "";
     if (active && ap?.enabled) {
@@ -2583,7 +2603,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!state.subs.licenseActive) {
       elements.autoPilotToggle.checked = false;
       syncSwitchAria(elements.autoPilotToggle);
-      await openProCheckout(elements.autoPilotUpsell);
+      await openProCheckout(elements.autoPilotUpsell, "autopilot_locked");
       return;
     }
     const resp = await GCC.sendMessage({ type: "gmailCleanerSetAutoPilot", enabled: wanted });
@@ -3144,7 +3164,7 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.autoPilotConfirmBtn?.addEventListener("click", handleAutoPilotConfirm);
     elements.autoPilotToggle?.closest("label")?.addEventListener("click", () => {
       if (state.subs.licenseActive) return;
-      openProCheckout(elements.autoPilotUpsell).catch(() => {});
+      openProCheckout(elements.autoPilotUpsell, "autopilot_toggle_locked").catch(() => {});
     });
 
     // 7.1 Gmail host access grant (must run inside this click gesture)

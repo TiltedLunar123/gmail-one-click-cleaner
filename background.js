@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "7.13.1";
+  const SW_VERSION = "7.14.0";
 
   // =========================
   // Storage Keys
@@ -268,9 +268,47 @@
     } catch { return null; }
   }
 
+  // True when the engine is already running in that tab. Auxiliary runs
+  // (subscription / storage / smart scans, restores) attach without ever
+  // claiming ACTIVE_RUN, so hasActiveRun() alone cannot see them: an
+  // unattended run would claim the marker, inject into an attached tab,
+  // get ignored by the content script's duplicate guard, and then strand
+  // that claim for the whole 2h TTL because no gmailCleanerDone follows.
+  // A tab that cannot answer reads as attached, because refusing to
+  // start is always the safe direction for an unattended run.
+  async function isEngineAttached(tabId) {
+    try {
+      const [result] = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => !!window.GCC_ATTACHED
+      });
+      return result?.result !== false;
+    } catch {
+      return true;
+    }
+  }
+
+  // Drop the run marker, but only when it is still the one we wrote.
+  // Clearing unconditionally would wipe a claim that some other run
+  // took in the meantime.
+  async function releaseRunClaim(runId) {
+    if (!runId) return;
+    try {
+      const r = await chrome.storage.local.get(STORAGE_KEYS.ACTIVE_RUN);
+      if (r?.[STORAGE_KEYS.ACTIVE_RUN]?.runId !== runId) return;
+      await chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: null });
+      await chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_RUN]: null });
+    } catch {}
+  }
+
   async function runScheduledCleanup(scheduleId) {
     const MAX_RETRIES = 2;
     const RETRY_DELAY_MS = 5000;
+    // Set once the engine is in the tab. Everything after injection is
+    // bookkeeping, and retrying past that point would inject a second
+    // time (the first engine is already running).
+    let injected = false;
+    let claimedRunId = null;
 
     // 7.13 install-source guard: a copy planted by third-party
     // software must never act on the mailbox unattended.
@@ -328,9 +366,19 @@
           return;
         }
 
+        // A scan or restore already working in that tab holds no
+        // ACTIVE_RUN marker, so the check above cannot see it. Injecting
+        // now would be swallowed by the content script's duplicate
+        // guard while this schedule still recorded a successful run.
+        if (await isEngineAttached(gmailTab.id)) {
+          console.log(`[GCC SW] Engine already attached to tab ${gmailTab.id}, skipping schedule ${scheduleId}`);
+          return;
+        }
+
         // Claim ACTIVE_RUN so any concurrently-opened popup sees the
         // schedule in flight and refuses to start. Issue #6.
         const runId = `sched_${scheduleId}_${Date.now()}`;
+        claimedRunId = runId;
         const claim = { gmailTabId: gmailTab.id, runId, startedAt: Date.now(), source: "schedule" };
         try {
           await chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: claim });
@@ -370,6 +418,7 @@
           target: { tabId: gmailTab.id },
           files: ["contentScript.js"]
         });
+        injected = true;
 
         // Update last run timestamp (quota-safe write).
         schedule.lastRun = Date.now();
@@ -379,11 +428,20 @@
         return; // Success, exit retry loop
       } catch (e) {
         console.error(`[GCC SW] Scheduled cleanup attempt ${attempt + 1} failed:`, e);
+        // The engine is already in the tab; only the bookkeeping after
+        // it failed. Retrying would overwrite the live run's config and
+        // inject a second time, so stop here and let the run finish.
+        if (injected) return;
         if (attempt < MAX_RETRIES) {
           await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
         }
       }
     }
+
+    // Every attempt failed before the engine ever reached the tab, so no
+    // gmailCleanerDone will arrive to release the claim. Left alone it
+    // would refuse every manual run for the full 2h TTL.
+    await releaseRunClaim(claimedRunId);
   }
 
   // =========================
@@ -1359,6 +1417,14 @@
         }
       }
 
+      // Same reasoning as the scheduled path: a scan already attached to
+      // this tab would swallow the injection, leaving the sweep pending
+      // until its TTL with nothing to show for it.
+      if (await isEngineAttached(gmailTab.id)) {
+        console.log("[GCC SW] Auto-Pilot: engine already attached, skipping this sweep");
+        return;
+      }
+
       await setAutoPilotState({
         pending: { stage: "scan", startedAt: Date.now() }
       });
@@ -1435,7 +1501,7 @@
       }
 
       const gmailTab = await findGmailTabForAutoPilot();
-      if (!gmailTab || (await hasActiveRun())) {
+      if (!gmailTab || (await hasActiveRun()) || (await isEngineAttached(gmailTab.id))) {
         await setAutoPilotState({ pending: null });
         return;
       }
@@ -1505,15 +1571,7 @@
       // Injection never happened, so no gmailCleanerDone will arrive
       // to release the claim; a stale claim would block manual runs
       // for the whole 2h TTL. Release it only if it is still ours.
-      if (claimedRunId) {
-        try {
-          const r = await chrome.storage.local.get(STORAGE_KEYS.ACTIVE_RUN);
-          if (r?.[STORAGE_KEYS.ACTIVE_RUN]?.runId === claimedRunId) {
-            await chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: null });
-            await chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_RUN]: null });
-          }
-        } catch {}
-      }
+      await releaseRunClaim(claimedRunId);
     }
   }
 
@@ -2025,6 +2083,9 @@
       autoPilotPickSenders,
       autoPilotBuildRule,
       runAutoPilot,
+      runScheduledCleanup,
+      isEngineAttached,
+      releaseRunClaim,
       restoreAutoPilotAlarm,
       setTestLicenseJwk: (jwk) => { _testLicenseJwk = jwk; }
     };

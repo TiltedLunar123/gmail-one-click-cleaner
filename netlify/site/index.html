@@ -112,7 +112,7 @@
     </p>
 
     <p>
-      <a class="buy" href="https://buy.stripe.com/7sY4gA07N9RE1MIc3VdUY04" rel="noopener">Get Pro - $9.99 lifetime</a>
+      <a class="buy" id="buyLink" href="https://buy.stripe.com/7sY4gA07N9RE1MIc3VdUY04" rel="noopener">Get Pro - $9.99 lifetime</a>
       <span class="buy-sub">One payment via Stripe. Your key appears right after checkout and works offline, on all your signed-in browsers.</span>
     </p>
 
@@ -171,7 +171,31 @@
       <a href="https://github.com/TiltedLunar123/gmail-one-click-cleaner" rel="noopener">Source on GitHub</a><br />
       Bought Pro already? Your license key is on the page Stripe sent you
       to after checkout; revisiting that same link re-issues it any time.
+      Lost that link? <a href="./recover.html">Recover your key with your purchase email</a>.
     </p>
   </main>
+
+  <script>
+    // Tag the checkout link with where this visit came from, so the
+    // sale itself records the channel (Stripe keeps it as
+    // client_reference_id). Nothing is stored or sent for visitors who
+    // do not buy, and no page ever learns who anyone is: the value is
+    // just "?ref=" if the link carried one, otherwise the referring
+    // site's hostname. Stripe drops anything unusable, so a bad value
+    // can never break checkout.
+    (function () {
+      var link = document.getElementById("buyLink");
+      if (!link) return;
+
+      var ref = new URLSearchParams(location.search).get("ref") || "";
+      if (!ref && document.referrer) {
+        try { ref = new URL(document.referrer).hostname.replace(/^www\./, ""); } catch (e) {}
+      }
+      var clean = ref.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+      if (!clean) clean = "buypage_direct";
+
+      link.href = link.href + "?client_reference_id=" + encodeURIComponent("gcc_web_" + clean);
+    })();
+  </script>
 </body>
 </html>

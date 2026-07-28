@@ -158,10 +158,30 @@ External network activity happens only when **you** initiate it:
   of the purchase flow, not the extension; the extension does not call
   it. That page verifies your Stripe checkout session and returns a
   signed key. No Gmail data is involved.
+- The key-recovery page on the same site, if you use it. It takes the
+  email address you paid with, asks Stripe whether that address has a
+  completed purchase on this product's payment links, and returns a key
+  if it does. It is a `POST`, so the address never lands in a URL,
+  browser history or referrer; nothing is stored on the server, which
+  has no database.
 - Store / share links you choose to open.
 
 These are normal browser navigations or purchase-flow calls initiated by
 you. Your Gmail content is never part of any of them.
+
+### The one label that rides along
+
+Each **Get Pro** link carries a fixed marker naming the feature it was
+clicked from, for example `?client_reference_id=gcc_autopilot`. Stripe
+stores it on the resulting purchase so the project can tell which
+feature people actually pay for.
+
+It is worth being precise about what this is and is not. It is a
+constant string chosen from a fixed list in `shared.js`
+(`GCC.license.buyUrl`), it contains no user, mailbox, device or
+installation data, it moves only when you click through to checkout,
+and it is recorded only if you complete a purchase. Nobody who does not
+buy is measured, and the extension still transmits nothing on its own.
 
 ---
 

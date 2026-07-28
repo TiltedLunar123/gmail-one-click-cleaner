@@ -754,6 +754,10 @@ const GCC = (() => {
     PRICE_LABEL: "$9.99 lifetime",
     BUY_URL: "https://buy.stripe.com/7sY4gA07N9RE1MIc3VdUY04",
     SUPPORT_URL: "https://github.com/TiltedLunar123/gmail-one-click-cleaner#pro",
+    // Self-serve key recovery: re-issues the key to the address that
+    // paid, for buyers who no longer have the post-checkout link.
+    RECOVER_URL: "https://gmail-cleaner-pro.netlify.app/recover.html",
+    SUPPORT_EMAIL: "hilgendorfjude@gmail.com",
     STORAGE_KEY: "proLicense"
   });
 
@@ -837,11 +841,25 @@ const GCC = (() => {
     }
   };
 
+  // Which Pro gate sent someone to checkout. Stripe stores this on the
+  // Checkout Session as client_reference_id, so `npm run analytics`
+  // can answer "which upsell actually converts" from the sales record
+  // itself. This is NOT telemetry: nothing is sent from the extension,
+  // nothing is recorded for people who do not buy, and the value is a
+  // fixed surface label with no user data in it. Stripe silently drops
+  // an unusable value, and the sanitiser below can only ever produce a
+  // usable one, so checkout cannot break here.
+  const buyUrl = (source) => {
+    const clean = String(source || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+    return clean ? `${PRO.BUY_URL}?client_reference_id=gcc_${clean}` : PRO.BUY_URL;
+  };
+
   const license = Object.freeze({
     PRO,
     parse: parseLicenseKey,
     verify: verifyLicense,
-    getState: getLicenseState
+    getState: getLicenseState,
+    buyUrl
   });
 
   // =========================

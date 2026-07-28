@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Your Pro key - Gmail One-Click Cleaner</title>
+  <title>Welcome to Pro - Gmail One-Click Cleaner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="robots" content="noindex" />
   <meta name="color-scheme" content="dark" />
@@ -11,6 +11,7 @@
     :root {
       --bg: #06090f;
       --surface: rgba(17, 26, 36, 0.75);
+      --surface-2: rgba(6, 9, 15, 0.55);
       --border: rgba(148, 163, 184, 0.2);
       --text: #e2e8f0;
       --muted: #94a3b8;
@@ -18,6 +19,12 @@
       --ok: #6ee7b7;
       --warn: #fcd34d;
     }
+    /* A vertical scrollbar shrinks the content box but not the window,
+       so a flex-centred card drifts left by half the scrollbar width,
+       and jumps sideways when the page grows past one screen. Reserving
+       the gutter on both edges keeps it optically centred either way. */
+    html { scrollbar-gutter: stable both-edges; }
+    * { box-sizing: border-box; }
     body {
       margin: 0;
       min-height: 100vh;
@@ -31,22 +38,49 @@
       color: var(--text);
       font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
       padding: 24px;
-      box-sizing: border-box;
     }
     .card {
-      max-width: 560px;
+      max-width: 600px;
       width: 100%;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 16px;
       padding: 32px;
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+      animation: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
     }
-    h1 { font-size: 20px; margin: 0 0 6px; }
-    .sub { color: var(--muted); font-size: 14px; margin: 0 0 22px; line-height: 1.55; }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(14px); }
+      to { opacity: 1; transform: none; }
+    }
+
+    /* The tick draws itself once, as a small moment of arrival. */
+    .badge {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: rgba(110, 231, 183, 0.12);
+      border: 1px solid rgba(110, 231, 183, 0.4);
+      margin: 0 0 18px;
+    }
+    .badge svg { display: block; }
+    .badge path {
+      stroke-dasharray: 30;
+      stroke-dashoffset: 30;
+      animation: draw 0.5s 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes draw { to { stroke-dashoffset: 0; } }
+
+    h1 { font-size: 24px; margin: 0 0 8px; letter-spacing: -0.01em; }
+    h2 { font-size: 13px; margin: 28px 0 10px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+    .sub { color: var(--muted); font-size: 14.5px; margin: 0 0 24px; line-height: 1.6; }
+    .sub strong { color: var(--text); }
+
     .keybox {
       display: none;
-      background: rgba(6, 9, 15, 0.8);
+      background: var(--surface-2);
       border: 1px solid rgba(34, 211, 238, 0.35);
       border-radius: 10px;
       padding: 14px;
@@ -56,51 +90,110 @@
       line-height: 1.5;
       color: var(--ok);
     }
-    .row { display: flex; gap: 10px; margin-top: 14px; }
-    button {
+    .row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+    button, .btn {
       font: inherit;
-      padding: 9px 16px;
+      padding: 10px 18px;
       border-radius: 8px;
       border: 1px solid rgba(34, 211, 238, 0.4);
       background: rgba(34, 211, 238, 0.12);
       color: var(--text);
       cursor: pointer;
       font-weight: 600;
+      text-decoration: none;
+      display: inline-block;
     }
-    button:hover { background: rgba(34, 211, 238, 0.2); }
-    ol { color: var(--muted); font-size: 13.5px; line-height: 1.7; padding-left: 20px; }
+    button:hover, .btn:hover { background: rgba(34, 211, 238, 0.2); }
+
+    ol { color: var(--muted); font-size: 14px; line-height: 1.75; padding-left: 22px; margin: 0; }
     ol strong { color: var(--text); }
+
+    .unlocked { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+    .unlocked li {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      font-size: 13.5px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .unlocked b { color: var(--text); font-weight: 600; }
+    .tick { color: var(--ok); flex: none; margin-top: 1px; }
+
+    .reassure {
+      margin-top: 26px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .reassure strong { color: var(--text); }
+
     .status { font-size: 14px; color: var(--muted); }
     .status.error { color: var(--warn); }
-    .fineprint { margin-top: 20px; font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .fineprint { margin-top: 22px; font-size: 12px; color: var(--muted); line-height: 1.6; }
     a { color: var(--accent); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .card, .badge path { animation: none; }
+      .badge path { stroke-dashoffset: 0; }
+    }
   </style>
 </head>
 <body>
   <main class="card">
-    <h1>Thanks for going Pro!</h1>
+    <div class="badge" aria-hidden="true">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#6ee7b7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 12.5 9.5 18 20 7" />
+      </svg>
+    </div>
+
+    <h1>You're in. Welcome to Pro.</h1>
     <p class="sub">
-      Gmail One-Click Cleaner Pro is a lifetime license. Your key is issued
-      below; it is verified on your device and never phones home.
+      That is the last time you pay for this. <strong>No subscription, no renewal,
+      no seat count</strong> - your key works forever, on every browser you sign
+      into, including every feature added after today.
     </p>
 
-    <p class="status" id="status">Fetching your license key...</p>
+    <p class="status" id="status">Issuing your license key...</p>
     <div class="keybox" id="keybox"></div>
     <div class="row" id="copyRow" style="display:none">
       <button type="button" id="copyBtn">Copy key</button>
+      <a class="btn" id="mailBtn" href="#">Email it to myself</a>
     </div>
 
+    <h2>Three steps and you're cleaning</h2>
     <ol>
-      <li>Right-click the extension icon and pick <strong>Options</strong> (or open the popup and hit <strong>Pro</strong>).</li>
-      <li>Scroll to <strong>Pro License</strong>, paste the key, click <strong>Activate</strong>.</li>
-      <li>Open the popup, run <strong>Scan for subscriptions</strong>, select the noise, unsubscribe.</li>
+      <li>Right-click the extension icon and pick <strong>Options</strong>.</li>
+      <li>Scroll to <strong>Pro License</strong>, paste the key, hit <strong>Activate</strong>.</li>
+      <li>Open the popup and run <strong>Scan for subscriptions</strong>. Most people
+        find dozens of lists they forgot they joined.</li>
     </ol>
 
+    <h2>What just unlocked</h2>
+    <ul class="unlocked">
+      <li><span class="tick" aria-hidden="true">&#10003;</span><span><b>Auto-Pilot</b> - a weekly sweep that archives new clutter for you. The first run is a preview that touches nothing until you approve it.</span></li>
+      <li><span class="tick" aria-hidden="true">&#10003;</span><span><b>Bulk unsubscribe</b> - leave every list you never read in one pass, through Gmail's own unsubscribe control.</span></li>
+      <li><span class="tick" aria-hidden="true">&#10003;</span><span><b>Storage X-ray purge</b> - see which senders are eating your storage, then clear the ones you pick.</span></li>
+      <li><span class="tick" aria-hidden="true">&#10003;</span><span><b>The full Smart Suggestions list</b> - everything worth cleaning and why, applied in a single run.</span></li>
+    </ul>
+
+    <div class="reassure">
+      <strong>Your key is safe.</strong> It is stored in your browser's synced
+      settings, so it follows your profile to new machines on its own. If it ever
+      goes missing you can
+      <a id="recoverLink" href="./recover.html">re-issue it with your purchase email</a>,
+      any time, at no cost. Nothing here expires.
+    </div>
+
     <p class="fineprint">
-      Save this page's address: revisiting it always re-issues your key.
-      Trouble? Email
+      Bookmark this page: revisiting it always issues you a working key.
+      Questions, or something not working? Email
       <a href="mailto:hilgendorfjude@gmail.com?subject=Gmail%20Cleaner%20Pro%20key">support</a>
-      with your Stripe receipt.
+      and you will get a real reply.
     </p>
   </main>
 
@@ -110,41 +203,76 @@
       var keybox = document.getElementById("keybox");
       var copyRow = document.getElementById("copyRow");
       var copyBtn = document.getElementById("copyBtn");
+      var mailBtn = document.getElementById("mailBtn");
+
+      function showKey(key) {
+        statusEl.textContent = "Your lifetime Pro key:";
+        statusEl.className = "status";
+        keybox.textContent = key;
+        keybox.style.display = "block";
+        copyRow.style.display = "flex";
+        mailBtn.href = "mailto:?subject=" +
+          encodeURIComponent("My Gmail One-Click Cleaner Pro key") +
+          "&body=" +
+          encodeURIComponent(
+            "Keep this somewhere safe. Paste it into Options > Pro License to unlock Pro on any browser.\n\n" +
+            key + "\n"
+          );
+        // Remembered so a later visit to this page or the recovery page
+        // needs no lookup at all.
+        try { localStorage.setItem("gccProKey", key); } catch (e) {}
+      }
+
+      function fallbackToRemembered(message) {
+        var remembered = null;
+        try { remembered = localStorage.getItem("gccProKey"); } catch (e) {}
+        if (remembered) {
+          showKey(remembered);
+          return true;
+        }
+        statusEl.textContent = message;
+        statusEl.className = "status error";
+        return false;
+      }
 
       var sessionId = new URLSearchParams(location.search).get("session_id") || "";
       if (!/^cs_(live|test)_[A-Za-z0-9]{10,240}$/.test(sessionId)) {
-        statusEl.textContent = "This page needs the link Stripe sent you to after checkout. Follow that link again, or email support with your receipt.";
-        statusEl.className = "status error";
+        fallbackToRemembered(
+          "This page needs the link Stripe sent you to after checkout. Follow that link again, or recover your key with your purchase email below."
+        );
         return;
       }
 
       var attempts = 0;
+      var MAX_ATTEMPTS = 4;
       function fetchKey() {
         attempts += 1;
         fetch("/.netlify/functions/get-key?session_id=" + encodeURIComponent(sessionId))
           .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, status: res.status, data: data }; }); })
           .then(function (r) {
             if (r.ok && r.data.key) {
-              statusEl.textContent = "Your lifetime Pro key:";
-              keybox.textContent = r.data.key;
-              keybox.style.display = "block";
-              copyRow.style.display = "flex";
+              showKey(r.data.key);
               return;
             }
-            if ((r.status === 502 || r.status === 503) && attempts < 3) {
-              statusEl.textContent = "Still working on it...";
+            // 402 means Stripe has not marked the session paid YET. For
+            // cards that is instant, but a slower method can settle a
+            // moment after the redirect, and giving up on the first look
+            // told a paying customer their purchase was not a purchase.
+            var retryable = r.status === 402 || r.status === 502 || r.status === 503;
+            if (retryable && attempts < MAX_ATTEMPTS) {
+              statusEl.textContent = "Confirming your payment with Stripe...";
               setTimeout(fetchKey, 2500);
               return;
             }
-            statusEl.textContent = (r.data && r.data.error)
-              ? "Could not issue the key automatically: " + r.data.error + "."
-              : "Could not issue the key automatically. Your payment is safe; email support with your receipt.";
-            statusEl.className = "status error";
+            fallbackToRemembered(
+              (r.data && r.data.error)
+                ? "Could not issue the key automatically: " + r.data.error + "."
+                : "Could not issue the key automatically. Your payment is safe; email support with your receipt."
+            );
           })
           .catch(function () {
-            if (attempts < 3) { setTimeout(fetchKey, 2500); return; }
-            statusEl.textContent = "Network hiccup. Reload this page to try again.";
-            statusEl.className = "status error";
+            if (attempts < MAX_ATTEMPTS) { setTimeout(fetchKey, 2500); return; }
+            fallbackToRemembered("Network hiccup. Reload this page to try again.");
           });
       }
       fetchKey();

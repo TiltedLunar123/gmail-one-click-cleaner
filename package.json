@@ -1,6 +1,6 @@
 {
   "name": "gmail-one-click-cleaner",
-  "version": "7.13.1",
+  "version": "7.14.0",
   "private": true,
   "description": "Free up Gmail storage fast. Bulk delete old emails, large attachments, & promotions.",
   "scripts": {
@@ -14,6 +14,7 @@
     "zip": "node build.js --zip",
     "zip:all": "node build.js --zip --target=all",
     "clean": "node -e \"const fs=require('fs'); ['dist','dist-firefox','gmail-one-click-cleaner.zip','gmail-one-click-cleaner-firefox.zip'].forEach(f=>{try{fs.rmSync(f,{recursive:true})}catch{}})\"",
+    "analytics": "node tools/analytics.mjs",
     "test": "jest --verbose",
     "test:ci": "jest --ci --coverage"
   },

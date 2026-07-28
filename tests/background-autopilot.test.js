@@ -95,9 +95,13 @@ beforeAll(() => {
       onRemoved: { addListener: jest.fn() }
     },
     scripting: {
+      // The attach probe is the only call that passes a bare func with
+      // no args and no files. It is a read, not an injection, so it
+      // answers "nothing attached" and stays out of the injection log.
       executeScript: jest.fn(async (details) => {
+        if (details.func && !details.args && !details.files) return [{ result: false }];
         executed.push(details);
-        return [];
+        return [{ result: null }];
       })
     },
     notifications: { create: jest.fn((id, opts, cb) => cb && cb()) }
@@ -329,6 +333,30 @@ describe("the sweep stage machine", () => {
     expect(storageBacking.local.autoPilotState.pending).toMatchObject({ stage: "scan" });
   });
 
+  test("an engine already attached to the tab skips the whole sweep", async () => {
+    // Scans and restores attach without claiming ACTIVE_RUN, so the
+    // marker check cannot see them. Injecting anyway would be swallowed
+    // by the content script's duplicate guard and leave the sweep
+    // pending, with the apply stage's claim stranded for its full TTL.
+    await enableWithSuggestions();
+    chrome.scripting.executeScript = jest.fn(async (details) => {
+      if (details.func && !details.args && !details.files) return [{ result: true }];
+      executed.push(details);
+      return [{ result: null }];
+    });
+
+    await fireAlarm();
+
+    expect(executed.length).toBe(0);
+    expect(storageBacking.local.autoPilotState?.pending ?? null).toBeNull();
+
+    chrome.scripting.executeScript = jest.fn(async (details) => {
+      if (details.func && !details.args && !details.files) return [{ result: false }];
+      executed.push(details);
+      return [{ result: null }];
+    });
+  });
+
   test("scan done leads to a dry-run, archive-only apply while unconfirmed", async () => {
     await enableWithSuggestions({ confirmed: false });
     await fireAlarm();
@@ -457,11 +485,20 @@ describe("the sweep stage machine", () => {
     await enableWithSuggestions();
     await fireAlarm();
     // The engine never starts, so no gmailCleanerDone will arrive to
-    // clean up; the worker must release its own claim.
-    chrome.scripting.executeScript = jest.fn(async () => { throw new Error("tab gone"); });
+    // clean up; the worker must release its own claim. The attach probe
+    // still answers truthfully, otherwise the apply would bail at that
+    // guard instead of reaching the claim it needs to release.
+    chrome.scripting.executeScript = jest.fn(async (details) => {
+      if (details.func && !details.args && !details.files) return [{ result: false }];
+      throw new Error("tab gone");
+    });
     await dispatch({ type: "gmailCleanerProgress", runKind: "smartScan", phase: "done", done: true });
     expect(storageBacking.local.autoPilotState.pending).toBeNull();
     expect(storageBacking.local.activeRun ?? null).toBeNull();
-    chrome.scripting.executeScript = jest.fn(async (details) => { executed.push(details); return []; });
+    chrome.scripting.executeScript = jest.fn(async (details) => {
+      if (details.func && !details.args && !details.files) return [{ result: false }];
+      executed.push(details);
+      return [{ result: null }];
+    });
   });
 });
