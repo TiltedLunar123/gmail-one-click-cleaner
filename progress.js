@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const PROGRESS_VERSION = "7.13.1";
+  const PROGRESS_VERSION = "7.14.0";
 
   const CONFIG = Object.freeze({
     MAX_LOG_ENTRIES: 300,
@@ -824,6 +824,22 @@
       return;
     }
 
+    // Manual re-inject keeps the escape hatch for a genuinely dead
+    // engine, but a still-attached one means a second pass over the
+    // mailbox, so that costs an explicit yes. This page is a real tab,
+    // not a popup, so confirm() is honoured on every browser.
+    if (await isEngineAttached()) {
+      const proceed = confirm(
+        "The cleaner still looks attached to that Gmail tab, so it is probably busy rather than stuck.\n\n" +
+        "Check the Gmail tab first: a large run pauses for a confirmation.\n\n" +
+        "Re-injecting now can start a SECOND pass over the same mailbox. Continue anyway?"
+      );
+      if (!proceed) {
+        appendLog("Re-inject cancelled: cleaner is still attached.", LOG_LEVELS.INFO);
+        return;
+      }
+    }
+
     setButtonLoading(ui.reinject, true, "Re-injecting…");
     appendLog("Re-injecting cleaner into Gmail tab…", LOG_LEVELS.INFO);
     setStatusLoading("Re-injecting cleaner into Gmail tab…");
@@ -950,6 +966,26 @@
     }
   };
 
+  // Is the engine still in that tab? Re-injecting while it is would run
+  // a SECOND pass over the same mailbox: double deletes, doubled stats,
+  // two engines fighting over Gmail's UI. A silent run is not proof it
+  // died; the soft-cap confirm() blocks the Gmail tab's JS entirely, so
+  // a busy engine stops answering pings while very much alive.
+  // Anything other than a definite "false" counts as still attached,
+  // because not re-injecting is always the recoverable direction.
+  const isEngineAttached = async () => {
+    if (!gmailTabId || !GCC.hasChromeScripting()) return true;
+    try {
+      const results = await GCC.promisify(chrome.scripting.executeScript.bind(chrome.scripting), {
+        target: { tabId: gmailTabId },
+        func: () => !!window.GCC_ATTACHED
+      });
+      return results?.[0]?.result !== false;
+    } catch {
+      return true;
+    }
+  };
+
   const autoReconnectTick = async () => {
     if (state.done || state.isReconnecting || !gmailTabId) return;
 
@@ -994,6 +1030,20 @@
     // Step 2: Re-inject the content script
     if (!GCC.hasChromeScripting()) {
       appendLog("Auto-reconnect: scripting unavailable, cannot re-inject.", LOG_LEVELS.ERROR);
+      state.isReconnecting = false;
+      return;
+    }
+
+    // Silence is not death. An engine that is merely busy, or parked on
+    // the soft-cap confirmation in the Gmail tab, still holds the tab;
+    // re-injecting over it would start a second pass on the mailbox.
+    if (await isEngineAttached()) {
+      appendLog(
+        "Auto-reconnect: the cleaner is still attached to the Gmail tab, so it is busy rather than gone. Check that tab for a confirmation dialog. Not re-injecting automatically.",
+        LOG_LEVELS.WARNING
+      );
+      setStatus("Cleaner still attached. Check the Gmail tab for a prompt.");
+      stopAutoReconnect();
       state.isReconnecting = false;
       return;
     }

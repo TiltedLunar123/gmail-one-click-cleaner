@@ -115,4 +115,39 @@ describe("GCC.license", () => {
       expect(out.active).toBe(false);
     });
   });
+
+  describe("buyUrl (7.14 purchase attribution)", () => {
+    // Every Pro gate tags its checkout link so Stripe records which
+    // upsell converted (npm run analytics reads it back). This is the
+    // only thing standing between "which feature sells" and guesswork,
+    // and it must never be able to break checkout.
+    test("tags the checkout link with the surface that sent them", () => {
+      expect(GCC.license.buyUrl("autopilot"))
+        .toBe(`${GCC.license.PRO.BUY_URL}?client_reference_id=gcc_autopilot`);
+    });
+
+    test("no source means the plain buy link, unchanged", () => {
+      for (const empty of [undefined, null, "", "   ", "!!!"]) {
+        expect(GCC.license.buyUrl(empty)).toBe(GCC.license.PRO.BUY_URL);
+      }
+    });
+
+    test("the payment link itself is never rewritten", () => {
+      // The URL is baked into shipped versions and sells the real
+      // product; only a query parameter may ever be appended.
+      expect(GCC.license.buyUrl("smart_bulk_locked").startsWith(GCC.license.PRO.BUY_URL + "?")).toBe(true);
+    });
+
+    test("only characters Stripe accepts survive, and never user data", () => {
+      // Stripe allows alphanumerics, dashes and underscores up to 200
+      // chars and silently drops anything else, so the sanitiser can
+      // only ever emit a value checkout will accept.
+      const out = GCC.license.buyUrl("a b@c.d/../?&=#e");
+      expect(out).toBe(`${GCC.license.PRO.BUY_URL}?client_reference_id=gcc_abcde`);
+      expect(out).not.toMatch(/[^A-Za-z0-9_\-:/.?=]/);
+
+      const long = GCC.license.buyUrl("x".repeat(200));
+      expect(long.split("client_reference_id=")[1]).toHaveLength("gcc_".length + 40);
+    });
+  });
 });

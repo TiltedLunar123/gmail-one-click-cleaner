@@ -33,3 +33,7 @@ build/
 
 # Editor scratch copies
 *.bak
+
+# Local sales report (npm run analytics -- --html), contains real
+# purchase data and is regenerated on demand
+analytics-report.html

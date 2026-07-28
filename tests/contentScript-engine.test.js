@@ -317,6 +317,36 @@ describe("contentScript engine internals", () => {
     });
   });
 
+  describe("parseCountFromText", () => {
+    test("reads Gmail's exact pagination total", () => {
+      const I = loadEngine();
+      expect(I.parseCountFromText("1-50 of 142")).toBe(142);
+      expect(I.parseCountFromText("1-50 of 3,200")).toBe(3200);
+    });
+
+    test("reads an estimated total with 'about' between 'of' and the number", () => {
+      // The digits do not start where the bare /\bof\s+N/ pattern
+      // expects them, so this used to come back null and the caller
+      // silently fell back to the row count for the current page,
+      // under-reporting every dry-run and bulk-all estimate.
+      const I = loadEngine();
+      expect(I.parseCountFromText("1-50 of about 3,200")).toBe(3200);
+      expect(I.parseCountFromText("1-50 of about 1,234")).toBe(1234);
+    });
+
+    test("still reads the 'about N results' phrasing", () => {
+      const I = loadEngine();
+      expect(I.parseCountFromText("about 900 results")).toBe(900);
+    });
+
+    test("no number means no estimate, never a zero or a guess", () => {
+      const I = loadEngine();
+      expect(I.parseCountFromText("1-50 of many")).toBeNull();
+      expect(I.parseCountFromText("")).toBeNull();
+      expect(I.parseCountFromText(null)).toBeNull();
+    });
+  });
+
   describe("buildFinalStats popup/notification contract", () => {
     test("includes the fields the popup and SW read on completion", () => {
       const I = loadEngine();

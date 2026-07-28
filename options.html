@@ -1251,14 +1251,31 @@
           style="flex: 1; min-width: 260px; font-family: ui-monospace, monospace; font-size: 12px;"
         />
         <button type="button" id="proActivateBtn" class="snooze-btn">Activate</button>
+        <button type="button" id="proShowBtn" class="snooze-btn" style="display:none;">Show key</button>
+        <button type="button" id="proCopyBtn" class="snooze-btn" style="display:none;">Copy key</button>
         <button type="button" id="proRemoveBtn" class="snooze-btn snooze-clear" style="display:none;">Remove key</button>
       </div>
 
+      <!-- Revealed on demand so the key is never sitting on screen
+           during a screen share, but is always retrievable from a
+           browser that already has Pro. -->
+      <div
+        id="proKeyReveal"
+        hidden
+        style="margin-top: 12px; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-deep, rgba(0,0,0,0.18)); font-family: ui-monospace, monospace; font-size: 12px; word-break: break-all; line-height: 1.5;"
+      ></div>
+
+      <p id="proBackupRow" hidden style="font-size: 12.5px; color: var(--text-muted); margin: 12px 0 0;">
+        Moving to another browser or a new computer? Copy this key and paste it into
+        <strong>Options &rsaquo; Pro License</strong> there.
+        <a id="proMailBackupLink" href="#" style="font-weight: 600;">Email yourself a backup</a>
+        so it is never only in one place.
+      </p>
+
       <p style="font-size: 12.5px; color: var(--text-muted); margin: 14px 0 0;">
         <a id="proBuyLink" href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" style="font-weight: 600;">Get Pro - $9.99 lifetime</a>
-        &nbsp;·&nbsp; Your key is shown right after checkout. Lost it? Email
-        <a href="mailto:hilgendorfjude@gmail.com?subject=Gmail%20Cleaner%20Pro%20key">support</a>
-        with your Stripe receipt and it will be re-issued.
+        &nbsp;·&nbsp; Lost your key? <a id="proRecoverLink" href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" style="font-weight: 600;">Recover it with your purchase email</a>,
+        or email <a id="proSupportLink" href="#">support</a> with your Stripe receipt.
       </p>
     </section>
 

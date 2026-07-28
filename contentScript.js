@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "7.13.1";
+  const GCC_CONTENT_VERSION = "7.14.0";
 
   // =========================
   // Timing & behavior constants
@@ -2535,7 +2535,12 @@
   function parseCountFromText(text) {
     if (!text || typeof text !== "string") return null;
 
-    const ofMatch = text.match(/\bof\s+([\d,.\s]+)/i);
+    // "about" sits between "of" and the number on estimated totals
+    // ("1-50 of about 3,200"). Without the optional group the digits
+    // never start where the pattern expects them and the whole estimate
+    // comes back null, so the caller silently falls back to the row
+    // count for the current page.
+    const ofMatch = text.match(/\bof\s+(?:about\s+)?([\d,.\s]+)/i);
     if (ofMatch) {
       const n = parseInt(ofMatch[1].replace(/[,.\s]/g, ""), 10);
       if (Number.isFinite(n) && n > 0) return n;

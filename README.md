@@ -90,6 +90,7 @@ Pro is a **one-time $9.99 purchase** (no subscription) that unlocks four things:
 - Your license key is verified **entirely on your device** with a built-in public key. The extension never contacts a server, not even to check the license.
 - The key is a signed token with no personal data. Stored in Chrome sync, so Pro follows you to your other signed-in browsers.
 - Buy Pro from the popup or the extension's Options page. Your key is shown right after checkout; revisiting that page re-issues it if you lose it.
+- **Lost your key?** Three ways back, no charge. If Pro is active on any browser, open **Options > Pro License** and use **Show key** / **Copy key**. Otherwise revisit the post-checkout link, or enter the email you paid with at [the recovery page](https://gmail-cleaner-pro.netlify.app/recover.html). Re-issued keys are new tokens for the same purchase, so keys you already have keep working.
 
 ---
 
@@ -152,6 +153,7 @@ gmail-one-click-cleaner/
 
 - **Runs locally** - All cleanup, scanning, and unsubscribing happen in your browser against the Gmail UI. No email content is ever sent anywhere.
 - **No data collection** - No analytics, no tracking, no email content, subjects, or credentials leave your device.
+- **One exception worth naming, because it is visible in the source** - each "Get Pro" link carries a fixed label saying which feature it came from (`?client_reference_id=gcc_autopilot`, for example). It travels only if *you* click through to Stripe, it is recorded only if you actually buy, it contains no user or device data, and it exists so the project can tell which feature was worth paying for. Nothing is sent for anyone who does not buy, and the extension itself still transmits nothing.
 - **License stays offline** - Pro keys are verified on-device with a built-in public key. The extension never phones home, not even to check the license. The only network calls are ones you start: opening the Stripe checkout page and its post-purchase activation page (part of the purchase flow, not the extension). No Gmail data is involved in either.
 - **Minimal permissions** - `activeTab`, `scripting`, `tabs`, `storage`, `alarms`, `notifications` + Gmail host access. No new permissions were added for Pro.
 - **30-day safety net** - Gmail keeps Trash for ~30 days, and every run is labeled before it moves. The Recovery Log's one-click Restore puts a run back in your Inbox; archived runs can come back any time, deleted runs within the 30-day window.

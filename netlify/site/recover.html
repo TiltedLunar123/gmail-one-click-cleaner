@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Recover your Pro key - Gmail One-Click Cleaner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <meta name="color-scheme" content="dark" />
+  <link rel="icon" type="image/png" sizes="128x128" href="./icon128.png" />
+  <style>
+    :root {
+      --bg: #06090f;
+      --surface: rgba(17, 26, 36, 0.75);
+      --border: rgba(148, 163, 184, 0.2);
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #22d3ee;
+      --ok: #6ee7b7;
+      --warn: #fcd34d;
+    }
+    /* A vertical scrollbar shrinks the content box but not the window,
+       so a flex-centred card drifts left by half the scrollbar width,
+       and jumps sideways when the page grows past one screen. Reserving
+       the gutter on both edges keeps it optically centred either way. */
+    html { scrollbar-gutter: stable both-edges; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: var(--bg);
+      background-image:
+        radial-gradient(at 0% 0%, rgba(34, 211, 238, 0.14) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.12) 0px, transparent 50%);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+    .card {
+      max-width: 560px;
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+    }
+    h1 { font-size: 20px; margin: 0 0 6px; }
+    h2 { font-size: 14px; margin: 26px 0 8px; }
+    .sub { color: var(--muted); font-size: 14px; margin: 0 0 22px; line-height: 1.55; }
+    label { display: block; font-size: 13px; color: var(--muted); margin: 0 0 6px; }
+    input[type="email"] {
+      width: 100%;
+      box-sizing: border-box;
+      font: inherit;
+      font-size: 14px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(6, 9, 15, 0.7);
+      color: var(--text);
+    }
+    input[type="email"]:focus { outline: 2px solid rgba(34, 211, 238, 0.5); outline-offset: 1px; }
+    .keybox {
+      display: none;
+      background: rgba(6, 9, 15, 0.8);
+      border: 1px solid rgba(34, 211, 238, 0.35);
+      border-radius: 10px;
+      padding: 14px;
+      margin-top: 16px;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 13px;
+      word-break: break-all;
+      line-height: 1.5;
+      color: var(--ok);
+    }
+    .row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+    button {
+      font: inherit;
+      padding: 9px 16px;
+      border-radius: 8px;
+      border: 1px solid rgba(34, 211, 238, 0.4);
+      background: rgba(34, 211, 238, 0.12);
+      color: var(--text);
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:hover:not(:disabled) { background: rgba(34, 211, 238, 0.2); }
+    button:disabled { opacity: 0.55; cursor: default; }
+    ol { color: var(--muted); font-size: 13.5px; line-height: 1.7; padding-left: 20px; }
+    ol strong { color: var(--text); }
+    .status { font-size: 14px; color: var(--muted); margin: 14px 0 0; min-height: 1.2em; }
+    .status.error { color: var(--warn); }
+    .fineprint { margin-top: 22px; font-size: 12px; color: var(--muted); line-height: 1.6; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Recover your Pro key</h1>
+    <p class="sub">
+      Lost your license key? Enter the email address you paid with and a
+      working key is issued to you again, free. It unlocks the same
+      lifetime purchase, and any browser already running Pro carries on
+      untouched.
+    </p>
+
+    <form id="recoverForm" novalidate>
+      <label for="email">Email address used at checkout</label>
+      <input id="email" name="email" type="email" autocomplete="email" spellcheck="false" placeholder="you@example.com" required />
+      <div class="row">
+        <button type="submit" id="submitBtn">Recover my key</button>
+      </div>
+    </form>
+
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+    <div class="keybox" id="keybox"></div>
+    <div class="row" id="copyRow" style="display:none">
+      <button type="button" id="copyBtn">Copy key</button>
+    </div>
+
+    <h2>Then activate it</h2>
+    <ol>
+      <li>Right-click the extension icon and pick <strong>Options</strong>.</li>
+      <li>Scroll to <strong>Pro License</strong>, paste the key, click <strong>Activate</strong>.</li>
+    </ol>
+
+    <p class="fineprint">
+      Already have Pro working in another browser? Open <strong>Options &rsaquo; Pro License</strong>
+      there and use <strong>Show key</strong> to copy it across; no recovery needed.<br />
+      Still stuck? Email
+      <a href="mailto:hilgendorfjude@gmail.com?subject=Gmail%20Cleaner%20Pro%20key">support</a>
+      with your Stripe receipt.
+    </p>
+  </main>
+
+  <script>
+    (function () {
+      var form = document.getElementById("recoverForm");
+      var emailEl = document.getElementById("email");
+      var submitBtn = document.getElementById("submitBtn");
+      var statusEl = document.getElementById("status");
+      var keybox = document.getElementById("keybox");
+      var copyRow = document.getElementById("copyRow");
+      var copyBtn = document.getElementById("copyBtn");
+
+      function setStatus(text, isError) {
+        statusEl.textContent = text;
+        statusEl.className = isError ? "status error" : "status";
+      }
+
+      function showKey(key) {
+        keybox.textContent = key;
+        keybox.style.display = "block";
+        copyRow.style.display = "flex";
+        try { localStorage.setItem("gccProKey", key); } catch (e) {}
+      }
+
+      // A key recovered (or issued) earlier on this browser is shown
+      // straight away, so a second visit costs no lookup at all.
+      try {
+        var remembered = localStorage.getItem("gccProKey");
+        if (remembered) {
+          setStatus("Key remembered on this browser:", false);
+          showKey(remembered);
+        }
+      } catch (e) {}
+
+      form.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        var email = (emailEl.value || "").trim();
+        if (!email) {
+          setStatus("Enter the email address you paid with.", true);
+          emailEl.focus();
+          return;
+        }
+
+        submitBtn.disabled = true;
+        setStatus("Checking your purchase...", false);
+        keybox.style.display = "none";
+        copyRow.style.display = "none";
+
+        fetch("/.netlify/functions/recover-key", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email: email })
+        })
+          .then(function (res) {
+            return res.json().then(function (data) {
+              return { ok: res.ok, status: res.status, data: data };
+            });
+          })
+          .then(function (r) {
+            if (r.ok && r.data && r.data.key) {
+              setStatus("Your lifetime Pro key:", false);
+              showKey(r.data.key);
+              return;
+            }
+            setStatus(
+              (r.data && r.data.error)
+                ? r.data.error.charAt(0).toUpperCase() + r.data.error.slice(1) + "."
+                : "Could not recover a key. Email support with your Stripe receipt.",
+              true
+            );
+          })
+          .catch(function () {
+            setStatus("Network hiccup. Try again in a moment.", true);
+          })
+          .then(function () {
+            submitBtn.disabled = false;
+          });
+      });
+
+      copyBtn.addEventListener("click", function () {
+        navigator.clipboard.writeText(keybox.textContent).then(function () {
+          copyBtn.textContent = "Copied!";
+          setTimeout(function () { copyBtn.textContent = "Copy key"; }, 1500);
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
