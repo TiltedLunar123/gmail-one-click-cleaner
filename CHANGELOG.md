@@ -3,6 +3,51 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 7.14.2 - Safety and reliability fixes
+
+### Fixed
+- **Minimum Age now actually applies.** The setting promises to leave
+  anything newer than your cutoff alone, but it was skipped whenever a
+  rule already mentioned an age of its own, and every built-in rule
+  does. In practice that meant choosing "older than 1 year" while
+  running the normal preset still cleaned promotions from three months
+  ago. The cutoff is now applied whenever it is stricter than the rule,
+  and ignored when the rule is already stricter, so it can only ever
+  narrow what a run touches.
+- **The big-run confirmations no longer miss the biggest runs.** When
+  Gmail confirms that every conversation matching a search is selected,
+  it acts on all of them at once. The cleaner was still measuring only
+  the page on screen, so a sweep of tens of thousands sailed past both
+  the 10,000 warning and the large-run confirmation, and was then
+  recorded as a few dozen. Both now use the real match total, and run
+  totals stop under-reporting.
+- **Cancel is honoured right up to the moment mail moves.** Cancelling
+  during tagging, a confirmation prompt or one of the short waits before
+  a batch was actioned used to let that batch go through anyway. A
+  cancelled run now also ends as cancelled rather than reporting itself
+  finished.
+- **Dry Run previews the real number.** On a confirmed "all N
+  conversations" selection it quoted the page on screen, so the preview
+  for a 12,000 conversation sweep read as a few dozen.
+- **Custom rules can no longer smuggle starred or sent mail past the
+  guards.** A rule written as `(is:starred)` slipped through the refusal
+  because of the bracket, and the same bracket stopped the automatic
+  "skip starred" protection from being added.
+- **Scheduled and unattended runs stop locking the cleaner out.** A few
+  paths could leave a run marker behind after nothing had actually
+  started, and every manual run was then refused for up to two hours.
+  A finishing run could also clear a marker belonging to a newer run.
+- **Archive runs are labelled as archive runs.** The Diagnostics page
+  reported every archive run as a deletion, red tag included.
+- **The progress tab recovers properly.** Reconnecting to a run that had
+  already finished left it retrying in a loop for the life of the tab,
+  and a reconnect during a Storage X-ray purge or a Smart suggestion
+  could restart the previous full cleanup instead of the run you asked
+  for.
+- **Smaller UI fixes.** The Save button on Options no longer ends up
+  permanently reading "Saving...", and the Diagnostics "Test inject"
+  button no longer sticks disabled after a scan that finds no Gmail tab.
+
 ## 7.14.1 - Pro is now $19.99 lifetime
 
 ### Changed

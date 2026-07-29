@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "7.14.1";
+  const SW_VERSION = "7.14.2";
 
   // =========================
   // Storage Keys
@@ -173,9 +173,13 @@
   // Clean up ACTIVE_RUN if the Gmail tab is closed mid-run
   chrome.tabs.onRemoved.addListener(async (tabId) => {
     try {
-      const result = await chrome.storage.session?.get?.(STORAGE_KEYS.ACTIVE_RUN)
-        || await chrome.storage.local.get(STORAGE_KEYS.ACTIVE_RUN);
-      const run = result?.[STORAGE_KEYS.ACTIVE_RUN];
+      // session.get resolves to {} when the key is absent, which is truthy,
+      // so a `||` here never reached local at all. Claims land in local
+      // whenever the session write fails, and those were the ones this
+      // cleanup existed to catch. Read both, same as hasActiveRun().
+      const sess = await chrome.storage.session?.get?.(STORAGE_KEYS.ACTIVE_RUN);
+      const local = await chrome.storage.local.get(STORAGE_KEYS.ACTIVE_RUN);
+      const run = sess?.[STORAGE_KEYS.ACTIVE_RUN] || local?.[STORAGE_KEYS.ACTIVE_RUN];
       if (run && run.gmailTabId === tabId) {
         console.log("[GCC SW] Gmail tab closed, clearing ACTIVE_RUN");
         await chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: null });
@@ -294,8 +298,15 @@
   async function releaseRunClaim(runId) {
     if (!runId) return;
     try {
-      const r = await chrome.storage.local.get(STORAGE_KEYS.ACTIVE_RUN);
-      if (r?.[STORAGE_KEYS.ACTIVE_RUN]?.runId !== runId) return;
+      // The claim is written to session first, then local, and the session
+      // write is allowed to fail silently. Checking local alone therefore
+      // missed session-only claims and left them to rot for the full TTL,
+      // even though hasActiveRun() reads session first and would keep
+      // refusing every run on the strength of them.
+      const sess = await chrome.storage.session?.get?.(STORAGE_KEYS.ACTIVE_RUN);
+      const local = await chrome.storage.local.get(STORAGE_KEYS.ACTIVE_RUN);
+      const held = sess?.[STORAGE_KEYS.ACTIVE_RUN] || local?.[STORAGE_KEYS.ACTIVE_RUN];
+      if (held?.runId !== runId) return;
       await chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: null });
       await chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_RUN]: null });
     } catch {}
@@ -335,6 +346,16 @@
     }
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      // A previous attempt may have claimed the marker and then failed
+      // before the engine reached the tab. That claim is stale either way:
+      // this attempt takes a fresh one, or it bails through one of the
+      // early returns below, which used to strand it for the whole 2h TTL
+      // and refuse every manual run in the meantime.
+      if (claimedRunId) {
+        await releaseRunClaim(claimedRunId);
+        claimedRunId = null;
+      }
+
       try {
         const result = await chrome.storage.sync.get([STORAGE_KEYS.SCHEDULES, STORAGE_KEYS.PROTECT_KEYWORDS]);
         const schedules = result?.[STORAGE_KEYS.SCHEDULES] || [];
@@ -668,11 +689,21 @@
         return true;
 
       case "gmailCleanerDone":
-        // Clean up active run state when cleanup finishes
-        chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: null })
-          .catch(e => console.warn("[GCC SW] session clear on done failed:", e));
-        chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_RUN]: null })
-          .catch(e => console.warn("[GCC SW] local clear on done failed:", e));
+        // Release the run marker, but only when it is still the one this
+        // run took. Clearing it outright let a finishing run erase a claim
+        // that a newer run had already made in the gap, after which a
+        // schedule could see an idle marker and start a second live
+        // cleanup beside the first. Runs that carry no id (scans, and any
+        // engine older than the claim itself) keep the blanket clear.
+        if (msg.summary?.runId) {
+          releaseRunClaim(msg.summary.runId)
+            .catch(e => console.warn("[GCC SW] claim release on done failed:", e));
+        } else {
+          chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: null })
+            .catch(e => console.warn("[GCC SW] session clear on done failed:", e));
+          chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_RUN]: null })
+            .catch(e => console.warn("[GCC SW] local clear on done failed:", e));
+        }
         // Storage X-ray (7.2): if this run was a registered purge, mark
         // its senders in the stored scan.
         if (msg.summary) {
@@ -1990,6 +2021,8 @@
   // Whitelist Suggestions
   // =========================
 
+  const WHITELIST_SUGGESTIONS_MAX = 500;
+
   async function recordSenderInteraction(data) {
     try {
       const result = await chrome.storage.local.get(STORAGE_KEYS.WHITELIST_SUGGESTIONS);
@@ -2005,6 +2038,22 @@
       if (data.type === "open") interactions[sender].opens++;
       if (data.type === "reply") interactions[sender].replies++;
       interactions[sender].lastSeen = Date.now();
+
+      // Every other map the worker keeps is bounded (smart scans at 50,
+      // smart feedback at 300); this one kept every sender ever seen, so a
+      // busy mailbox grew it without limit until local storage started
+      // rejecting writes -- and by then the undo log, stats and run claims
+      // sharing that quota fail too. Keep the most recently seen.
+      const keys = Object.keys(interactions);
+      if (keys.length > WHITELIST_SUGGESTIONS_MAX) {
+        const keep = keys
+          .sort((a, b) => (interactions[b]?.lastSeen || 0) - (interactions[a]?.lastSeen || 0))
+          .slice(0, WHITELIST_SUGGESTIONS_MAX);
+        const trimmed = {};
+        for (const key of keep) trimmed[key] = interactions[key];
+        await chrome.storage.local.set({ [STORAGE_KEYS.WHITELIST_SUGGESTIONS]: trimmed });
+        return;
+      }
 
       await chrome.storage.local.set({ [STORAGE_KEYS.WHITELIST_SUGGESTIONS]: interactions });
     } catch (e) {
