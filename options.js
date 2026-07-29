@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const OPTIONS_VERSION = "7.14.1";
+  const OPTIONS_VERSION = "7.14.2";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -166,7 +166,13 @@
 
     btn.classList.add("success");
     const labelNode = getPrimaryLabelNode(btn);
-    const originalText = labelNode ? labelNode.textContent : btn.textContent;
+    // This runs while the button still reads "Saving...", because the
+    // loading state is only cleared in the caller's finally. Reading the
+    // live label captured "Saving..." as the resting text and wrote it
+    // back when the flash expired, leaving the button permanently wrong.
+    // setButtonLoading stashes the real label, so prefer that.
+    const originalText = btn.dataset.originalText
+      || (labelNode ? labelNode.textContent : btn.textContent);
 
     if (labelNode) labelNode.textContent = "Saved!";
     else btn.textContent = "Saved!";

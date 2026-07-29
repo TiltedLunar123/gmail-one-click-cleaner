@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const PROGRESS_VERSION = "7.14.1";
+  const PROGRESS_VERSION = "7.14.2";
 
   const CONFIG = Object.freeze({
     MAX_LOG_ENTRIES: 300,
@@ -1017,10 +1017,29 @@
       });
 
       if (response?.ok) {
-        appendLog("Auto-reconnect: content script is alive.", LOG_LEVELS.SUCCESS);
-        setStatusLoading("Reconnected, waiting for progress…");
+        // An answer is activity. Without this, elapsed stayed stale and
+        // the tick fired again immediately, resetting the attempt counter
+        // every time so the max was never reached either: an endless
+        // "auto-reconnecting / still alive" loop for the life of the tab.
+        state.lastMessageTime = Date.now();
         state.autoReconnectAttempts = 0;
         state.isReconnecting = false;
+
+        // An idle engine is not a run waiting to resume, it is a run that
+        // already finished. No progress is ever going to arrive, so stop
+        // polling for it and leave the manual buttons in charge.
+        if (response.phase === "idle") {
+          appendLog(
+            "Auto-reconnect: the cleaner is attached but idle, so this run is already over.",
+            LOG_LEVELS.INFO
+          );
+          setStatus("Cleaner idle. Use Reconnect or Re-inject to start another pass.");
+          stopAutoReconnect();
+          return;
+        }
+
+        appendLog("Auto-reconnect: content script is alive.", LOG_LEVELS.SUCCESS);
+        setStatusLoading("Reconnected, waiting for progress…");
         return;
       }
     } catch {

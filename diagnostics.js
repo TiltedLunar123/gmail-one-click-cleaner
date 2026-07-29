@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const DIAGNOSTICS_VERSION = "7.14.1";
+  const DIAGNOSTICS_VERSION = "7.14.2";
 
   const CONFIG = Object.freeze({
     MAX_URL_LENGTH: 120,
@@ -431,22 +431,28 @@
     return stats.mode === "dry" ? (stats.totalWouldDelete || 0) : (stats.totalDeleted || 0);
   };
 
+  // The engine records the mode as `action: "archive" | "delete"`; it has
+  // never written an `archiveInsteadOfDelete` field into its stats, so
+  // reading one here meant every archive run was reported as a deletion,
+  // red tag and all. stats.js reads `action` and was right all along.
+  const wasArchiveRun = (stats) => stats?.action === "archive";
+
   const getActionWord = (stats) => {
     if (!stats) return "affected";
     if (stats.mode === "dry") return "would affect";
-    return stats.archiveInsteadOfDelete ? "archived" : "deleted";
+    return wasArchiveRun(stats) ? "archived" : "deleted";
   };
 
   const getModeLabel = (stats) => {
     if (!stats) return "Unknown";
     if (stats.mode === "dry") return "Dry Run";
-    return stats.archiveInsteadOfDelete ? "Archive" : "Delete";
+    return wasArchiveRun(stats) ? "Archive" : "Delete";
   };
 
   const getTagClass = (stats) => {
     if (!stats) return TAG_CLASSES.default;
     if (stats.mode === "dry") return TAG_CLASSES.dry;
-    return stats.archiveInsteadOfDelete ? TAG_CLASSES.archive : TAG_CLASSES.delete;
+    return wasArchiveRun(stats) ? TAG_CLASSES.archive : TAG_CLASSES.delete;
   };
 
   const applyLastRunToDom = (stats) => {
@@ -856,13 +862,17 @@
       );
 
       GCC.showToast(`Found ${tabs.length} Gmail tab(s)`, "success");
-      setButtonLoading(elements.testInjectBtn, false);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       addLog(`Failed to query tabs: ${message}`, "error");
       GCC.showToast("Tab scan failed", "error");
     } finally {
       setButtonLoading(elements.scanTabsBtn, false);
+      // Both buttons go into the loading state together, so both have to
+      // come out of it together. Clearing Test Inject only on the happy
+      // path left it stuck as a dead spinner after a scan that found no
+      // Gmail tabs or threw, with no recovery short of reloading the page.
+      setButtonLoading(elements.testInjectBtn, false);
     }
   };
 

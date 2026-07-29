@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "7.14.1";
+  const GCC_CONTENT_VERSION = "7.14.2";
 
   // =========================
   // Timing & behavior constants
@@ -86,8 +86,13 @@
   function queryHasDangerousToken(rawQuery) {
     const lower = String(rawQuery || "").toLowerCase();
     return DANGEROUS_QUERY_TOKENS.some((token) => {
-      const negated = new RegExp(`(^|\\s)-\\s*${token.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
-      const positive = new RegExp(`(^|\\s)${token.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
+      // A leading "(" opens a group, so `(is:starred)` is every bit as
+      // positive as a bare `is:starred`. Anchoring on whitespace alone let
+      // the parenthesised form past this refusal, and applyGlobalGuards
+      // then skipped adding `-is:starred` because the token did appear in
+      // the query. Both protections failed on the same string.
+      const negated = new RegExp(`(^|[\\s(])-\\s*${token.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
+      const positive = new RegExp(`(^|[\\s(])${token.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
       return positive.test(lower) && !negated.test(lower);
     });
   }
@@ -2012,6 +2017,43 @@
     return "Other";
   }
 
+  // Gmail's relative-age units, as the approximate day counts Gmail itself
+  // uses. Only needed to rank two ages against each other, so the rounding
+  // in "m" and "y" is not material.
+  const AGE_UNIT_DAYS = Object.freeze({ d: 1, w: 7, m: 30, y: 365 });
+
+  /**
+   * "6m" -> 180. Null when the value is not an age Gmail would accept.
+   * @param {string} raw
+   * @returns {number | null}
+   */
+  function ageTokenToDays(raw) {
+    const parsed = /^(\d+)\s*([dwmy])$/i.exec(String(raw || "").trim());
+    if (!parsed) return null;
+    const n = parseInt(parsed[1], 10);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return n * AGE_UNIT_DAYS[parsed[2].toLowerCase()];
+  }
+
+  /**
+   * The strictest (oldest) `older_than:` a query already carries, in days.
+   * @param {string} query
+   * @returns {number | null}
+   */
+  function strictestOlderThanDays(query) {
+    // Only a positive age describes what the rule keeps. A negated
+    // `-older_than:6m` means "newer than 6m", so counting it as the rule's
+    // own floor would suppress a stricter global floor that belongs there.
+    const re = /(?:^|[\s(])older_than:(\d+\s*[dwmy])/gi;
+    let strictest = null;
+    let match;
+    while ((match = re.exec(String(query || ""))) !== null) {
+      const days = ageTokenToDays(match[1]);
+      if (days !== null && (strictest === null || days > strictest)) strictest = days;
+    }
+    return strictest;
+  }
+
   function applyGlobalGuards(raw) {
     const parts = [(raw || "").trim()];
     if (!parts[0]) return "";
@@ -2039,8 +2081,18 @@
       parts.push("-has:userlabels");
     }
 
-    if (CONFIG.minAge && !/older_than:\d+[dwmy]/i.test(parts[0])) {
-      parts.push(`older_than:${CONFIG.minAge}`);
+    // Minimum Age is a floor the user set ("only clean mail older than
+    // this"), so it has to beat a rule that asks for less. Testing whether
+    // the query merely mentions older_than made the setting a no-op on the
+    // entire stock rule set, because every built-in rule carries one. Now
+    // it is appended whenever it is genuinely stricter than the rule's own
+    // age; a looser floor is dropped so it can never relax a tight rule.
+    if (CONFIG.minAge) {
+      const ruleDays = strictestOlderThanDays(parts[0]);
+      const floorDays = ageTokenToDays(CONFIG.minAge);
+      if (ruleDays === null || (floorDays !== null && floorDays > ruleDays)) {
+        parts.push(`older_than:${CONFIG.minAge}`);
+      }
     }
 
     for (const sender of CONFIG.whitelist) {
@@ -2747,9 +2799,20 @@
     const selectedCount = extractSelectedCount() ?? initialSelectedCount;
     const actionWord = CONFIG.archiveInsteadOfDelete ? "archive" : "delete";
 
+    // 7.14.2: extractSelectedCount reports the selected rows in the
+    // viewport (`tr.x7`), which is one page. Once "select all N
+    // conversations" is confirmed, Gmail acts on every match instead, so
+    // measuring the page would let a 40,000-conversation sweep sail past
+    // guardrails sized for it. Capture the match total here, before the
+    // action clears the "of N" text that carries it.
+    const matchTotal = bulkAllSelected ? estimateTotalResults() : null;
+    const effectiveCount = bulkAllSelected
+      ? Math.max(matchTotal ?? 0, selectedCount ?? 0)
+      : selectedCount;
+
     // Run-level soft cap guardrail
     if (!CONFIG.dryRun) {
-      const projectedTotal = liveRunProcessedSoFar + (selectedCount ?? 0);
+      const projectedTotal = liveRunProcessedSoFar + (effectiveCount ?? 0);
 
       if (projectedTotal > GUARDRAILS.RUN_SOFT_CAP && !window.GCC_CONFIRMED_SOFT_CAP) {
         // Issue #7: confirm() blocks the Gmail tab indefinitely if no
@@ -2804,12 +2867,15 @@
 
     // Dry-run
     if (CONFIG.dryRun) {
-      const estimated = selectedCount ?? estimateTotalResults() ?? 0;
+      // Dry Run is the safe preview, so it has to quote the same figure a
+      // live run would act on. Using the viewport count here reported ~50
+      // for a confirmed "all 12,400 conversations" batch.
+      const estimated = effectiveCount ?? estimateTotalResults() ?? 0;
       debugLog("Dry run page estimate", { estimated, bulkSelected });
       return { deleted: false, count: estimated, reason: "dry-run", bulkSelected };
     }
 
-    const estimatedTotal = selectedCount ?? estimateTotalResults();
+    const estimatedTotal = effectiveCount ?? estimateTotalResults();
 
     // Huge run confirmation
     if (
@@ -2853,10 +2919,9 @@
 
     const countBeforeAction = extractSelectedCount();
     const rowsBeforeAction = getGridRowCount();
-    // Capture the match total BEFORE the action: once Gmail deletes the
-    // selection, its "of N" results count disappears, so a bulk-all count
-    // can't be recovered afterwards.
-    const totalBeforeAction = bulkAllSelected ? estimateTotalResults() : null;
+    // The bulk-all match total lives in matchTotal, captured with the
+    // selection above: once Gmail acts, its "of N" results count is gone
+    // and the figure cannot be recovered.
     safeSend({
       phase: "debug",
       detail: `Executing ${actionWord} on ${countBeforeAction ?? "?"} items (visible rows: ${rowsBeforeAction ?? "?"})`
@@ -2881,6 +2946,23 @@
     // Stash on a function-scoped var so recordUndo can read it after
     // tryDeleteAction completes.
     lastBatchSamples = sampledRows;
+
+    // Last chance to honour Cancel. The per-query loops check it, but the
+    // stretch between selecting a page and clicking Delete covers tagging,
+    // an optional confirm() and several settle sleeps -- easily tens of
+    // seconds, and the user who cancels in there expects nothing to move.
+    // The batch may already carry its recovery label by now; that is inert
+    // and gets reused if the same mail is cleaned later.
+    //
+    // This throws rather than returning a no-op result: a plain return
+    // reads to processQuery as "nothing to act on", and on a single-rule
+    // run (every Storage X-ray purge and Smart apply is one rule) the loop
+    // would then fall through to the success summary and report a cancelled
+    // run as finished.
+    if (CANCELLED) {
+      debugLog("Cancelled before action click");
+      throw new CancellationError("Run cancelled before the action fired");
+    }
 
     const actionSuccess = CONFIG.archiveInsteadOfDelete
       ? await tryArchiveAction()
@@ -2934,9 +3016,14 @@
     //  - empty after action: everything visible was acted on.
     let affectedCount;
     if (bulkAllSelected) {
-      affectedCount = (selectedCount && selectedCount > 0)
-        ? selectedCount
-        : (totalBeforeAction || rowsBeforeAction || 0);
+      // The match total is the only figure that describes a bulk-all
+      // action; selectedCount is the viewport and would undercount by
+      // orders of magnitude, dragging liveRunProcessedSoFar (and so the
+      // soft cap) down with it. effectiveCount is the same figure the
+      // guardrails were measured against, so a misparsed "of N" smaller
+      // than the visible selection cannot make the books worse than the
+      // viewport count either.
+      affectedCount = effectiveCount || rowsBeforeAction || 0;
     } else if (countBeforeAction !== null && countBeforeAction !== undefined && countBeforeAction > 0) {
       affectedCount = countBeforeAction;
     } else if (verification.signal === "no-results" && rowsBeforeAction !== null && rowsBeforeAction !== undefined) {
@@ -4898,6 +4985,13 @@
           throw new CancellationError("Run cancelled by user");
         }
         await processQuery(rules[i], i, totalQueries);
+      }
+
+      // A cancel that lands during the last rule would otherwise fall
+      // straight out of the loop and into the success summary, because the
+      // check above only runs before a rule starts.
+      if (CANCELLED) {
+        throw new CancellationError("Run cancelled by user");
       }
 
       const doneStats = buildFinalStats(totalQueries);

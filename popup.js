@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "7.14.1";
+  const POPUP_VERSION = "7.14.2";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -2077,6 +2077,11 @@ document.addEventListener("DOMContentLoaded", () => {
       // The purge query carries its own older_than; the global minimum
       // age would stack a second, stricter filter on top.
       config.minAge = null;
+      // The progress tab re-injects from lastConfig when it has to
+      // reconnect. Without this the stored config is still the last full
+      // cleanup, so a reconnect would drop the sender scope and sweep the
+      // whole rule set instead of the senders the user picked.
+      await persistLastConfig(config);
 
       state.currentGmailTabId = gmailTab.id;
       setXrayStatus(config.dryRun
@@ -2420,6 +2425,11 @@ document.addEventListener("DOMContentLoaded", () => {
       // The suggestion names its own action; it overrides the form's
       // action dropdown for this run only.
       config.archiveInsteadOfDelete = Boolean(archive);
+      // The progress tab re-injects from lastConfig when it has to
+      // reconnect. Without this the stored config is still the last full
+      // cleanup, so a reconnect would drop the sender scope and the action
+      // override and sweep the whole rule set instead.
+      await persistLastConfig(config);
 
       state.currentGmailTabId = gmailTab.id;
       setSmartStatus(config.dryRun

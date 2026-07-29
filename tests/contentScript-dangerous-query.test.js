@@ -49,6 +49,28 @@ describe("contentScript.js: queryHasDangerousToken", () => {
     expect(queryHasDangerousToken("category:promotions -is:starred -is:important")).toBe(false);
   });
 
+  // A "(" opens a group, so these are positive uses of the token. The
+  // matcher used to anchor on start-or-whitespace only, which let them
+  // through here AND past applyGlobalGuards, whose skip-starred check
+  // merely asks whether the token appears anywhere in the query. Both
+  // protections failed on the same string.
+  test.each([
+    "(is:starred)",
+    "category:promotions (is:starred)",
+    "(is:important OR is:starred)",
+    "(in:sent)",
+    "older_than:1y (in:drafts)"
+  ])("rejects parenthesised %s", (q) => {
+    expect(queryHasDangerousToken(q)).toBe(true);
+  });
+
+  test.each([
+    "category:promotions (-is:starred)",
+    "(-in:sent) older_than:1y"
+  ])("still accepts parenthesised negation %s", (q) => {
+    expect(queryHasDangerousToken(q)).toBe(false);
+  });
+
   test("ignores empty input", () => {
     expect(queryHasDangerousToken("")).toBe(false);
     expect(queryHasDangerousToken(null)).toBe(false);
