@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const OPTIONS_VERSION = "7.14.2";
+  const OPTIONS_VERSION = "7.15.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -427,6 +427,22 @@
       errors.push("Normal rules cannot be empty");
     }
 
+    // 7.15: the intensity boxes are free text and were the ONE rule
+    // surface nothing checked. Custom rules have run through
+    // validateGmailQuery since 6.x, but "is:starred older_than:1y" typed
+    // into the Normal box saved without a murmur (this function warns and
+    // saves anyway) and the engine had no refusal of its own for stored
+    // rules either, so a year of starred mail could go to Trash. The
+    // engine now refuses these too; this is the half that tells the user.
+    RULE_KEYS.forEach((key) => {
+      (data?.rules?.[key] || []).forEach((query) => {
+        const check = GCC.validateGmailQuery(query);
+        if (!check.valid) {
+          errors.push(`${key}: ${check.errors[0]}`);
+        }
+      });
+    });
+
     // Validate whitelist entries
     (data?.whitelist || []).forEach((entry, index) => {
       if (!isValidWhitelistEntry(entry)) {
@@ -566,8 +582,20 @@
     const confirmed = await showConfirmDialog();
     if (!confirmed) return;
 
+    // 7.15: this used to pass empty arrays here, which silently emptied
+    // the Global Whitelist and the Protected Keywords as well. The button
+    // says "Restore defaults", the dialog says "Restore Default Rules?"
+    // and "replace all your custom rules", so wiping the two lists whose
+    // whole job is to stop mail being deleted was both unannounced and
+    // the most damaging thing on the page. Rules and the debug flag are
+    // what gets restored; the safety lists are left exactly as they are.
+    const current = collectAllData();
     renderRules(GCC.clone(DEFAULT_RULES));
-    renderSettings({ debugMode: false, whitelist: [], protectKeywords: [] });
+    renderSettings({
+      debugMode: false,
+      whitelist: current.whitelist,
+      protectKeywords: current.protectKeywords
+    });
     markUnsaved();
 
     await saveData(null, { silent: true });

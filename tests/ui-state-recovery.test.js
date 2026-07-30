@@ -130,16 +130,29 @@ describe("progress.js: auto-reconnect cannot loop forever", () => {
 describe("popup.js: scoped runs persist their own config", () => {
   const src = read("popup.js");
 
+  // 7.15 moved both persists BELOW the duplicate-run guard: a refused run
+  // used to leave its sender-scoped config behind as the thing a later
+  // progress reconnect would run.
   test("the storage purge stores the sender-scoped config", () => {
     const purge = src.slice(src.indexOf("config.rulesOverride = [purgeQuery];"));
-    const head = purge.slice(0, purge.indexOf("state.currentGmailTabId"));
+    const head = purge.slice(0, purge.indexOf('files: ["contentScript.js"]'));
     expect(head).toMatch(/await\s+persistLastConfig\(config\);/);
   });
 
   test("the smart apply stores its rule and action override", () => {
     const smart = src.slice(src.indexOf("config.archiveInsteadOfDelete = Boolean(archive);"));
-    const head = smart.slice(0, smart.indexOf("state.currentGmailTabId"));
+    const head = smart.slice(0, smart.indexOf('files: ["contentScript.js"]'));
     expect(head).toMatch(/await\s+persistLastConfig\(config\);/);
+  });
+
+  test("neither persist runs before the already-attached guard", () => {
+    for (const anchor of ["config.rulesOverride = [purgeQuery];", "config.archiveInsteadOfDelete = Boolean(archive);"]) {
+      const from = src.indexOf(anchor);
+      const persistAt = src.indexOf("await persistLastConfig(config);", from);
+      const guardAt = src.indexOf("if (await isEngineAttached(gmailTab.id))", from);
+      expect(guardAt).toBeGreaterThan(from);
+      expect(persistAt).toBeGreaterThan(guardAt);
+    }
   });
 
   test("each persist happens before the engine is injected", () => {

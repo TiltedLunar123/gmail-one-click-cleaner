@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const PROGRESS_VERSION = "7.14.2";
+  const PROGRESS_VERSION = "7.15.0";
 
   const CONFIG = Object.freeze({
     MAX_LOG_ENTRIES: 300,
@@ -586,7 +586,20 @@
     if (!GCC.hasChromeStorage("sync")) return;
     try {
       const finishedAt = Date.now();
-      const statsToSave = { ...stats, finishedAt };
+      // Sync replicates to the user's browser account, and perQuery[].query
+      // is the literal Gmail search: for a purge or a Smart apply that is a
+      // list of sender addresses read out of their mailbox. Nothing renders
+      // it, so the synced copy carries counts and labels only. The engine
+      // strips the same field before its own write.
+      const perQuery = Array.isArray(stats?.perQuery)
+        ? stats.perQuery.map((entry) => ({
+          label: entry?.label,
+          count: entry?.count,
+          mode: entry?.mode,
+          durationMs: entry?.durationMs
+        }))
+        : stats?.perQuery;
+      const statsToSave = { ...stats, perQuery, finishedAt };
       await GCC.promisify(chrome.storage.sync.set.bind(chrome.storage.sync), { lastRunStats: statsToSave });
     } catch (err) {
       log("warn", "Failed to save stats to storage:", err);

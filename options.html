@@ -1163,7 +1163,7 @@
         </div>
         <div style="min-width: 120px;">
           <label for="newCustomAction" style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">Action</label>
-          <select id="newCustomAction" style="width: 100%; padding: 8px 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-main); font-size: 13px;">
+          <select id="newCustomAction" aria-describedby="customActionHint" style="width: 100%; padding: 8px 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-main); font-size: 13px;">
             <option value="delete">Delete</option>
             <option value="archive">Archive</option>
             <option value="label">Label only</option>
@@ -1173,6 +1173,12 @@
           + Add Rule
         </button>
       </div>
+
+      <p id="customActionHint" class="audit-note" role="note" style="margin-top: 12px;">
+        A cleanup run has one action for the whole run. Archive rules are
+        used when you run the cleaner in Archive mode; Label-only rules are
+        kept here but are not applied by a cleanup run.
+      </p>
     </section>
 
     <!-- Scheduled Cleanups -->

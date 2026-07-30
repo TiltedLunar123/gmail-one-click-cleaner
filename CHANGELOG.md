@@ -3,6 +3,93 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 7.15.0 - Safety, locale and scheduling fixes
+
+A second sweep, in the same spirit as 7.14.2 and reaching the places that
+one did not: the paths that only run when nobody is watching, and the
+ones that only misbehave when Gmail is not in English.
+
+### Fixed
+- **Scheduled cleanups now honour your Global Whitelist.** They never
+  did. The list you fill in under "Never Delete" was applied to every
+  manual run and to Auto-Pilot, but a scheduled cleanup read a separate,
+  per-schedule list that nothing has ever been able to fill in, so it
+  ran with no whitelist at all. The one kind of run you are not watching
+  was the one that could delete mail from a sender you had protected.
+- **Custom rules now respect their own Action.** A custom rule saved as
+  "Archive" or "Label only" was stored, shown with its badge, and then
+  executed with the run's action anyway, so a rule you set to label your
+  invoices was deleting them. Archive rules are now used when you run the
+  cleaner in Archive mode, and Label-only rules are never executed by a
+  cleanup run.
+- **The big-run guardrails work in every language.** 7.14.2 made them
+  measure the real match total instead of the page on screen, but it
+  found that total by reading Gmail's English "1-50 of 3,200" and its
+  English "all conversations selected" banner. On a German, French,
+  Japanese or Korean Gmail both reads failed, so the guardrails were
+  back to sizing a 25,000-conversation sweep at about 50. The counter is
+  now read without relying on any particular language, an all-matching
+  selection is detected structurally, and the guardrails always measure
+  what the click can actually touch.
+- **Bulk deletes complete on a non-English Gmail.** The confirmation
+  dialog Gmail shows for a very large batch was only ever found by
+  English phrases, so on other languages the run waited, timed out and
+  quietly did nothing. It is now found by its buttons, which were already
+  translated.
+- **A whitelist entry like `*@bank.com` protects that domain.** The
+  Options page accepts and documents that shape, and Smart Suggestions
+  already treated it as the whole domain, but the cleanup query passed it
+  to Gmail verbatim. Gmail has no wildcard there, so the entry protected
+  nothing.
+- **Rules that target protected mail are refused wherever they come
+  from.** Custom rules were checked; the Light / Normal / Deep boxes were
+  not, and saving one that targeted starred or sent mail raised no
+  objection at all. Both sides now refuse them, and a Gmail `{a b}` group
+  can no longer hide the token from the check.
+- **"Restore defaults" no longer wipes your safety lists.** It said it
+  would replace your rules. It also silently emptied the Global Whitelist
+  and your Protected Keywords. It now restores rules only.
+- **Auto-Pilot only ever acts on its own scan.** A Smart Suggestions scan
+  you started yourself could hand a pending sweep its "scan finished" and
+  set an unattended archive run going. It also now re-checks vacation
+  mode before it acts, so switching that on while the scan is running
+  stops the sweep.
+- **Two overdue schedules no longer fire in the same instant**, which
+  could start one cleanup running the other schedule's settings, and
+  changing a schedule after a run can no longer make that run repeat a
+  minute later.
+- Cancel is now honoured between selecting mail and moving it during a
+  Restore, and between opening an unsubscribe dialog and confirming it.
+- A restore that moves everything matching now reports how much it
+  actually moved instead of the page count.
+- A rule that stops because it hit the per-run pass limit now says so and
+  appears in the run summary instead of vanishing from it.
+- The large-batch warning can fire again; it was comparing a page of at
+  most 100 rows against a threshold of 2,000.
+
+### Changed
+- **Scoped runs keep your Minimum Age.** A Storage X-ray purge or a Smart
+  Suggestion used to drop it for that run. "Archive all" carries no age
+  of its own, so with the floor dropped it could act on mail that arrived
+  today. Your floor is now applied whenever it is stricter than the run's
+  own age, exactly as it is for a normal cleanup.
+- Editing settings in the popup while a run is in progress no longer
+  rewrites what a reconnect would run, and a run that was refused because
+  another was already going no longer leaves its settings behind.
+- Opening the progress dashboard for a scheduled or Auto-Pilot run now
+  refreshes a leftover tab instead of showing you the previous run's
+  finished screen with Cancel greyed out.
+
+### Privacy
+- The last-run summary is synced so you see it on your other browsers,
+  and it carried the literal Gmail searches that ran. For a Storage X-ray
+  or Smart Suggestions run those searches contain sender addresses read
+  from your mailbox. The searches are now removed before that summary is
+  synced; the counts and labels it displays are unchanged. SECURITY.md
+  has also been corrected: it said no message IDs were stored, when the
+  recovery log keeps a sample of Gmail thread IDs on your device so you
+  can find cleaned mail again.
+
 ## 7.14.2 - Safety and reliability fixes
 
 ### Fixed

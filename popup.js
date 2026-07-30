@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "7.14.2";
+  const POPUP_VERSION = "7.15.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -79,6 +79,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const state = {
     isRunning: false,
     currentGmailTabId: null,
+    // True only when THIS popup instance injected the running engine.
+    // Distinguishes "my run" from a schedule or Auto-Pilot sweep the popup
+    // merely detected through the active-run marker.
+    startedRunHere: false,
     debugMode: false,
     buttonState: BUTTON_STATES.IDLE,
 
@@ -795,7 +799,22 @@ document.addEventListener("DOMContentLoaded", () => {
     if (state.autosaveTimer) clearTimeout(state.autosaveTimer);
     state.autosaveTimer = setTimeout(async () => {
       try {
+        // 7.15: lastConfig is not a preferences record, it is what the
+        // progress page re-injects with. A Storage X-ray purge or a Smart
+        // apply writes a SENDER-SCOPED config there, and buildConfig()
+        // only knows about target presets, so toggling any control in a
+        // reopened popup while that run was live replaced the scope with
+        // the full rule set. A later reconnect then swept everything the
+        // rules match instead of the handful of senders the user picked.
+        // While a run holds the marker, the UI snapshot is still worth
+        // saving; the config it would run with is not.
         const cfg = await buildConfig();
+        if (await getActiveRun()) {
+          await storageSet("session", { [STORAGE_KEYS.LAST_UI]: captureUiSnapshot() });
+          await storageSet("local", { [STORAGE_KEYS.LAST_UI]: captureUiSnapshot() });
+          log("info", "autosaved ui only (run in progress)");
+          return;
+        }
         await persistLastConfig(cfg);
         log("info", "autosaved config");
       } catch (e) {
@@ -1376,6 +1395,7 @@ document.addEventListener("DOMContentLoaded", () => {
       claimedRunId = claim.claim.runId;
 
       state.currentGmailTabId = gmailTab.id;
+      state.startedRunHere = true;
       showQuickActions();
       updateProgress(30);
 
@@ -2074,16 +2094,14 @@ document.addEventListener("DOMContentLoaded", () => {
       const config = await buildConfig();
       config.runId = claim.claim.runId;
       config.rulesOverride = [purgeQuery];
-      // The purge query carries its own older_than; the global minimum
-      // age would stack a second, stricter filter on top.
-      config.minAge = null;
-      // The progress tab re-injects from lastConfig when it has to
-      // reconnect. Without this the stored config is still the last full
-      // cleanup, so a reconnect would drop the sender scope and sweep the
-      // whole rule set instead of the senders the user picked.
-      await persistLastConfig(config);
-
+      // 7.15: the global Minimum Age stays. Nulling it here predated the
+      // engine learning to compare ages: applyGlobalGuards now appends the
+      // floor only when it is STRICTER than the age the rule already
+      // carries, so it can never narrow this query by accident, and
+      // dropping it threw away a setting the user deliberately chose
+      // ("only clean mail older than a year" meant it).
       state.currentGmailTabId = gmailTab.id;
+      state.startedRunHere = true;
       setXrayStatus(config.dryRun
         ? t("purgeDryCounting", "Dry run: counting what a purge would remove...")
         : (targeted.length === 1
@@ -2097,6 +2115,16 @@ document.addEventListener("DOMContentLoaded", () => {
         state.isRunning = false;
         return;
       }
+
+      // The progress tab re-injects from lastConfig when it has to
+      // reconnect. Without this the stored config is still the last full
+      // cleanup, so a reconnect would drop the sender scope and sweep the
+      // whole rule set instead of the senders the user picked.
+      //
+      // Persisted AFTER the duplicate-run guard for the same reason the
+      // purge marker is: a refused run must not leave its scoped config
+      // behind as the thing a later reconnect would run.
+      await persistLastConfig(config);
 
       // Register the target list so the background can mark rows
       // purged when the run finishes (this popup will be long closed).
@@ -2419,19 +2447,18 @@ document.addEventListener("DOMContentLoaded", () => {
       const config = await buildConfig();
       config.runId = claim.claim.runId;
       config.rulesOverride = queries;
-      // The suggestion's query carries its own age scope; the global
-      // minimum age would stack a second, stricter filter on top.
-      config.minAge = null;
+      // 7.15: the global Minimum Age stays, and it matters most here.
+      // "Archive all" builds `from:(sender)` with NO age scope at all, so
+      // nulling the floor let a suggestion act on mail that arrived
+      // today even when the user had set "older than 1 year".
+      // applyGlobalGuards only appends the floor when it is stricter than
+      // the rule's own age, so the queries that do carry one are
+      // unaffected.
       // The suggestion names its own action; it overrides the form's
       // action dropdown for this run only.
       config.archiveInsteadOfDelete = Boolean(archive);
-      // The progress tab re-injects from lastConfig when it has to
-      // reconnect. Without this the stored config is still the last full
-      // cleanup, so a reconnect would drop the sender scope and the action
-      // override and sweep the whole rule set instead.
-      await persistLastConfig(config);
-
       state.currentGmailTabId = gmailTab.id;
+      state.startedRunHere = true;
       setSmartStatus(config.dryRun
         ? t("smartDryCounting", "Dry run: counting what this suggestion would clean...")
         : (emails.length === 1
@@ -2445,6 +2472,13 @@ document.addEventListener("DOMContentLoaded", () => {
         state.isRunning = false;
         return;
       }
+
+      // The progress tab re-injects from lastConfig when it has to
+      // reconnect. Without this the stored config is still the last full
+      // cleanup, so a reconnect would drop the sender scope and the action
+      // override and sweep the whole rule set instead. Persisted after the
+      // duplicate-run guard so a refused run leaves nothing scoped behind.
+      await persistLastConfig(config);
 
       // Stamped after the guard so a refused run leaves no marker
       // waiting on a run that never starts.
@@ -2703,6 +2737,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const existing = await findProgressTab(tabId);
     if (existing?.id) {
+      // Focusing without reloading is right for a run THIS popup started:
+      // the dashboard is already following it and a reload would throw
+      // away the log. For a run the popup only learned about from the
+      // active-run marker (a schedule or an Auto-Pilot sweep), any
+      // leftover progress tab belongs to an older, finished run: it sits
+      // frozen on "Run finished" with Cancel disabled and its
+      // auto-reconnect already stopped, so the user is handed a dead
+      // dashboard for a live cleanup they cannot stop.
+      if (!state.startedRunHere && !(await tabsReload(existing.id))) {
+        await tabsCreate({
+          url: chrome.runtime.getURL(`progress.html?gmailTabId=${tabId}`),
+          active: true
+        });
+        setTimeout(safeClosePopup, 150);
+        return;
+      }
       await tabsUpdate(existing.id, { active: true });
       setTimeout(safeClosePopup, 150);
       return;

@@ -629,9 +629,16 @@ const GCC = (() => {
 
     const lower = q.toLowerCase();
 
+    // A leading "(" or "{" opens a group, so `(is:starred)` and Gmail's
+    // OR-group `{is:starred is:unread}` are every bit as positive as the
+    // bare token. The engine's copy of this test was anchored for the
+    // paren in 7.14.2 and this one was not, so the Options page happily
+    // saved a rule the engine then refused on every run: the user got a
+    // "starred cleanup" that silently never ran. The brace form was worse
+    // and is fixed on both sides here: nothing refused it at all.
     for (const token of DANGEROUS_QUERY_TOKENS) {
-      const negated = new RegExp(`(^|\\s)-\\s*${token.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
-      const positive = new RegExp(`(^|\\s)${token.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
+      const negated = new RegExp(`(^|[\\s({])-\\s*${token.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
+      const positive = new RegExp(`(^|[\\s({])${token.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
       if (positive.test(lower) && !negated.test(lower)) {
         errors.push(`Query targets protected mail: "${token}". Add "-${token}" to exclude.`);
       }
@@ -945,7 +952,7 @@ const GCC = (() => {
   // Strict email shape doubles as query-injection protection: anything
   // that passes cannot break out of the from:(...) group it is placed
   // in. Mirrors the engine's unsubscribe sender validation.
-  const STORAGE_EMAIL_RE = /^[a-z0-9!#$%&'*+/=?^_`{|}~.-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
+  const STORAGE_EMAIL_RE = /^[a-z0-9!#$%&'*+/=?^_`{|}~.][a-z0-9!#$%&'*+/=?^_`{|}~.-]*@[a-z0-9.-]+\.[a-z]{2,}$/;
 
   const STORAGE_XRAY_LIMITS = Object.freeze({
     MAX_PURGE_PER_RUN: 25,
