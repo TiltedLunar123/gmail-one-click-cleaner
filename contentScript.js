@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "7.14.2";
+  const GCC_CONTENT_VERSION = "7.15.0";
 
   // =========================
   // Timing & behavior constants
@@ -91,8 +91,12 @@
       // the parenthesised form past this refusal, and applyGlobalGuards
       // then skipped adding `-is:starred` because the token did appear in
       // the query. Both protections failed on the same string.
-      const negated = new RegExp(`(^|[\\s(])-\\s*${token.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
-      const positive = new RegExp(`(^|[\\s(])${token.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
+      //
+      // 7.15: `{` opens Gmail's documented OR group, so `{is:starred
+      // is:unread}` was the same escape hatch one character over. Every
+      // grouping character Gmail accepts belongs in this class.
+      const negated = new RegExp(`(^|[\\s({])-\\s*${token.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
+      const positive = new RegExp(`(^|[\\s({])${token.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
       return positive.test(lower) && !negated.test(lower);
     });
   }
@@ -1642,16 +1646,25 @@
       const countAfter = extractSelectedCount();
       debugLog("After select all conversations click", { countBefore, countAfter });
 
-      // Check if we see "All conversations selected" or similar indicator
-      const allSelectedIndicator = findAllConversationsSelectedIndicator();
-
-      if (countAfter !== null && countBefore !== null && countAfter > countBefore) {
+      // 7.15: the strongest signal is also the only language-independent
+      // one. Gmail offers "select all N that match this search" while a
+      // single page is selected and withdraws it the moment the whole
+      // match set is selected, so the link we just clicked being gone is
+      // proof it took effect. The text indicator below is English-shaped
+      // and silently reported "page only" on every other locale, which
+      // sized the soft cap and the huge-run confirm against ~50 rows
+      // while Gmail deleted the entire result set.
+      const linkConsumed = !findSelectAllConversationsLink();
+      if (linkConsumed) {
         safeSend({
           phase: "debug",
-          detail: `Bulk selection successful: ${countBefore} → ${countAfter}`
+          detail: "Bulk selection verified: the select-all-matching link is gone"
         });
-        return { success: true, reason: "count-increased", countBefore, countAfter };
+        return { success: true, reason: "link-consumed", countBefore, countAfter };
       }
+
+      // Check if we see "All conversations selected" or similar indicator
+      const allSelectedIndicator = findAllConversationsSelectedIndicator();
 
       if (allSelectedIndicator) {
         safeSend({
@@ -1659,6 +1672,14 @@
           detail: "Bulk selection verified via 'all selected' indicator"
         });
         return { success: true, reason: "all-selected-indicator", countBefore, countAfter };
+      }
+
+      if (countAfter !== null && countBefore !== null && countAfter > countBefore) {
+        safeSend({
+          phase: "debug",
+          detail: `Bulk selection successful: ${countBefore} → ${countAfter}`
+        });
+        return { success: true, reason: "count-increased", countBefore, countAfter };
       }
 
       // Even if we can't verify, consider it attempted
@@ -1696,6 +1717,23 @@
    * Handle the bulk action confirmation dialog.
    * @returns {Promise<boolean>}
    */
+  // The confirm button inside a dialog, matched EXACTLY against the
+  // localized token table. Doubles as the structural test for "is this
+  // the bulk confirmation dialog": Gmail only puts an OK/Confirm control
+  // on a dialog that is waiting for exactly that.
+  function findBulkConfirmButton(dialog) {
+    const buttons = qsa("button, div[role='button']", dialog);
+    for (const btn of buttons) {
+      const lowerText = getTextContent(btn).toLowerCase();
+      const name = getAttr(btn, "name").toLowerCase();
+      const isConfirmButton = CONFIRM_TOKENS.some(token =>
+        lowerText === token.toLowerCase() || name === token.toLowerCase()
+      );
+      if (isConfirmButton) return btn;
+    }
+    return null;
+  }
+
   async function handleBulkConfirmation() {
     const dialog = await waitFor(
       () => {
@@ -1712,6 +1750,14 @@
           ) {
             return d;
           }
+          // 7.15: the phrases above are English, so on every other locale
+          // the dialog was never found, the wait timed out, the bulk
+          // action stayed unconfirmed and the whole pass silently did
+          // nothing. The button tokens were already localized, so accept
+          // any dialog that carries one: it is the same structure-first
+          // rule the unsubscribe path uses, and an exact token match on a
+          // confirm control is a tighter test than the prose ever was.
+          if (findBulkConfirmButton(d)) return d;
         }
         return null;
       },
@@ -1733,28 +1779,17 @@
 
     safeSend({ phase: "debug", detail: "Handling bulk confirmation dialog" });
 
-    const buttons = qsa("button, div[role='button']", dialog);
-
-    for (const btn of buttons) {
-      const text = getTextContent(btn);
-      const lowerText = text.toLowerCase();
-      const name = getAttr(btn, "name").toLowerCase();
-
-      const isConfirmButton = CONFIRM_TOKENS.some(token =>
-        lowerText === token.toLowerCase() ||
-        name === token.toLowerCase()
-      );
-
-      if (isConfirmButton) {
-        try {
-          fireMouseSequence(btn);
-          await sleep(TIMING.DOM_SETTLE_DELAY);
-          debugLog("Clicked OK on bulk confirmation dialog", { buttonText: text });
-          safeSend({ phase: "debug", detail: "Confirmed bulk action dialog" });
-          return true;
-        } catch (e) {
-          debugLog("Failed to click confirmation button", { error: e?.message });
-        }
+    const confirmBtn = findBulkConfirmButton(dialog);
+    if (confirmBtn) {
+      try {
+        const text = getTextContent(confirmBtn);
+        fireMouseSequence(confirmBtn);
+        await sleep(TIMING.DOM_SETTLE_DELAY);
+        debugLog("Clicked OK on bulk confirmation dialog", { buttonText: text });
+        safeSend({ phase: "debug", detail: "Confirmed bulk action dialog" });
+        return true;
+      } catch (e) {
+        debugLog("Failed to click confirmation button", { error: e?.message });
       }
     }
 
@@ -1928,6 +1963,33 @@
     ])
   });
 
+  /**
+   * Drop any rule that targets protected mail, log it, and tell the user.
+   * Shared by the stored intensity lists and custom rules so the engine
+   * boundary refuses the same strings wherever they came from.
+   * @param {string[]} rules
+   * @param {string} kind
+   * @returns {string[]}
+   */
+  function refuseDangerousRules(rules, kind) {
+    const kept = [];
+    for (const raw of rules) {
+      if (typeof raw !== "string") continue;
+      const trimmed = raw.trim();
+      if (!trimmed) continue;
+      if (queryHasDangerousToken(trimmed)) {
+        debugLog(`Refusing dangerous ${kind}`, { query: trimmed });
+        safeSend({
+          phase: "debug",
+          detail: `${kind === "rule" ? "Rule" : "Custom rule"} skipped (targets protected mail): ${trimmed}`
+        });
+        continue;
+      }
+      kept.push(trimmed);
+    }
+    return kept;
+  }
+
   async function getRules(intensity) {
     const riskyCategories = ["category:updates", "category:forums"];
 
@@ -1953,8 +2015,20 @@
         });
 
         const allRules = result?.rules ?? DEFAULT_RULES;
-        // Make a mutable copy of the rule set
-        const set = [...(allRules[intensity] ?? allRules.normal ?? DEFAULT_RULES.normal)];
+        // Make a mutable copy of the rule set.
+        //
+        // 7.15: the stored intensity lists get the SAME refusal as custom
+        // rules and target presets. They are free-text areas on the
+        // Options page whose save path never asked validateGmailQuery,
+        // and it saves even when validation fails, so "is:starred
+        // older_than:1y" typed into the Normal box reached the engine
+        // unfiltered. applyGlobalGuards then skipped adding -is:starred
+        // because the token was already in the query, and a year of
+        // starred mail went to Trash with both protections down.
+        const set = refuseDangerousRules(
+          [...(allRules[intensity] ?? allRules.normal ?? DEFAULT_RULES.normal)],
+          "rule"
+        );
 
         // Load and merge custom rules BEFORE applying safe mode filter
         try {
@@ -1965,6 +2039,31 @@
           for (const cr of customRules) {
             if (!cr.query || typeof cr.query !== "string") continue;
             const trimmed = cr.query.trim();
+
+            // 7.15: honour the per-rule Action the Options page saves and
+            // shows as a chip. The rule set was merged by QUERY only, so
+            // the action was dropped and every custom rule ran with the
+            // run's action: a rule the user set to "Label only" or
+            // "Archive" was deleting their mail, which is the opposite of
+            // what the page told them it would do.
+            //
+            // A run cannot change action per rule, so the rule is skipped
+            // rather than executed as something more destructive than it
+            // asks for. A delete rule still runs in an archive run, which
+            // is gentler than requested and therefore always safe.
+            const ruleAction = typeof cr.action === "string" ? cr.action : "delete";
+            const canHonour = ruleAction === "delete"
+              || (ruleAction === "archive" && CONFIG.archiveInsteadOfDelete);
+            if (!canHonour) {
+              debugLog("Skipping custom rule the run cannot honour", { query: trimmed, ruleAction });
+              safeSend({
+                phase: "debug",
+                detail: ruleAction === "label"
+                  ? `Custom rule skipped (set to "Label only", which a cleanup run does not do): ${trimmed}`
+                  : `Custom rule skipped (set to "Archive"; run this cleanup in Archive mode to use it): ${trimmed}`
+              });
+              continue;
+            }
             // Issue #8: refuse dangerous custom queries at the engine
             // boundary so a hand-edited rule that bypassed the options
             // validator still can't target starred / sent / imap_starred
@@ -2104,7 +2203,15 @@
           debugLog("Skipping suspicious whitelist entry", { entry: trimmed });
           continue;
         }
-        parts.push(`-from:${trimmed}`);
+        // 7.15: `*@domain.com` is a shape the Options page documents and
+        // accepts, and Smart Suggestions already reads it as "the whole
+        // domain". The query builder used to emit it verbatim, but Gmail
+        // has no wildcard in `from:`, so `-from:*@bank.com` excluded
+        // nothing and the most important safety setting in the extension
+        // silently protected no one. `from:bank.com` is Gmail's own
+        // domain form and is what the user meant.
+        const wildcardDomain = /^\*@(.+)$/.exec(trimmed);
+        parts.push(`-from:${wildcardDomain ? wildcardDomain[1] : trimmed}`);
       }
     }
 
@@ -2584,6 +2691,39 @@
     });
   }
 
+  // Digit-group separators Gmail uses across locales: comma (en), full
+  // stop (de/es/pt) and space (fr/ru). JavaScript's \s already covers the
+  // non-breaking and narrow no-break spaces those builds emit.
+  const COUNT_SEPARATORS = /[,.\s]/g;
+
+  function digitsToCount(raw) {
+    const n = parseInt(String(raw || "").replace(COUNT_SEPARATORS, ""), 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  // The pagination string is always a range plus a total, in one order or
+  // the other: "1-50 of 3,200" (en), "1-50 von 3.200" (de),
+  // "1-50 sur 3 200" (fr), and the same in reverse order in ko/zh.
+  // Anything longer than a short label is a container's concatenated
+  // text, not the counter.
+  const MAX_COUNTER_TEXT_LENGTH = 60;
+  const COUNT_RANGE_RE = /(\d[\d,.\s]*?)\s*[-\u2013\u2014~\uff5e]\s*(\d[\d,.\s]*)/;
+  const COUNT_NUMBER_RE = /\d[\d,.\s]*/g;
+
+  /**
+   * Total results behind Gmail's "showing X of Y" counter.
+   *
+   * 7.15: the English-only reading was a safety hole, not a cosmetic gap.
+   * Every guardrail that stops a runaway bulk delete is sized against
+   * this number, so on a German or Japanese Gmail the soft cap and the
+   * huge-run confirm were measured against the ~50 rows in the viewport
+   * instead of the real match set. The structural pass below reads the
+   * counter without knowing the word for "of": find the "1-50" range,
+   * then take the remaining number when it is at least the end of that
+   * range. Locale order does not matter, so ko/zh (total first) work too.
+   * @param {string} text
+   * @returns {number | null}
+   */
   function parseCountFromText(text) {
     if (!text || typeof text !== "string") return null;
 
@@ -2594,17 +2734,37 @@
     // count for the current page.
     const ofMatch = text.match(/\bof\s+(?:about\s+)?([\d,.\s]+)/i);
     if (ofMatch) {
-      const n = parseInt(ofMatch[1].replace(/[,.\s]/g, ""), 10);
-      if (Number.isFinite(n) && n > 0) return n;
+      const n = digitsToCount(ofMatch[1]);
+      if (n !== null) return n;
     }
 
     const aboutMatch = text.match(/\babout\s+([\d,.\s]+)\s+results/i);
     if (aboutMatch) {
-      const n = parseInt(aboutMatch[1].replace(/[,.\s]/g, ""), 10);
-      if (Number.isFinite(n) && n > 0) return n;
+      const n = digitsToCount(aboutMatch[1]);
+      if (n !== null) return n;
     }
 
-    return null;
+    if (text.length > MAX_COUNTER_TEXT_LENGTH) return null;
+
+    const range = COUNT_RANGE_RE.exec(text);
+    if (!range) return null;
+    const rangeStart = digitsToCount(range[1]);
+    const rangeEnd = digitsToCount(range[2]);
+    if (rangeStart === null || rangeEnd === null || rangeStart > rangeEnd) return null;
+
+    // Everything outside the matched range is a candidate total. Taking
+    // the largest keeps a stray page number from winning, and requiring
+    // it to reach the end of the range rejects text that merely happens
+    // to carry a dash and some digits.
+    const rest = text.slice(0, range.index) + " " + text.slice(range.index + range[0].length);
+    let best = null;
+    let m;
+    COUNT_NUMBER_RE.lastIndex = 0;
+    while ((m = COUNT_NUMBER_RE.exec(rest)) !== null) {
+      const n = digitsToCount(m[0]);
+      if (n !== null && n >= rangeEnd && (best === null || n > best)) best = n;
+    }
+    return best;
   }
 
   function estimateTotalResults() {
@@ -2784,7 +2944,10 @@
       // A confirmed "all N conversations selected" banner means Gmail will
       // act on EVERY matching conversation in one shot, not just the
       // visible page -- the affected count must then use the match total.
+      // "link-consumed" is the same fact observed structurally, which is
+      // the only form of it that survives a non-English Gmail.
       bulkAllSelected =
+        selectAllResult.reason === "link-consumed" ||
         selectAllResult.reason === "all-selected-indicator" ||
         findAllConversationsSelectedIndicator();
       debugLog("Bulk selection result", { ...selectAllResult, bulkAllSelected });
@@ -2805,14 +2968,26 @@
     // measuring the page would let a 40,000-conversation sweep sail past
     // guardrails sized for it. Capture the match total here, before the
     // action clears the "of N" text that carries it.
-    const matchTotal = bulkAllSelected ? estimateTotalResults() : null;
+    const matchTotal = bulkSelected ? estimateTotalResults() : null;
     const effectiveCount = bulkAllSelected
       ? Math.max(matchTotal ?? 0, selectedCount ?? 0)
       : selectedCount;
 
+    // 7.15: guardrails and the affected count answer two different
+    // questions and must not share one figure. Booking stays honest and
+    // only claims the match total once bulk-all is actually confirmed.
+    // The guardrails ask "how much could this click touch", so the
+    // moment the select-all-matching link has been CLICKED the answer is
+    // the match total, verified or not: an unverifiable bulk selection
+    // that turns out to be real would otherwise walk straight past the
+    // soft cap and the huge-run confirm on a viewport-sized count.
+    const guardrailCount = bulkSelected
+      ? Math.max(matchTotal ?? 0, effectiveCount ?? 0)
+      : effectiveCount;
+
     // Run-level soft cap guardrail
     if (!CONFIG.dryRun) {
-      const projectedTotal = liveRunProcessedSoFar + (effectiveCount ?? 0);
+      const projectedTotal = liveRunProcessedSoFar + (guardrailCount ?? 0);
 
       if (projectedTotal > GUARDRAILS.RUN_SOFT_CAP && !window.GCC_CONFIRMED_SOFT_CAP) {
         // Issue #7: confirm() blocks the Gmail tab indefinitely if no
@@ -2870,12 +3045,12 @@
       // Dry Run is the safe preview, so it has to quote the same figure a
       // live run would act on. Using the viewport count here reported ~50
       // for a confirmed "all 12,400 conversations" batch.
-      const estimated = effectiveCount ?? estimateTotalResults() ?? 0;
+      const estimated = guardrailCount ?? estimateTotalResults() ?? 0;
       debugLog("Dry run page estimate", { estimated, bulkSelected });
       return { deleted: false, count: estimated, reason: "dry-run", bulkSelected };
     }
 
-    const estimatedTotal = effectiveCount ?? estimateTotalResults();
+    const estimatedTotal = guardrailCount ?? estimateTotalResults();
 
     // Huge run confirmation
     if (
@@ -2909,10 +3084,14 @@
     // Large single batch suggests the rule matched far more than
     // expected. We don't block here (the soft-cap / huge-run gates do
     // that) but we DO warn and sample so the user can review afterwards.
-    if (!CONFIG.dryRun && (selectedCount ?? 0) > GUARDRAILS.LARGE_BATCH_WARN_THRESHOLD) {
+    // Measured against the guardrail figure, not the viewport: Gmail
+    // pages at most 100 rows, so comparing the selected-row count with a
+    // 2,000 threshold meant this warning could never fire, least of all
+    // on the bulk-all sweeps it exists for.
+    if ((guardrailCount ?? 0) > GUARDRAILS.LARGE_BATCH_WARN_THRESHOLD) {
       safeSend({
         phase: "warning",
-        status: `Large batch detected (${(selectedCount ?? 0).toLocaleString()})`,
+        status: `Large batch detected (${(guardrailCount ?? 0).toLocaleString()})`,
         detail: "Sampling senders before action so you can review afterwards.",
       });
     }
@@ -3401,6 +3580,24 @@
           throw e;
         }
       }
+
+      // The pass cap is the only way out of the loop that records
+      // nothing: every other exit returns after recordQueryStats. A rule
+      // with more mail than 150 passes can clear therefore vanished from
+      // the run summary entirely, and the user was never told the rule
+      // had stopped short rather than finished.
+      safeSend({
+        phase: "warning",
+        status: `${label} stopped at the pass limit`,
+        detail: `Cleared ${queryDeletedCount.toLocaleString()} so far; run the cleaner again to continue this rule.`
+      });
+      recordQueryStats({
+        query,
+        label,
+        count: queryDeletedCount,
+        mode: CONFIG.dryRun ? "dry" : "live",
+        durationMs: Date.now() - start
+      });
     }
     } catch (e) {
       // Record partial stats even on failure
@@ -3446,12 +3643,39 @@
     }
   }
 
+  /**
+   * The synced copy of a run summary, with the raw Gmail queries removed.
+   *
+   * 7.15: lastRunStats goes to chrome.storage.SYNC, which Chrome and
+   * Firefox replicate to the signed-in account. `perQuery[].query` is the
+   * literal search string, and for a Storage X-ray purge or a Smart
+   * apply that string is a list of sender addresses harvested from the
+   * user's own mailbox, so every one of those runs quietly shipped third
+   * party addresses off the device and contradicted the published claim
+   * that scanned addresses stay local. Nothing renders the query (the
+   * Diagnostics card reads counts and links only), and dropping it also
+   * keeps a long run under the 8KB per-item sync quota.
+   * @param {any} doneStats
+   */
+  function stripQueriesForSync(doneStats) {
+    if (!doneStats || typeof doneStats !== "object") return doneStats;
+    const perQuery = Array.isArray(doneStats.perQuery)
+      ? doneStats.perQuery.map((entry) => ({
+        label: entry?.label,
+        count: entry?.count,
+        mode: entry?.mode,
+        durationMs: entry?.durationMs
+      }))
+      : doneStats.perQuery;
+    return { ...doneStats, perQuery };
+  }
+
   async function saveLastRunStats(doneStats) {
     if (!hasChromeStorage("sync")) return;
 
     try {
       await new Promise((resolve) => {
-        chrome.storage.sync.set({ lastRunStats: doneStats }, resolve);
+        chrome.storage.sync.set({ lastRunStats: stripQueriesForSync(doneStats) }, resolve);
       });
     } catch (e) {
       debugLog("Failed to save last run stats", { error: e?.message });
@@ -3688,6 +3912,16 @@
     if (kind !== "confirm" || !confirmBtn) {
       dismissDialog(dlg);
       return { status: kind === "manual" ? "manual" : "unknown_dialog" };
+    }
+
+    // Last chance to honour Cancel, for the same reason the delete path
+    // has one: the loop checks CANCELLED once per sender, and getting
+    // here costs a search, a message open and a dialog wait. Confirming
+    // an unsubscribe is irreversible and it tells the sender the address
+    // is live, so a user who cancelled must not have one sent for them.
+    if (CANCELLED) {
+      dismissDialog(dlg);
+      throw new CancellationError("Unsubscribe cancelled before the confirmation");
     }
 
     fireMouseSequence(confirmBtn);
@@ -4141,7 +4375,7 @@
   // Strict email shape doubles as query-injection protection, the same
   // boundary as sanitizeSenderList: anything that passes cannot break
   // out of the from:( ... ) / to:( ... ) group it is placed in.
-  const SMART_EMAIL_RE = /^[a-z0-9!#$%&'*+/=?^_`{|}~.-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
+  const SMART_EMAIL_RE = /^[a-z0-9!#$%&'*+/=?^_`{|}~.][a-z0-9!#$%&'*+/=?^_`{|}~.-]*@[a-z0-9.-]+\.[a-z]{2,}$/;
 
   // Machine-sender local-part shapes. A hit is a clutter SIGNAL that
   // raises the score; it is never a veto.
@@ -4646,6 +4880,16 @@
     const rowsBefore = getGridRowCount();
     const totalBefore = bulkAllSelected ? estimateTotalResults() : null;
 
+    // Same reasoning as the cleanup path: selecting a page, opening the
+    // Move-to menu and settling takes long enough that a user who hits
+    // Cancel in the middle of it expects nothing to move. Throwing keeps
+    // restoreRun from reading a no-op return as "this pass found
+    // nothing" and reporting the run as finished.
+    if (CANCELLED) {
+      debugLog("Cancelled before restore click");
+      throw new CancellationError("Restore cancelled before the move fired");
+    }
+
     const driveResult = await driveMoveBackControl();
     if (!driveResult.clicked) {
       return { moved: false, count: 0, reason: driveResult.reason };
@@ -4666,9 +4910,12 @@
 
     let movedCount;
     if (bulkAllSelected) {
-      movedCount = (selectedCount && selectedCount > 0)
-        ? selectedCount
-        : (totalBefore || rowsBefore || 0);
+      // 7.15: this preferred the viewport over the match total, which is
+      // the exact inversion of the cleanup fix. A confirmed bulk-all
+      // restore moves every match, so a 4,200-thread recovery reported
+      // "50 restored" and the log looked like the restore had barely
+      // run. Take the larger figure, as the cleanup path does.
+      movedCount = Math.max(totalBefore ?? 0, selectedCount ?? 0) || rowsBefore || 0;
     } else if (selectedCount !== null && selectedCount !== undefined && selectedCount > 0) {
       movedCount = selectedCount;
     } else if (verification.signal === "no-results" && rowsBefore !== null && rowsBefore !== undefined) {

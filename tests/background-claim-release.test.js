@@ -94,9 +94,14 @@ describe("background.js: gmailCleanerDone", () => {
     expect(doneCase).toMatch(/releaseRunClaim\(msg\.summary\.runId\)/);
   });
 
-  test("keeps the blanket clear only for runs with no id", () => {
+  // 7.15: the no-id clear is scoped to the tab the message came from.
+  // Scans and restores finish without a run id, and with two Gmail
+  // accounts open one of them could erase the claim held by a live
+  // cleanup in the other tab.
+  test("scopes the no-id clear to the sending tab", () => {
     const elseBranch = doneCase.slice(doneCase.indexOf("} else {"));
-    expect(elseBranch).toMatch(/chrome\.storage\.local\.set\(\{\s*\[STORAGE_KEYS\.ACTIVE_RUN\]:\s*null\s*\}\)/);
+    expect(elseBranch).toMatch(/releaseRunClaimForTab\(sender\.tab\?\.id\)/);
+    expect(elseBranch).not.toMatch(/chrome\.storage\.local\.set\(\{\s*\[STORAGE_KEYS\.ACTIVE_RUN\]:\s*null\s*\}\)/);
   });
 
   test("does not clear the marker unconditionally before the id check", () => {

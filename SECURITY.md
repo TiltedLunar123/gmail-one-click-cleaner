@@ -120,6 +120,12 @@ The extension stores small values using `chrome.storage` so your settings persis
 - Protected Keywords (subject words/phrases to protect)
 - Preferences (example: Debug Mode)
 - Lightweight counters (example: successful run count for showing the rating prompt)
+- `lastRunStats`, the summary of your most recent run that the
+  Diagnostics page shows: counts, durations, size estimates and the rule
+  labels ("Promotions", "Big attachments"). The Gmail searches
+  themselves are removed before this is written, because a Storage X-ray
+  or Smart Suggestions search contains sender addresses read from your
+  mailbox and those stay on the device.
 - **Pro license key** (`proLicense`), if you bought Pro. It is a signed
   token, not a password, and it carries no personal data (only a
   version, the plan name `pro`, a short purchase-session tail, and a
@@ -130,15 +136,24 @@ The extension stores small values using `chrome.storage` so your settings persis
 - `lastConfig` (last-used popup toggles like Dry-Run, Review Mode, Safe Mode, min age, action type)
 - `activeRun` best-effort marker (Gmail tab ID + start time) so the popup can detect an ongoing run
 - Small UI flags (example: `pinHintDismissed`, `ratingPromptDismissed`)
-- Optional run history / last-run stats used for diagnostics and progress summaries (counts, durations, estimates)
+- Run history used for the progress and stats summaries (counts,
+  durations, estimates, and the searches that ran)
 - Scan results from the subscription scan, Storage X-ray, and Smart
   Suggestions: sender **addresses** with counts, size estimates, and
-  per-sender status. These stay on your device and exist so the popup
-  can show the lists without rescanning. They are the only place any
-  part of your mailbox’s contents is persisted, and it is limited to
-  sender addresses, never message content.
+  per-sender status. They exist so the popup can show the lists without
+  rescanning.
+- Recovery log entries for the last 20 runs. Each carries the Gmail
+  search that ran and a sample of up to 50 Gmail **thread IDs** from the
+  mail it acted on, so you can find that mail again in Trash or All
+  Mail.
 
-No email bodies, subjects, message IDs, attachment contents, or Gmail credentials are stored or sent.
+Those last three are the only places any part of your mailbox’s contents
+is persisted, and it is limited to sender addresses, searches and thread
+IDs, never message content. All three are local to the device: they are
+never synced and never transmitted anywhere.
+
+No email bodies, subjects, attachment contents, or Gmail credentials are
+stored or sent.
 
 ---
 

@@ -29,8 +29,12 @@ if (!actBlock) {
 const act = actBlock[0];
 
 describe("contentScript.js: bulk-all measurement", () => {
-  test("captures the match total whenever the all-matching banner is confirmed", () => {
-    expect(act).toMatch(/const\s+matchTotal\s*=\s*bulkAllSelected\s*\?\s*estimateTotalResults\(\)\s*:\s*null;/);
+  test("captures the match total whenever a bulk selection was clicked", () => {
+    // 7.15 widened this from bulkAllSelected to bulkSelected. Verifying
+    // the selection is language-dependent; having CLICKED the
+    // select-all-matching link is not, and the guardrails have to be
+    // sized for what that click can touch.
+    expect(act).toMatch(/const\s+matchTotal\s*=\s*bulkSelected\s*\?\s*estimateTotalResults\(\)\s*:\s*null;/);
   });
 
   test("derives an effective count that prefers the match total", () => {
@@ -39,14 +43,31 @@ describe("contentScript.js: bulk-all measurement", () => {
     );
   });
 
-  test("the run-level soft cap projects from the effective count, not the viewport", () => {
-    expect(act).toMatch(/projectedTotal\s*=\s*liveRunProcessedSoFar\s*\+\s*\(effectiveCount\s*\?\?\s*0\)/);
+  test("the guardrail count reaches the match total on any bulk click", () => {
+    expect(act).toMatch(
+      /const\s+guardrailCount\s*=\s*bulkSelected[\s\S]{0,80}Math\.max\(\s*matchTotal\s*\?\?\s*0\s*,\s*effectiveCount\s*\?\?\s*0\s*\)/
+    );
+  });
+
+  test("the run-level soft cap projects from the guardrail count, not the viewport", () => {
+    expect(act).toMatch(/projectedTotal\s*=\s*liveRunProcessedSoFar\s*\+\s*\(guardrailCount\s*\?\?\s*0\)/);
     expect(act).not.toMatch(/projectedTotal\s*=\s*liveRunProcessedSoFar\s*\+\s*\(selectedCount\s*\?\?\s*0\)/);
   });
 
-  test("the huge-run confirmation estimates from the effective count", () => {
-    expect(act).toMatch(/const\s+estimatedTotal\s*=\s*effectiveCount\s*\?\?\s*estimateTotalResults\(\)/);
+  test("the huge-run confirmation estimates from the guardrail count", () => {
+    expect(act).toMatch(/const\s+estimatedTotal\s*=\s*guardrailCount\s*\?\?\s*estimateTotalResults\(\)/);
     expect(act).not.toMatch(/const\s+estimatedTotal\s*=\s*selectedCount\s*\?\?\s*estimateTotalResults\(\)/);
+  });
+
+  test("the large-batch warning is measured against the guardrail count", () => {
+    // It compared the viewport selection with a threshold of 2,000 while
+    // Gmail pages at most 100 rows, so it could never fire.
+    expect(act).toMatch(
+      /\(guardrailCount\s*\?\?\s*0\)\s*>\s*GUARDRAILS\.LARGE_BATCH_WARN_THRESHOLD/
+    );
+    expect(act).not.toMatch(
+      /\(selectedCount\s*\?\?\s*0\)\s*>\s*GUARDRAILS\.LARGE_BATCH_WARN_THRESHOLD/
+    );
   });
 
   test("the affected count for a bulk-all action uses the same figure the guardrails did", () => {
@@ -58,8 +79,8 @@ describe("contentScript.js: bulk-all measurement", () => {
     expect(act).not.toMatch(/affectedCount\s*=\s*\(totalBeforeAction\s*&&/);
   });
 
-  test("dry run previews the same figure a live run would act on", () => {
-    expect(act).toMatch(/const\s+estimated\s*=\s*effectiveCount\s*\?\?\s*estimateTotalResults\(\)\s*\?\?\s*0;/);
+  test("dry run previews the same figure the guardrails used", () => {
+    expect(act).toMatch(/const\s+estimated\s*=\s*guardrailCount\s*\?\?\s*estimateTotalResults\(\)\s*\?\?\s*0;/);
     expect(act).not.toMatch(/const\s+estimated\s*=\s*selectedCount\s*\?\?/);
   });
 
@@ -67,8 +88,8 @@ describe("contentScript.js: bulk-all measurement", () => {
     // It used to be read a second time just before the action, after
     // tagging and any confirmation had already run. The two remaining
     // estimateTotalResults() calls are nullish fallbacks that only fire
-    // when there is no effective count at all.
-    expect(act.match(/bulkAllSelected\s*\?\s*estimateTotalResults\(\)/g) || []).toHaveLength(1);
+    // when there is no count at all.
+    expect(act.match(/bulkSelected\s*\?\s*estimateTotalResults\(\)/g) || []).toHaveLength(1);
     expect(act).not.toMatch(/totalBeforeAction/);
 
     const captureAt = act.indexOf("const matchTotal");

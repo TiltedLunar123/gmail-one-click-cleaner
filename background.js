@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "7.14.2";
+  const SW_VERSION = "7.15.0";
 
   // =========================
   // Storage Keys
@@ -225,6 +225,15 @@
       }
 
       const now = Date.now();
+      // Two schedules that are both overdue used to be armed for the
+      // identical millisecond, so Chrome delivered both alarms in one
+      // tick. Each run then read the claim before the other wrote it,
+      // both injected into the same Gmail tab, and the second config
+      // overwrote the first: one schedule's alarm quietly ran the other
+      // schedule's action and intensity, and both recorded a lastRun.
+      // Spacing the catch-up fires apart lets the claim do its job.
+      const CATCH_UP_STAGGER_MS = 90 * 1000;
+      let overdueSlot = 0;
       for (const schedule of schedules) {
         if (!schedule.enabled) continue;
         const alarmName = ALARM_PREFIX + schedule.id;
@@ -236,8 +245,10 @@
         // fire shortly; brand-new ones fire ~1 min out.
         const lastRun = Number(schedule.lastRun) || 0;
         const nextDue = lastRun ? lastRun + periodMinutes * 60 * 1000 : now + 60 * 1000;
+        const catchUpAt = now + 60 * 1000 + overdueSlot * CATCH_UP_STAGGER_MS;
+        if (nextDue <= now) overdueSlot += 1;
         chrome.alarms.create(alarmName, {
-          when: nextDue > now ? nextDue : now + 60 * 1000,
+          when: nextDue > now ? nextDue : catchUpAt,
           periodInMinutes: periodMinutes
         });
       }
@@ -312,6 +323,21 @@
     } catch {}
   }
 
+  // Release for an engine that finished without a run id. Only clears a
+  // claim that belongs to the same Gmail tab, so a scan finishing in one
+  // account cannot unlock a cleanup running in another.
+  async function releaseRunClaimForTab(tabId) {
+    if (typeof tabId !== "number") return;
+    try {
+      const sess = await chrome.storage.session?.get?.(STORAGE_KEYS.ACTIVE_RUN);
+      const local = await chrome.storage.local.get(STORAGE_KEYS.ACTIVE_RUN);
+      const held = sess?.[STORAGE_KEYS.ACTIVE_RUN] || local?.[STORAGE_KEYS.ACTIVE_RUN];
+      if (held && held.gmailTabId !== tabId) return;
+      await chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: null });
+      await chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_RUN]: null });
+    } catch {}
+  }
+
   async function runScheduledCleanup(scheduleId) {
     const MAX_RETRIES = 2;
     const RETRY_DELAY_MS = 5000;
@@ -357,7 +383,11 @@
       }
 
       try {
-        const result = await chrome.storage.sync.get([STORAGE_KEYS.SCHEDULES, STORAGE_KEYS.PROTECT_KEYWORDS]);
+        const result = await chrome.storage.sync.get([
+          STORAGE_KEYS.SCHEDULES,
+          STORAGE_KEYS.PROTECT_KEYWORDS,
+          STORAGE_KEYS.WHITELIST
+        ]);
         const schedules = result?.[STORAGE_KEYS.SCHEDULES] || [];
         const schedule = schedules.find(s => s.id === scheduleId);
 
@@ -368,6 +398,22 @@
         const protectKeywords = Array.isArray(result?.[STORAGE_KEYS.PROTECT_KEYWORDS])
           ? result[STORAGE_KEYS.PROTECT_KEYWORDS]
           : [];
+
+        // 7.15: and the Global Whitelist, which they did not.
+        //
+        // The injected config read `schedule.whitelist`, a field the
+        // Options page hard-codes to [] when it creates a schedule and
+        // that no control anywhere ever fills in. So "Never Delete" was
+        // honoured by every manual run and by Auto-Pilot, and by no
+        // scheduled cleanup at all: the unattended path, the one nobody
+        // is watching, was the only one that would delete mail from a
+        // sender the user had explicitly protected. Per-schedule entries
+        // still apply if some older object carries them.
+        const globalWhitelist = Array.isArray(result?.[STORAGE_KEYS.WHITELIST])
+          ? result[STORAGE_KEYS.WHITELIST]
+          : [];
+        const scheduleWhitelist = Array.isArray(schedule.whitelist) ? schedule.whitelist : [];
+        const whitelist = [...new Set([...globalWhitelist, ...scheduleWhitelist])];
 
         // Find a Gmail tab
         const gmailTabs = await chrome.tabs.query({ url: "https://mail.google.com/*" });
@@ -420,7 +466,7 @@
           archiveInsteadOfDelete: schedule.action === "archive",
           debugMode: false,
           reviewMode: false,
-          whitelist: schedule.whitelist || [],
+          whitelist,
           protectKeywords,
           version: SW_VERSION,
           scheduled: true,
@@ -508,7 +554,8 @@
         // record, and only terminal messages touch storage so the
         // per-pass progress beats stay free.
         if (msg.done || msg.phase === "done" || msg.phase === "cancelled" || msg.phase === "error") {
-          withStorageLock(() => handleAutoPilotProgress(msg))
+          const progressTabId = sender.tab?.id;
+          withStorageLock(() => handleAutoPilotProgress(msg, progressTabId))
             .catch((e) => console.warn("[GCC SW] autopilot progress failed:", e?.message || e));
         }
         break;
@@ -699,10 +746,15 @@
           releaseRunClaim(msg.summary.runId)
             .catch(e => console.warn("[GCC SW] claim release on done failed:", e));
         } else {
-          chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: null })
-            .catch(e => console.warn("[GCC SW] session clear on done failed:", e));
-          chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_RUN]: null })
-            .catch(e => console.warn("[GCC SW] local clear on done failed:", e));
+          // 7.15: the blanket clear is now scoped to the tab the message
+          // came from. Scans and restores finish without a run id, and on
+          // a second Gmail account in a second tab one of them could
+          // erase the claim held by a live cleanup in the FIRST tab,
+          // which is the same "second cleaner on one mailbox" outcome the
+          // id-aware release exists to prevent. A run with no id can
+          // still clear the marker for its own tab.
+          releaseRunClaimForTab(sender.tab?.id)
+            .catch(e => console.warn("[GCC SW] tab-scoped clear on done failed:", e));
         }
         // Storage X-ray (7.2): if this run was a registered purge, mark
         // its senders in the stored scan.
@@ -820,6 +872,9 @@
   // badges survive a re-scan. Statuses come from the content script:
   // unsubscribed | manual | no_button | no_dialog | not_found | error.
 
+  // Both writers to the stored scan share this bound.
+  const SUBSCRIPTION_SENDER_CAP = 200;
+
   async function recordSubscriptionScan(senders) {
     if (!Array.isArray(senders)) return;
     try {
@@ -832,7 +887,7 @@
         }
       }
       const clean = [];
-      for (const raw of senders.slice(0, 200)) {
+      for (const raw of senders.slice(0, SUBSCRIPTION_SENDER_CAP)) {
         const email = String(raw?.email || "").trim().toLowerCase();
         if (!email || email.length > 320 || !email.includes("@")) continue;
         clean.push({
@@ -873,6 +928,18 @@
           scan.senders = Array.isArray(scan.senders) ? scan.senders : [];
           scan.senders.push({ email, name: "", count: 1, status, statusAt: Date.now() });
         }
+      }
+      // A fresh scan caps the list at 200; this merge path had no cap at
+      // all, so every unsubscribe result for a sender the scan had not
+      // seen grew the stored object forever. Same failure mode the
+      // whitelist suggestions map had: local writes start failing under
+      // quota pressure and stats, undo and run claims quietly stop
+      // persisting. Newest statuses win the tail.
+      if (Array.isArray(scan.senders) && scan.senders.length > SUBSCRIPTION_SENDER_CAP) {
+        scan.senders = scan.senders
+          .slice()
+          .sort((a, b) => (Number(b?.statusAt) || 0) - (Number(a?.statusAt) || 0))
+          .slice(0, SUBSCRIPTION_SENDER_CAP);
       }
       await chrome.storage.local.set({ [STORAGE_KEYS.SUBSCRIPTIONS]: scan });
 
@@ -1004,7 +1071,7 @@
   // entries fall off first. Bounding mirrors GCC.smart.recordFeedback,
   // duplicated here because the worker is self-contained.
 
-  const SMART_EMAIL_RE = /^[a-z0-9!#$%&'*+/=?^_`{|}~.-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
+  const SMART_EMAIL_RE = /^[a-z0-9!#$%&'*+/=?^_`{|}~.][a-z0-9!#$%&'*+/=?^_`{|}~.-]*@[a-z0-9.-]+\.[a-z]{2,}$/;
   const SMART_MAX_LIST = 50;
   const SMART_MAX_FEEDBACK = 300;
 
@@ -1456,8 +1523,13 @@
         return;
       }
 
+      // 7.15: the pending scan records WHICH tab it is waiting on. The
+      // stage machine used to advance on any smartScan that finished, so
+      // a Smart Suggestions scan the user started themselves could hand
+      // Auto-Pilot its "scan done" and launch a live, unattended archive
+      // sweep over up to 25 senders that the user never asked for.
       await setAutoPilotState({
-        pending: { stage: "scan", startedAt: Date.now() }
+        pending: { stage: "scan", startedAt: Date.now(), tabId: gmailTab.id }
       });
 
       const scanConfig = {
@@ -1493,6 +1565,22 @@
     try {
       const cfg = await getAutoPilotConfig();
       if (!cfg.enabled || !(await hasProLicense())) {
+        await setAutoPilotState({ pending: null });
+        return;
+      }
+
+      // 7.15: the scan stage takes a minute or two, and the popup stays
+      // usable throughout because a scan holds no run claim. Only
+      // `enabled` and the licence were re-read here, so switching on
+      // vacation mode during that window did not stop the live archive
+      // sweep it was switched on to prevent. The install-source guard is
+      // re-read for the same reason: this is the unattended half.
+      if (await isUntrustedInstall()) {
+        await setAutoPilotState({ pending: null });
+        return;
+      }
+      if (await getSnoozeUntil()) {
+        console.log("[GCC SW] Auto-Pilot: snoozed during the scan, dropping this sweep");
         await setAutoPilotState({ pending: null });
         return;
       }
@@ -1556,7 +1644,14 @@
       }
 
       await setAutoPilotState({
-        pending: { stage: "apply", runId, dryRun, senderCount: senders.length, startedAt: Date.now() }
+        pending: {
+          stage: "apply",
+          runId,
+          dryRun,
+          senderCount: senders.length,
+          startedAt: Date.now(),
+          tabId: gmailTab.id
+        }
       });
 
       const config = {
@@ -1610,7 +1705,7 @@
   // launches the apply; the apply's "done" stats carry the would-have
   // count a dry run reports (the gmailCleanerDone summary books dry
   // runs as zero, so the count is captured here).
-  async function handleAutoPilotProgress(msg) {
+  async function handleAutoPilotProgress(msg, senderTabId) {
     try {
       const state = await getAutoPilotState();
       const pending = state.pending;
@@ -1618,6 +1713,16 @@
 
       if (Date.now() - (Number(pending.startedAt) || 0) > AUTOPILOT_PENDING_TTL_MS) {
         await setAutoPilotState({ pending: null });
+        return;
+      }
+
+      // A run in a different tab is not this sweep. Ignoring it rather
+      // than clearing `pending` matters: the sweep Auto-Pilot really did
+      // start is still out there and must stay able to report in.
+      // Pre-7.15 state carries no tabId, so it keeps the old behaviour.
+      if (typeof pending.tabId === "number" &&
+          typeof senderTabId === "number" &&
+          pending.tabId !== senderTabId) {
         return;
       }
 
@@ -1984,7 +2089,19 @@
 
       const idx = schedules.findIndex(s => s.id === schedule.id);
       if (idx >= 0) {
-        schedules[idx] = schedule;
+        // 7.15: keep the stored lastRun unless the caller sent a real
+        // one. The Options page binds its row handlers to the list it
+        // rendered, so toggling a schedule after a run had fired wrote
+        // back that stale object with lastRun: null. restoreScheduledAlarms
+        // reads lastRun to anchor the next fire, so a null re-armed the
+        // alarm for ~60s out and the cleanup that had just finished ran
+        // again a minute later, unattended.
+        const storedLastRun = Number(schedules[idx]?.lastRun) || 0;
+        const incomingLastRun = Number(schedule?.lastRun) || 0;
+        schedules[idx] = {
+          ...schedule,
+          lastRun: incomingLastRun >= storedLastRun ? schedule.lastRun : schedules[idx].lastRun
+        };
       } else {
         schedules.push(schedule);
       }
