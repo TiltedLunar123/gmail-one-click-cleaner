@@ -259,8 +259,8 @@
   "dryOffToast": { "message": "シミュレーション オフ" },
 
   "subsStatusUnsubscribed": { "message": "登録解除済み" },
-  "subsStatusManual": { "message": "手動の操作が必要" },
-  "subsStatusNoButton": { "message": "ワンクリック解除なし" },
+  "subsStatusManual": { "message": "サイトで手動" },
+  "subsStatusNoButton": { "message": "リンクなし" },
   "subsStatusUnconfirmed": { "message": "未確認" },
   "subsStatusNotFound": { "message": "メールが見つかりません" },
   "subsStatusFailed": { "message": "失敗" },
@@ -495,5 +495,6 @@
   "runToastReloaded": { "message": "残っていたクリーナーを止めるため Gmail タブを再読み込みしました" },
   "runToastTabRefused": { "message": "Gmail タブに到達できませんでした。再読み込みしてからもう一度お試しください" },
   "guardNoteText": { "message": "さらに $1 件の古いメールが保護設定（$2）で守られています。上の件数には含まれず、実行しても削除されません。" },
-  "guardNoteBtn": { "message": "設定を見る" }
+  "guardNoteBtn": { "message": "設定を見る" },
+  "reportNoStepsButMail": { "message": "その $1 件の古いメールは、プロモーション、ソーシャル、更新、フォーラム、大きな添付ファイル、古い受信トレイのいずれでもないため、プランに該当する項目がありません。Clean タブの Deep や Maximum はこれらの分類に限定されません。" }
 }

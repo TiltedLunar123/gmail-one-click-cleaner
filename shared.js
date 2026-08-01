@@ -1091,7 +1091,14 @@ const GCC = (() => {
     Object.freeze({ id: "inboxOld", kind: "inbox", query: "in:inbox older_than:1y newer_than:5y", mbFloor: 0, action: "archive" })
   ]);
 
-  const REPORT_HEADLINE_QUERY = "older_than:6m";
+  // Scoped away from mail no band could ever match and no run would
+  // ever touch. A bare `older_than:6m` searches all mail, which
+  // includes Sent, Drafts and Chats, so a mailbox full of sent mail
+  // produced a five-figure headline over a plan with no steps in it.
+  // in:sent and in:drafts are on the refusal list precisely because
+  // the cleaner must never act on them; counting them as an
+  // opportunity was the same mistake pointed the other way.
+  const REPORT_HEADLINE_QUERY = "older_than:6m -in:sent -in:drafts -in:chats";
 
   const REPORT_LIMITS = Object.freeze({
     // One headline query plus one per band, with headroom. The engine

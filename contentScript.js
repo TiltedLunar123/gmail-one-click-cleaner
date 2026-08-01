@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "8.5.0";
+  const GCC_CONTENT_VERSION = "8.5.1";
 
   // =========================
   // Timing & behavior constants
@@ -3875,6 +3875,10 @@
     MAX_UNSUB_PER_RUN: 25,
     ROW_SAMPLE_CAP: 100,
     OPEN_MESSAGE_TIMEOUT: 12000,
+    // How long to let Gmail render the header Unsubscribe link. It
+    // appears only once the List-Unsubscribe header has been
+    // processed, which is well after the conversation itself opens.
+    UNSUB_CONTROL_TIMEOUT: 6000,
     UNSUB_DIALOG_TIMEOUT: 5000,
     DIALOG_CLOSE_TIMEOUT: 4000,
     BETWEEN_SENDERS_MS: 1200
@@ -3956,6 +3960,27 @@
       if (el.closest('tr[role="row"]')) continue;
       return el;
     }
+    // 8.5.1 third pass: Gmail's control carries class Ca and role=link
+    // today, and the two passes above are both betting on that. If
+    // either rots, a control the user can see becomes a control the
+    // engine swears is absent, which is the shape this whole feature
+    // failed in.
+    //
+    // Anchors are deliberately excluded. Gmail's own control is a span
+    // that fires a List-Unsubscribe request in place; a real <a href> in
+    // a message is the SENDER's link, and following one navigates the
+    // tab to a third party mid-run. The body and row exclusions above
+    // already refuse sender markup, and this refuses it again by shape.
+    for (const el of qsa("span, div, button", main)) {
+      if (el.tagName === "A" || el.closest("a[href]")) continue;
+      if (!isUnsubscribeLabel(getTextContent(el))) continue;
+      if (el.closest(SELECTORS.messageBody)) continue;
+      if (el.closest('tr[role="row"]')) continue;
+      // Innermost match only: a wrapper whose whole text happens to be
+      // "Unsubscribe" is not the thing to click.
+      if (qsa("span, div, button", el).some((c) => isUnsubscribeLabel(getTextContent(c)))) continue;
+      return el;
+    }
     return null;
   }
 
@@ -4025,7 +4050,21 @@
 
   // Drive header Unsubscribe + confirm dialog on the open conversation.
   async function unsubscribeCurrentMessage() {
-    const control = findHeaderUnsubscribeControl();
+    // 8.5.1: this probed exactly once, 300ms after the conversation
+    // opened, and every other control this engine drives is found with a
+    // waitFor and a multi-second budget. Gmail renders the header
+    // Unsubscribe link only after it has processed the message's
+    // List-Unsubscribe header, which is routinely later than 300ms, so
+    // a link the user could plainly see on screen was read as absent and
+    // the sender was skipped and labelled "no one-click option". One
+    // missing await is most of why bulk unsubscribe "did not work".
+    const control = await waitFor(
+      () => findHeaderUnsubscribeControl(),
+      {
+        timeout: SUBSCRIPTIONS.UNSUB_CONTROL_TIMEOUT,
+        description: "header unsubscribe control"
+      }
+    );
     if (!control) return { status: "no_button" };
 
     fireMouseSequence(control);
@@ -4053,10 +4092,19 @@
     }
 
     fireMouseSequence(confirmBtn);
-    await waitFor(
+    // 8.5.1: this waited and then threw the answer away, returning
+    // "Unsubscribed" whatever happened. A dialog still sitting there
+    // after four seconds means the click did not take, and reporting
+    // that as done is worse than reporting nothing: the user crosses the
+    // sender off and keeps getting the mail.
+    const closed = await waitFor(
       () => !qsFirst(SELECTORS.bulkConfirmDialog),
       { timeout: SUBSCRIPTIONS.DIALOG_CLOSE_TIMEOUT, description: "dialog close" }
     );
+    if (!closed) {
+      dismissDialog(qsFirst(SELECTORS.bulkConfirmDialog));
+      return { status: "not_confirmed" };
+    }
     return { status: "unsubscribed" };
   }
 
@@ -4527,7 +4575,7 @@
   ]);
 
   const REPORT = Object.freeze({
-    HEADLINE_QUERY: "older_than:6m",
+    HEADLINE_QUERY: "older_than:6m -in:sent -in:drafts -in:chats",
     // Hard budget. The scan spends one search per entry below; a future
     // band cannot quietly turn a fast scan into a minutes-long one.
     MAX_QUERIES: 15,
@@ -5815,6 +5863,10 @@
       sanitizeSenderList,
       findHeaderUnsubscribeControl,
       resolveUnsubscribeDialog,
+      // 8.5.1: drivable end to end, so the wait for Gmail's control and
+      // the verification of the confirm can be tested rather than
+      // inferred from the source text.
+      unsubscribeCurrentMessage,
       // 7.5 locale fixtures
       findRateLimitText,
       findArchiveButton,

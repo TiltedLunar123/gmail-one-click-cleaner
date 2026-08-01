@@ -70,8 +70,13 @@
        header, tab bar and footer stay put. */
     html { height: 600px; }
     body {
-      padding: 8px;
-      width: 380px;
+      /* 8.5.1: 380px was cramped enough that four tabs could not hold
+         their own labels and every list row fought for width. Chrome
+         allows up to 800px; 440 is where the report rows, the sender
+         marks and the tab bar all sit comfortably without the popup
+         starting to feel like a window. */
+      padding: 10px;
+      width: 440px;
       height: 100%;
       overflow: hidden;
       font-family: var(--font);
@@ -480,16 +485,14 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 3px;
-      padding: 6px 2px;
+      gap: 5px;
+      padding: 7px 6px;
       border: none;
       border-radius: var(--r-sm);
       background: transparent;
       color: var(--muted);
       font-family: inherit;
-      /* Half a point smaller than the rest of the chrome, which buys
-         back the room the padlocks take on two of the four tabs. */
-      font-size: 11.5px;
+      font-size: 12px;
       font-weight: 700;
       letter-spacing: 0.01em;
       white-space: nowrap;
@@ -498,10 +501,7 @@
       touch-action: manipulation;
     }
     .tab-bar [role="tab"] svg { flex: 0 0 auto; }
-    /* A point smaller than the icons elsewhere. Four tabs and two
-       padlocks in 380px leaves the label about 45px, and that is
-       what decides whether "Espacio" and "Speicher" fit. */
-    .tab-bar [role="tab"] > svg:first-child { width: 13px; height: 13px; }
+    .tab-bar [role="tab"] > svg:first-child { width: 14px; height: 14px; }
     /* The icon and the padlock always survive; only the word gives way. */
     .tab-bar [role="tab"] > span {
       min-width: 0;
@@ -3066,7 +3066,7 @@
         </nav>
 
         <div class="footer-right">
-          <span class="badge" id="versionBadge" aria-label="Version 8.5.0">v8.5.0</span>
+          <span class="badge" id="versionBadge" aria-label="Version 8.5.1">v8.5.1</span>
           <button id="kbdHelpBtn" class="linkish" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" data-i18n-label="kbdTitle" data-i18n-title="kbdBtnTitle">
             <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/></svg>
           </button>

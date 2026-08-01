@@ -259,8 +259,8 @@
   "dryOffToast": { "message": "simulation désactivée" },
 
   "subsStatusUnsubscribed": { "message": "Désabonné" },
-  "subsStatusManual": { "message": "Étape manuelle requise" },
-  "subsStatusNoButton": { "message": "Pas d'option en 1 clic" },
+  "subsStatusManual": { "message": "Passe par leur site" },
+  "subsStatusNoButton": { "message": "Aucun lien" },
   "subsStatusUnconfirmed": { "message": "Non confirmé" },
   "subsStatusNotFound": { "message": "Aucun courrier trouvé" },
   "subsStatusFailed": { "message": "Échec" },
@@ -495,5 +495,6 @@
   "runToastReloaded": { "message": "onglet Gmail rechargé pour arrêter un nettoyeur resté en place" },
   "runToastTabRefused": { "message": "impossible d'atteindre l'onglet Gmail, rechargez-le et réessayez" },
   "guardNoteText": { "message": "$1 autres anciens e-mails sont proteges par vos filtres ($2), donc ils ne sont pas comptes ci-dessus et un nettoyage ne les touchera pas." },
-  "guardNoteBtn": { "message": "Voir les filtres" }
+  "guardNoteBtn": { "message": "Voir les filtres" },
+  "reportNoStepsButMail": { "message": "Aucun de ces $1 anciens e-mails n est une promotion, un reseau social, une mise a jour, un forum, une piece jointe volumineuse ou un vieux message de la boite de reception, donc le plan n a aucune etape pour eux. L onglet Nettoyer va plus loin : Profond et Maximum ne se limitent pas a ces groupes." }
 }

@@ -259,8 +259,8 @@
   "dryOffToast": { "message": "dry run off" },
 
   "subsStatusUnsubscribed": { "message": "Unsubscribed" },
-  "subsStatusManual": { "message": "Manual step needed" },
-  "subsStatusNoButton": { "message": "No 1-click option" },
+  "subsStatusManual": { "message": "Needs their website" },
+  "subsStatusNoButton": { "message": "No unsubscribe link" },
   "subsStatusUnconfirmed": { "message": "Unconfirmed" },
   "subsStatusNotFound": { "message": "No mail found" },
   "subsStatusFailed": { "message": "Failed" },
@@ -495,5 +495,6 @@
   "runToastReloaded": { "message": "gmail tab reloaded to stop a leftover cleaner" },
   "runToastTabRefused": { "message": "could not reach the gmail tab, reload it and try again" },
   "guardNoteText": { "message": "$1 more old emails are protected by your guards ($2), so they are not counted above and a run will not touch them." },
-  "guardNoteBtn": { "message": "Show guards" }
+  "guardNoteBtn": { "message": "Show guards" },
+  "reportNoStepsButMail": { "message": "None of those $1 old emails are promotions, social, updates, forums, big attachments or old Inbox mail, so the plan has no step for them. The Clean tab reaches further: Deep and Maximum are not limited to these groups." }
 }

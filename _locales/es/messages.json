@@ -259,8 +259,8 @@
   "dryOffToast": { "message": "simulación desactivada" },
 
   "subsStatusUnsubscribed": { "message": "Baja completada" },
-  "subsStatusManual": { "message": "Requiere paso manual" },
-  "subsStatusNoButton": { "message": "Sin opción de 1 clic" },
+  "subsStatusManual": { "message": "Requiere su web" },
+  "subsStatusNoButton": { "message": "Sin enlace" },
   "subsStatusUnconfirmed": { "message": "Sin confirmar" },
   "subsStatusNotFound": { "message": "Sin correo encontrado" },
   "subsStatusFailed": { "message": "Falló" },
@@ -495,5 +495,6 @@
   "runToastReloaded": { "message": "pestaña de Gmail recargada para parar un limpiador olvidado" },
   "runToastTabRefused": { "message": "no se pudo acceder a la pestaña de Gmail, recárgala e inténtalo otra vez" },
   "guardNoteText": { "message": "Hay $1 correos antiguos mas protegidos por tus filtros ($2), asi que no se cuentan arriba y una limpieza no los tocara." },
-  "guardNoteBtn": { "message": "Ver filtros" }
+  "guardNoteBtn": { "message": "Ver filtros" },
+  "reportNoStepsButMail": { "message": "Ninguno de esos $1 correos antiguos es promocion, social, actualizacion, foro, adjunto grande ni correo viejo de la bandeja, asi que el plan no tiene ningun paso para ellos. La pestana Limpiar llega mas lejos: Profunda y Maxima no se limitan a estos grupos." }
 }

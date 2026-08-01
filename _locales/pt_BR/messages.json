@@ -259,8 +259,8 @@
   "dryOffToast": { "message": "simulação desligada" },
 
   "subsStatusUnsubscribed": { "message": "Inscrição cancelada" },
-  "subsStatusManual": { "message": "Precisa de passo manual" },
-  "subsStatusNoButton": { "message": "Sem opção de 1 clique" },
+  "subsStatusManual": { "message": "Requer o site" },
+  "subsStatusNoButton": { "message": "Sem link" },
   "subsStatusUnconfirmed": { "message": "Não confirmado" },
   "subsStatusNotFound": { "message": "Nenhum e-mail encontrado" },
   "subsStatusFailed": { "message": "Falhou" },
@@ -495,5 +495,6 @@
   "runToastReloaded": { "message": "aba do Gmail recarregada para parar um limpador esquecido" },
   "runToastTabRefused": { "message": "não foi possível acessar a aba do Gmail, recarregue e tente de novo" },
   "guardNoteText": { "message": "Mais $1 e-mails antigos estao protegidos pelos seus filtros ($2), entao nao entram na conta acima e a limpeza nao vai toca-los." },
-  "guardNoteBtn": { "message": "Ver filtros" }
+  "guardNoteBtn": { "message": "Ver filtros" },
+  "reportNoStepsButMail": { "message": "Nenhum desses $1 e-mails antigos e promocao, social, atualizacao, forum, anexo grande ou e-mail velho da caixa de entrada, entao o plano nao tem nenhum passo para eles. A aba Limpar alcanca mais: Profunda e Maxima nao ficam limitadas a esses grupos." }
 }

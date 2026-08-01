@@ -185,9 +185,18 @@ describe("an honest report still explains itself", () => {
 });
 
 describe("the tab bar survives translation", () => {
+  test("the popup is wide enough to stop fighting itself", () => {
+    // 380px was the width the tab bar overflowed at and the width every
+    // list row was fighting for. Chrome allows up to 800.
+    const block = popupHtml.slice(popupHtml.indexOf("body {"), popupHtml.indexOf("::selection"));
+    const width = Number(block.match(/width:\s*(\d+)px/)[1]);
+    expect(width).toBeGreaterThanOrEqual(420);
+    expect(width).toBeLessThanOrEqual(800);
+  });
+
   test("a tab can shrink below its own label", () => {
     // min-width defaults to auto on a flex item, so a tab could not
-    // shrink past its text and the bar overflowed the 380px popup
+    // shrink past its text and the bar overflowed the popup
     // instead of compressing.
     const block = popupHtml.slice(
       popupHtml.indexOf('.tab-bar [role="tab"] {'),
@@ -210,11 +219,12 @@ describe("the tab bar survives translation", () => {
     // A character count cannot decide this and is not pretending to:
     // "Relatorio" (9) fits and Cyrillic "Hranilishche" (9) does not,
     // because a character is not a fixed width. The real check was done
-    // by rendering popup.html at 380px, swapping in each locale's four
-    // labels, and asking the browser which spans overflowed. All seven
-    // pass; two labels were shortened to make them (de tabStorage,
-    // ru tabStorage). The ellipsis rule above is what keeps a future
-    // translation from breaking the bar rather than merely truncating.
+    // by rendering popup.html at its real width, swapping in each
+    // locale's four labels, and asking the browser which spans
+    // overflowed. All seven pass; two labels were shortened to make
+    // them (de tabStorage, ru tabStorage). The ellipsis rule above is
+    // what keeps a future translation from breaking the bar rather
+    // than merely truncating it.
     //
     // So this is a smoke test for the obvious regression: a label long
     // enough that no budget would have saved it, which is the shape the
