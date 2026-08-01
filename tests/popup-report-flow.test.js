@@ -385,24 +385,38 @@ describe("running the whole plan", () => {
 
 describe("Pro is legible before any scan", () => {
   test("the tabs that lead to paid features carry a lock until the licence verifies", async () => {
+    // Asserted on the ATTRIBUTE, not the `.hidden` property. The locks
+    // are SVG elements, `hidden` is an HTMLElement property, and
+    // assigning it on an SVGElement sets a JS property that never
+    // reflects to the attribute and never hides anything. The earlier
+    // version of this test read back that same dead property, so it
+    // passed while paying customers stared at a padlock.
+    const locked = (id) => document.getElementById(id).hasAttribute("hidden");
+
     await boot({ pro: false });
-    expect(document.getElementById("tabUnsubLock").hidden).toBe(false);
-    expect(document.getElementById("tabStorageLock").hidden).toBe(false);
+    expect(locked("tabUnsubLock")).toBe(false);
+    expect(locked("tabStorageLock")).toBe(false);
 
     await boot({ pro: true });
-    expect(document.getElementById("tabUnsubLock").hidden).toBe(true);
-    expect(document.getElementById("tabStorageLock").hidden).toBe(true);
+    expect(locked("tabUnsubLock")).toBe(true);
+    expect(locked("tabStorageLock")).toBe(true);
   });
 
-  test("the Pro badge is a signal when locked and a confirmation when active", async () => {
+  test("the Pro badge is shown to free users and gone once licensed", async () => {
+    // The pill advertises a paid tier, so it belongs to free users
+    // only. Once a licence verifies it goes away on every section,
+    // including the Auto-Pilot one, which used to be static markup no
+    // code ever touched.
+    const shown = (id) => !document.getElementById(id).hasAttribute("hidden");
+
     await boot({ pro: false });
-    const pill = document.getElementById("subsProPill");
-    expect(pill.hidden).toBe(false);
-    expect(pill.classList.contains("is-active")).toBe(false);
+    expect(shown("subsProPill")).toBe(true);
+    expect(shown("xrayProPill")).toBe(true);
+    expect(shown("autoPilotProPill")).toBe(true);
 
     await boot({ pro: true });
-    const active = document.getElementById("subsProPill");
-    expect(active.hidden).toBe(false);
-    expect(active.classList.contains("is-active")).toBe(true);
+    expect(shown("subsProPill")).toBe(false);
+    expect(shown("xrayProPill")).toBe(false);
+    expect(shown("autoPilotProPill")).toBe(false);
   });
 });

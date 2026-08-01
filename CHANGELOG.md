@@ -3,7 +3,36 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
-## 8.1.0 - Maximum intensity
+## 8.2.0 - The guards you could not see
+
+Reported from real use: "unsubscribe doesn't work, storage doesn't work,
+it gets randomly stuck a lot". All of it traced back to guards and state
+the product never showed you.
+
+### Fixed
+- **Two safety guards had been forced on since v3.x with no control
+  anywhere.** Every run silently added `-is:unread` and
+  `-has:userlabels` to your rules, so on a mailbox where the clutter is
+  unread or labelled, most of it was excluded and the run reported
+  "nothing matched your rules". Both are now real switches in the popup,
+  still on by default, and both are actually sent to the engine (the
+  popup never sent them, and a missing value reads as "on").
+- **A scan that timed out reported success.** If Gmail did not answer a
+  search, the scan skipped it and finished with a tidy "No large mail
+  found" or an empty sender list. It now says how many searches timed
+  out, and says so plainly when all of them did.
+- **Bulk unsubscribe was opening unread mail and marking it read.** It
+  picked rows by a CSS class the code documented as "already read"; in
+  Gmail that class means unread. It now prefers genuinely read rows.
+- **The Pro padlock stayed on the tabs after you bought Pro**, and the
+  Auto-Pilot "Pro" badge never went away at all. The padlocks are SVG,
+  and `hidden` is an HTML property that does nothing on an SVG element,
+  so it was never actually applied; the Auto-Pilot badge was static
+  markup no code ever touched. All the Pro markers now disappear once a
+  licence verifies, since they exist to tell free users the tier is
+  there.
+
+
 
 ### Added
 - **Maximum, a fourth cleanup intensity above Deep**, for a mailbox that
