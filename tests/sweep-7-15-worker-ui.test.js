@@ -246,7 +246,7 @@ describe("7.15: Open progress does not hand back a finished dashboard", () => {
   });
 
   test("the flag is set by every path that injects from the popup", () => {
-    expect((popup.match(/state\.startedRunHere\s*=\s*true;/g) || []).length).toBe(3);
+    expect((popup.match(/state\.startedRunHere\s*=\s*true;/g) || []).length).toBe(4);
     expect(popup).toMatch(/startedRunHere:\s*false,/);
   });
 });

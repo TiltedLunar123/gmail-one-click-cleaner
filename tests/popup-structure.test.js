@@ -35,7 +35,7 @@ const POPUP_JS_IDS = [
   // 7.4 post-run recap
   "recapNote",
   // chrome
-  "toastContainer", "accountSelector", "wlSuggestions", "versionBadge",
+  "toastContainer", "accountSelector", "versionBadge",
   "openOptions", "openDiagnostics", "openStats", "themeSwitcher",
   "kbdHelpBtn", "keyboardHelp", "kbdHelpClose",
   "onboardingBackdrop", "onbNextBtn", "onbSkipBtn",
@@ -76,12 +76,13 @@ describe("popup.html: id inventory", () => {
 });
 
 describe("popup.html: tab bar ARIA contract", () => {
-  test("a tablist with exactly three tabs and three panels", () => {
+  test("a tablist with exactly four tabs and four panels", () => {
     const bar = byId("popupTabs");
     expect(bar.getAttribute("role")).toBe("tablist");
     expect(bar.getAttribute("aria-label")).toBeTruthy();
-    expect(bar.querySelectorAll("[role=tab]").length).toBe(3);
-    expect(doc.querySelectorAll("[role=tabpanel]").length).toBe(3);
+    // 8.0 added Report as the landing tab.
+    expect(bar.querySelectorAll("[role=tab]").length).toBe(4);
+    expect(doc.querySelectorAll("[role=tabpanel]").length).toBe(4);
   });
 
   test("each tab controls an existing panel that labels itself back", () => {
@@ -95,13 +96,18 @@ describe("popup.html: tab bar ARIA contract", () => {
     });
   });
 
-  test("Clean is the default: selected tab, visible panel, roving tabindex", () => {
-    expect(byId("tabClean").getAttribute("aria-selected")).toBe("true");
-    expect(byId("tabClean").getAttribute("tabindex")).toBe("0");
+  test("Report is the default: selected tab, visible panel, roving tabindex", () => {
+    // 8.0: Report leads because it is the one surface that tells a new
+    // user something about their own mailbox before they run anything.
+    expect(byId("tabReport").getAttribute("aria-selected")).toBe("true");
+    expect(byId("tabReport").getAttribute("tabindex")).toBe("0");
+    expect(byId("tabClean").getAttribute("aria-selected")).toBe("false");
+    expect(byId("tabClean").getAttribute("tabindex")).toBe("-1");
     expect(byId("tabUnsubscribe").getAttribute("aria-selected")).toBe("false");
     expect(byId("tabUnsubscribe").getAttribute("tabindex")).toBe("-1");
     expect(byId("tabStorage").getAttribute("aria-selected")).toBe("false");
-    expect(byId("tabPanelClean").hasAttribute("hidden")).toBe(false);
+    expect(byId("tabPanelReport").hasAttribute("hidden")).toBe(false);
+    expect(byId("tabPanelClean").hasAttribute("hidden")).toBe(true);
     expect(byId("tabPanelUnsubscribe").hasAttribute("hidden")).toBe(true);
     expect(byId("tabPanelStorage").hasAttribute("hidden")).toBe(true);
   });
@@ -113,7 +119,7 @@ describe("popup.html: nodes landed in the right containers", () => {
   test("Clean panel owns the form, run button and result area", () => {
     ["cleanForm", "monthlyCleanBtn", "targetChips", "advancedSection",
       "runCleanup", "progressBar", "quickActions", "status", "cleanResult",
-      "reassurance", "wlSuggestions"].forEach((id) => {
+      "reassurance"].forEach((id) => {
       expect(within(id, "tabPanelClean")).toBe(true);
     });
   });
@@ -146,7 +152,7 @@ describe("popup.html: nodes landed in the right containers", () => {
     // At the TOP: before the reassurance block, not a fourth tab.
     expect(smart.compareDocumentPosition(byId("reassurance")) &
       Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(byId("popupTabs").querySelectorAll("[role=tab]").length).toBe(3);
+    expect(byId("popupTabs").querySelectorAll("[role=tab]").length).toBe(4);
   });
 
   test("the Suggested section owns all its controls", () => {

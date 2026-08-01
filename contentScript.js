@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "7.15.0";
+  const GCC_CONTENT_VERSION = "8.0.0";
 
   // =========================
   // Timing & behavior constants
@@ -59,6 +59,10 @@
     // forever; after this it treats the query as skipped so the run
     // can finish cleanly.
     REVIEW_RESPONSE_TIMEOUT_MS: 10 * 60 * 1000,
+    // Shorter than the review timeout because the user is right there
+    // watching a run they just started, and because timing out here
+    // STOPS the run rather than skipping one rule.
+    GUARD_RESPONSE_TIMEOUT_MS: 5 * 60 * 1000,
     // 5.0.1: hard wall-time cap per query. With 6 retries and 30s max
     // backoff plus ~20s timeouts, a single misbehaving query could pin
     // the run for >10 minutes. Abandon and move on after this much
@@ -324,6 +328,9 @@
   let CANCELLED = false;
   let RUNNING = false;
   let REVIEW_SIGNAL = null;
+  // Separate from REVIEW_SIGNAL on purpose: a leftover "resume" from
+  // Review Mode must never be read as consent to a 20,000-message run.
+  let GUARD_SIGNAL = null;
   let liveRunProcessedSoFar = 0;
   // One-shot guard so selector-rot telemetry warns at most once per run.
   let SELECTOR_ROT_WARNED = false;
@@ -454,9 +461,10 @@
       // subscriptions engine. 7.2 adds "storageScan" (read-only size
       // tiers), 7.6 adds "restoreRun" (move a logged run's mail back to
       // the Inbox), 7.8 adds "smartScan" (read-only recommendation
-      // scan). unsubSenders is re-sanitized at run start; keeping
-      // raw strings here is fine.
-      runKind: ["cleanup", "subscriptionScan", "unsubscribe", "storageScan", "restoreRun", "smartScan"].includes(config.runKind)
+      // scan). 8.0 adds "reportScan" (read-only mailbox report).
+      // unsubSenders is re-sanitized at run start; keeping raw strings
+      // here is fine.
+      runKind: ["cleanup", "subscriptionScan", "unsubscribe", "storageScan", "restoreRun", "smartScan", "reportScan"].includes(config.runKind)
         ? config.runKind
         : "cleanup",
       unsubSenders: Array.isArray(config.unsubSenders)
@@ -954,6 +962,16 @@
 
         case "gmailCleanerSkip":
           REVIEW_SIGNAL = "skip";
+          sendResponse({ ok: true });
+          break;
+
+        case "gmailCleanerGuardProceed":
+          GUARD_SIGNAL = "proceed";
+          sendResponse({ ok: true });
+          break;
+
+        case "gmailCleanerGuardStop":
+          GUARD_SIGNAL = "stop";
           sendResponse({ ok: true });
           break;
 
@@ -3003,15 +3021,25 @@
           return { deleted: false, count: 0, reason: "scheduled-soft-cap-declined" };
         }
 
-        const confirmed = confirm(
-          `Gmail Cleaner: this run is about to ${actionWord} about ${projectedTotal.toLocaleString()} conversations.\n\n` +
-          "If your inbox is very large, you may want to start with a smaller rule set, Dry Run, or Safe Mode.\n\n" +
-          "Continue anyway?"
-        );
+        const confirmed = await askGuardrail({
+          kind: "softCap",
+          count: projectedTotal,
+          actionWord
+        });
 
         if (!confirmed) {
           debugLog("User cancelled at soft cap confirmation", { projectedTotal });
-          return { deleted: false, count: 0, reason: "user-soft-cap-cancelled" };
+          // 8.0: this used to end the query and let the run carry on to
+          // the next rule. The old confirm() said "Continue anyway?",
+          // which was vague enough to survive that; the new dialog's
+          // safe choice is labelled "Stop the run" and promises that
+          // stopping leaves everything untouched, so it has to. The
+          // guardrail is a judgment about the whole run (the matching
+          // consent, GCC_CONFIRMED_SOFT_CAP, is run-scoped too), and a
+          // timeout takes this path as well, where continuing would be
+          // the worst possible reading of silence.
+          CANCELLED = true;
+          throw new CancellationError("Run stopped at the large-run guardrail");
         }
 
         window.GCC_CONFIRMED_SOFT_CAP = true;
@@ -3069,13 +3097,18 @@
         return { deleted: false, count: 0, reason: "scheduled-huge-run-declined" };
       }
 
-      const confirmed = confirm(
-        `About to delete ~${estimatedTotal.toLocaleString()} conversations. Continue?`
-      );
+      const confirmed = await askGuardrail({
+        kind: "hugeRun",
+        count: estimatedTotal,
+        actionWord: "delete"
+      });
 
       if (!confirmed) {
         debugLog("User cancelled at huge-run confirmation", { estimatedTotal });
-        return { deleted: false, count: 0, reason: "user-cancelled" };
+        // Same reasoning as the soft cap above: the dialog offers to
+        // stop the run, so declining stops the run.
+        CANCELLED = true;
+        throw new CancellationError("Run stopped at the huge-run guardrail");
       }
 
       window.GCC_CONFIRMED_HUGE = true;
@@ -3230,7 +3263,11 @@
     totalDeleted: 0,
     totalWouldDelete: 0,
     totalFreedMb: 0,
-    perQuery: []
+    perQuery: [],
+    // 8.0: every label this run actually applied, so the completion
+    // screen can show the user what their mail was tagged with instead
+    // of only promising that it was.
+    tagLabels: []
   };
 
   function resetStats() {
@@ -3238,6 +3275,58 @@
     stats.totalWouldDelete = 0;
     stats.totalFreedMb = 0;
     stats.perQuery = [];
+    stats.tagLabels = [];
+  }
+
+  // 8.0: the two big-run guardrails used to be native confirm() calls
+  // raised inside the Gmail tab, which every run path had just pushed
+  // into the background by focusing the progress dashboard. The last
+  // line of defence against a 20,000-message mistake was a dialog on a
+  // tab nobody was looking at, and it blocked Gmail's JS while it
+  // waited (which is what made a "healthy engine stops answering pings"
+  // bug possible in 7.14). The question now goes to the progress page,
+  // on its own signal so a stale review answer can never confirm a
+  // destructive run. No answer means no run: the timeout declines.
+  async function askGuardrail({ kind, count, actionWord }) {
+    if (!hasChromeRuntime()) {
+      // No extension messaging (unit fixtures, or a torn-down context).
+      // Keep the original behaviour rather than silently proceeding.
+      return confirm(
+        `Gmail Cleaner: this run is about to ${actionWord} about ${count.toLocaleString()} conversations.\n\nContinue anyway?`
+      );
+    }
+
+    GUARD_SIGNAL = null;
+
+    safeSendImmediate({
+      phase: "guardrail",
+      status: "Waiting for your confirmation",
+      detail: `This run would ${actionWord} about ${count.toLocaleString()} conversations.`,
+      guardKind: kind,
+      guardCount: count
+    });
+
+    safeSendImmediate({
+      type: "gmailCleanerRequestGuardrail",
+      guardKind: kind,
+      count,
+      actionWord
+    });
+
+    const start = Date.now();
+    while (!GUARD_SIGNAL && !CANCELLED) {
+      if (Date.now() - start > GUARDRAILS.GUARD_RESPONSE_TIMEOUT_MS) {
+        safeSend({
+          phase: "warning",
+          status: "No confirmation received; stopping.",
+          detail: "A run this large needs an explicit confirm, so nothing was touched."
+        });
+        return false;
+      }
+      await sleep(TIMING.REVIEW_POLL_INTERVAL);
+    }
+
+    return GUARD_SIGNAL === "proceed";
   }
 
   async function waitForReviewResponse() {
@@ -3279,6 +3368,7 @@
     const tagLabel = !CONFIG.dryRun && CONFIG.tagBeforeDelete
       ? `${CONFIG.tagLabelPrefix} - ${label}`
       : null;
+    if (tagLabel && !stats.tagLabels.includes(tagLabel)) stats.tagLabels.push(tagLabel);
     const guardedQuery = applyGlobalGuards(query);
     const start = Date.now();
     let pass = 0;
@@ -3447,6 +3537,10 @@
               chrome.runtime.sendMessage({
                 type: "gmailCleanerRecordUndo",
                 data: {
+                  // 8.0: the worker merges passes of the same rule in
+                  // the same run into one log entry, and this is what
+                  // identifies "the same run".
+                  runId: CONFIG.runId || "",
                   query: guardedQuery,
                   label,
                   count: result.count,
@@ -3707,6 +3801,7 @@
       totalFreedMb: stats.totalFreedMb,
       totalQueries,
       perQuery: [...stats.perQuery],
+      tagLabels: [...stats.tagLabels],
       runCount,
       sizeBucket,
       isHugeRun: runCount >= 5000,
@@ -4346,6 +4441,233 @@
   function startStorageScan() {
     if (!RUNNING) {
       storageScan().catch((e) => logError(e, "startStorageScan"));
+    }
+  }
+
+  // =========================
+  // Mailbox Report (8.0)
+  // =========================
+  // The cheapest scan in the product and the one that finally answers
+  // "what is actually in here". Each band is one search plus one count
+  // read: openSearch, then countCurrentResults. Nothing is opened,
+  // nothing is selected, nothing moves.
+  //
+  // Engine-local copy of GCC.report.BANDS, for the same reason
+  // scoreSmartSignals is duplicated: the content script runs inside
+  // Gmail and cannot reference GCC. tests/shared-report.test.js pins
+  // the two tables against each other, so they cannot drift.
+
+  const REPORT_BANDS = Object.freeze([
+    Object.freeze({ id: "sizeHuge", kind: "size", query: "larger:25M older_than:6m", mbFloor: 25, action: "delete" }),
+    Object.freeze({ id: "sizeLarge", kind: "size", query: "larger:10M smaller:25M older_than:6m", mbFloor: 10, action: "delete" }),
+    Object.freeze({ id: "sizeBig", kind: "size", query: "larger:5M smaller:10M older_than:6m", mbFloor: 5, action: "delete" }),
+    Object.freeze({ id: "promotions", kind: "noise", query: "category:promotions older_than:6m", mbFloor: 0, action: "delete" }),
+    Object.freeze({ id: "social", kind: "noise", query: "category:social older_than:6m", mbFloor: 0, action: "delete" }),
+    Object.freeze({ id: "updates", kind: "noise", query: "category:updates older_than:1y", mbFloor: 0, action: "delete" }),
+    Object.freeze({ id: "forums", kind: "noise", query: "category:forums older_than:1y", mbFloor: 0, action: "delete" }),
+    Object.freeze({ id: "newsletters", kind: "noise", query: "\"unsubscribe\" older_than:1y", mbFloor: 0, action: "delete" }),
+    Object.freeze({ id: "inboxAncient", kind: "inbox", query: "in:inbox older_than:5y", mbFloor: 0, action: "archive" }),
+    Object.freeze({ id: "inboxOld", kind: "inbox", query: "in:inbox older_than:1y newer_than:5y", mbFloor: 0, action: "archive" })
+  ]);
+
+  const REPORT = Object.freeze({
+    HEADLINE_QUERY: "older_than:6m",
+    // Hard budget. The scan spends one search per entry below; a future
+    // band cannot quietly turn a fast scan into a minutes-long one.
+    MAX_QUERIES: 14,
+    SENDER_SAMPLE_CAP: 25,
+    TOP_SENDERS: 5,
+    // Sender attribution costs nothing extra (the rows are already on
+    // screen from the band's own search) but it is only meaningful for
+    // bands with real volume, so only the biggest few are sampled.
+    SENDER_BANDS: 2
+  });
+
+  async function reportScan() {
+    if (RUNNING) {
+      debugLog("Run already in progress, ignoring report scan request");
+      return;
+    }
+    RUNNING = true;
+    CANCELLED = false;
+    const originHash = location.hash;
+
+    try {
+      if (!isGmailTab()) {
+        alert("Gmail Cleaner: please run this from a Gmail tab.");
+        return;
+      }
+
+      const steps = [{ id: "__headline", query: REPORT.HEADLINE_QUERY }]
+        .concat(REPORT_BANDS.map((b) => ({ id: b.id, query: b.query })));
+
+      // Count the sender-attribution re-runs too. They are cheap but
+      // they are still searches, and a future band added without
+      // counting them would quietly breach the ceiling this exists to
+      // hold. Refusing is safe: the report simply does not run.
+      const budget = steps.length + REPORT.SENDER_BANDS;
+      if (budget > REPORT.MAX_QUERIES) {
+        throw new Error(`Report query budget exceeded (${budget} > ${REPORT.MAX_QUERIES})`);
+      }
+
+      safeSendImmediate({
+        runKind: "reportScan",
+        phase: "starting",
+        status: "Reading your mailbox...",
+        detail: `${steps.length} read-only searches. Nothing is opened or moved.`,
+        percent: 0
+      });
+
+      const counts = Object.create(null);
+      let cleanableCount = 0;
+
+      for (let i = 0; i < steps.length; i++) {
+        if (CANCELLED) throw new CancellationError("Scan cancelled by user");
+
+        safeSendImmediate({
+          runKind: "reportScan",
+          phase: "running",
+          status: `Measuring your mailbox (${i + 1}/${steps.length})...`,
+          detail: steps[i].query,
+          percent: Math.round((i / steps.length) * 100)
+        });
+
+        try {
+          await openSearch(steps[i].query);
+        } catch (e) {
+          if (e instanceof CancellationError) throw e;
+          // One failed band must not lose the whole report. Mirrors the
+          // per-tier catch in storageScan.
+          debugLog("Report band query failed, continuing", { query: steps[i].query, error: e?.message });
+          continue;
+        }
+
+        const count = countCurrentResults();
+        if (steps[i].id === "__headline") {
+          cleanableCount = count;
+        } else {
+          counts[steps[i].id] = count;
+        }
+      }
+
+      const bands = REPORT_BANDS.map((band) => {
+        const count = Math.max(0, Math.floor(Number(counts[band.id]) || 0));
+        return {
+          id: band.id,
+          kind: band.kind,
+          action: band.action,
+          count,
+          estMb: band.mbFloor ? count * band.mbFloor : 0
+        };
+      });
+
+      // Sender attribution for the biggest bands. This DOES cost a
+      // search each: the last search executed was the final band, not
+      // this one, so the band has to be re-opened for its rows to be on
+      // screen. Capped at SENDER_BANDS and counted in the budget above.
+      const topSenders = [];
+      const senderBands = bands
+        .filter((b) => b.count > 0)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, REPORT.SENDER_BANDS);
+
+      for (const band of senderBands) {
+        if (CANCELLED) throw new CancellationError("Scan cancelled by user");
+        const def = REPORT_BANDS.find((b) => b.id === band.id);
+        if (!def) continue;
+        try {
+          await openSearch(def.query);
+        } catch (e) {
+          if (e instanceof CancellationError) throw e;
+          continue;
+        }
+        const rows = sampleSubscriptionRows({ cap: REPORT.SENDER_SAMPLE_CAP });
+        const tally = new Map();
+        for (const row of rows) {
+          const existing = tally.get(row.email);
+          if (existing) {
+            existing.count += 1;
+          } else {
+            tally.set(row.email, { email: row.email, name: row.name, count: 1 });
+          }
+        }
+        const ranked = [...tally.values()]
+          .sort((a, b) => b.count - a.count)
+          .slice(0, REPORT.TOP_SENDERS);
+        if (ranked.length) topSenders.push({ bandId: band.id, senders: ranked });
+      }
+
+      const largeMb = bands
+        .filter((b) => b.kind === "size")
+        .reduce((sum, b) => sum + b.estMb, 0);
+
+      try {
+        if (hasChromeRuntime()) {
+          chrome.runtime.sendMessage({
+            type: "gmailCleanerReportScanResult",
+            bands,
+            cleanableCount,
+            largeMb,
+            topSenders
+          });
+        }
+      } catch (e) {
+        debugLog("Failed to send report scan result to background", { error: e?.message });
+      }
+
+      const bandedTotal = bands.reduce((sum, b) => sum + b.count, 0);
+
+      safeSendImmediate({
+        runKind: "reportScan",
+        phase: "done",
+        status: cleanableCount
+          ? `${cleanableCount.toLocaleString()} emails are older than 6 months.`
+          : "Nothing older than 6 months turned up.",
+        detail: bandedTotal
+          ? `Plan ready: ${bands.filter((b) => b.count > 0).length} steps, at least ${largeMb.toLocaleString()} MB in large mail.`
+          : "Your mailbox is already clean.",
+        percent: 100,
+        done: true,
+        bands,
+        cleanableCount,
+        largeMb,
+        topSenders
+      });
+    } catch (e) {
+      if (e instanceof CancellationError) {
+        safeSendImmediate({
+          runKind: "reportScan",
+          phase: "cancelled",
+          status: "Report cancelled.",
+          detail: "Stopped by user.",
+          done: true,
+          percent: 100
+        });
+      } else {
+        logError(e, "report scan");
+        safeSendImmediate({
+          runKind: "reportScan",
+          phase: "error",
+          status: "Report failed.",
+          detail: e instanceof Error ? e.message : String(e),
+          done: true,
+          percent: 100
+        });
+      }
+    } finally {
+      RUNNING = false;
+      try {
+        if (typeof window !== "undefined") window.GCC_ATTACHED = false;
+      } catch {}
+      try {
+        if (originHash && location.hash !== originHash) location.hash = originHash;
+      } catch {}
+    }
+  }
+
+  function startReportScan() {
+    if (!RUNNING) {
+      reportScan().catch((e) => logError(e, "startReportScan"));
     }
   }
 
@@ -5437,7 +5759,11 @@
       findMoveToMenuButton,
       findInboxMenuItemIn,
       driveMoveBackControl,
-      restoreCurrentPage
+      restoreCurrentPage,
+      // 8.0 mailbox report fixtures
+      REPORT,
+      REPORT_BANDS,
+      reportScan
     };
   }
 
@@ -5452,6 +5778,8 @@
     startStorageScan();
   } else if (CONFIG.runKind === "smartScan") {
     startSmartScan();
+  } else if (CONFIG.runKind === "reportScan") {
+    startReportScan();
   } else if (CONFIG.runKind === "restoreRun") {
     startRestoreRun();
   } else {

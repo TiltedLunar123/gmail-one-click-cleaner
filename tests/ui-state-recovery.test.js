@@ -134,7 +134,7 @@ describe("popup.js: scoped runs persist their own config", () => {
   // used to leave its sender-scoped config behind as the thing a later
   // progress reconnect would run.
   test("the storage purge stores the sender-scoped config", () => {
-    const purge = src.slice(src.indexOf("config.rulesOverride = [purgeQuery];"));
+    const purge = src.slice(src.indexOf("config.rulesOverride = purgeQueries;"));
     const head = purge.slice(0, purge.indexOf('files: ["contentScript.js"]'));
     expect(head).toMatch(/await\s+persistLastConfig\(config\);/);
   });
@@ -146,7 +146,7 @@ describe("popup.js: scoped runs persist their own config", () => {
   });
 
   test("neither persist runs before the already-attached guard", () => {
-    for (const anchor of ["config.rulesOverride = [purgeQuery];", "config.archiveInsteadOfDelete = Boolean(archive);"]) {
+    for (const anchor of ["config.rulesOverride = purgeQueries;", "config.archiveInsteadOfDelete = Boolean(archive);"]) {
       const from = src.indexOf(anchor);
       const persistAt = src.indexOf("await persistLastConfig(config);", from);
       const guardAt = src.indexOf("if (await isEngineAttached(gmailTab.id))", from);
@@ -156,7 +156,7 @@ describe("popup.js: scoped runs persist their own config", () => {
   });
 
   test("each persist happens before the engine is injected", () => {
-    for (const anchor of ["config.rulesOverride = [purgeQuery];", "config.archiveInsteadOfDelete = Boolean(archive);"]) {
+    for (const anchor of ["config.rulesOverride = purgeQueries;", "config.archiveInsteadOfDelete = Boolean(archive);"]) {
       const from = src.indexOf(anchor);
       const persistAt = src.indexOf("await persistLastConfig(config);", from);
       const injectAt = src.indexOf('files: ["contentScript.js"]', from);

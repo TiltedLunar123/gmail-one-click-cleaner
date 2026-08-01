@@ -129,20 +129,3 @@ describe("background.js: scheduled retry does not strand a claim", () => {
     expect(scheduled.trimEnd()).toMatch(/await\s+releaseRunClaim\(claimedRunId\);\s*\n\s\s\}$/);
   });
 });
-
-describe("background.js: whitelist suggestions stay bounded", () => {
-  const record = grab(
-    /async\s+function\s+recordSenderInteraction\s*\(data\)\s*\{[\s\S]*?\n\s\s\}/,
-    "recordSenderInteraction"
-  );
-
-  test("has a cap constant", () => {
-    expect(src).toMatch(/const\s+WHITELIST_SUGGESTIONS_MAX\s*=\s*\d+;/);
-  });
-
-  test("trims to the most recently seen senders once over the cap", () => {
-    expect(record).toMatch(/keys\.length\s*>\s*WHITELIST_SUGGESTIONS_MAX/);
-    expect(record).toMatch(/lastSeen\s*\|\|\s*0\)\s*-\s*\(interactions\[a\]\?\.lastSeen/);
-    expect(record).toMatch(/\.slice\(0,\s*WHITELIST_SUGGESTIONS_MAX\)/);
-  });
-});

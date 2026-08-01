@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "7.15.0";
+  const SW_VERSION = "8.0.0";
 
   // =========================
   // Storage Keys
@@ -17,7 +17,6 @@
     ACTIVE_RUN: "activeRun",
     WHITELIST: "whitelist",
     PROTECT_KEYWORDS: "protectKeywords",
-    WHITELIST_SUGGESTIONS: "whitelistSuggestions",
     SNOOZE_UNTIL: "snoozeUntil",
     NOTIFY_ENABLED: "notifyOnComplete",
     SUBSCRIPTIONS: "subscriptionScan",
@@ -29,7 +28,12 @@
     SMART_PENDING: "smartPendingApply",
     AUTOPILOT: "autoPilot",
     AUTOPILOT_STATE: "autoPilotState",
-    INSTALL_SOURCE: "installSource"
+    INSTALL_SOURCE: "installSource",
+    // 8.0 mailbox report. Local only, never sync: it is derived from the
+    // mailbox (counts and sender addresses), and sync replicates to the
+    // Google or Mozilla account. Same reasoning as 7.15's query strip.
+    REPORT: "mailboxReport",
+    REPORT_PENDING: "reportPendingPurge"
   });
 
   // =========================
@@ -124,8 +128,8 @@
   }
 
   // Serialize read-modify-write operations against chrome.storage.local.
-  // recordStats / recordUndoEntry / recordSenderHits /
-  // recordSenderInteraction each do get -> mutate -> set, and the content
+  // recordStats / recordUndoEntry / recordSenderHits each do
+  // get -> mutate -> set, and the content
   // script fires several of them per pass. Run concurrently, their gets
   // read stale data and their sets clobber one another (lost updates).
   // Chaining each through this queue guarantees one completes before the
@@ -606,15 +610,6 @@
           .then(() => sendResponse({ ok: true }));
         return true;
 
-      // Whitelist suggestions
-      case "gmailCleanerGetWhitelistSuggestions":
-        getWhitelistSuggestions().then(suggestions => sendResponse({ ok: true, suggestions }));
-        return true;
-
-      case "gmailCleanerRecordSenderInteraction":
-        withStorageLock(() => recordSenderInteraction(msg.data)).then(() => sendResponse({ ok: true }));
-        return true;
-
       // Ping
       case "gmailCleanerSwPing":
         sendResponse({ ok: true, version: SW_VERSION });
@@ -680,6 +675,23 @@
       // closes long before the run finishes).
       case "gmailCleanerStorageXrayPurgeStarted":
         withStorageLock(() => recordPendingStoragePurge(msg.runId, msg.senders))
+          .then(() => sendResponse({ ok: true }));
+        return true;
+
+      // Mailbox Report (8.0): persist the latest read-only band scan.
+      case "gmailCleanerReportScanResult":
+        withStorageLock(() => recordReportScan(msg))
+          .then(() => sendResponse({ ok: true }));
+        return true;
+
+      case "gmailCleanerGetReport":
+        chrome.storage.local.get(STORAGE_KEYS.REPORT)
+          .then((r) => sendResponse({ ok: true, report: r?.[STORAGE_KEYS.REPORT] || null }))
+          .catch((err) => sendResponse({ ok: false, error: err?.message || "Failed" }));
+        return true;
+
+      case "gmailCleanerReportPurgeStarted":
+        withStorageLock(() => recordPendingReportPurge(msg.runId, msg.bandIds))
           .then(() => sendResponse({ ok: true }));
         return true;
 
@@ -767,6 +779,12 @@
         if (msg.summary) {
           withStorageLock(() => resolvePendingSmartApply(msg.summary))
             .catch((e) => console.warn("[GCC SW] smart apply resolve failed:", e?.message || e));
+        }
+        // Mailbox Report (8.0): if this run was a registered band purge,
+        // mark those steps of the plan as done.
+        if (msg.summary) {
+          withStorageLock(() => resolvePendingReportPurge(msg.summary))
+            .catch((e) => console.warn("[GCC SW] report purge resolve failed:", e?.message || e));
         }
         // Auto-Pilot (7.12): if this run was the sweep's apply stage,
         // close it out (preview tally or live last-run summary).
@@ -1055,6 +1073,159 @@
       }
     } catch (e) {
       console.error("[GCC SW] resolvePendingStoragePurge failed:", e);
+    }
+  }
+
+  // =========================
+  // Mailbox Report store (8.0)
+  // =========================
+  // Same shape as the Storage X-ray quartet above: the engine posts a
+  // finished scan, the popup reads it, the popup registers which bands a
+  // purge run targets, and gmailCleanerDone resolves that marker (the
+  // popup closes long before the run finishes).
+  //
+  // Band ids are validated against a fixed allow-list rather than
+  // sanitized, because anything not on the list is not a band this
+  // build knows how to run.
+
+  const REPORT_BAND_IDS = Object.freeze([
+    "sizeHuge", "sizeLarge", "sizeBig",
+    "promotions", "social", "updates", "forums", "newsletters",
+    "inboxAncient", "inboxOld"
+  ]);
+
+  const REPORT_MAX_COUNT = 10000000;
+
+  // Non-finite goes to ZERO, not to the ceiling. Clamping Infinity up
+  // would render "10,000,000 emails" and "at least 10,000,000 MB" from a
+  // single malformed message, and this build's whole report copy rests
+  // on those figures being conservative. GCC.report.clampReportCount in
+  // shared.js makes the same choice; the two must agree.
+  const clampReportNumber = (value) => {
+    const n = Math.floor(Number(value));
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return Math.min(n, REPORT_MAX_COUNT);
+  };
+
+  async function recordReportScan(msg) {
+    const bands = Array.isArray(msg?.bands) ? msg.bands : null;
+    if (!bands) return;
+    try {
+      const known = new Set(REPORT_BAND_IDS);
+      const clean = [];
+      const seen = new Set();
+      for (const raw of bands) {
+        // Strict: an array whose single element is a band id stringifies
+        // to that id, so String() coercion would let ["promotions"]
+        // through an allow-list that is supposed to be exact.
+        const id = typeof raw?.id === "string" ? raw.id : "";
+        if (!known.has(id) || seen.has(id)) continue;
+        seen.add(id);
+        clean.push({
+          id,
+          kind: typeof raw?.kind === "string" ? raw.kind.slice(0, 12) : "",
+          action: raw?.action === "archive" ? "archive" : "delete",
+          count: clampReportNumber(raw?.count),
+          estMb: clampReportNumber(raw?.estMb),
+          cleanedAt: 0
+        });
+      }
+      if (clean.length === 0) return;
+
+      // A rescan replaces counts but keeps the "you already cleared
+      // this" marks, so the plan does not forget what the user did.
+      const prevResult = await chrome.storage.local.get(STORAGE_KEYS.REPORT);
+      const prevCleaned = Object.create(null);
+      for (const entry of prevResult?.[STORAGE_KEYS.REPORT]?.bands || []) {
+        if (entry?.id && Number(entry.cleanedAt) > 0) prevCleaned[entry.id] = Number(entry.cleanedAt);
+      }
+      for (const band of clean) {
+        if (prevCleaned[band.id]) band.cleanedAt = prevCleaned[band.id];
+      }
+
+      const topSenders = [];
+      for (const group of Array.isArray(msg?.topSenders) ? msg.topSenders.slice(0, 4) : []) {
+        const bandId = String(group?.bandId || "");
+        if (!known.has(bandId)) continue;
+        const senders = [];
+        for (const s of Array.isArray(group?.senders) ? group.senders.slice(0, 5) : []) {
+          const email = String(s?.email || "").trim().toLowerCase();
+          if (!email || email.length > 320 || !email.includes("@")) continue;
+          senders.push({
+            email,
+            name: String(s?.name || "").slice(0, 120),
+            count: Math.max(1, Math.min(99999, Number(s?.count) || 1))
+          });
+        }
+        if (senders.length) topSenders.push({ bandId, senders });
+      }
+
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.REPORT]: {
+          updatedAt: Date.now(),
+          bands: clean,
+          cleanableCount: clampReportNumber(msg?.cleanableCount),
+          largeMb: clampReportNumber(msg?.largeMb),
+          topSenders
+        }
+      });
+    } catch (e) {
+      console.error("[GCC SW] recordReportScan failed:", e);
+    }
+  }
+
+  async function recordPendingReportPurge(runId, bandIds) {
+    const id = String(runId || "");
+    const known = new Set(REPORT_BAND_IDS);
+    const list = Array.isArray(bandIds)
+      ? bandIds.filter((b) => typeof b === "string" && known.has(b)).slice(0, 10)
+      : [];
+    if (!id || list.length === 0) return;
+    try {
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.REPORT_PENDING]: { runId: id, bandIds: list, startedAt: Date.now() }
+      });
+    } catch (e) {
+      console.error("[GCC SW] recordPendingReportPurge failed:", e);
+    }
+  }
+
+  async function resolvePendingReportPurge(summary) {
+    try {
+      const result = await chrome.storage.local.get(STORAGE_KEYS.REPORT_PENDING);
+      const pending = result?.[STORAGE_KEYS.REPORT_PENDING];
+      if (!pending?.runId) return;
+
+      const stale = Date.now() - (Number(pending.startedAt) || 0) > 1000 * 60 * 60 * 2;
+      if (String(summary?.runId || "") !== pending.runId) {
+        if (stale) await chrome.storage.local.set({ [STORAGE_KEYS.REPORT_PENDING]: null });
+        return;
+      }
+
+      await chrome.storage.local.set({ [STORAGE_KEYS.REPORT_PENDING]: null });
+      if (summary?.dryRun || !(Number(summary?.count) > 0)) return;
+
+      // The engine reports ONE aggregate count for the run, so a
+      // multi-step plan that dies after its first step would mark every
+      // step it was going to run as cleared. Only a single-step run can
+      // honestly claim "that step is done"; for a plan, the rescan's
+      // fresh counts are the truth and nothing is stamped.
+      if (pending.bandIds.length !== 1) return;
+
+      const reportResult = await chrome.storage.local.get(STORAGE_KEYS.REPORT);
+      const report = reportResult?.[STORAGE_KEYS.REPORT];
+      if (!report?.bands) return;
+      const targeted = new Set(pending.bandIds);
+      let touched = 0;
+      for (const band of report.bands) {
+        if (band?.id && targeted.has(band.id)) {
+          band.cleanedAt = Date.now();
+          touched++;
+        }
+      }
+      if (touched > 0) await chrome.storage.local.set({ [STORAGE_KEYS.REPORT]: report });
+    } catch (e) {
+      console.error("[GCC SW] resolvePendingReportPurge failed:", e);
     }
   }
 
@@ -1993,23 +2164,73 @@
         ? data.sampledMessageIds.slice(0, 50)
         : [];
 
-      log.unshift({
-        id: `undo_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        timestamp: Date.now(),
-        query: data.query || "",
-        label: data.label || "",
-        count: data.count || 0,
-        action: data.action || "delete",
-        tagLabel: data.tagLabel || "",
-        intensity: data.intensity || "normal",
-        // 5.0 additions for issue #9 partial fix:
-        sampledMessageIds: sampledIds,
-        sampledSenderCount: Number(data.sampledSenderCount || 0),
-        taggingFailed: Boolean(data.taggingFailed)
-      });
+      // 8.0: this used to append one entry per PASS and then truncate to
+      // 20. The engine records a pass at a time inside
+      // `while (pass < PASS_CAP = 150)` for each of up to 11 rules, so a
+      // first sweep on a big mailbox pushed its own earliest entries out
+      // of the log before it finished, and always evicted every entry
+      // from the previous run. The log that exists so a frightened user
+      // can undo was destroyed by exactly the run they would want to
+      // undo. Passes of the same rule in the same run now merge into one
+      // entry, so the log holds runs (what a user thinks in) instead of
+      // passes (what the engine thinks in).
+      const runId = String(data.runId || "");
+      const label = data.label || "";
+      const tagLabel = data.tagLabel || "";
+      const action = data.action || "delete";
+      const count = Number(data.count) || 0;
 
-      // Keep last 20 runs
-      if (log.length > 20) log.length = 20;
+      const existing = runId
+        ? log.find((e) =>
+          e &&
+          e.runId === runId &&
+          e.label === label &&
+          e.tagLabel === tagLabel &&
+          e.action === action &&
+          !e.restoredAt)
+        : null;
+
+      if (existing) {
+        existing.count = (Number(existing.count) || 0) + count;
+        existing.passes = (Number(existing.passes) || 1) + 1;
+        existing.timestamp = Date.now();
+        // A later pass reporting a tagging failure has to win: recovery
+        // eligibility must reflect the worst outcome in the group.
+        existing.taggingFailed = existing.taggingFailed || Boolean(data.taggingFailed);
+        existing.sampledSenderCount = Math.max(
+          Number(existing.sampledSenderCount) || 0,
+          Number(data.sampledSenderCount || 0)
+        );
+        if (sampledIds.length && Array.isArray(existing.sampledMessageIds)) {
+          const merged = new Set(existing.sampledMessageIds);
+          for (const id of sampledIds) {
+            if (merged.size >= 50) break;
+            merged.add(id);
+          }
+          existing.sampledMessageIds = [...merged];
+        }
+      } else {
+        log.unshift({
+          id: `undo_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          runId,
+          timestamp: Date.now(),
+          query: data.query || "",
+          label,
+          count,
+          passes: 1,
+          action,
+          tagLabel,
+          intensity: data.intensity || "normal",
+          // 5.0 additions for issue #9 partial fix:
+          sampledMessageIds: sampledIds,
+          sampledSenderCount: Number(data.sampledSenderCount || 0),
+          taggingFailed: Boolean(data.taggingFailed)
+        });
+      }
+
+      // One entry per rule per run, so 60 holds several full sweeps
+      // where 20 could not hold one.
+      if (log.length > 60) log.length = 60;
 
       await chrome.storage.local.set({ [STORAGE_KEYS.UNDO_LOG]: log });
     } catch (e) {
@@ -2137,71 +2358,6 @@
   // =========================
   // Whitelist Suggestions
   // =========================
-
-  const WHITELIST_SUGGESTIONS_MAX = 500;
-
-  async function recordSenderInteraction(data) {
-    try {
-      const result = await chrome.storage.local.get(STORAGE_KEYS.WHITELIST_SUGGESTIONS);
-      const interactions = result?.[STORAGE_KEYS.WHITELIST_SUGGESTIONS] || {};
-
-      const sender = data.sender;
-      if (!sender) return;
-
-      if (!interactions[sender]) {
-        interactions[sender] = { opens: 0, replies: 0, lastSeen: 0 };
-      }
-
-      if (data.type === "open") interactions[sender].opens++;
-      if (data.type === "reply") interactions[sender].replies++;
-      interactions[sender].lastSeen = Date.now();
-
-      // Every other map the worker keeps is bounded (smart scans at 50,
-      // smart feedback at 300); this one kept every sender ever seen, so a
-      // busy mailbox grew it without limit until local storage started
-      // rejecting writes -- and by then the undo log, stats and run claims
-      // sharing that quota fail too. Keep the most recently seen.
-      const keys = Object.keys(interactions);
-      if (keys.length > WHITELIST_SUGGESTIONS_MAX) {
-        const keep = keys
-          .sort((a, b) => (interactions[b]?.lastSeen || 0) - (interactions[a]?.lastSeen || 0))
-          .slice(0, WHITELIST_SUGGESTIONS_MAX);
-        const trimmed = {};
-        for (const key of keep) trimmed[key] = interactions[key];
-        await chrome.storage.local.set({ [STORAGE_KEYS.WHITELIST_SUGGESTIONS]: trimmed });
-        return;
-      }
-
-      await chrome.storage.local.set({ [STORAGE_KEYS.WHITELIST_SUGGESTIONS]: interactions });
-    } catch (e) {
-      console.error("[GCC SW] recordSenderInteraction failed:", e);
-    }
-  }
-
-  async function getWhitelistSuggestions() {
-    try {
-      const result = await chrome.storage.local.get(STORAGE_KEYS.WHITELIST_SUGGESTIONS);
-      const interactions = result?.[STORAGE_KEYS.WHITELIST_SUGGESTIONS] || {};
-
-      // Score senders by interaction frequency
-      const scored = Object.entries(interactions)
-        .map(([sender, data]) => ({
-          sender,
-          score: (data.opens || 0) * 1 + (data.replies || 0) * 3,
-          opens: data.opens || 0,
-          replies: data.replies || 0,
-          lastSeen: data.lastSeen || 0
-        }))
-        .filter(s => s.score >= 3) // Minimum threshold
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 20);
-
-      return scored;
-    } catch (e) {
-      console.error("[GCC SW] getWhitelistSuggestions failed:", e);
-      return [];
-    }
-  }
 
   // =========================
   // Multi-Account Support

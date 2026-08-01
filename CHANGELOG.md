@@ -3,6 +3,93 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.0.0 - Mailbox Report, and a popup that finally explains itself
+
+The biggest release since Pro shipped. It adds the thing the product was
+missing, which is an answer to "what is actually in here", and it rebuilds
+the two screens where that answer matters: the popup you open, and the
+dashboard you watch a run finish on.
+
+### Added
+- **Mailbox Report.** One read-only pass counts what is in your mailbox
+  and turns it into a ranked cleanup plan: old promotions, big
+  attachments, forgotten newsletters, social and forum mail, and inbox
+  mail you never archived. Eleven Gmail searches, no message opened,
+  nothing moved. It is now the tab the popup opens on.
+  - The **whole report is free**, and so is running its biggest step, so
+    you watch the mechanism work on your own mail before deciding
+    anything. Pro unlocks the remaining steps and **Run the whole plan**.
+  - Every step is an ordinary cleanup run. Matches are labelled first,
+    Dry Run is honoured, your whitelist, protected keywords and Minimum
+    Age all apply, and the run lands in the Recovery Log with one-click
+    Restore like any other.
+  - Storage figures are **floors**, built from Gmail's own size tiers, so
+    the report says "at least N MB". Nothing is compared against Google's
+    15 GB bar, which is shared with Drive and Photos and which no
+    extension can see.
+- **A run-completion card on the progress dashboard.** Watching a run end
+  used to leave you with a disabled button reading "Run finished". You
+  now get the number, the labels that were actually applied, what Trash
+  keeps and for how long, a link straight into the Recovery Log, and a
+  copyable receipt.
+- **A Pro screen inside the popup.** Clicking a locked control used to
+  open a payment form in a new tab, with no explanation, from a developer
+  you have never heard of. It now opens a panel that leads with your own
+  scan numbers, says what the five paid features do, and states the three
+  things people actually want to know: one payment and never a
+  subscription, the key is checked on your device, and every feature
+  added later is included. The buy button does exactly what the old click
+  did.
+- **Two lines under the Run button** that say, without a click, what the
+  cleaner protects and what it never sends anywhere.
+- **"Bought Pro? Paste your key"** appears once you have run a cleanup and
+  have no licence, because the post-purchase page told buyers to
+  right-click the toolbar icon and hunt for Options.
+
+### Changed
+- The popup got a real type scale and spacing grid, sentence-case
+  buttons, and a gold accent reserved for Pro. Green used to mean both
+  "your cleanup worked" and "pay us".
+- Pro is visible before you scan: the tabs that lead to paid features
+  carry a small padlock, and the Pro badge now says whether it is locked
+  or active instead of appearing only after you buy.
+- The popup remembers which tab you were on, and which senders you had
+  ticked on the Unsubscribe tab, so a trip to checkout no longer throws
+  away your triage.
+- Scans show placeholder rows while they run, and each list explains what
+  the scan will produce before you start it.
+- "Maybe later" on the rating ask now lasts 90 days instead of forever.
+
+### Fixed
+- **The Recovery Log stopped eating itself.** An entry was written once
+  per pass and the log kept only 20, so a first sweep on a large mailbox
+  pushed out its own earliest entries before it finished and always
+  destroyed the previous run's. Passes of the same rule in one run are
+  now a single entry, and the log holds 60 of them.
+- **The large-run confirmation appears on the screen you are looking at.**
+  The 10,000 and 20,000 conversation checks were browser dialogs raised
+  inside the Gmail tab, which every run path had just pushed into the
+  background, and they froze Gmail's page while they waited. They are now
+  asked on the progress dashboard, with stopping as the default, and a
+  run that gets no answer stops rather than proceeding. Declining also
+  stops the whole run now, which is what the button says: it used to end
+  only the current rule and carry on to the next one. Scheduled sweeps
+  are unchanged, they still decline unattended and skip that rule.
+- **A storage purge no longer builds an over-length search.** Picking 25
+  senders produced a query far past the length this project's own
+  validator allows. Addresses are now packed into as many searches as
+  the limit permits and run as an ordinary multi-rule cleanup.
+- **Rate this extension** sent Firefox users to the Chrome Web Store,
+  under a button that named it. It now resolves to whichever store the
+  copy was installed from, and it only appears after a run big enough to
+  have earned the ask.
+- Removed a "protect this sender" suggestion strip that could never
+  appear: it scored senders by opens and replies, and nothing in the
+  extension has ever recorded either.
+- `SECURITY.md` described the run counter as synced when it has always
+  been device-local, and the README compared Pro against a monthly price
+  when the competitors' annual plans are the honest comparison.
+
 ## 7.15.0 - Safety, locale and scheduling fixes
 
 A second sweep, in the same spirit as 7.14.2 and reaching the places that
