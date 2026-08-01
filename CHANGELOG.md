@@ -3,6 +3,61 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.4.0 - Sender marks, and a way out of a stuck run
+
+### Added
+- **The Unsubscribe list draws a mark for every sender**, a coloured
+  square with the sender's initial, so a row is something you can spot
+  instead of a line of text to read. Addresses at one company share a
+  mark: `news@substack.com`, `noreply@email.substack.com` and
+  `digest@mg.substack.com` all draw the same S, so they group visually.
+  The Suggested cards on the Clean tab use the same marks.
+
+  The obvious way to build this is a favicon per sender, and that is
+  exactly why it is not built that way. A favicon means one network
+  request per sender, to a third party, handing over the list of who
+  mails you, in an extension whose whole claim is that it makes no
+  requests at all. Every mark here is arithmetic on the address: same
+  sender, same mark, on every machine, offline, forever. The test suite
+  now fails the build if an image or a URL ever appears in that path.
+
+- **"Reset stuck run"**, in the popup and on the progress page. Two
+  separate flags could say "a run is happening", and neither had any
+  way to clear: the stored run claim, which expired after two hours,
+  and a flag inside the Gmail tab, which expired never. When a run died
+  without reporting back, both were stranded and every later run was
+  refused with "a cleanup is already running" while pointing at
+  nothing. Reloading the Gmail tab was the only cure, and nothing said
+  so.
+
+  The refusal now arrives with a banner attached, and the banner says
+  which case you are in. If the cleaner answers and says it is genuinely
+  working, the banner says so, offers to show you its progress page, and
+  will not clear anything without a second, explicit click; that click
+  cancels the run and then waits for it to actually stop before
+  clearing, because the flag it is clearing is the only thing keeping a
+  second cleaner off the same mailbox. If nothing answers, one click
+  clears it and you can start again.
+
+  One case gets special handling. If the tab flag is set but nothing
+  answers at all, a cleaner is probably still running in there with its
+  connection to the extension severed, which is what reloading or
+  updating the extension mid-run leaves behind. It cannot be told to
+  stop, so Reset reloads the Gmail tab, which does stop it. That is the
+  same tab reload that was the only cure for any of this before 8.4,
+  except now the extension knows when it is needed and does it for you.
+
+  Reset never reports success it did not achieve. If the run will not
+  stop, or the Gmail tab is open but refuses to be reached, nothing is
+  cleared at all and it says so, because a cheerful "you can start
+  again" backed by nothing is how you end up with two cleaners on one
+  mailbox.
+
+### Fixed
+- **"Unsaved changes" appeared mid-sentence** in the Options subtitle,
+  several screens above the Save button it was talking about. It now
+  sits beside Save.
+
 ## 8.3.0 - Real result counts
 
 ### Fixed

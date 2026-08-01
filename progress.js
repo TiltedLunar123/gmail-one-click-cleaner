@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const PROGRESS_VERSION = "8.3.0";
+  const PROGRESS_VERSION = "8.4.0";
 
   const CONFIG = Object.freeze({
     MAX_LOG_ENTRIES: 300,
@@ -150,6 +150,7 @@
     cancel: document.getElementById("cancelBtn"),
     reconnect: document.getElementById("reconnectBtn"),
     reinject: document.getElementById("reinjectBtn"),
+    resetRun: document.getElementById("resetRunBtn"),
     toggleLogs: document.getElementById("toggleLogs"),
 
     // Summary elements
@@ -1264,6 +1265,126 @@
     }
   };
 
+  // 8.4: clear a run that is not really there.
+  //
+  // Re-inject already existed but it STARTS a run, which is the wrong
+  // tool when the complaint is "it says something is in progress and
+  // nothing is". This clears the stored claim and the in-page attach
+  // flag and stops, leaving the user free to start whatever they
+  // actually wanted. This page is a real tab, so confirm() works here
+  // (it is a silent no-op inside a popup, which is why the popup's
+  // version of this arms a second click instead).
+  const handleResetStuckRun = async () => {
+    if (!GCC.hasChrome() || !chrome.runtime?.sendMessage) {
+      appendLog("Cannot reset: extension messaging unavailable.", LOG_LEVELS.ERROR);
+      showToast("cannot reset: messaging unavailable", "error");
+      return;
+    }
+
+    setButtonLoading(ui.resetRun, true, "Resetting…");
+    appendLog("Checking whether a run is really attached…", LOG_LEVELS.INFO);
+
+    try {
+      const first = await GCC.promisify(chrome.runtime.sendMessage.bind(chrome.runtime), {
+        type: "gmailCleanerForceReset",
+        tabId: gmailTabId ?? null,
+        force: false
+      });
+
+      if (first?.reason === "engine_running") {
+        appendLog("The cleaner answered: it is still running. Cancel sent.", LOG_LEVELS.WARNING);
+        const proceed = confirm(
+          "The cleaner answered and says it is still running, so it is busy rather than stuck.\n\n" +
+          "It has just been told to cancel. Give it a few seconds and watch the log.\n\n" +
+          "Clear the run anyway? Only do this if the log has been silent for minutes."
+        );
+        if (!proceed) {
+          appendLog("Reset cancelled: the cleaner is still running.", LOG_LEVELS.INFO);
+          return;
+        }
+        const forced = await GCC.promisify(chrome.runtime.sendMessage.bind(chrome.runtime), {
+          type: "gmailCleanerForceReset",
+          tabId: gmailTabId ?? null,
+          force: true
+        });
+        if (forced?.tabActionFailed) {
+          appendLog(
+            "The Gmail tab would not take the reset, so nothing was cleared. Reload that tab yourself.",
+            LOG_LEVELS.ERROR
+          );
+          showToast("could not reach the gmail tab", "error");
+          return;
+        }
+        if (!forced?.ok) {
+          appendLog(`Reset failed: ${forced?.error || "unknown error"}`, LOG_LEVELS.ERROR);
+          showToast("reset failed", "error");
+          return;
+        }
+        if (forced.stillRunning) {
+          // Cancel landed but the engine outlasted the wait, so the tab
+          // is deliberately still guarded. Reporting success here would
+          // invite a second engine onto the same mailbox.
+          appendLog(
+            "Cancel sent, but the cleaner has not stopped yet. The Gmail tab is still held so nothing can start beside it. Watch the log and try again in a moment.",
+            LOG_LEVELS.WARNING
+          );
+          setStatus("Cancelled, waiting for the cleaner to stop.");
+          showToast("cancelled, not stopped yet", "warning");
+          return;
+        }
+        appendLog("Run cleared. The cancel was sent first.", LOG_LEVELS.SUCCESS);
+        setStatus("Run cleared. You can start a new one.");
+        showToast("run cleared", "success");
+        return;
+      }
+
+      if (!first?.ok) {
+        appendLog(`Reset failed: ${first?.error || "unknown error"}`, LOG_LEVELS.ERROR);
+        showToast("reset failed", "error");
+        return;
+      }
+
+      if (first.tabActionFailed) {
+        appendLog(
+          "The Gmail tab is still open but would not take the reset, so nothing was cleared. Reload that tab yourself: it clears everything this button was trying to clear.",
+          LOG_LEVELS.ERROR
+        );
+        setStatus("Could not reach the Gmail tab.");
+        showToast("could not reach the gmail tab", "error");
+        return;
+      }
+
+      if (first.cleared?.reloadedTab) {
+        // The orphan case. Worth spelling out, because the user is
+        // about to notice their Gmail tab reloading and should know it
+        // was us and why.
+        appendLog(
+          "A cleaner was still attached to the Gmail tab but no longer answering, which happens when the extension reloads mid-run. It cannot be told to stop, so the tab was reloaded to stop it. The run claim is cleared.",
+          LOG_LEVELS.SUCCESS
+        );
+        setStatus("Gmail tab reloaded. You can start a new run.");
+        showToast("gmail tab reloaded, run cleared", "success");
+        return;
+      }
+
+      const bits = [];
+      if (first.cleared?.claim) bits.push("the stored run claim");
+      if (first.cleared?.attachFlag) bits.push("the in-page attach flag");
+      appendLog(
+        bits.length ? `Cleared ${bits.join(" and ")}.` : "Nothing was being held.",
+        LOG_LEVELS.SUCCESS
+      );
+      setStatus("Run cleared. You can start a new one.");
+      showToast(bits.length ? "run cleared" : "nothing was stuck", "success");
+    } catch (err) {
+      log("error", "Reset error:", err);
+      appendLog(`Reset failed: ${err?.message || err}`, LOG_LEVELS.ERROR);
+      showToast("reset failed", "error");
+    } finally {
+      setButtonLoading(ui.resetRun, false);
+    }
+  };
+
   const handleReinject = async () => {
     if (!gmailTabId) {
       appendLog("Cannot re-inject: Gmail tab ID missing.", LOG_LEVELS.ERROR);
@@ -1576,6 +1697,7 @@
     ui.cancel?.addEventListener("click", handleCancel);
     ui.reconnect?.addEventListener("click", handleReconnect);
     ui.reinject?.addEventListener("click", handleReinject);
+    ui.resetRun?.addEventListener("click", handleResetStuckRun);
     ui.toggleLogs?.addEventListener("click", handleToggleLogs);
     ui.logsCollapsedBar?.addEventListener("click", handleToggleLogs);
 

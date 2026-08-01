@@ -1250,6 +1250,116 @@ const GCC = (() => {
   });
 
   // =========================
+  // Sender avatars (8.4)
+  // =========================
+  // Recognition marks for the Unsubscribe list, so a row is something
+  // you can spot rather than a line of text to read.
+  //
+  // Favicons are the obvious way to build this and are the reason this
+  // file does it the hard way instead. Fetching an icon per sender
+  // means one request per sender to whoever serves it, which hands a
+  // third party the list of who mails you, and it would put the first
+  // network call into an extension whose whole claim is that it makes
+  // none. Everything below is arithmetic on the address string: same
+  // input, same mark, no request, works offline.
+
+  // Second-level labels that are still part of the public suffix, so
+  // the brand sits one label further left: bbc.co.uk, myer.com.au.
+  const AVATAR_PUBLIC_SLD = Object.freeze(new Set([
+    "co", "com", "net", "org", "gov", "edu", "ac", "or", "ne", "go",
+    "in", "id", "mil", "sch", "gouv", "asn"
+  ]));
+
+  // 700-weight tones: saturated enough to read on the dark popup, dark
+  // enough that white sits above 4.5:1 on every one of them, so the
+  // same swatch works in both themes without a second palette.
+  const AVATAR_PALETTE = Object.freeze([
+    "#1d4ed8", "#0e7490", "#047857", "#4d7c0f", "#a16207", "#c2410c",
+    "#b91c1c", "#be185d", "#7e22ce", "#4338ca", "#0f766e", "#6d28d9"
+  ]);
+
+  // FNV-1a. Deterministic and dependency-free; the point is only that
+  // one brand always lands on one colour, never that it is unguessable.
+  const avatarHash = (input) => {
+    let h = 0x811c9dc5;
+    const s = String(input || "");
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return h >>> 0;
+  };
+
+  const avatarHost = (email) => {
+    const raw = String(email || "").toLowerCase().trim();
+    const at = raw.lastIndexOf("@");
+    if (at < 0) return "";
+    return raw.slice(at + 1).replace(/[^a-z0-9.-]/g, "").replace(/^\.+|\.+$/g, "");
+  };
+
+  // The label a person would call the sender: substack, bbc, walmart.
+  //
+  // Take the registrable label, the one immediately left of the public
+  // suffix, and ignore everything to its left. That collapses
+  // news.substack.com, email.substack.com and e.mail.substack.com onto
+  // one brand for free.
+  //
+  // An earlier version of this instead stripped a hardcoded list of
+  // delivery subdomains (news, email, mail, mg...) from the left. It
+  // was both longer and wrong: news.co.uk is a real registrable domain
+  // whose brand is "news", and stripping by name turned it into "co".
+  const avatarBrand = (email) => {
+    const host = avatarHost(email);
+    if (!host) return "";
+    const parts = host.split(".").filter(Boolean);
+    if (parts.length <= 1) return parts[0] || "";
+    const suffixLabels =
+      parts.length > 2 &&
+      AVATAR_PUBLIC_SLD.has(parts[parts.length - 2]) &&
+      parts[parts.length - 1].length === 2
+        ? 2
+        : 1;
+    const brandIndex = parts.length - 1 - suffixLabels;
+    return (brandIndex >= 0 ? parts[brandIndex] : parts[0]) || "";
+  };
+
+  const avatarInitial = (email, name) => {
+    const fromBrand = avatarBrand(email).match(/[a-z0-9]/);
+    if (fromBrand) return fromBrand[0].toUpperCase();
+    const fromName = String(name || "").match(/[\p{L}\p{N}]/u);
+    if (fromName) return fromName[0].toUpperCase();
+    const local = String(email || "").split("@")[0] || "";
+    const fromLocal = local.match(/[\p{L}\p{N}]/u);
+    return fromLocal ? fromLocal[0].toUpperCase() : "?";
+  };
+
+  // Everything a row needs to draw its mark. `fg` is always white
+  // because every palette entry was chosen to clear 4.5:1 against it.
+  const senderAvatar = (email, name) => {
+    const brand = avatarBrand(email);
+    const host = avatarHost(email);
+    // Key the colour on the brand, not the address, so three addresses
+    // at one company share a swatch and read as one group in the list.
+    const seed = brand || host || String(email || "").toLowerCase();
+    return Object.freeze({
+      brand,
+      host,
+      initial: avatarInitial(email, name),
+      bg: AVATAR_PALETTE[avatarHash(seed) % AVATAR_PALETTE.length],
+      fg: "#ffffff"
+    });
+  };
+
+  const avatar = Object.freeze({
+    PALETTE: AVATAR_PALETTE,
+    hash: avatarHash,
+    host: avatarHost,
+    brand: avatarBrand,
+    initial: avatarInitial,
+    forSender: senderAvatar
+  });
+
+  // =========================
   // Popup UI policy (7.3)
   // =========================
   // Pure decision logic behind the tabbed popup, kept here so it is
@@ -1841,6 +1951,9 @@ const GCC = (() => {
     installSource,
 
     // New in 8.0
-    report
+    report,
+
+    // New in 8.4
+    avatar
   });
 })();

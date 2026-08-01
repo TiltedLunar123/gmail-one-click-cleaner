@@ -478,5 +478,20 @@
   "skipUnread": { "message": "Omitir no leídos" },
   "skipUnreadAria": { "message": "Omitir correos no leídos" },
   "skipLabeled": { "message": "Omitir etiquetados" },
-  "skipLabeledAria": { "message": "Omitir correos que has etiquetado" }
+  "skipLabeledAria": { "message": "Omitir correos que has etiquetado" },
+
+  "runTitleRunning": { "message": "Hay una limpieza en curso" },
+  "runTitleStuck": { "message": "Hay una limpieza atascada" },
+  "runTextRunning": { "message": "El limpiador está trabajando en tu pestaña de Gmail, empezó a las $1. Ver abre su página de progreso." },
+  "runTextStuck": { "message": "No hay nada ejecutándose de verdad. El registro empezó a las $1. Reiniciar lo borra para que puedas empezar otra vez." },
+  "runTextStillRunning": { "message": "El limpiador ha respondido: sí está en marcha, y ya se le ha pedido que pare. Pulsa otra vez para borrar la limpieza igualmente." },
+  "runBtnShow": { "message": "Ver" },
+  "runBtnReset": { "message": "Reiniciar" },
+  "runBtnForce": { "message": "Forzar reinicio" },
+  "runToastCancelSent": { "message": "cancelación enviada al limpiador en marcha" },
+  "runToastCleared": { "message": "borrado, ya puedes empezar una limpieza" },
+  "runToastForced": { "message": "limpieza borrada, primero se envió la cancelación" },
+  "runToastStillRunning": { "message": "cancelado, pero aún no ha parado, dale un momento" },
+  "runToastReloaded": { "message": "pestaña de Gmail recargada para parar un limpiador olvidado" },
+  "runToastTabRefused": { "message": "no se pudo acceder a la pestaña de Gmail, recárgala e inténtalo otra vez" }
 }

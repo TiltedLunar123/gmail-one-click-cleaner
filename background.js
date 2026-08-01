@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "8.3.0";
+  const SW_VERSION = "8.4.0";
 
   // =========================
   // Storage Keys
@@ -342,6 +342,216 @@
     } catch {}
   }
 
+  // Ask the engine in a tab whether it is actually working. Distinct
+  // from isEngineAttached, which reads the attach flag and treats an
+  // unanswerable tab as busy: this wants the engine's own account of
+  // itself, and "no answer" here means the engine is gone.
+  async function probeEngine(tabId) {
+    if (typeof tabId !== "number") return { reachable: false, running: false };
+    try {
+      const resp = await chrome.tabs.sendMessage(tabId, { type: "gmailCleanerPing" });
+      if (!resp?.ok) return { reachable: false, running: false };
+      return { reachable: true, running: resp.phase === "running", version: resp.version };
+    } catch {
+      // No receiving end: the tab reloaded, the extension was updated,
+      // or the engine never attached. Either way nothing is running.
+      return { reachable: false, running: false };
+    }
+  }
+
+  // How long a forced reset waits for a cancelled engine to actually
+  // stop. The engine checks CANCELLED once per waitFor tick and clears
+  // its own attach flag in the finally of every run kind, so this is
+  // normally over in well under a second; the ceiling covers an engine
+  // sitting inside one long Gmail wait.
+  const RESET_STOP_WAIT_MS = 5000;
+  const RESET_STOP_POLL_MS = 400;
+
+  // The attach flag as it stands right now: true, false, or null when
+  // the tab cannot be read at all. Null is deliberately distinct from
+  // false, because "no engine here" and "cannot tell" call for
+  // different handling.
+  async function readAttachFlag(tabId) {
+    if (typeof tabId !== "number" || !chrome.scripting?.executeScript) return null;
+    try {
+      const [result] = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => !!window.GCC_ATTACHED
+      });
+      return result?.result === true;
+    } catch {
+      return null;
+    }
+  }
+
+  // A tab that has closed cannot be holding an attach flag, so failing
+  // to reach one is not the same as failing to clear one.
+  async function tabStillOpen(tabId) {
+    if (typeof tabId !== "number") return false;
+    try {
+      await chrome.tabs.get(tabId);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function engineStillRunningAfter(tabId, waitMs) {
+    const deadline = Date.now() + waitMs;
+    for (;;) {
+      const probe = await probeEngine(tabId);
+      if (!probe.running) return false;
+      if (Date.now() >= deadline) return true;
+      await new Promise((r) => setTimeout(r, RESET_STOP_POLL_MS));
+    }
+  }
+
+  // 8.4: the way out of a run that is not really there.
+  //
+  // Two independent flags say "busy", and until now neither had a
+  // user-facing way to clear: the stored ACTIVE_RUN claim, which
+  // expires after two hours, and window.GCC_ATTACHED in the Gmail tab,
+  // which expires never. An engine that dies without sending
+  // gmailCleanerDone (extension reloaded mid-run, an exception outside
+  // the run's own try/finally) strands both, and every later run is
+  // refused with "a cleanup is already running" pointing at nothing.
+  //
+  // Refusing to disturb a live run is the whole safety story here, so
+  // the probe comes first and `force` is only ever set by a second,
+  // explicit act after the user has been told what is attached.
+  //
+  // Four outcomes, in the order they are decided:
+  //   engine says running, no force  -> cancel it, change nothing
+  //   engine says running, forced    -> cancel, WAIT for it to stop,
+  //                                     then clear; if it will not
+  //                                     stop, leave the tab guarded
+  //   flag set, nothing answers      -> orphan; reload the tab
+  //   flag clear or unreadable       -> just drop the stale claim
+  async function forceResetRun({ tabId = null, force = false } = {}) {
+    const claim = await hasActiveRun();
+    const targetTab = typeof tabId === "number" ? tabId : (claim?.gmailTabId ?? null);
+    const probe = await probeEngine(targetTab);
+
+    if (probe.running && !force) {
+      // Ask it to stop rather than yanking the flag out from under it.
+      // A second, explicit act is what unlocks the rest.
+      try {
+        await chrome.tabs.sendMessage(targetTab, { type: "gmailCleanerCancel" });
+      } catch {}
+      return { ok: false, reason: "engine_running", tabId: targetTab, cancelSent: true };
+    }
+
+    // The forced path against a live engine: cancel, then WAIT for it to
+    // confirm it stopped before touching the attach flag.
+    //
+    // The flag is the only thing standing between one engine and two on
+    // the same mailbox, so clearing it while the engine is still looping
+    // would let the user start a second pass over mail the first pass is
+    // in the middle of moving. Cancelling makes the engine exit and
+    // clear the flag itself, which is why waiting is worth the seconds.
+    let stillRunning = false;
+    if (probe.running) {
+      try {
+        await chrome.tabs.sendMessage(targetTab, { type: "gmailCleanerCancel" });
+      } catch {}
+      stillRunning = await engineStillRunningAfter(targetTab, RESET_STOP_WAIT_MS);
+    }
+
+    const cleared = { claim: false, attachFlag: false, reloadedTab: false };
+    let attachWasSet = null;
+    // Set when the Gmail tab is still there but could not be acted on.
+    // Distinct from "the tab is gone", which holds nothing and is
+    // therefore nothing to worry about.
+    let tabActionFailed = false;
+
+    // Attach flag FIRST, stored claim second.
+    //
+    // The other order leaves a window: with the claim already gone, a
+    // popup opened in that instant can claim, see no engine attached,
+    // and inject, and the clear that follows would then strip the guard
+    // off the engine it just started. Doing the tab work while the
+    // claim still stands means nothing else can begin.
+    if (!stillRunning && typeof targetTab === "number") {
+      attachWasSet = await readAttachFlag(targetTab);
+
+      if (attachWasSet === true && !probe.reachable) {
+        // Orphan signature: the flag is up, and nothing answers a ping.
+        // Reloading the extension mid-run leaves exactly this behind, a
+        // content script whose messaging is dead but whose loop is
+        // still clicking around the mailbox. It cannot be cancelled,
+        // because there is nothing left to send the cancel to, so
+        // clearing its flag would only invite a second engine to work
+        // beside it. Taking its page away is the one thing that
+        // reliably stops it, and it is the same tab reload that was the
+        // only cure for any of this before 8.4.
+        try {
+          await chrome.tabs.reload(targetTab);
+          cleared.reloadedTab = true;
+          cleared.attachFlag = true;
+        } catch (e) {
+          console.warn("[GCC SW] stuck-tab reload failed:", e?.message || e);
+          tabActionFailed = await tabStillOpen(targetTab);
+        }
+      } else if (attachWasSet !== false && chrome.scripting?.executeScript) {
+        // Set and reachable, or unreadable. Either way the flag is the
+        // thing refusing new runs, and the engine behind it has already
+        // answered for itself above.
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId: targetTab },
+            func: () => { window.GCC_ATTACHED = false; }
+          });
+          cleared.attachFlag = true;
+        } catch (e) {
+          console.warn("[GCC SW] attach-flag clear failed:", e?.message || e);
+          // A tab that has closed holds no flag, so that is a success
+          // by another name. A tab that is still open and refused us is
+          // a real failure and must not be reported as a clean reset.
+          tabActionFailed = await tabStillOpen(targetTab);
+        }
+      }
+    }
+
+    // The claim goes last, and only when nothing is left holding the
+    // tab.
+    //
+    // It is tempting to drop it regardless, on the grounds that it
+    // merely refuses runs rather than preventing an injection. That
+    // reasoning is what makes keeping it necessary: once it is gone the
+    // in-page flag is the ONLY gate, and the popup's reader of that
+    // flag deliberately fails open so a slow tab stays usable. Clearing
+    // the claim while an engine is still working, or while the tab
+    // could not be reached to check, would hand the user a green light
+    // backed by nothing.
+    const holdClaim = stillRunning || tabActionFailed;
+    if (claim && !holdClaim) {
+      try {
+        await chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: null });
+      } catch {}
+      try {
+        await chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_RUN]: null });
+      } catch {}
+      cleared.claim = true;
+    }
+
+    return {
+      ok: true,
+      tabId: targetTab,
+      cleared,
+      attachWasSet,
+      wasReachable: probe.reachable,
+      wasRunning: probe.running,
+      forced: Boolean(force && probe.running),
+      // True when the engine refused to stop inside the wait. Nothing
+      // was cleared, and saying so is the difference between "you can
+      // start again" and a second cleaner on the same mailbox.
+      stillRunning,
+      // True when the Gmail tab is still open but would not take the
+      // reload or the flag clear.
+      tabActionFailed
+    };
+  }
+
   async function runScheduledCleanup(scheduleId) {
     const MAX_RETRIES = 2;
     const RETRY_DELAY_MS = 5000;
@@ -614,6 +824,27 @@
       case "gmailCleanerSwPing":
         sendResponse({ ok: true, version: SW_VERSION });
         break;
+
+      // 8.4: is anything actually running, and can it be cleared?
+      case "gmailCleanerRunState":
+        hasActiveRun()
+          .then(async (run) => {
+            const probe = await probeEngine(run?.gmailTabId ?? msg.tabId ?? null);
+            sendResponse({
+              ok: true,
+              run: run || null,
+              engineReachable: probe.reachable,
+              engineRunning: probe.running
+            });
+          })
+          .catch(() => sendResponse({ ok: false }));
+        return true;
+
+      case "gmailCleanerForceReset":
+        forceResetRun({ tabId: msg.tabId ?? null, force: Boolean(msg.force) })
+          .then((result) => sendResponse(result))
+          .catch((e) => sendResponse({ ok: false, reason: "error", error: e?.message || "unknown" }));
+        return true;
 
       // Multi-account: list Gmail tabs
       case "gmailCleanerListGmailTabs":
@@ -2409,6 +2640,9 @@
       isEngineAttached,
       releaseRunClaim,
       restoreAutoPilotAlarm,
+      hasActiveRun,
+      probeEngine,
+      forceResetRun,
       setTestLicenseJwk: (jwk) => { _testLicenseJwk = jwk; }
     };
   }

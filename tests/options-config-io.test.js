@@ -223,7 +223,13 @@ describe("options.js config export/import data layer", () => {
       expect(payload.rules.normal).toContain("category:promotions older_than:1y");
       expect(payload.whitelist).toEqual(["user@example.com"]);
       expect(payload.debugMode).toBe(true);
-      expect(payload.version).toBe("8.3.0");
+      // Read from the manifest rather than pinned as a literal: the
+      // property under test is "the export stamps the build it came
+      // from", and a hardcoded number turns every release bump into a
+      // spurious failure that says nothing about the export.
+      expect(payload.version).toBe(
+        JSON.parse(fs.readFileSync(path.join(__dirname, "..", "manifest.json"), "utf-8")).version
+      );
       expect(payload.extensionName).toBe("Gmail One-Click Cleaner");
     });
   });
