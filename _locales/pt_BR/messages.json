@@ -478,5 +478,19 @@
   "skipUnread": { "message": "Ignorar não lidos" },
   "skipUnreadAria": { "message": "Ignorar e-mails não lidos" },
   "skipLabeled": { "message": "Ignorar com marcador" },
-  "skipLabeledAria": { "message": "Ignorar e-mails que você marcou" }
+  "skipLabeledAria": { "message": "Ignorar e-mails que você marcou" },
+
+  "runTitleRunning": { "message": "Há uma limpeza em andamento" },
+  "runTitleStuck": { "message": "Há uma limpeza travada" },
+  "runTextRunning": { "message": "O limpador está trabalhando na sua aba do Gmail, começou às $1. Ver abre a página de progresso." },
+  "runTextStuck": { "message": "Não há nada rodando de verdade. O registro começou às $1. Redefinir apaga isso para você começar de novo." },
+  "runTextStillRunning": { "message": "O limpador respondeu: ele está mesmo rodando, e já foi avisado para parar. Clique de novo para apagar a limpeza mesmo assim." },
+  "runBtnShow": { "message": "Ver" },
+  "runBtnReset": { "message": "Redefinir" },
+  "runBtnForce": { "message": "Forçar redefinição" },
+  "runToastCancelSent": { "message": "cancelamento enviado ao limpador em execução" },
+  "runToastCleared": { "message": "apagado, você já pode começar uma limpeza" },
+  "runToastForced": { "message": "limpeza apagada, o cancelamento foi enviado antes" },
+  "runToastStillRunning": { "message": "cancelado, mas ainda não parou, aguarde um momento" },
+  "runToastReloaded": { "message": "aba do Gmail recarregada para parar um limpador esquecido" }
 }

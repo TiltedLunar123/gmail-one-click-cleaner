@@ -478,5 +478,19 @@
   "skipUnread": { "message": "未読をスキップ" },
   "skipUnreadAria": { "message": "未読メールをスキップ" },
   "skipLabeled": { "message": "ラベル付きをスキップ" },
-  "skipLabeledAria": { "message": "自分でラベルを付けたメールをスキップ" }
+  "skipLabeledAria": { "message": "自分でラベルを付けたメールをスキップ" },
+
+  "runTitleRunning": { "message": "実行中の処理があります" },
+  "runTitleStuck": { "message": "処理が止まっています" },
+  "runTextRunning": { "message": "Gmail タブでクリーナーが動いています（開始 $1）。「表示」で進捗ページを開きます。" },
+  "runTextStuck": { "message": "実際には何も動いていません。この記録は $1 に作られました。「リセット」で消せば、また開始できます。" },
+  "runTextStillRunning": { "message": "クリーナーから応答がありました。本当に動いており、停止を指示済みです。それでも記録を消すには、もう一度クリックしてください。" },
+  "runBtnShow": { "message": "表示" },
+  "runBtnReset": { "message": "リセット" },
+  "runBtnForce": { "message": "強制リセット" },
+  "runToastCancelSent": { "message": "実行中のクリーナーに中止を送信しました" },
+  "runToastCleared": { "message": "解除しました。実行できます" },
+  "runToastForced": { "message": "記録を消しました（先に中止を送信済み）" },
+  "runToastStillRunning": { "message": "中止を送信しましたが、まだ停止していません。少し待ってください" },
+  "runToastReloaded": { "message": "残っていたクリーナーを止めるため Gmail タブを再読み込みしました" }
 }

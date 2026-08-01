@@ -633,13 +633,26 @@
 
     .dialog-btn.danger:hover { background: rgba(239, 68, 68, 0.25); }
 
+    /* 8.4: this used to sit inside the subtitle paragraph, so "Unsaved
+       changes" appeared mid-sentence several screens above the Save
+       button it was talking about. It now rides beside Save, where the
+       action it is asking for actually is. */
+    .save-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
     .unsaved-indicator {
       display: none;
       align-items: center;
       gap: 6px;
       font-size: 12px;
+      font-weight: 600;
       color: var(--warning);
-      margin-left: auto;
+      white-space: nowrap;
     }
 
     .unsaved-indicator.show { display: inline-flex; }
@@ -693,6 +706,16 @@
       }
 
       #save { width: 100%; }
+
+      /* Stacked, the indicator sits directly above the button instead of
+         being pushed onto a ragged second row by #save's full width. */
+      .save-group {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+      }
+
+      .save-group .unsaved-indicator.show { justify-content: center; }
 
       .footer-links { justify-content: space-between; }
 
@@ -948,10 +971,6 @@
             <p class="subtitle">
               One Gmail search query per line.
               <strong>These rule sets define what gets cleaned for each level.</strong>
-              <span class="unsaved-indicator" id="unsavedIndicator" aria-live="polite">
-                <span class="unsaved-dot" aria-hidden="true"></span>
-                <span>Unsaved changes</span>
-              </span>
             </p>
           </div>
           <div class="theme-switcher" id="themeSwitcher" role="group" aria-label="Color theme">
@@ -1332,10 +1351,16 @@
           <span id="restore-hint" class="sr-only">Reset all rules to their original default values</span>
         </nav>
 
-        <button id="save" type="button" aria-describedby="save-hint">
-          <span class="save-text">Save rules</span>
-          <span class="shortcut-hint" aria-hidden="true"><kbd>Ctrl</kbd>+<kbd>S</kbd></span>
-        </button>
+        <div class="save-group">
+          <span class="unsaved-indicator" id="unsavedIndicator" aria-live="polite">
+            <span class="unsaved-dot" aria-hidden="true"></span>
+            <span>Unsaved changes</span>
+          </span>
+          <button id="save" type="button" aria-describedby="save-hint">
+            <span class="save-text">Save rules</span>
+            <span class="shortcut-hint" aria-hidden="true"><kbd>Ctrl</kbd>+<kbd>S</kbd></span>
+          </button>
+        </div>
         <span id="save-hint" class="sr-only">Save all changes to your cleanup rules</span>
 
         <!-- Screen-reader status updates (options.js can set this text) -->

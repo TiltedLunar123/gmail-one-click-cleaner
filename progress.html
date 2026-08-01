@@ -1083,7 +1083,7 @@
           </p>
         </div>
         <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
-          <span class="pill" id="versionPill" aria-label="Status: Live progress">v8.3.0</span>
+          <span class="pill" id="versionPill" aria-label="Status: Live progress">v8.4.0</span>
           <div class="theme-switcher" id="themeSwitcher" role="group" aria-label="Color theme">
             <button type="button" data-theme-value="system" aria-pressed="true">Auto</button>
             <button type="button" data-theme-value="light" aria-pressed="false">Light</button>
@@ -1119,6 +1119,12 @@
           </button>
           <button id="reinjectBtn" type="button" class="ghost-btn" title="Re-inject the content script">
             Re-inject
+          </button>
+          <!-- 8.4: Re-inject restarts a run. This one only clears the
+               two flags that make the extension believe a run exists,
+               which is what you want when nothing is actually there. -->
+          <button id="resetRunBtn" type="button" class="ghost-btn" title="Clear a run that is no longer really running">
+            Reset stuck run
           </button>
           <button id="toggleLogs" type="button" class="ghost-btn" aria-pressed="true" aria-controls="details" title="Show or hide the activity log">
             Hide logs

@@ -478,5 +478,19 @@
   "skipUnread": { "message": "Ungelesene überspringen" },
   "skipUnreadAria": { "message": "Ungelesene E-Mails überspringen" },
   "skipLabeled": { "message": "Mit Label überspringen" },
-  "skipLabeledAria": { "message": "E-Mails mit deinen Labels überspringen" }
+  "skipLabeledAria": { "message": "E-Mails mit deinen Labels überspringen" },
+
+  "runTitleRunning": { "message": "Ein Durchlauf läuft gerade" },
+  "runTitleStuck": { "message": "Ein Durchlauf hängt fest" },
+  "runTextRunning": { "message": "Der Cleaner arbeitet in deinem Gmail-Tab, gestartet um $1. Anzeigen öffnet seine Fortschrittsseite." },
+  "runTextStuck": { "message": "Es läuft in Wirklichkeit nichts. Der Eintrag begann um $1. Zurücksetzen löscht ihn, damit du neu starten kannst." },
+  "runTextStillRunning": { "message": "Der Cleaner hat geantwortet: er läuft wirklich, und er wurde gerade zum Anhalten aufgefordert. Klicke noch einmal, um den Durchlauf trotzdem zu löschen." },
+  "runBtnShow": { "message": "Anzeigen" },
+  "runBtnReset": { "message": "Zurücksetzen" },
+  "runBtnForce": { "message": "Trotzdem zurücksetzen" },
+  "runToastCancelSent": { "message": "Abbruch an den laufenden Cleaner geschickt" },
+  "runToastCleared": { "message": "gelöscht, du kannst einen Durchlauf starten" },
+  "runToastForced": { "message": "Durchlauf gelöscht, der Abbruch ging zuerst raus" },
+  "runToastStillRunning": { "message": "abgebrochen, aber noch nicht gestoppt, gib ihm einen Moment" },
+  "runToastReloaded": { "message": "Gmail-Tab neu geladen, um einen übrig gebliebenen Cleaner zu stoppen" }
 }

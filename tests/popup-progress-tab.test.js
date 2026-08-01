@@ -21,6 +21,14 @@ const path = require("path");
 
 const src = fs.readFileSync(path.join(__dirname, "..", "popup.js"), "utf-8");
 
+// Comments out, code in. Crude on purpose: it only has to be right
+// about `//` and `/* */` runs in this one file, and both are replaced
+// with a space rather than removed so nothing either side joins up.
+const codeOnly = (text) =>
+  String(text)
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/^[ \t]*\/\/.*$/gm, " ");
+
 const RUN_PATHS = 4; // runCleanup, storage purge, smart apply, report plan step
 
 const indicesOf = (haystack, needle) => {
@@ -73,8 +81,15 @@ describe("isEngineAttached", () => {
 
   test("the attached probe lives in exactly one place", () => {
     // Four copies of this probe used to be inlined across popup.js.
-    expect(indicesOf(src, "window.GCC_ATTACHED")).toHaveLength(1);
-    expect(helper).toContain("window.GCC_ATTACHED");
+    //
+    // Counted over code with the comments stripped out. The invariant
+    // is about where the flag is READ, and a comment that names the
+    // flag while explaining the stuck-run reset (8.4) is documentation,
+    // not a second probe. Stripping comments makes the count measure
+    // what the test claims to measure; a real second read still fails
+    // it, which is the property that matters.
+    expect(indicesOf(codeOnly(src), "window.GCC_ATTACHED")).toHaveLength(1);
+    expect(codeOnly(helper)).toContain("window.GCC_ATTACHED");
   });
 
   test("a tab that cannot answer reads as not attached", () => {

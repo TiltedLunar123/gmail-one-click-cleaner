@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "8.3.0";
+  const POPUP_VERSION = "8.4.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -110,6 +110,14 @@ document.addEventListener("DOMContentLoaded", () => {
     // instead of a modal. Armed state expires after a short window.
     deepConfirmArmed: false,
     deepConfirmTimer: null,
+
+    // 8.4 stuck-run banner. `resetArmed` is set only after the worker
+    // has reported a genuinely running engine and told it to cancel; the
+    // next click is then allowed to clear the flags regardless.
+    runBannerVisible: false,
+    runBannerTabId: null,
+    resetArmed: false,
+    resetArmTimer: null,
 
     // 6.0 focused "target" presets: a one-off rule set for the next run.
     // Transient (not persisted) -- cleared when the user touches the
@@ -375,6 +383,13 @@ document.addEventListener("DOMContentLoaded", () => {
     // 7.1 Gmail host access (Firefox lets users revoke it)
     gmailAccessBanner: $("gmailAccessBanner"),
     gmailAccessBtn: $("gmailAccessBtn"),
+
+    // 8.4 stuck-run escape hatch
+    runBanner: $("runBanner"),
+    runBannerTitle: $("runBannerTitle"),
+    runBannerText: $("runBannerText"),
+    runBannerShowBtn: $("runBannerShowBtn"),
+    runBannerResetBtn: $("runBannerResetBtn"),
 
     // 7.13 install-source guard
     installSourceBanner: $("installSourceBanner"),
@@ -1460,6 +1475,8 @@ document.addEventListener("DOMContentLoaded", () => {
           "warning"
         );
         setStatus(t("alreadyInProgress", "cleanup already in progress"), STATUS_TYPES.WARNING, true);
+        // 8.4: raise the banner so the refusal comes with a way out.
+        refreshRunBanner().catch(() => {});
         resetRunButton();
         hideProgress();
         state.isRunning = false;
@@ -1501,7 +1518,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // receives an update.
       if (await isEngineAttached(gmailTab.id)) {
         log("info", "Content script already attached, skipping injection");
-        showToast(t("alreadyRunningToast", "a cleanup is already running"), "warning");
+        reportRunRefused();
         await clearActiveRun(claimedRunId);
         claimedRunId = null;
         resetRunButton();
@@ -1756,6 +1773,23 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  // 8.4: the mark that tells you at a glance who a row is. Built from
+  // the address alone (see GCC.avatar) so drawing a hundred of them
+  // still makes zero network requests. Decorative on purpose: the
+  // sender name and address sit right beside it in the same label, so
+  // announcing a lone letter would only add noise for a screen reader.
+  const makeSenderAvatar = (senderEmail, senderName) => {
+    const mark = GCC.avatar.forSender(senderEmail, senderName);
+    const el = document.createElement("span");
+    el.className = "subs-avatar";
+    el.setAttribute("aria-hidden", "true");
+    el.style.background = mark.bg;
+    el.style.color = mark.fg;
+    el.textContent = mark.initial;
+    if (mark.host) el.title = mark.host;
+    return el;
+  };
+
   const renderSubsList = () => {
     if (!elements.subsList) return;
     updateSubsUpsellCopy();
@@ -1800,6 +1834,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const label = document.createElement("label");
       label.className = "subs-row-label";
       label.appendChild(checkbox);
+      label.appendChild(makeSenderAvatar(sender.email, sender.name));
       label.appendChild(text);
 
       const row = document.createElement("div");
@@ -2337,7 +2372,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const claim = await tryClaimRun(gmailTab.id);
       if (!claim.ok) {
-        showToast(t("alreadyRunningToast", "a cleanup is already running"), "warning");
+        reportRunRefused();
         state.isRunning = false;
         return;
       }
@@ -2354,7 +2389,7 @@ document.addEventListener("DOMContentLoaded", () => {
         : t("reportRunning", "Running the plan..."));
 
       if (await isEngineAttached(gmailTab.id)) {
-        showToast(t("alreadyRunningToast", "a cleanup is already running"), "warning");
+        reportRunRefused();
         await clearActiveRun(claimedRunId);
         claimedRunId = null;
         state.isRunning = false;
@@ -2701,7 +2736,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const claim = await tryClaimRun(gmailTab.id);
       if (!claim.ok) {
-        showToast(t("alreadyRunningToast", "a cleanup is already running"), "warning");
+        reportRunRefused();
         state.isRunning = false;
         return;
       }
@@ -2725,7 +2760,7 @@ document.addEventListener("DOMContentLoaded", () => {
           : t("purgingMany", `Purging large mail from ${targeted.length} senders...`, [String(targeted.length)])));
 
       if (await isEngineAttached(gmailTab.id)) {
-        showToast(t("alreadyRunningToast", "a cleanup is already running"), "warning");
+        reportRunRefused();
         await clearActiveRun(claimedRunId);
         claimedRunId = null;
         state.isRunning = false;
@@ -2840,9 +2875,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const label = document.createElement("label");
       label.className = "subs-row-label";
       label.appendChild(checkbox);
+      label.appendChild(makeSenderAvatar(sender.email, sender.name));
       label.appendChild(text);
       top.appendChild(label);
     } else {
+      top.appendChild(makeSenderAvatar(sender.email, sender.name));
       top.appendChild(text);
     }
 
@@ -3054,7 +3091,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const claim = await tryClaimRun(gmailTab.id);
       if (!claim.ok) {
-        showToast(t("alreadyRunningToast", "a cleanup is already running"), "warning");
+        reportRunRefused();
         state.isRunning = false;
         return;
       }
@@ -3083,7 +3120,7 @@ document.addEventListener("DOMContentLoaded", () => {
           : t("cleaningMany", `Cleaning up ${emails.length} senders...`, [String(emails.length)])));
 
       if (await isEngineAttached(gmailTab.id)) {
-        showToast(t("alreadyRunningToast", "a cleanup is already running"), "warning");
+        reportRunRefused();
         await clearActiveRun(claimedRunId);
         claimedRunId = null;
         state.isRunning = false;
@@ -3654,16 +3691,229 @@ document.addEventListener("DOMContentLoaded", () => {
   // Init
   // =========================
 
+  // =========================
+  // Stuck-run escape hatch (8.4)
+  // =========================
+  // Two flags can say "busy": the stored ACTIVE_RUN claim, which used to
+  // expire only after two hours, and window.GCC_ATTACHED in the Gmail
+  // tab, which never expired at all. When an engine dies without sending
+  // gmailCleanerDone, both are stranded and every button in this popup
+  // refuses with "a cleanup is already running" while pointing at
+  // nothing. Reloading the Gmail tab was the only cure and nothing in
+  // the UI said so.
+
+  const askWorker = (message) =>
+    new Promise((resolve) => {
+      if (!GCC.hasChrome() || !chrome.runtime?.sendMessage) return resolve(null);
+      try {
+        chrome.runtime.sendMessage(message, (resp) => {
+          void chrome.runtime.lastError;
+          resolve(resp || null);
+        });
+      } catch {
+        resolve(null);
+      }
+    });
+
+  // Wall-clock rather than "23 minutes ago": the browser formats it in
+  // the user's own locale for free, and a start time is what someone
+  // compares against "when did I click Clean".
+  const formatRunStart = (startedAt) => {
+    const ms = Number(startedAt) || 0;
+    if (!ms) return "?";
+    try {
+      return new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    } catch {
+      return "?";
+    }
+  };
+
+  const disarmReset = () => {
+    if (state.resetArmTimer) clearTimeout(state.resetArmTimer);
+    state.resetArmTimer = null;
+    state.resetArmed = false;
+    if (elements.runBannerResetBtn) {
+      elements.runBannerResetBtn.classList.remove("armed");
+      elements.runBannerResetBtn.textContent = t("runBtnReset", "Reset");
+    }
+  };
+
+  const hideRunBanner = () => {
+    state.runBannerVisible = false;
+    state.runBannerTabId = null;
+    disarmReset();
+    elements.runBanner?.classList.remove("show", "is-stuck");
+  };
+
+  const showRunBanner = ({ run, engineReachable, engineRunning }) => {
+    if (!elements.runBanner) return;
+    state.runBannerVisible = true;
+    state.runBannerTabId = run?.gmailTabId ?? null;
+
+    // "Stuck" is not a guess about elapsed time: it is the worker
+    // failing to get an answer out of the engine that the claim says is
+    // working. That is the case the reset button exists for.
+    const stuck = !engineRunning;
+    elements.runBanner.classList.toggle("is-stuck", stuck);
+    elements.runBanner.classList.add("show");
+
+    const started = formatRunStart(run?.startedAt);
+    if (elements.runBannerTitle) {
+      elements.runBannerTitle.textContent = stuck
+        ? t("runTitleStuck", "A run is stuck")
+        : t("runTitleRunning", "A run is in progress");
+    }
+    if (elements.runBannerText) {
+      elements.runBannerText.textContent = stuck
+        ? t(
+          "runTextStuck",
+          `Nothing is actually running. The claim started at ${started}. Reset clears it so you can start again.`,
+          [started]
+        )
+        : t(
+          "runTextRunning",
+          `The cleaner is working in your Gmail tab, started at ${started}. Show opens its progress page.`,
+          [started]
+        );
+    }
+    if (elements.runBannerShowBtn) {
+      elements.runBannerShowBtn.hidden = !state.runBannerTabId;
+    }
+    // Not reachable means there is nothing to warn about, so the reset
+    // goes straight through on the first click.
+    if (elements.runBannerResetBtn && !engineReachable) disarmReset();
+  };
+
+  // Every "a cleanup is already running" refusal in this file goes
+  // through here. The toast on its own was the whole problem the user
+  // hit: it named a run, said nothing about which one, and left. Raising
+  // the banner alongside it means the refusal always arrives with the
+  // way out attached.
+  const reportRunRefused = () => {
+    showToast(t("alreadyRunningToast", "a cleanup is already running"), "warning");
+    refreshRunBanner().catch(() => {});
+  };
+
+  const refreshRunBanner = async () => {
+    const resp = await askWorker({ type: "gmailCleanerRunState" });
+    if (!resp?.ok) {
+      // No worker answer is not evidence of a run, and leaving a banner
+      // up on a failed probe would be its own kind of stuck.
+      hideRunBanner();
+      return null;
+    }
+    if (!resp.run) {
+      hideRunBanner();
+      return null;
+    }
+    showRunBanner(resp);
+    return resp;
+  };
+
+  const handleRunBannerShow = async () => {
+    const tabId = state.runBannerTabId ?? state.currentGmailTabId;
+    if (!tabId) {
+      showToast("no Gmail tab recorded for this run", "warning");
+      return;
+    }
+    await openProgressTab(tabId);
+    safeClosePopup();
+  };
+
+  const handleRunBannerReset = async () => {
+    const btn = elements.runBannerResetBtn;
+    if (btn) btn.disabled = true;
+    try {
+      const resp = await askWorker({
+        type: "gmailCleanerForceReset",
+        tabId: state.runBannerTabId ?? state.currentGmailTabId ?? null,
+        force: state.resetArmed
+      });
+
+      if (!resp) {
+        showToast("could not reach the background worker", "error");
+        return;
+      }
+
+      if (resp.reason === "engine_running") {
+        // A real run answered the probe. Say so plainly and make the
+        // second click the deliberate one rather than resetting a live
+        // cleanup because someone clicked an ambiguous button.
+        state.resetArmed = true;
+        if (btn) {
+          btn.classList.add("armed");
+          btn.textContent = t("runBtnForce", "Force reset");
+        }
+        if (elements.runBannerText) {
+          elements.runBannerText.textContent = t(
+            "runTextStillRunning",
+            "The cleaner answered: it really is running, and it has been told to stop. Click again to clear the run anyway."
+          );
+        }
+        showToast(t("runToastCancelSent", "cancel sent to the running cleaner"), "warning");
+        if (state.resetArmTimer) clearTimeout(state.resetArmTimer);
+        state.resetArmTimer = setTimeout(disarmReset, 15000);
+        return;
+      }
+
+      if (!resp.ok) {
+        showToast(`reset failed: ${resp.error || "unknown error"}`, "error");
+        return;
+      }
+
+      if (resp.stillRunning) {
+        // The claim is gone but the engine outlasted the wait, so the
+        // Gmail tab is still guarded and starting now would put a second
+        // engine on the same mailbox. Saying "cleared" here would be a
+        // lie that costs the user a double pass over their mail.
+        disarmReset();
+        showToast(
+          t("runToastStillRunning", "cancelled, but it has not stopped yet, give it a moment"),
+          "warning"
+        );
+        await refreshRunBanner();
+        return;
+      }
+
+      hideRunBanner();
+      state.isRunning = false;
+      state.startedRunHere = false;
+      resetRunButton();
+      hideProgress();
+      // Clear rather than restate: the status line is probably still
+      // reading "cleanup already in progress" from the refusal that sent
+      // the user here, and leaving that up would contradict the toast.
+      setStatus("", STATUS_TYPES.INFO);
+      showToast(
+        resp.cleared?.reloadedTab
+          ? t("runToastReloaded", "gmail tab reloaded to stop a leftover cleaner")
+          : resp.forced
+            ? t("runToastForced", "run cleared, cancel was sent first")
+            : t("runToastCleared", "cleared, you can start a run"),
+        "success"
+      );
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  };
+
   const restoreActiveRunUI = async () => {
     const run = await getActiveRun();
-    if (!run) return;
+    if (!run) {
+      // A claim can also be dropped while the popup was closed, so the
+      // banner still gets a chance to prove itself gone.
+      await refreshRunBanner();
+      return;
+    }
 
     state.currentGmailTabId = run.gmailTabId;
     showQuickActions();
     setStatus(t("looksRunningStatus", "looks like a cleanup is already running"), STATUS_TYPES.RUNNING);
     showProgress(35);
 
-    showToast(t("activeDetectedToast", "active cleanup detected"), "info", 2000);
+    // 8.4: the toast used to be the only sign, and it left after two
+    // seconds. The banner stays until the run does.
+    await refreshRunBanner();
 
     // keep progress visible for a beat, then hide (UI is best effort anyway)
     setTimeout(() => hideProgress(), 800);
@@ -3870,6 +4120,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     elements.cancelBtn?.addEventListener("click", handleCancel);
     elements.openProgressBtn?.addEventListener("click", handleOpenProgress);
+
+    // 8.4 stuck-run banner
+    elements.runBannerShowBtn?.addEventListener("click", handleRunBannerShow);
+    elements.runBannerResetBtn?.addEventListener("click", handleRunBannerReset);
 
     elements.openOptionsBtn?.addEventListener("click", openOptions);
     elements.openDiagnosticsBtn?.addEventListener("click", openDiagnostics);

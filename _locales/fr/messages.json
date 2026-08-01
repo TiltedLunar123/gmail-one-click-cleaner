@@ -478,5 +478,19 @@
   "skipUnread": { "message": "Ignorer non lus" },
   "skipUnreadAria": { "message": "Ignorer les e-mails non lus" },
   "skipLabeled": { "message": "Ignorer les libellés" },
-  "skipLabeledAria": { "message": "Ignorer les e-mails que vous avez libellés" }
+  "skipLabeledAria": { "message": "Ignorer les e-mails que vous avez libellés" },
+
+  "runTitleRunning": { "message": "Un nettoyage est en cours" },
+  "runTitleStuck": { "message": "Un nettoyage est bloqué" },
+  "runTextRunning": { "message": "Le nettoyeur travaille dans votre onglet Gmail, commencé à $1. Afficher ouvre sa page de progression." },
+  "runTextStuck": { "message": "Rien ne tourne réellement. L'enregistrement a commencé à $1. Réinitialiser l'efface pour que vous puissiez recommencer." },
+  "runTextStillRunning": { "message": "Le nettoyeur a répondu : il tourne bel et bien, et il vient de recevoir l'ordre de s'arrêter. Cliquez encore pour effacer le nettoyage malgré tout." },
+  "runBtnShow": { "message": "Afficher" },
+  "runBtnReset": { "message": "Réinitialiser" },
+  "runBtnForce": { "message": "Forcer la réinitialisation" },
+  "runToastCancelSent": { "message": "annulation envoyée au nettoyeur en cours" },
+  "runToastCleared": { "message": "effacé, vous pouvez lancer un nettoyage" },
+  "runToastForced": { "message": "nettoyage effacé, l'annulation a été envoyée d'abord" },
+  "runToastStillRunning": { "message": "annulé, mais il ne s'est pas encore arrêté, laissez-lui un instant" },
+  "runToastReloaded": { "message": "onglet Gmail rechargé pour arrêter un nettoyeur resté en place" }
 }

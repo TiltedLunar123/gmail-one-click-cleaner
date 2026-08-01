@@ -478,5 +478,19 @@
   "skipUnread": { "message": "Skip Unread" },
   "skipUnreadAria": { "message": "Skip unread emails" },
   "skipLabeled": { "message": "Skip Labeled" },
-  "skipLabeledAria": { "message": "Skip emails you have labeled" }
+  "skipLabeledAria": { "message": "Skip emails you have labeled" },
+
+  "runTitleRunning": { "message": "A run is in progress" },
+  "runTitleStuck": { "message": "A run is stuck" },
+  "runTextRunning": { "message": "The cleaner is working in your Gmail tab, started at $1. Show opens its progress page." },
+  "runTextStuck": { "message": "Nothing is actually running. The claim started at $1. Reset clears it so you can start again." },
+  "runTextStillRunning": { "message": "The cleaner answered: it really is running, and it has been told to stop. Click again to clear the run anyway." },
+  "runBtnShow": { "message": "Show" },
+  "runBtnReset": { "message": "Reset" },
+  "runBtnForce": { "message": "Force reset" },
+  "runToastCancelSent": { "message": "cancel sent to the running cleaner" },
+  "runToastCleared": { "message": "cleared, you can start a run" },
+  "runToastForced": { "message": "run cleared, cancel was sent first" },
+  "runToastStillRunning": { "message": "cancelled, but it has not stopped yet, give it a moment" },
+  "runToastReloaded": { "message": "gmail tab reloaded to stop a leftover cleaner" }
 }
