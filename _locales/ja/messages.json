@@ -136,7 +136,7 @@
 
   "unsubEyebrow": { "message": "メーリングリストの登録解除" },
   "proActive": { "message": "Pro有効" },
-  "subsHint": { "message": "削除は古いメールを隠すだけ。登録解除は新着を止めます。無料スキャンがメールをくれる差出人を一覧にし、ProがGmail自身の登録解除機能で選んだ相手を解除します。" },
+  "subsHint": { "message": "削除は古いメールを隠すだけ。登録解除は新着を止めます。無料スキャンは直近1年のメールを抽出して受信トレイを埋めている差出人を探し、ProがGmail自身の登録解除機能で選んだ相手を解除します。" },
   "subsScanMain": { "message": "購読をスキャン" },
   "subsListLabel": { "message": "購読の差出人" },
   "unsubMain": { "message": "選択した差出人を登録解除" },
@@ -420,7 +420,7 @@
   "reportCompleteToast": { "message": "メールボックスのレポートができました" },
   "reportUpsellNone": { "message": "Proは買い切り$$19.99。計画のすべてのステップと、ワンクリックでの一括実行が使えます。" },
   "reportUpsellOne": { "message": "あと1ステップが$1件のメールを抱えています。Proなら$$19.99で片づきます。" },
-  "reportUpsellMany": { "message": "あと$1ステップが$2件のメールを抱えています。Proなら$$19.99でまとめて片づきます。" },
+  "reportUpsellMany": { "message": "あと$1ステップがロックされています。最大のものは$2件のメールを抱えています。Proなら$$19.99でまとめて片づきます。" },
   "reportBand_sizeHuge": { "message": "巨大な添付ファイル" },
   "reportBandDesc_sizeHuge": { "message": "25 MB超、6か月より古い" },
   "reportBand_sizeLarge": { "message": "大きな添付ファイル" },
@@ -496,5 +496,14 @@
   "runToastTabRefused": { "message": "Gmail タブに到達できませんでした。再読み込みしてからもう一度お試しください" },
   "guardNoteText": { "message": "さらに $1 件の古いメールが保護設定（$2）で守られています。上の件数には含まれず、実行しても削除されません。" },
   "guardNoteBtn": { "message": "設定を見る" },
-  "reportNoStepsButMail": { "message": "その $1 件の古いメールは、プロモーション、ソーシャル、更新、フォーラム、大きな添付ファイル、古い受信トレイのいずれでもないため、プランに該当する項目がありません。Clean タブの Deep や Maximum はこれらの分類に限定されません。" }
+  "reportNoStepsButMail": { "message": "その $1 件の古いメールは、プロモーション、ソーシャル、更新、フォーラム、大きな添付ファイル、古い受信トレイのいずれでもないため、プランに該当する項目がありません。Clean タブの Deep や Maximum はこれらの分類に限定されません。" },
+
+  "smartWillDelete": { "message": "今すぐ $1 件を削除" },
+  "smartWillArchive": { "message": "今すぐ $1 件をアーカイブ" },
+  "smartWillPurge": { "message": "今すぐ $1 件の大きなメールを削除" },
+  "smartGuardNoteOne": { "message": "他に 1 件の送信者が見つかりましたが、保護設定（$1）がそのメール $2 件すべてを守るため、候補には出ません。" },
+  "smartGuardNoteMany": { "message": "他に $1 件の送信者が見つかりましたが、保護設定（$2）がそのメール $3 件すべてを守るため、候補には出ません。" },
+
+  "privacyPolicyLink": { "message": "プライバシーポリシー" },
+  "privacyPolicyAria": { "message": "プライバシーポリシー全文を読む（新しいタブで開きます）" }
 }

@@ -98,11 +98,94 @@ describe("the subscription scan is deliberately NOT guarded", () => {
   });
 });
 
+describe("Smart Suggestions count what their own button acts on (8.6)", () => {
+  const scan = fnBody(engineSrc, "async function smartScan(", "async function driveMoveBackControl(");
+  const sharedSrc = read("shared.js");
+
+  test("each surviving sender is measured through applyGlobalGuards", () => {
+    // The defect: the card read "402 emails, 100% unread, mostly older
+    // than 6 months" from the raw `from:(sender)` total, and its Delete
+    // old mail button sent `from:(sender) older_than:6m` through
+    // applyGlobalGuards, which appends -is:unread. A suggestion sold on
+    // never-opened mail could only ever clean nothing.
+    expect(scan).toContain("reachable = await fetchCount(applyGlobalGuards(actionQuery));");
+  });
+
+  test("the measured query is the ACTION's query, not the signal query", () => {
+    // Guarding the signal queries instead would have been worse than
+    // useless: a guarded `is:unread` count is always zero, so the
+    // unread ratio (45 of the 100 score points) would read zero for
+    // every sender in every mailbox.
+    expect(scan).toContain("const action = smartPrimaryActionFor(scored[i].signals);");
+    expect(scan).toContain("const actionQuery = smartActionQuery(scored[i].email, action);");
+  });
+
+  test("a sender the guards empty is not suggested, and is counted", () => {
+    // Dropping it silently is how an honest scan starts looking like a
+    // broken one.
+    expect(scan).toContain("heldBackSenders += 1;");
+    expect(scan).toContain("heldBackCount += Number(scored[i].estCount) || 0;");
+    expect(scan).toContain("heldBackSenders,");
+    expect(scan).toContain("heldBackCount");
+  });
+
+  test("unsubscribe is deliberately not measured, same rule as the subscription scan", () => {
+    // That action clicks a link; it does not move mail, so the delete
+    // guards have nothing to say about it and there is no count to
+    // promise.
+    expect(engineSrc).toContain('if (action === "purgeLarge") return `from:(${email}) larger:5M older_than:6m`;');
+    const builder = fnBody(engineSrc, "function smartActionQuery(", "// Signal sampling for one sender");
+    expect(builder).toContain('return "";');
+    expect(scan).toContain("if (actionQuery) {");
+  });
+
+  test("the popup renders the action the scan measured, not a fresh decision", () => {
+    // Deciding again in the popup is how the number and the button
+    // drift apart the moment the policy or the stored signals move.
+    expect(popupSrc).toContain("const action = GCC.smart.resolvedAction(sender);");
+    expect(popupSrc).not.toContain("const action = GCC.smart.primaryAction(sender);");
+    expect(sharedSrc).toContain("const smartResolvedAction = (sender) =>");
+  });
+
+  test("the count beside the button comes from reachable, and is silent when unmeasured", () => {
+    const helper = fnBody(sharedSrc, "const smartActionCountText = (sender) => {", "const smart = Object.freeze({");
+    expect(helper).toContain("const raw = sender?.reachable;");
+    // A stored suggestion from before 8.6, or an unsubscribe card, has
+    // no measured count. Saying nothing beats a number nothing honours.
+    expect(helper).toContain('if (typeof raw !== "number" || !Number.isFinite(raw)) return "";');
+    expect(helper).toContain('if (action === "unsubscribe") return "";');
+    expect(popupSrc).toContain("const willTake = GCC.smart.actionCountText(sender);");
+  });
+
+  test("reachable survives the worker round trip, and missing is not zero", () => {
+    // The popup reads the union-merged list back out of storage, so a
+    // sanitizer that dropped the field would put the raw total back
+    // beside the button on the very next popup open.
+    expect(bgSrc).toContain('if (typeof raw?.reachable === "number" && Number.isFinite(raw.reachable)) {');
+    expect(bgSrc).toContain("if (SMART_ACTION_NAMES.includes(raw?.action)) entry.action = raw.action;");
+    // Auto-Pilot runs unattended, so a sender it can never clean is a
+    // scheduled report of zero.
+    expect(bgSrc).toContain('.filter((s) => typeof s.reachable !== "number" || s.reachable > 0)');
+  });
+
+  test("bulk apply caps once, and the query, the status and the marker agree", () => {
+    // buildBulkRule drops everything past MAX_BULK_PER_RUN, so checking
+    // 30 senders produced a query carrying 25, a status line reading
+    // "Cleaning up 30 senders" and an applied marker claiming all 30.
+    const bulk = fnBody(popupSrc, "const capped = emails.slice(0, GCC.smart.LIMITS.MAX_BULK_PER_RUN);", "const handleSmartDismiss");
+    expect(bulk).toContain("if (emails.length > capped.length) {");
+    expect(bulk).toContain("GCC.smart.buildBulkRule(capped)");
+    expect(bulk).toContain("GCC.storageXray.sanitizeEmails(capped)");
+    expect(bulk).not.toContain("buildBulkRule(emails)");
+  });
+});
+
 describe("the popup sends the guards rather than letting them default", () => {
-  test("there is one helper and both scans use it", () => {
+  test("there is one helper and every scan uses it", () => {
     expect(popupSrc).toContain("const buildScanGuards = async () => ({");
     const uses = popupSrc.split("await buildScanGuards()").length - 1;
-    expect(uses).toBe(2);
+    // report, x-ray, and (8.6) the smart scan.
+    expect(uses).toBe(3);
   });
 
   test("it carries every guard applyGlobalGuards reads", () => {
@@ -121,12 +204,19 @@ describe("the popup sends the guards rather than letting them default", () => {
     }
   });
 
-  test("the report and x-ray scan configs both include it", () => {
+  test("every scan config includes it", () => {
     for (const kind of ['runKind: "reportScan"', 'runKind: "storageScan"']) {
       const at = popupSrc.indexOf(kind);
       expect(at).toBeGreaterThan(-1);
       expect(popupSrc.slice(at, at + 160)).toContain("buildScanGuards()");
     }
+    // 8.6: the smart scan measures through the guards now, so it needs
+    // the user's real switches. It used to send only the whitelist and
+    // the protected keywords, leaving sanitizeConfig to default all
+    // four guards to ON for a user who had turned them off.
+    const smartAt = popupSrc.indexOf('runKind: "smartScan"');
+    expect(smartAt).toBeGreaterThan(-1);
+    expect(popupSrc.slice(smartAt, smartAt + 700)).toContain("buildScanGuards()");
   });
 
   test("sending them explicitly is the point, because missing reads as ON", () => {

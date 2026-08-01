@@ -136,7 +136,7 @@
 
   "unsubEyebrow": { "message": "Newsletter abbestellen" },
   "proActive": { "message": "Pro aktiv" },
-  "subsHint": { "message": "Löschen versteckt alte Mails; Abbestellen stoppt neue. Der Gratis-Scan listet jeden Absender, dann bestellt Pro die von dir gewählten über Gmails eigene Abbestellen-Funktion ab." },
+  "subsHint": { "message": "Löschen versteckt alte Mails; Abbestellen stoppt neue. Der Gratis-Scan durchsucht eine Stichprobe deines letzten Mail-Jahres nach den Absendern, die dein Postfach füllen, dann bestellt Pro die von dir gewählten über Gmails eigene Abbestellen-Funktion ab." },
   "subsScanMain": { "message": "Nach Abos scannen" },
   "subsListLabel": { "message": "Abo-Absender" },
   "unsubMain": { "message": "Ausgewählte abbestellen" },
@@ -420,7 +420,7 @@
   "reportCompleteToast": { "message": "Postfach-Bericht fertig" },
   "reportUpsellNone": { "message": "Pro kostet einmalig $$19.99 und schaltet jeden Schritt des Plans plus den 1-Klick-Start des ganzen Plans frei." },
   "reportUpsellOne": { "message": "1 weiterer Schritt hält $1 E-Mails fest. Pro räumt ihn für $$19.99 auf." },
-  "reportUpsellMany": { "message": "$1 weitere Schritte halten $2 E-Mails fest. Pro räumt sie für $$19.99 auf." },
+  "reportUpsellMany": { "message": "$1 weitere Schritte sind gesperrt; der größte hält $2 E-Mails fest. Pro räumt sie für $$19.99 auf." },
   "reportBand_sizeHuge": { "message": "Riesige Anhänge" },
   "reportBandDesc_sizeHuge": { "message": "Über 25 MB, älter als 6 Monate" },
   "reportBand_sizeLarge": { "message": "Große Anhänge" },
@@ -496,5 +496,14 @@
   "runToastTabRefused": { "message": "Gmail-Tab nicht erreichbar, lade ihn neu und versuche es erneut" },
   "guardNoteText": { "message": "$1 weitere alte E-Mails sind durch deine Filter geschuetzt ($2), werden oben also nicht mitgezaehlt und von einem Durchlauf nicht angefasst." },
   "guardNoteBtn": { "message": "Filter zeigen" },
-  "reportNoStepsButMail": { "message": "Keine dieser $1 alten E-Mails ist Werbung, Soziales, Update, Forum, grosser Anhang oder alte Posteingangspost, also hat der Plan keinen Schritt dafuer. Der Clean-Tab reicht weiter: Tief und Maximum sind nicht auf diese Gruppen beschraenkt." }
+  "reportNoStepsButMail": { "message": "Keine dieser $1 alten E-Mails ist Werbung, Soziales, Update, Forum, grosser Anhang oder alte Posteingangspost, also hat der Plan keinen Schritt dafuer. Der Clean-Tab reicht weiter: Tief und Maximum sind nicht auf diese Gruppen beschraenkt." },
+
+  "smartWillDelete": { "message": "Löscht $1 jetzt" },
+  "smartWillArchive": { "message": "Archiviert $1 jetzt" },
+  "smartWillPurge": { "message": "Löscht $1 große E-Mails jetzt" },
+  "smartGuardNoteOne": { "message": "1 weiterer Absender wurde gefunden, aber deine Filter ($1) halten alle $2 E-Mails zurück, deshalb wird er nicht vorgeschlagen." },
+  "smartGuardNoteMany": { "message": "$1 weitere Absender wurden gefunden, aber deine Filter ($2) halten alle $3 E-Mails zurück, deshalb werden sie nicht vorgeschlagen." },
+
+  "privacyPolicyLink": { "message": "Datenschutzerklärung" },
+  "privacyPolicyAria": { "message": "Die vollständige Datenschutzerklärung lesen (öffnet in einem neuen Tab)" }
 }

@@ -136,7 +136,7 @@
 
   "unsubEyebrow": { "message": "Se désabonner des listes de diffusion" },
   "proActive": { "message": "Pro actif" },
-  "subsHint": { "message": "Supprimer cache l'ancien courrier ; se désabonner arrête le nouveau. L'analyse gratuite liste chaque expéditeur, puis Pro vous désabonne de ceux que vous choisissez via le contrôle Se désabonner de Gmail lui-même." },
+  "subsHint": { "message": "Supprimer cache l'ancien courrier ; se désabonner arrête le nouveau. L'analyse gratuite échantillonne votre dernière année de courrier pour trouver les expéditeurs qui remplissent votre boîte, puis Pro vous désabonne de ceux que vous choisissez via le contrôle Se désabonner de Gmail lui-même." },
   "subsScanMain": { "message": "Rechercher les abonnements" },
   "subsListLabel": { "message": "Expéditeurs d'abonnements" },
   "unsubMain": { "message": "Se désabonner de la sélection" },
@@ -420,7 +420,7 @@
   "reportCompleteToast": { "message": "rapport de boîte mail prêt" },
   "reportUpsellNone": { "message": "Pro coûte $$19.99 une seule fois : il débloque toutes les étapes du plan et le lancement de tout le plan en un clic." },
   "reportUpsellOne": { "message": "1 étape de plus retient $1 e-mails. Pro la nettoie pour $$19.99." },
-  "reportUpsellMany": { "message": "$1 étapes de plus retiennent $2 e-mails. Pro les nettoie pour $$19.99." },
+  "reportUpsellMany": { "message": "$1 étapes de plus sont verrouillées ; la plus grande retient $2 e-mails. Pro les nettoie pour $$19.99." },
   "reportBand_sizeHuge": { "message": "Pièces jointes énormes" },
   "reportBandDesc_sizeHuge": { "message": "Plus de 25 Mo, plus de 6 mois" },
   "reportBand_sizeLarge": { "message": "Grosses pièces jointes" },
@@ -496,5 +496,14 @@
   "runToastTabRefused": { "message": "impossible d'atteindre l'onglet Gmail, rechargez-le et réessayez" },
   "guardNoteText": { "message": "$1 autres anciens e-mails sont proteges par vos filtres ($2), donc ils ne sont pas comptes ci-dessus et un nettoyage ne les touchera pas." },
   "guardNoteBtn": { "message": "Voir les filtres" },
-  "reportNoStepsButMail": { "message": "Aucun de ces $1 anciens e-mails n est une promotion, un reseau social, une mise a jour, un forum, une piece jointe volumineuse ou un vieux message de la boite de reception, donc le plan n a aucune etape pour eux. L onglet Nettoyer va plus loin : Profond et Maximum ne se limitent pas a ces groupes." }
+  "reportNoStepsButMail": { "message": "Aucun de ces $1 anciens e-mails n est une promotion, un reseau social, une mise a jour, un forum, une piece jointe volumineuse ou un vieux message de la boite de reception, donc le plan n a aucune etape pour eux. L onglet Nettoyer va plus loin : Profond et Maximum ne se limitent pas a ces groupes." },
+
+  "smartWillDelete": { "message": "Supprime $1 maintenant" },
+  "smartWillArchive": { "message": "Archive $1 maintenant" },
+  "smartWillPurge": { "message": "Supprime $1 e-mails volumineux maintenant" },
+  "smartGuardNoteOne": { "message": "1 autre expéditeur a été trouvé, mais vos filtres ($1) retiennent ses $2 e-mails, il n'est donc pas proposé." },
+  "smartGuardNoteMany": { "message": "$1 autres expéditeurs ont été trouvés, mais vos filtres ($2) retiennent leurs $3 e-mails, ils ne sont donc pas proposés." },
+
+  "privacyPolicyLink": { "message": "Politique de confidentialité" },
+  "privacyPolicyAria": { "message": "Lire la politique de confidentialité complète (s’ouvre dans un nouvel onglet)" }
 }

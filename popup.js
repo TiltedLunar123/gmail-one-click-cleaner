@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "8.5.1";
+  const POPUP_VERSION = "8.6.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -154,6 +154,11 @@ document.addEventListener("DOMContentLoaded", () => {
       whitelist: [],
       protectKeywords: [],
       visibleCount: 0,
+      // 8.6: senders the scan found and the guards then emptied. Kept
+      // so a list that got shorter can explain itself.
+      heldBackSenders: 0,
+      heldBackCount: 0,
+      scanned: false,
       running: null
     },
 
@@ -487,6 +492,9 @@ document.addEventListener("DOMContentLoaded", () => {
     smartScanBtn: $("smartScanBtn"),
     smartStatus: $("smartStatus"),
     smartToolbar: $("smartToolbar"),
+    smartGuardNote: $("smartGuardNote"),
+    smartGuardNoteText: $("smartGuardNoteText"),
+    smartGuardNoteBtn: $("smartGuardNoteBtn"),
     smartSelectAll: $("smartSelectAll"),
     smartCount: $("smartCount"),
     smartList: $("smartList"),
@@ -495,6 +503,7 @@ document.addEventListener("DOMContentLoaded", () => {
     smartUpsell: $("smartUpsell"),
     smartUpsellText: $("smartUpsellText"),
     smartBuyLink: $("smartBuyLink"),
+    privacyPolicyLink: $("privacyPolicyLink"),
     smartEnterKey: $("smartEnterKey"),
 
     // 7.12 Auto-Pilot
@@ -2992,7 +3001,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const actions = document.createElement("div");
     actions.className = "smart-card-actions";
-    const action = GCC.smart.primaryAction(sender);
+    // 8.6: the action the scan measured, not a fresh decision. The
+    // reachable count below is measured against THIS action's query, so
+    // choosing a different one here would put an honest number next to
+    // the wrong button.
+    const action = GCC.smart.resolvedAction(sender);
     const ACTION_KEY = { deleteOld: "actionDeleteOld", archiveAll: "actionArchiveAll", purgeLarge: "actionPurgeLarge", unsubscribe: "actionUnsubscribe" };
     const applyBtn = document.createElement("button");
     applyBtn.type = "button";
@@ -3011,13 +3024,67 @@ document.addEventListener("DOMContentLoaded", () => {
 
     card.appendChild(top);
     card.appendChild(reason);
+    // The reason line describes the sender. This one is the promise:
+    // measured through the same guards the button applies, so it is
+    // what the button will take. Absent when the scan did not measure
+    // it, rather than filled in with a guess.
+    const willTake = GCC.smart.actionCountText(sender);
+    if (willTake) {
+      const promise = document.createElement("div");
+      promise.className = "smart-will-take";
+      promise.textContent = willTake;
+      card.appendChild(promise);
+    }
     card.appendChild(actions);
     return card;
+  };
+
+  // 8.6: the suggestion list only shows senders whose button can
+  // actually reach mail, so it has to account for the ones it dropped.
+  // Silently returning a shorter list is what "the scan found nothing"
+  // looked like, and the cause was a switch the user could have turned
+  // off in two clicks.
+  const renderSmartGuardNote = () => {
+    const note = elements.smartGuardNote;
+    if (!note) return;
+    const heldSenders = Number(state.smart.heldBackSenders || 0);
+    if (!state.smart.scanned || heldSenders < 1) {
+      note.hidden = true;
+      return;
+    }
+    const which = [];
+    if (elements.skipUnreadEl?.checked ?? true) which.push(t("skipUnread", "Skip Unread"));
+    if (elements.skipLabeledEl?.checked ?? true) which.push(t("skipLabeled", "Skip Labeled"));
+    if (elements.skipStarredEl?.checked ?? true) which.push(t("skipStarred", "Skip Starred"));
+    if (elements.skipImportantEl?.checked ?? true) which.push(t("skipImportant", "Skip Important"));
+    // Every guard is off and something still differs. Nothing to point
+    // the user at, so say nothing rather than guess.
+    if (!which.length) {
+      note.hidden = true;
+      return;
+    }
+    const s = heldSenders.toLocaleString();
+    const mail = Math.max(0, Number(state.smart.heldBackCount) || 0).toLocaleString();
+    if (elements.smartGuardNoteText) {
+      elements.smartGuardNoteText.textContent = heldSenders === 1
+        ? t(
+          "smartGuardNoteOne",
+          `1 more sender was found, but your guards (${which.join(", ")}) hold back all ${mail} of its emails, so it is not suggested.`,
+          [which.join(", "), mail]
+        )
+        : t(
+          "smartGuardNoteMany",
+          `${s} more senders were found, but your guards (${which.join(", ")}) hold back all ${mail} of their emails, so they are not suggested.`,
+          [s, which.join(", "), mail]
+        );
+    }
+    note.hidden = false;
   };
 
   const renderSmartList = () => {
     if (!elements.smartList) return;
     elements.smartList.textContent = "";
+    renderSmartGuardNote();
     const active = state.subs.licenseActive;
     // Vetoes beat any score (whitelist and protected keywords can
     // change after a scan), then feedback-aware ranking.
@@ -3070,6 +3137,9 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       if (resp?.ok) {
         state.smart.senders = Array.isArray(resp.scan?.senders) ? resp.scan.senders : [];
+        state.smart.heldBackSenders = Number(resp.scan?.heldBackSenders) || 0;
+        state.smart.heldBackCount = Number(resp.scan?.heldBackCount) || 0;
+        state.smart.scanned = Boolean(resp.scan?.updatedAt);
         state.smart.feedback = resp.feedback && typeof resp.feedback === "object"
           ? resp.feedback
           : { bySender: {} };
@@ -3112,8 +3182,14 @@ document.addEventListener("DOMContentLoaded", () => {
         {
           runKind: "smartScan",
           debugMode: state.debugMode,
-          whitelist: await getWhitelist(),
-          protectKeywords: await getProtectKeywords(),
+          // 8.6: the scan now measures each suggestion through the same
+          // guards its button applies, so it needs the user's real
+          // switches. Sending only whitelist and keywords left
+          // sanitizeConfig to default the four guards to ON, which
+          // would have measured a user who turned them off against
+          // guards they do not have. buildScanGuards already carries
+          // the whitelist and the protected keywords.
+          ...(await buildScanGuards()),
           smartKnownSenders: buildSmartKnownSenders()
         },
         setSmartStatus
@@ -3314,13 +3390,23 @@ document.addEventListener("DOMContentLoaded", () => {
       showToast(t("pickOneSuggestion", "pick at least one suggestion first"), "warning");
       return;
     }
-    const query = GCC.smart.buildBulkRule(emails);
+    // 8.6: buildBulkRule silently drops everything past the per-run
+    // cap. Checking 30 senders therefore produced a query carrying 25,
+    // a status line reading "Cleaning up 30 senders" and an applied
+    // marker claiming all 30, with nothing said about the other five.
+    // Cap here instead and let the one list drive all three; the
+    // unsubscribe button has warned about exactly this for releases.
+    const capped = emails.slice(0, GCC.smart.LIMITS.MAX_BULK_PER_RUN);
+    if (emails.length > capped.length) {
+      showToast(t("firstTwentyFive", "running the first 25; re-run for the rest"), "info");
+    }
+    const query = GCC.smart.buildBulkRule(capped);
     if (!query) {
       showToast(t("noValidSenders", "no valid senders selected"), "warning");
       return;
     }
     // Marker list = the sanitized set the query actually targets.
-    const targeted = GCC.storageXray.sanitizeEmails(emails);
+    const targeted = GCC.storageXray.sanitizeEmails(capped);
     await startSmartApplyRun(targeted, [query], false);
   };
 
@@ -4244,8 +4330,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // 8.5: the guards live in Advanced on the Clean tab, which is two
     // clicks and a scroll away from the report that is complaining
     // about them. Take the user there rather than describing where it
-    // is.
-    elements.reportGuardNoteBtn?.addEventListener("click", () => {
+    // is. 8.6: Smart Suggestions complains about the same switches from
+    // the same popup, so both notes share the one route.
+    const revealGuardSwitches = () => {
       state.tabs?.select("tabClean");
       const advanced = document.getElementById("advancedSection");
       if (advanced) {
@@ -4256,7 +4343,16 @@ document.addEventListener("DOMContentLoaded", () => {
           elements.skipUnreadEl?.closest(".toggle")?.scrollIntoView({ block: "center" });
         }, 60);
       }
-    });
+    };
+    elements.reportGuardNoteBtn?.addEventListener("click", revealGuardSwitches);
+    elements.smartGuardNoteBtn?.addEventListener("click", revealGuardSwitches);
+
+    // 8.6: a privacy claim the reader cannot check is just a claim. The
+    // policy is hosted rather than bundled, so the link always resolves
+    // to the current one instead of a copy frozen at release time, and
+    // it is the same URL both store listings carry. Set from shared.js
+    // so the URL lives in exactly one place.
+    if (elements.privacyPolicyLink) elements.privacyPolicyLink.href = GCC.PRIVACY_URL;
 
     elements.openOptionsBtn?.addEventListener("click", openOptions);
     elements.openDiagnosticsBtn?.addEventListener("click", openDiagnostics);

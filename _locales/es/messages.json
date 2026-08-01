@@ -136,7 +136,7 @@
 
   "unsubEyebrow": { "message": "Darse de baja de listas de correo" },
   "proActive": { "message": "Pro activo" },
-  "subsHint": { "message": "Eliminar oculta el correo viejo; darse de baja detiene el nuevo. El análisis gratis lista cada remitente que te escribe, y Pro te da de baja de los que elijas usando el propio control de Gmail." },
+  "subsHint": { "message": "Eliminar oculta el correo viejo; darse de baja detiene el nuevo. El análisis gratis muestrea tu último año de correo para encontrar a los remitentes que llenan tu bandeja, y Pro te da de baja de los que elijas usando el propio control de Gmail." },
   "subsScanMain": { "message": "Buscar suscripciones" },
   "subsListLabel": { "message": "Remitentes de suscripciones" },
   "unsubMain": { "message": "Darse de baja de los seleccionados" },
@@ -420,7 +420,7 @@
   "reportCompleteToast": { "message": "informe del buzón listo" },
   "reportUpsellNone": { "message": "Pro cuesta $$19.99 una sola vez: desbloquea todos los pasos del plan y el Ejecutar el plan entero con un clic." },
   "reportUpsellOne": { "message": "1 paso más retiene $1 correos. Pro lo limpia por $$19.99." },
-  "reportUpsellMany": { "message": "$1 pasos más retienen $2 correos. Pro los limpia por $$19.99." },
+  "reportUpsellMany": { "message": "Hay $1 pasos más bloqueados; el mayor retiene $2 correos. Pro los limpia por $$19.99." },
   "reportBand_sizeHuge": { "message": "Adjuntos enormes" },
   "reportBandDesc_sizeHuge": { "message": "Más de 25 MB, más de 6 meses" },
   "reportBand_sizeLarge": { "message": "Adjuntos grandes" },
@@ -496,5 +496,14 @@
   "runToastTabRefused": { "message": "no se pudo acceder a la pestaña de Gmail, recárgala e inténtalo otra vez" },
   "guardNoteText": { "message": "Hay $1 correos antiguos mas protegidos por tus filtros ($2), asi que no se cuentan arriba y una limpieza no los tocara." },
   "guardNoteBtn": { "message": "Ver filtros" },
-  "reportNoStepsButMail": { "message": "Ninguno de esos $1 correos antiguos es promocion, social, actualizacion, foro, adjunto grande ni correo viejo de la bandeja, asi que el plan no tiene ningun paso para ellos. La pestana Limpiar llega mas lejos: Profunda y Maxima no se limitan a estos grupos." }
+  "reportNoStepsButMail": { "message": "Ninguno de esos $1 correos antiguos es promocion, social, actualizacion, foro, adjunto grande ni correo viejo de la bandeja, asi que el plan no tiene ningun paso para ellos. La pestana Limpiar llega mas lejos: Profunda y Maxima no se limitan a estos grupos." },
+
+  "smartWillDelete": { "message": "Elimina $1 ahora" },
+  "smartWillArchive": { "message": "Archiva $1 ahora" },
+  "smartWillPurge": { "message": "Elimina $1 correos grandes ahora" },
+  "smartGuardNoteOne": { "message": "Se encontró 1 remitente más, pero tus filtros ($1) retienen sus $2 correos, así que no se sugiere." },
+  "smartGuardNoteMany": { "message": "Se encontraron $1 remitentes más, pero tus filtros ($2) retienen sus $3 correos, así que no se sugieren." },
+
+  "privacyPolicyLink": { "message": "Política de privacidad" },
+  "privacyPolicyAria": { "message": "Lee la política de privacidad completa (se abre en una pestaña nueva)" }
 }

@@ -841,13 +841,105 @@ const GCC = (() => {
 
   // Read the stored key (sync storage, follows the user across devices)
   // and verify it. Never throws.
-  const getLicenseState = async () => {
+  // =========================
+  // Where the licence lives (8.6)
+  // =========================
+  // It used to live in chrome.storage.sync alone, which is one area and
+  // therefore one way to lose it. sync is the right primary (it roams to
+  // the buyer's other machines) but it is also the one that fails: it
+  // has an 8KB per-item ceiling, a write quota, and it is the area that
+  // goes away under enterprise policy or a signed-out profile.
+  //
+  // The key is now written to BOTH areas and read from either, and
+  // whichever copy is missing gets healed from the one that survived. A
+  // paid key should take two independent failures to lose, not one.
+  //
+  // What this cannot cover: chrome.storage of both kinds is scoped to
+  // the extension ID, so a build loaded from a new folder is a new
+  // extension with empty storage. That is what the manifest `key` in
+  // the unpacked build is for.
+
+  const readLicenseArea = async (area) => {
     try {
-      const data = await storageGet("sync", [PRO.STORAGE_KEY]);
-      const key = data?.[PRO.STORAGE_KEY];
-      if (!key) return { active: false, key: "", payload: null };
-      const check = await verifyLicense(key);
-      return { active: check.valid, key: check.valid ? key : "", payload: check.payload };
+      const data = await storageGet(area, [PRO.STORAGE_KEY]);
+      const value = data?.[PRO.STORAGE_KEY];
+      return typeof value === "string" && value ? value : "";
+    } catch {
+      return "";
+    }
+  };
+
+  // Everything stored, sync first, deduped. getState walks the whole
+  // list rather than stopping at the first non-empty string: a stale or
+  // corrupt value in one area must not be able to shadow a good key in
+  // the other, which is the entire reason for keeping two.
+  const readLicenseCandidates = async () => {
+    const out = [];
+    const seen = new Set();
+    for (const area of ["sync", "local"]) {
+      const key = await readLicenseArea(area);
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        out.push({ key, from: area });
+      }
+    }
+    return out;
+  };
+
+  // "What is stored", for callers that want the raw answer.
+  const readStoredLicenseKey = async () => {
+    const candidates = await readLicenseCandidates();
+    return candidates[0] || { key: "", from: null };
+  };
+
+  // Put a verified key back into whichever area lost it. Only ever
+  // called for a key that verified: copying an unverifiable string
+  // around would just spread it.
+  const healLicenseCopy = async (key, from) => {
+    const other = from === "sync" ? "local" : "sync";
+    try {
+      const existing = await storageGet(other, [PRO.STORAGE_KEY]);
+      if (existing?.[PRO.STORAGE_KEY] === key) return;
+      if (other === "sync") await safeSyncSet({ [PRO.STORAGE_KEY]: key }, "license key");
+      else await storageSet("local", { [PRO.STORAGE_KEY]: key });
+    } catch {
+      // The surviving copy is still doing its job.
+    }
+  };
+
+  // Both areas, and a success in either is a success. A key that reached
+  // only one of them is still a key the user keeps.
+  const writeLicenseKey = async (rawKey) => {
+    const value = typeof rawKey === "string" ? rawKey : "";
+    const results = await Promise.allSettled([
+      safeSyncSet({ [PRO.STORAGE_KEY]: value }, "license key"),
+      storageSet("local", { [PRO.STORAGE_KEY]: value })
+    ]);
+    const wrote = results.filter((r) => r.status === "fulfilled").length;
+    if (!wrote) {
+      throw results[0]?.reason || new Error("Could not save the key to storage.");
+    }
+    return { syncOk: results[0].status === "fulfilled", localOk: results[1].status === "fulfilled" };
+  };
+
+  // jwkOverride mirrors verifyLicense's: it exists so the suite can
+  // drive this against an ephemeral keypair instead of needing the
+  // production signing key to be present anywhere near a test.
+  const getLicenseState = async (jwkOverride) => {
+    try {
+      const candidates = await readLicenseCandidates();
+      if (!candidates.length) return { active: false, key: "", payload: null };
+      let lastCheck = null;
+      for (const candidate of candidates) {
+        const check = await verifyLicense(candidate.key, jwkOverride);
+        lastCheck = check;
+        if (!check.valid) continue;
+        await healLicenseCopy(candidate.key, candidate.from);
+        return { active: true, key: candidate.key, payload: check.payload };
+      }
+      // Nothing verified. Report the last reason rather than inventing
+      // one, and hand back no key.
+      return { active: false, key: "", payload: lastCheck?.payload || null };
     } catch {
       return { active: false, key: "", payload: null };
     }
@@ -871,6 +963,8 @@ const GCC = (() => {
     parse: parseLicenseKey,
     verify: verifyLicense,
     getState: getLicenseState,
+    read: readStoredLicenseKey,
+    save: writeLicenseKey,
     buyUrl
   });
 
@@ -888,6 +982,14 @@ const GCC = (() => {
 
   const CWS_LISTING = "https://chromewebstore.google.com/detail/bmcfpljakkpcbinhgiahncpcbhmihgpc";
   const AMO_LISTING = "https://addons.mozilla.org/firefox/addon/gmail-one-click-cleaner@gmail-cleaner-pro.netlify.app/";
+
+  // 8.6: the published policy, the same URL both store listings point
+  // at, so what the extension shows and what the stores show cannot
+  // drift. Hosted rather than bundled on purpose: a copy shipped inside
+  // the package is frozen at whatever the last release said, and a
+  // stale privacy policy is worse than none. Opening it is a link, not
+  // a request: the extension still makes no network calls of its own.
+  const PRIVACY_URL = "https://secplusmastery.com/extensions#gmail-one-click-cleaner-privacy";
 
   const detectBrowser = (uaOverride) => {
     const ua = String(
@@ -1231,14 +1333,24 @@ const GCC = (() => {
     if (locked.length === 0) {
       return t("reportUpsellNone", "Pro is $19.99 once: it unlocks every step of the plan and one-click Run the whole plan.");
     }
-    const total = locked.reduce((sum, b) => sum + b.count, 0);
+    // One band's own count is exact, so a single locked step can state
+    // it. More than one CANNOT be summed: the bands overlap by design
+    // (an old 6MB promo in the Inbox is in sizeBig, promotions,
+    // newsletters and inboxOld at once), so adding them counts the same
+    // message up to four times, and this line is read at the moment
+    // money changes hands. The rule is stated a few hundred lines up:
+    // band counts are never summed into a headline figure. The largest
+    // locked band is a measured number about one real band, so that is
+    // what gets shown.
     if (locked.length === 1) {
-      return t("reportUpsellOne", `1 more step is holding ${total.toLocaleString()} emails. Pro clears it for $19.99.`, [total.toLocaleString()]);
+      const only = locked[0].count.toLocaleString();
+      return t("reportUpsellOne", `1 more step is holding ${only} emails. Pro clears it for $19.99.`, [only]);
     }
+    const biggest = locked.reduce((max, b) => Math.max(max, b.count), 0).toLocaleString();
     return t(
       "reportUpsellMany",
-      `${locked.length} more steps are holding ${total.toLocaleString()} emails. Pro clears them for $19.99.`,
-      [String(locked.length), total.toLocaleString()]
+      `${locked.length} more steps are locked, the largest holding ${biggest} emails. Pro clears them for $19.99.`,
+      [String(locked.length), biggest]
     );
   };
 
@@ -1790,6 +1902,30 @@ const GCC = (() => {
     return parts.join(t("reasonJoin", ", "));
   };
 
+  // 8.6: the action the SCAN measured, when it recorded one. Deciding
+  // again in the popup is how the number and the button drifted apart:
+  // the engine measures one query and the card offers a different one
+  // the moment the policy or the stored signals disagree.
+  const smartResolvedAction = (sender) =>
+    SMART_ACTIONS.includes(sender?.action) ? sender.action : smartPrimaryAction(sender);
+
+  // The one line on a card that is a promise rather than a description.
+  // reasonText describes the sender's mail and stays true either way;
+  // this is the count measured through the same guards the button
+  // applies. Nothing is returned when the scan did not measure it (an
+  // unsubscribe card, or a suggestion stored before 8.6), because
+  // saying nothing beats a number that might not be honoured.
+  const smartActionCountText = (sender) => {
+    const raw = sender?.reachable;
+    if (typeof raw !== "number" || !Number.isFinite(raw)) return "";
+    const action = smartResolvedAction(sender);
+    if (action === "unsubscribe") return "";
+    const n = Math.max(0, Math.round(raw)).toLocaleString();
+    if (action === "archiveAll") return t("smartWillArchive", `Archives ${n} now`, [n]);
+    if (action === "purgeLarge") return t("smartWillPurge", `Deletes ${n} large emails now`, [n]);
+    return t("smartWillDelete", `Deletes ${n} now`, [n]);
+  };
+
   const smart = Object.freeze({
     LIMITS: SMART_LIMITS,
     ACTIONS: SMART_ACTIONS,
@@ -1803,7 +1939,9 @@ const GCC = (() => {
     buildActionRule: smartBuildActionRule,
     buildBulkRule: smartBuildBulkRule,
     primaryAction: smartPrimaryAction,
-    reasonText: smartReasonText
+    resolvedAction: smartResolvedAction,
+    reasonText: smartReasonText,
+    actionCountText: smartActionCountText
   });
 
   // =========================
@@ -1938,6 +2076,7 @@ const GCC = (() => {
     // New in 7.1
     detectBrowser,
     storeLinks,
+    PRIVACY_URL,
     gmailAccess,
 
     // New in 7.2

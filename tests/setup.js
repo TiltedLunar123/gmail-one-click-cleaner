@@ -13,8 +13,24 @@ if (!global.crypto || !global.crypto.subtle) {
 // Global Chrome API mock for all tests
 const storageBacking = { local: {}, sync: {}, session: {} };
 
+// The real chrome.storage API answers BOTH ways: hand it a callback and
+// it calls that and returns undefined, omit one and it returns a
+// promise. shared.js goes through its own promisify() and so always
+// passes a callback, while the tests await the returned promise. A
+// promise-only mock therefore hangs every caller in the extension's own
+// code until jest times out, which is a five-second silence rather than
+// a failure and reads like a bug in the code under test. Mirror the
+// real shape instead.
+const dualMode = (impl) => jest.fn((...args) => {
+  const cb = typeof args[args.length - 1] === "function" ? args.pop() : null;
+  const result = impl(...args);
+  if (!cb) return Promise.resolve(result);
+  cb(result);
+  return undefined;
+});
+
 const makeStorageArea = (area) => ({
-  get: jest.fn(async (keys) => {
+  get: dualMode((keys) => {
     if (typeof keys === "string") {
       return { [keys]: storageBacking[area][keys] ?? undefined };
     }
@@ -25,14 +41,14 @@ const makeStorageArea = (area) => ({
     }
     return { ...storageBacking[area] };
   }),
-  set: jest.fn(async (obj) => {
+  set: dualMode((obj) => {
     Object.assign(storageBacking[area], obj);
   }),
-  remove: jest.fn(async (keys) => {
+  remove: dualMode((keys) => {
     const arr = Array.isArray(keys) ? keys : [keys];
     for (const k of arr) delete storageBacking[area][k];
   }),
-  clear: jest.fn(async () => {
+  clear: dualMode(() => {
     storageBacking[area] = {};
   })
 });

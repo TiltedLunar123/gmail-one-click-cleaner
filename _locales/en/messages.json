@@ -136,7 +136,7 @@
 
   "unsubEyebrow": { "message": "Unsubscribe from mailing lists" },
   "proActive": { "message": "Pro active" },
-  "subsHint": { "message": "Deleting hides old mail; unsubscribing stops new mail. The free scan lists every sender that mails you, then Pro unsubscribes from the ones you pick using Gmail's own Unsubscribe control." },
+  "subsHint": { "message": "Deleting hides old mail; unsubscribing stops new mail. The free scan samples your last year of mail to find the senders filling your inbox, then Pro unsubscribes from the ones you pick using Gmail's own Unsubscribe control." },
   "subsScanMain": { "message": "Scan for subscriptions" },
   "subsListLabel": { "message": "Subscription senders" },
   "unsubMain": { "message": "Unsubscribe selected" },
@@ -420,7 +420,7 @@
   "reportCompleteToast": { "message": "mailbox report ready" },
   "reportUpsellNone": { "message": "Pro is $$19.99 once: it unlocks every step of the plan and one-click Run the whole plan." },
   "reportUpsellOne": { "message": "1 more step is holding $1 emails. Pro clears it for $$19.99." },
-  "reportUpsellMany": { "message": "$1 more steps are holding $2 emails. Pro clears them for $$19.99." },
+  "reportUpsellMany": { "message": "$1 more steps are locked, the largest holding $2 emails. Pro clears them for $$19.99." },
   "reportBand_sizeHuge": { "message": "Huge attachments" },
   "reportBandDesc_sizeHuge": { "message": "Over 25 MB, older than 6 months" },
   "reportBand_sizeLarge": { "message": "Large attachments" },
@@ -496,5 +496,14 @@
   "runToastTabRefused": { "message": "could not reach the gmail tab, reload it and try again" },
   "guardNoteText": { "message": "$1 more old emails are protected by your guards ($2), so they are not counted above and a run will not touch them." },
   "guardNoteBtn": { "message": "Show guards" },
-  "reportNoStepsButMail": { "message": "None of those $1 old emails are promotions, social, updates, forums, big attachments or old Inbox mail, so the plan has no step for them. The Clean tab reaches further: Deep and Maximum are not limited to these groups." }
+  "reportNoStepsButMail": { "message": "None of those $1 old emails are promotions, social, updates, forums, big attachments or old Inbox mail, so the plan has no step for them. The Clean tab reaches further: Deep and Maximum are not limited to these groups." },
+
+  "smartWillDelete": { "message": "Deletes $1 now" },
+  "smartWillArchive": { "message": "Archives $1 now" },
+  "smartWillPurge": { "message": "Deletes $1 large emails now" },
+  "smartGuardNoteOne": { "message": "1 more sender was found, but your guards ($1) hold back all $2 of its emails, so it is not suggested." },
+  "smartGuardNoteMany": { "message": "$1 more senders were found, but your guards ($2) hold back all $3 of their emails, so they are not suggested." },
+
+  "privacyPolicyLink": { "message": "Privacy policy" },
+  "privacyPolicyAria": { "message": "Read the full privacy policy (opens in a new tab)" }
 }
