@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const OPTIONS_VERSION = "8.0.0";
+  const OPTIONS_VERSION = "8.1.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -24,7 +24,7 @@
     SCHEDULES: "schedules"
   });
 
-  const RULE_KEYS = Object.freeze(["light", "normal", "deep"]);
+  const RULE_KEYS = Object.freeze(["light", "normal", "deep", "maximum"]);
 
   const SYNC_LIMITS = Object.freeze({
     MAX_ITEM_BYTES: 8192,
@@ -87,6 +87,33 @@
       "has:newsletter older_than:3m",
       "\"unsubscribe\" older_than:6m",
       "from:(no-reply@ OR donotreply@ OR \"do-not-reply\") older_than:3m"
+    ]),
+    // 8.1: one step past Deep, for a mailbox that has never been cleaned.
+    // Deep already sweeps the noisy categories; Maximum shortens their
+    // age floors, drops the attachment thresholds, and adds two more
+    // ways of naming bulk mail that Gmail did not file into a category:
+    // the sender local-parts marketing actually uses, and the "view in
+    // browser" line that only ever appears in a mass mailing.
+    //
+    // What it deliberately does NOT do is sweep in:inbox or a bare
+    // older_than: range. Both would reach ordinary correspondence, and
+    // no preset should do that however aggressive it is called. Every
+    // rule here is either size-bounded or age-bounded, and the global
+    // guards (Starred, Important, unread, whitelist, protected keywords,
+    // your Minimum Age) still narrow all of it before it runs.
+    maximum: Object.freeze([
+      "larger:10M",
+      "has:attachment larger:5M older_than:3m",
+      "has:attachment larger:1M older_than:1y",
+      "category:promotions older_than:1m",
+      "category:social older_than:1m",
+      "category:updates older_than:2m",
+      "category:forums older_than:2m",
+      "has:newsletter older_than:1m",
+      "\"unsubscribe\" older_than:3m",
+      "from:(no-reply@ OR donotreply@ OR \"do-not-reply\" OR noreply@) older_than:1m",
+      "from:(newsletter@ OR marketing@ OR news@ OR alerts@ OR notifications@) older_than:3m",
+      "\"view in browser\" older_than:3m"
     ])
   });
 
@@ -241,6 +268,7 @@
     updateCountFor("light", "lightCount");
     updateCountFor("normal", "normalCount");
     updateCountFor("deep", "deepCount");
+    updateCountFor("maximum", "maximumCount");
     updateCountFor("whitelist", "whitelistCount");
     updateCountFor("protectKeywords", "protectKeywordsCount");
   };
@@ -265,12 +293,16 @@
 
   /**
    * @param {any} rules
-   * @returns {{ light: string[]; normal: string[]; deep: string[] }}
+   * @returns {Record<string, string[]>}
    */
   const normalizeRules = (rules) => {
     if (!rules || typeof rules !== "object") return GCC.clone(DEFAULT_RULES);
 
-    const out = { light: [], normal: [], deep: [] };
+    // Built from RULE_KEYS rather than a literal: a hardcoded set here
+    // silently drops any intensity added later, which is how a stored
+    // Maximum list would have vanished on the next save.
+    const out = {};
+    for (const key of RULE_KEYS) out[key] = [];
 
     for (const key of RULE_KEYS) {
       const source = Array.isArray(rules[key]) ? rules[key] : DEFAULT_RULES[key];
@@ -320,7 +352,7 @@
   const normalizeProtectKeywords = (keywords) => GCC.sanitizeProtectKeywords(keywords);
 
   /**
-   * @param {{ light?: string[]; normal?: string[]; deep?: string[] }} rules
+   * @param {Record<string, string[]>} rules
    */
   const renderRules = (rules) => {
     RULE_KEYS.forEach((key) => {
@@ -360,11 +392,11 @@
   };
 
   /**
-   * @returns {{ rules: { light: string[]; normal: string[]; deep: string[] }; debugMode: boolean; whitelist: string[]; protectKeywords: string[] }}
+   * @returns {{ rules: Record<string, string[]>; debugMode: boolean; whitelist: string[]; protectKeywords: string[] }}
    */
   const collectAllData = () => {
-    /** @type {{light:string[]; normal:string[]; deep:string[]}} */
-    const rules = { light: [], normal: [], deep: [] };
+    /** @type {Record<string, string[]>} */
+    const rules = {};
     RULE_KEYS.forEach((key) => (rules[key] = readLines(key)));
 
     const debugEl = GCC.$("debugMode");
@@ -417,7 +449,7 @@
   };
 
   /**
-   * @param {{ rules: { light: string[]; normal: string[]; deep: string[] }; whitelist: string[] }} data
+   * @param {{ rules: Record<string, string[]>; whitelist: string[] }} data
    */
   const validateData = (data) => {
     const errors = [];
@@ -510,7 +542,7 @@
   // =========================
 
   const setupChangeListeners = () => {
-    const textareas = ["light", "normal", "deep", "whitelist", "protectKeywords"];
+    const textareas = [...RULE_KEYS, "whitelist", "protectKeywords"];
     const checkboxes = ["debugMode"];
 
     const onPotentialChange = GCC.debounce(() => {

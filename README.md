@@ -82,6 +82,7 @@ When Google says your storage is full, the question is *what exactly is eating i
 - **Light** - Older mail and large attachments only
 - **Normal** - Balanced cleanup (recommended)
 - **Deep** - More aggressive (use Dry-Run first)
+- **Maximum** - For a mailbox that has never been cleaned: Deep's rules with younger age floors and lower attachment thresholds, plus two more ways of naming uncategorised bulk mail. It never sweeps your Inbox wholesale or a bare age range, and it needs two clicks to start.
 
 Example rules:
 ```
