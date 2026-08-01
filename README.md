@@ -63,7 +63,7 @@ One-click chips to clean a single category instead of the full sweep. Each runs 
 - **No-reply** - newsletters and no-reply senders
 
 ### Subscription Scan + Bulk Unsubscribe
-Deleting hides old mail; unsubscribing stops new mail. The scan finds every mailing list that emails you and lists the senders by volume.
+Deleting hides old mail; unsubscribing stops new mail. The scan samples your last year of mail for subscription-style senders and lists them by volume. It is a sample, not a census: three searches, first page of results each.
 - **Scan (free)** - read-only. Samples the senders behind your subscription-style mail and shows who is filling your inbox. Changes nothing.
 - **Bulk unsubscribe (Pro)** - pick the senders you never read and unsubscribe from all of them in one pass. Drives **Gmail's own built-in Unsubscribe control**, never sketchy links inside message bodies. Senders with no one-click option are flagged for manual follow-up.
 

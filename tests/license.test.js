@@ -88,20 +88,10 @@ describe("GCC.license", () => {
   });
 
   describe("getState", () => {
-    beforeAll(() => {
-      // shared.js promisify drives chrome.storage callback-style; the
-      // global mock from setup.js is promise-only, so adapt get here.
-      const promiseGet = chrome.storage.sync.get;
-      chrome.storage.sync.get = (keys, cb) => {
-        const p = promiseGet(keys);
-        if (typeof cb === "function") {
-          p.then(cb);
-          return undefined;
-        }
-        return p;
-      };
-    });
-
+    // The callback-shaped adapter that used to live here covered
+    // chrome.storage.sync alone, so it stopped working the moment
+    // getState learned to fall back to local. tests/setup.js now mocks
+    // every area the way the real API behaves, callback or promise.
     beforeEach(() => __resetChromeStorage());
 
     test("inactive when no key is stored", async () => {

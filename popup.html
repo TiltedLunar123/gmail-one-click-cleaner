@@ -1761,13 +1761,31 @@
       display: flex;
       gap: 8px;
       align-items: flex-start;
+      /* 8.6: the privacy line now ends in a link, and min-width defaults
+         to auto on a flex item, so without these the text could not
+         shrink and pushed the link past the edge instead of moving it
+         to the next line. Same shape as the tab-bar overflow in 8.5,
+         and it has to hold for "Datenschutzerklaerung" too. */
+      flex-wrap: wrap;
       margin: 8px 0 0;
       font-size: 11px;
       line-height: 1.45;
       color: var(--muted);
     }
+    .run-assurance > span { min-width: 0; }
     .run-assurance svg { flex: 0 0 auto; margin-top: 1px; color: var(--good); }
     .run-assurance--privacy svg { color: var(--accent); }
+    /* 8.6: sits on the end of the privacy line rather than in the
+       footer, which already carries four links and is the thing that
+       makes this popup feel busy. */
+    .run-assurance .assurance-link {
+      flex: 0 0 auto;
+      color: var(--accent);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      white-space: nowrap;
+    }
+    .run-assurance .assurance-link:hover { color: var(--text); }
 
     .linkish--pro {
       color: var(--pro);
@@ -1845,6 +1863,10 @@
     .smart-card-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
     .smart-card-top > .subs-row-text { flex: 1; }
     .smart-reason { font-size: 11px; color: var(--muted); line-height: 1.35; }
+    /* 8.6: the reason line describes the sender, this one is what the
+       button will actually take. Weighted so the promise reads louder
+       than the description. */
+    .smart-will-take { font-size: 11px; font-weight: 600; color: var(--text); line-height: 1.35; }
     .smart-card-actions { display: flex; align-items: center; gap: 8px; }
     .smart-apply-btn {
       font-size: 11px;
@@ -2588,6 +2610,16 @@
 
           <div id="smartStatus" class="subs-status" role="status" aria-live="polite"></div>
 
+          <!-- 8.6: only senders whose button can reach mail are
+               suggested, so the ones the guards emptied get accounted
+               for here. Without it the list just gets shorter and reads
+               as a scan that found nothing. -->
+          <div class="guard-note" id="smartGuardNote" hidden>
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6.5v5c0 4.5 3.4 8.3 8 9.5 4.6-1.2 8-5 8-9.5v-5Z"/></svg>
+            <span id="smartGuardNoteText"></span>
+            <button type="button" class="guard-note-btn" id="smartGuardNoteBtn" data-i18n="guardNoteBtn">Show guards</button>
+          </div>
+
           <div class="subs-toolbar" id="smartToolbar" hidden>
             <label class="subs-selectall">
               <input type="checkbox" id="smartSelectAll" />
@@ -2689,6 +2721,22 @@
       <p class="run-assurance run-assurance--privacy">
         <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2.2"/><path d="M7.5 10.5V7a4.5 4.5 0 0 1 9 0v3.5"/></svg>
         <span data-i18n="runAssurancePrivacy">No Google sign-in, no account, no tracking. This extension has no network code, so nothing can leave your browser.</span>
+        <!-- 8.6: a privacy claim the user cannot check is just a claim.
+             The link goes to the hosted policy, which is the same URL
+             both store listings carry, so it is always the current one.
+             An anchor, not a request: the bundle still contains no
+             network code. -->
+        <a
+          id="privacyPolicyLink"
+          href="#"
+          target="_blank"
+          rel="noopener noreferrer"
+          referrerpolicy="no-referrer"
+          class="assurance-link"
+          data-i18n="privacyPolicyLink"
+          data-i18n-label="privacyPolicyAria"
+          aria-label="Read the full privacy policy (opens in a new tab)"
+        >Privacy policy</a>
       </p>
 
       <div
@@ -2949,10 +2997,17 @@
           <span class="pro-pill" id="subsProPill" hidden data-i18n="proActive">Pro active</span>
         </div>
 
+        <!-- 8.6: this used to say the scan "lists every sender that
+             mails you". It does not and never did: three searches over
+             the last year, first page of results each, so a heavy
+             sender sitting below page one of all three is not in the
+             list. Claiming completeness turned a real limit into a
+             broken promise. -->
         <p class="subs-hint" data-i18n="subsHint">
           Deleting hides old mail; unsubscribing stops new mail. The free scan
-          lists every sender that mails you, then Pro unsubscribes from the
-          ones you pick using Gmail's own Unsubscribe control.
+          samples your last year of mail to find the senders filling your
+          inbox, then Pro unsubscribes from the ones you pick using Gmail's
+          own Unsubscribe control.
         </p>
 
         <button id="scanSubsBtn" class="subs-scan-btn" type="button">
@@ -3066,7 +3121,7 @@
         </nav>
 
         <div class="footer-right">
-          <span class="badge" id="versionBadge" aria-label="Version 8.5.1">v8.5.1</span>
+          <span class="badge" id="versionBadge" aria-label="Version 8.6.0">v8.6.0</span>
           <button id="kbdHelpBtn" class="linkish" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" data-i18n-label="kbdTitle" data-i18n-title="kbdBtnTitle">
             <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/></svg>
           </button>

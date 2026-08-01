@@ -378,9 +378,36 @@ describe("GCC.report.upsellLine", () => {
   });
 
   test("counts only the locked bands that actually hold mail", () => {
-    // sizeBig is free; promotions + social are locked and hold 60.
+    // sizeBig is free; promotions + social are locked, so two steps.
     const line = R.upsellLine(R.foldBands({ sizeBig: 2, promotions: 40, social: 20, forums: 0 }));
     expect(line).toContain("2 more steps");
-    expect(line).toContain("60");
+  });
+
+  // 8.6: this line used to read "2 more steps are holding 60 emails" for
+  // the case above, and 60 was promotions + social added together. The
+  // bands overlap by design (an old 6MB promo sitting in the Inbox is in
+  // sizeBig, promotions, newsletters and inboxOld at once), so summing
+  // them counts one message up to four times, and this particular
+  // sentence is read at the moment money changes hands. The file's own
+  // rule, a few hundred lines above, is that band counts are never
+  // summed into a headline figure.
+  test("locked band counts are never summed, because the bands overlap", () => {
+    const line = R.upsellLine(R.foldBands({ sizeBig: 2, promotions: 40, social: 20 }));
+    expect(line).not.toContain("60");
+    // The largest locked band is a measured number about one real band.
+    expect(line).toContain("40");
+  });
+
+  test("a single locked step may state its own exact count", () => {
+    // One band cannot overlap itself, so this number is honest.
+    const line = R.upsellLine(R.foldBands({ sizeBig: 2, promotions: 40 }));
+    expect(line).toContain("1 more step");
+    expect(line).toContain("40");
+  });
+
+  test("the biggest locked band wins even when it is not the first", () => {
+    const line = R.upsellLine(R.foldBands({ sizeBig: 900, promotions: 5, social: 4000 }));
+    expect(line).toContain("4,000");
+    expect(line).not.toContain("4,005");
   });
 });

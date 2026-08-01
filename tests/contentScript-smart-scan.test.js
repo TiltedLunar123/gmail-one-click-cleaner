@@ -250,19 +250,58 @@ describe("smart scan engine (7.8)", () => {
     });
   });
 
+  const SIGNAL_FIXTURES = [
+    { count: 0, unreadRatio: 1, oldShare: 1, shape: true },
+    { count: 1, unreadRatio: 0, oldShare: 0, shape: false },
+    { count: 142, unreadRatio: 0.96, oldShare: 0.7, shape: true },
+    { count: 5000, unreadRatio: 1, oldShare: 1, shape: true },
+    { count: 50, unreadRatio: 9, oldShare: -3, shape: false },
+    { count: 99999, unreadRatio: 0.33, oldShare: 0.5, shape: false },
+    // The unsubscribe corner: enough volume, nearly all unread, and the
+    // flow has not stopped.
+    { count: 402, unreadRatio: 1, oldShare: 0.4, shape: true },
+    // One point the other side of each unsubscribe threshold.
+    { count: 9, unreadRatio: 1, oldShare: 0.4, shape: true },
+    { count: 402, unreadRatio: 0.79, oldShare: 0.4, shape: true },
+    { count: 402, unreadRatio: 1, oldShare: 0.61, shape: true },
+    // A storage hog outranks everything.
+    { count: 20, unreadRatio: 0, oldShare: 0, shape: false, estMb: 100 },
+    { count: 20, unreadRatio: 0, oldShare: 0, shape: false, estMb: 99 },
+    // Exactly on the archive/delete line.
+    { count: 30, unreadRatio: 0.5, oldShare: 1, shape: false },
+    { count: 30, unreadRatio: 0.49, oldShare: 1, shape: false },
+    {}
+  ];
+
   test("engine score copy stays in sync with GCC.smart.score", () => {
     const I = loadEngine();
-    const FIXTURES = [
-      { count: 0, unreadRatio: 1, oldShare: 1, shape: true },
-      { count: 1, unreadRatio: 0, oldShare: 0, shape: false },
-      { count: 142, unreadRatio: 0.96, oldShare: 0.7, shape: true },
-      { count: 5000, unreadRatio: 1, oldShare: 1, shape: true },
-      { count: 50, unreadRatio: 9, oldShare: -3, shape: false },
-      { count: 99999, unreadRatio: 0.33, oldShare: 0.5, shape: false },
-      {}
-    ];
-    for (const signals of FIXTURES) {
+    for (const signals of SIGNAL_FIXTURES) {
       expect(I.scoreSmartSignals(signals)).toBe(GCC.smart.score(signals));
     }
+  });
+
+  // 8.6: the engine now picks the action so it can measure THAT
+  // action's guarded query, and the popup renders the action the engine
+  // picked. Two implementations of one policy, so they get pinned
+  // against each other the same way the scorer is: drift here would put
+  // an honest number next to the wrong button.
+  test("engine action copy stays in sync with GCC.smart.primaryAction", () => {
+    const I = loadEngine();
+    for (const signals of SIGNAL_FIXTURES) {
+      expect(I.smartPrimaryActionFor(signals)).toBe(GCC.smart.primaryAction({ signals }));
+    }
+  });
+
+  test("the measured query is exactly the query the action's rule sends", () => {
+    const I = loadEngine();
+    const email = "a@b.co";
+    for (const action of ["deleteOld", "archiveAll", "purgeLarge"]) {
+      const rule = GCC.smart.buildActionRule({ email }, action);
+      expect(I.smartActionQuery(email, action)).toBe(rule.query);
+    }
+    // Unsubscribe moves no mail, so there is no cleanup query to
+    // measure and the delete guards do not apply to it.
+    expect(I.smartActionQuery(email, "unsubscribe")).toBe("");
+    expect(GCC.smart.buildActionRule({ email }, "unsubscribe").query).toBeUndefined();
   });
 });

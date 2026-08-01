@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const OPTIONS_VERSION = "8.5.1";
+  const OPTIONS_VERSION = "8.6.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -911,6 +911,11 @@
     console.log(`[Gmail Cleaner] Options page v${OPTIONS_VERSION} initializing...`);
     await GCC.theme.init();
     wireThemeSwitcher();
+    // 8.6: hosted policy, so the link is always the current one rather
+    // than a copy frozen at whatever the last release said. shared.js
+    // is the single place the URL lives.
+    const privacyLink = GCC.$("privacyPolicyLink");
+    if (privacyLink) privacyLink.href = GCC.PRIVACY_URL;
     setupEventListeners();
     await loadData();
     updateAllCounts();
@@ -1429,7 +1434,9 @@
           GCC.showToast(check.reason || "Invalid license key", "error");
           return;
         }
-        await GCC.safeSyncSet({ [GCC.license.PRO.STORAGE_KEY]: raw }, "license key");
+        // Both storage areas. A paid key should take two independent
+        // failures to lose, not one.
+        await GCC.license.save(raw);
         keyInput.value = "";
         GCC.showToast("Pro activated. Enjoy bulk unsubscribe!", "success");
         await renderState();
@@ -1442,8 +1449,21 @@
 
     removeBtn?.addEventListener("click", async () => {
       try {
-        await GCC.storageSet("sync", { [GCC.license.PRO.STORAGE_KEY]: "" });
-        GCC.showToast("Key removed from this browser", "info");
+        // Clearing BOTH matters as much as saving to both: leave one
+        // copy behind and the heal-on-read in getLicenseState would put
+        // the key the user just removed straight back. save() treats
+        // one area out of two as success, which is right for activating
+        // and wrong for removing, so removal checks both and says so
+        // rather than reporting a removal that will undo itself.
+        const cleared = await GCC.license.save("");
+        if (cleared.syncOk && cleared.localOk) {
+          GCC.showToast("Key removed from this browser", "info");
+        } else {
+          GCC.showToast(
+            "Only one copy of the key could be cleared, so it may come back. Try again.",
+            "warning"
+          );
+        }
         await renderState();
       } catch (err) {
         GCC.showToast(`Failed: ${err?.message || "unknown error"}`, "error");

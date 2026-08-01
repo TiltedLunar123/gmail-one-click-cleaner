@@ -136,7 +136,7 @@
 
   "unsubEyebrow": { "message": "Cancelar inscrição em listas de e-mail" },
   "proActive": { "message": "Pro ativo" },
-  "subsHint": { "message": "Excluir esconde os e-mails antigos; cancelar a inscrição para os novos. A varredura grátis lista cada remetente que escreve para você, e o Pro cancela a inscrição dos que você escolher usando o próprio controle do Gmail." },
+  "subsHint": { "message": "Excluir esconde os e-mails antigos; cancelar a inscrição para os novos. A varredura grátis analisa uma amostra do seu último ano de e-mails para achar os remetentes que enchem sua caixa, e o Pro cancela a inscrição dos que você escolher usando o próprio controle do Gmail." },
   "subsScanMain": { "message": "Procurar inscrições" },
   "subsListLabel": { "message": "Remetentes de inscrições" },
   "unsubMain": { "message": "Cancelar inscrição dos selecionados" },
@@ -420,7 +420,7 @@
   "reportCompleteToast": { "message": "relatório da caixa pronto" },
   "reportUpsellNone": { "message": "O Pro custa $$19.99 uma única vez: libera todas as etapas do plano e o Executar o plano inteiro em um clique." },
   "reportUpsellOne": { "message": "Mais 1 etapa segura $1 e-mails. O Pro limpa por $$19.99." },
-  "reportUpsellMany": { "message": "Mais $1 etapas seguram $2 e-mails. O Pro limpa tudo por $$19.99." },
+  "reportUpsellMany": { "message": "Mais $1 etapas estão bloqueadas; a maior segura $2 e-mails. O Pro limpa tudo por $$19.99." },
   "reportBand_sizeHuge": { "message": "Anexos enormes" },
   "reportBandDesc_sizeHuge": { "message": "Acima de 25 MB, mais de 6 meses" },
   "reportBand_sizeLarge": { "message": "Anexos grandes" },
@@ -496,5 +496,14 @@
   "runToastTabRefused": { "message": "não foi possível acessar a aba do Gmail, recarregue e tente de novo" },
   "guardNoteText": { "message": "Mais $1 e-mails antigos estao protegidos pelos seus filtros ($2), entao nao entram na conta acima e a limpeza nao vai toca-los." },
   "guardNoteBtn": { "message": "Ver filtros" },
-  "reportNoStepsButMail": { "message": "Nenhum desses $1 e-mails antigos e promocao, social, atualizacao, forum, anexo grande ou e-mail velho da caixa de entrada, entao o plano nao tem nenhum passo para eles. A aba Limpar alcanca mais: Profunda e Maxima nao ficam limitadas a esses grupos." }
+  "reportNoStepsButMail": { "message": "Nenhum desses $1 e-mails antigos e promocao, social, atualizacao, forum, anexo grande ou e-mail velho da caixa de entrada, entao o plano nao tem nenhum passo para eles. A aba Limpar alcanca mais: Profunda e Maxima nao ficam limitadas a esses grupos." },
+
+  "smartWillDelete": { "message": "Exclui $1 agora" },
+  "smartWillArchive": { "message": "Arquiva $1 agora" },
+  "smartWillPurge": { "message": "Exclui $1 e-mails grandes agora" },
+  "smartGuardNoteOne": { "message": "Mais 1 remetente foi encontrado, mas seus filtros ($1) seguram todos os $2 e-mails dele, então ele não é sugerido." },
+  "smartGuardNoteMany": { "message": "Mais $1 remetentes foram encontrados, mas seus filtros ($2) seguram todos os $3 e-mails deles, então eles não são sugeridos." },
+
+  "privacyPolicyLink": { "message": "Política de privacidade" },
+  "privacyPolicyAria": { "message": "Leia a política de privacidade completa (abre em uma nova aba)" }
 }

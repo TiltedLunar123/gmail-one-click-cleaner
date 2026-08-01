@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "8.5.1";
+  const SW_VERSION = "8.6.0";
 
   // =========================
   // Storage Keys
@@ -930,7 +930,8 @@
       // scan, union-merged so senders measured on earlier scans keep
       // their place while new ones join.
       case "gmailCleanerSmartScanResult":
-        withStorageLock(() => recordSmartScan(msg.senders)).then(() => sendResponse({ ok: true }));
+        withStorageLock(() => recordSmartScan(msg.senders, msg.heldBackSenders, msg.heldBackCount))
+          .then(() => sendResponse({ ok: true }));
         return true;
 
       case "gmailCleanerGetSmartScan":
@@ -1494,7 +1495,14 @@
     return signals;
   }
 
-  async function recordSmartScan(senders) {
+  // 8.6: `action` and `reachable` are the parity pair. The scan picks
+  // the action and measures THAT action's guarded query, so the popup
+  // must render the action it was measured against rather than deciding
+  // again. An entry with no `reachable` is a pre-8.6 leftover: unknown,
+  // not zero, and treated as unknown everywhere downstream.
+  const SMART_ACTION_NAMES = ["deleteOld", "archiveAll", "purgeLarge", "unsubscribe"];
+
+  async function recordSmartScan(senders, heldBackSenders, heldBackCount) {
     if (!Array.isArray(senders)) return;
     try {
       const result = await chrome.storage.local.get(STORAGE_KEYS.SMART_SCAN);
@@ -1506,19 +1514,29 @@
       for (const raw of senders.slice(0, SMART_MAX_LIST)) {
         const email = String(raw?.email || "").trim().toLowerCase();
         if (!email || email.length > 320 || !SMART_EMAIL_RE.test(email)) continue;
-        byEmail[email] = {
+        const entry = {
           email,
           name: String(raw?.name || "").slice(0, 120),
           score: Math.max(0, Math.min(100, Math.round(Number(raw?.score) || 0))),
           signals: sanitizeSmartSignals(raw?.signals),
           estCount: Math.max(0, Math.min(999999, Number(raw?.estCount) || 0))
         };
+        if (SMART_ACTION_NAMES.includes(raw?.action)) entry.action = raw.action;
+        if (typeof raw?.reachable === "number" && Number.isFinite(raw.reachable)) {
+          entry.reachable = Math.max(0, Math.min(999999, Math.round(raw.reachable)));
+        }
+        byEmail[email] = entry;
       }
       const merged = Object.values(byEmail)
         .sort((a, b) => b.score - a.score || b.estCount - a.estCount)
         .slice(0, SMART_MAX_LIST);
       await chrome.storage.local.set({
-        [STORAGE_KEYS.SMART_SCAN]: { updatedAt: Date.now(), senders: merged }
+        [STORAGE_KEYS.SMART_SCAN]: {
+          updatedAt: Date.now(),
+          senders: merged,
+          heldBackSenders: Math.max(0, Math.min(999999, Math.round(Number(heldBackSenders) || 0))),
+          heldBackCount: Math.max(0, Math.min(9999999, Math.round(Number(heldBackCount) || 0)))
+        }
       });
     } catch (e) {
       console.error("[GCC SW] recordSmartScan failed:", e);
@@ -1654,10 +1672,22 @@
     }
   }
 
+  // 8.6: sync first, local second, same as the pages. The worker gates
+  // Auto-Pilot on this, so reading one area meant a sync hiccup could
+  // quietly switch off a paid feature on a schedule nobody was watching.
   async function hasProLicense() {
     try {
-      const r = await chrome.storage.sync.get(LICENSE_STORAGE_KEY);
-      const key = r?.[LICENSE_STORAGE_KEY];
+      let key = "";
+      try {
+        const s = await chrome.storage.sync.get(LICENSE_STORAGE_KEY);
+        if (typeof s?.[LICENSE_STORAGE_KEY] === "string") key = s[LICENSE_STORAGE_KEY];
+      } catch {}
+      if (!key) {
+        try {
+          const l = await chrome.storage.local.get(LICENSE_STORAGE_KEY);
+          if (typeof l?.[LICENSE_STORAGE_KEY] === "string") key = l[LICENSE_STORAGE_KEY];
+        } catch {}
+      }
       if (!key) return false;
       return await verifyProLicenseKey(key);
     } catch {
@@ -1800,6 +1830,11 @@
       .filter((s) => s && typeof s.email === "string")
       .filter((s) => !autoPilotSenderVetoed(s, whitelist, protectKeywords))
       .filter((s) => !autoPilotIsDismissed(feedback, s.email, now))
+      // 8.6: a sender the scan measured as entirely held back by the
+      // guards cannot be cleaned, so sweeping it unattended just
+      // reports zero on a schedule. A MISSING reachable means "not
+      // measured yet", which is not the same as zero.
+      .filter((s) => typeof s.reachable !== "number" || s.reachable > 0)
       .map((s) => ({
         email: s.email.trim().toLowerCase(),
         score: Math.min(100, Math.max(0, Number(s.score) || 0) + autoPilotDomainBoost(feedback, s.email)),

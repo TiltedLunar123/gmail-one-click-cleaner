@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "8.5.1";
+  const GCC_CONTENT_VERSION = "8.6.0";
 
   // =========================
   // Timing & behavior constants
@@ -4931,6 +4931,42 @@
     return Math.min(100, volumePts + unreadPts + oldPts + shapePts);
   }
 
+  // Engine-local copies of GCC.smart's action policy, duplicated for
+  // the same reason scoreSmartSignals is: the content script cannot
+  // reference GCC. The smart-scan suite pins both against the shared
+  // implementations over a fixture matrix.
+  const SMART_UNSUB_MIN_UNREAD = 0.8;
+  const SMART_UNSUB_MAX_OLD_SHARE = 0.6;
+  const SMART_UNSUB_MIN_COUNT = 10;
+
+  function smartPrimaryActionFor(signals) {
+    const sig = signals || {};
+    const clamp01 = (n) => Math.max(0, Math.min(1, Number(n) || 0));
+    if ((Number(sig.estMb) || 0) >= 100) return "purgeLarge";
+    const oldShare = Number(sig.oldShare);
+    if (
+      (Number(sig.count) || 0) >= SMART_UNSUB_MIN_COUNT &&
+      clamp01(sig.unreadRatio) >= SMART_UNSUB_MIN_UNREAD &&
+      Number.isFinite(oldShare) &&
+      clamp01(oldShare) <= SMART_UNSUB_MAX_OLD_SHARE
+    ) {
+      return "unsubscribe";
+    }
+    if (clamp01(sig.unreadRatio) >= 0.5) return "deleteOld";
+    return "archiveAll";
+  }
+
+  // The query the card's own button will send, before guards. "" for
+  // unsubscribe: that action clicks a link instead of moving mail, so
+  // no cleanup query exists and the delete guards have nothing to say
+  // about it, the same reasoning that keeps the subscription scan raw.
+  function smartActionQuery(email, action) {
+    if (action === "purgeLarge") return `from:(${email}) larger:5M older_than:6m`;
+    if (action === "archiveAll") return `from:(${email})`;
+    if (action === "deleteOld") return `from:(${email}) older_than:6m`;
+    return "";
+  }
+
   // Signal sampling for one sender. fetchCount(query) -> count is
   // injected so fixtures can drive this without Gmail navigation; the
   // live runner passes an openSearch wrapper. A sender whose base
@@ -5070,7 +5106,12 @@
       }
       scored.sort((a, b) => b.score - a.score);
 
+      // 8.6: senders the guards hold back entirely. Counted rather than
+      // silently dropped, because a suggestion list that just gets
+      // shorter looks like a broken scan.
       const senders = [];
+      let heldBackSenders = 0;
+      let heldBackCount = 0;
       let vetoBudget = SMART_SCAN.MAX_VETO_SENDERS;
       for (let i = 0; i < scored.length; i++) {
         if (vetoBudget <= 0 || senders.length >= SMART_SCAN.MAX_RESULTS) break;
@@ -5096,14 +5137,50 @@
           debugLog("Smart candidate vetoed", { email: scored[i].email, reason: verdict.reason });
           continue;
         }
-        senders.push(scored[i]);
+
+        // 8.6: measure the button, not the sender. The card used to
+        // show the raw `from:(sender)` total beside a Delete old mail
+        // that sends `from:(sender) older_than:6m` through
+        // applyGlobalGuards, and the ranking hands the top of the list
+        // to whoever has the most UNREAD mail while the guard that
+        // follows is -is:unread. "402 emails, 100% unread" could
+        // therefore only ever clean nothing. One search per surviving
+        // sender buys the number the button will honour.
+        const action = smartPrimaryActionFor(scored[i].signals);
+        const actionQuery = smartActionQuery(scored[i].email, action);
+        let reachable = null;
+        if (actionQuery) {
+          try {
+            reachable = await fetchCount(applyGlobalGuards(actionQuery));
+          } catch (e) {
+            if (e instanceof CancellationError) throw e;
+            // Same fail-safe as the veto above: a sender we could not
+            // measure is simply not recommended this scan.
+            debugLog("Smart reach check failed, dropping sender", { email: scored[i].email, error: e?.message });
+            continue;
+          }
+          if (!reachable) {
+            heldBackSenders += 1;
+            heldBackCount += Number(scored[i].estCount) || 0;
+            debugLog("Smart candidate held back by guards", { email: scored[i].email, action });
+            continue;
+          }
+        }
+        // reachable is omitted rather than sent as null for unsubscribe:
+        // downstream, missing means "not measured", and a null that
+        // coerced to 0 would read as "held back by the guards".
+        const picked = { ...scored[i], action };
+        if (reachable !== null) picked.reachable = reachable;
+        senders.push(picked);
       }
 
       try {
         if (hasChromeRuntime()) {
           chrome.runtime.sendMessage({
             type: "gmailCleanerSmartScanResult",
-            senders
+            senders,
+            heldBackSenders,
+            heldBackCount
           });
         }
       } catch (e) {
@@ -5118,10 +5195,16 @@
           : "No suggestions this time.",
         detail: senders.length
           ? "Each one comes with the reason and a one-click cleanup."
-          : "Nothing stood out as safe, obvious clutter.",
+          : (heldBackSenders
+            // Saying "nothing stood out" when senders DID stand out and
+            // the guards emptied them is the same lie in a softer voice.
+            ? `${heldBackSenders} sender${heldBackSenders === 1 ? "" : "s"} matched, but your safety switches hold all of their mail back.`
+            : "Nothing stood out as safe, obvious clutter."),
         percent: 100,
         done: true,
-        scanSenders: senders
+        scanSenders: senders,
+        heldBackSenders,
+        heldBackCount
       });
     } catch (e) {
       if (e instanceof CancellationError) {
@@ -5886,6 +5969,8 @@
       buildSmartVetoQueries,
       countCurrentResults,
       scoreSmartSignals,
+      smartPrimaryActionFor,
+      smartActionQuery,
       gatherSmartSignals,
       runSmartVetoes,
       // 7.6 restore fixtures

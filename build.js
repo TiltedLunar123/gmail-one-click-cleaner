@@ -92,6 +92,34 @@ function firefoxManifest(chromeManifest) {
   return m;
 }
 
+// =========================
+// Stable identity for the unpacked build (8.6)
+// =========================
+// Chrome derives an unpacked extension's ID from the FOLDER PATH when
+// the manifest carries no `key`. chrome.storage of both kinds is scoped
+// to that ID, so unzipping each new release beside the last one made
+// every update a fresh install with empty storage, and the Pro key
+// appeared to be forgotten on every upgrade. It was not forgotten; it
+// belonged to a different extension.
+//
+// This public key pins the ID instead, so every unpacked build is the
+// same extension and keeps its storage. Public by definition: it fixes
+// an identity, it does not authorise anything.
+//
+// It is written into dist/ AFTER the zip is sealed, so the store
+// package never carries it. The Web Store assigns its own identity and
+// a `key` in an uploaded package is at best redundant.
+const UNPACKED_KEY = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAklN3dX4FUcmq41xZpY6XJ39qvjI2WCeqsUENqlGEHbDoPyawVi1QICH7giCS3RPhNUQgP4vgKJyFzvYftPD9EBJGMRJzcN+SvzGKq8oMZbKu2RWTQhUhVK8HfEbdek1JVCmzczpfdi2/KQ5EABiAu++wsdBJwRajEyx8nQSZbbzTBrfmiFLHJ6LiOCnbohjiBu2cN2o5rPKbSZH3lR1b2FFQE2SuQ37t5tT+ARANGHmgRJU5O/iLtqljolbIK4Xj/Ayr9962LIDcgXVjE7uS0pn3RnkXzKNshEnp4M6uPoBaTn+edJGXlf/aeMkQ8FPQCdBZ6PBqI22NM9pDBnKqNwIDAQAB";
+
+function pinUnpackedIdentity(distDir) {
+  const manifestPath = path.join(distDir, "manifest.json");
+  if (!fs.existsSync(manifestPath)) return;
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+  manifest.key = UNPACKED_KEY;
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
+  console.log("Pinned unpacked extension ID (dist only, not in the zip)");
+}
+
 const TARGETS = {
   chrome: {
     dist: process.env.GCC_DIST
@@ -184,6 +212,13 @@ function buildTarget(name, { shouldMinify, shouldZip }) {
 
   if (shouldZip) {
     createZip(DIST, path.join(SRC, target.zipName));
+  }
+
+  // After the zip, never before: the store package must not carry it.
+  // Firefox already pins its identity through browser_specific_settings,
+  // so this is a Chrome-only problem and a Chrome-only fix.
+  if (name === "chrome") {
+    pinUnpackedIdentity(DIST);
   }
 }
 
