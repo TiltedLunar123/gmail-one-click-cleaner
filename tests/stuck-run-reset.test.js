@@ -42,6 +42,7 @@ let sendMessageThrows; // the tab has no receiving end at all
 let executeScriptThrows;
 let attachFlag;        // window.GCC_ATTACHED as it stands in the Gmail tab
 let reloadThrows;
+let tabGone;           // chrome.tabs.get rejects, i.e. the tab has closed
 
 function makeStorageArea(area) {
   return {
@@ -87,7 +88,10 @@ beforeAll(() => {
     },
     tabs: {
       query: jest.fn(async () => [{ id: 7, active: true, url: "https://mail.google.com/mail/u/0/" }]),
-      get: jest.fn(async (id) => ({ id })),
+      get: jest.fn(async (id) => {
+        if (tabGone) throw new Error("No tab with id");
+        return { id };
+      }),
       onRemoved: { addListener: jest.fn() },
       reload: jest.fn(async () => {
         if (reloadThrows) throw new Error("tab gone");
@@ -142,6 +146,7 @@ beforeEach(() => {
   executeScriptThrows = false;
   attachFlag = true;
   reloadThrows = false;
+  tabGone = false;
   reloads.length = 0;
 });
 
@@ -282,6 +287,38 @@ describe("resetting a run that is genuinely dead", () => {
     expect(result.cleared.attachFlag).toBe(true);
   });
 
+  test("a tab that is OPEN and refuses the reset keeps the claim", async () => {
+    // The gap that made the first hardening pass insufficient. If the
+    // tab is still there and would not take the clear, the attach flag
+    // may still be up, and the popup's reader of that flag fails open.
+    // Dropping the claim here would leave a green light backed by
+    // nothing, so the claim stays and the caller is told why.
+    executeScriptThrows = true;
+    tabGone = false;
+    claimRun();
+
+    const result = await INTERNALS.forceResetRun({});
+
+    expect(result.ok).toBe(true);
+    expect(result.tabActionFailed).toBe(true);
+    expect(result.cleared.claim).toBe(false);
+    expect(claim()).not.toBeNull();
+  });
+
+  test("a reload that fails on an open tab keeps the claim too", async () => {
+    attachFlag = true;
+    pingAnswer = null;   // orphan signature, so the reload branch runs
+    reloadThrows = true;
+    tabGone = false;
+    claimRun();
+
+    const result = await INTERNALS.forceResetRun({});
+
+    expect(result.cleared.reloadedTab).toBe(false);
+    expect(result.tabActionFailed).toBe(true);
+    expect(claim()).not.toBeNull();
+  });
+
   test("the tab is dealt with BEFORE the claim is dropped", async () => {
     // Order matters. With the claim already gone, a popup opened in
     // that instant could claim, see no engine attached, inject, and
@@ -307,17 +344,20 @@ describe("resetting a run that is genuinely dead", () => {
     }
   });
 
-  test("a tab that cannot be scripted still clears the stored claim", async () => {
+  test("a tab that has CLOSED still clears the stored claim", async () => {
+    // The tab is gone, so it cannot be holding an attach flag and the
+    // stranded claim is the only thing left. Clearing it is the whole
+    // point of the button.
     executeScriptThrows = true;
+    tabGone = true;
     claimRun();
 
     const result = await INTERNALS.forceResetRun({});
 
     expect(result.ok).toBe(true);
+    expect(result.tabActionFailed).toBe(false);
     expect(result.cleared.claim).toBe(true);
     expect(result.cleared.attachFlag).toBe(false);
-    // The claim is what refuses every future run, so losing the tab
-    // must not cost the user the half that could be fixed.
     expect(claim()).toBeNull();
   });
 });
@@ -398,8 +438,12 @@ describe("refusing to reset a run that is alive", () => {
     expect(result.stillRunning).toBe(true);
     expect(result.cleared.attachFlag).toBe(false);
     expect(attachClears()).toHaveLength(0);
-    // The claim is bookkeeping, not a guard, so it still goes.
-    expect(claim()).toBeNull();
+    // And the claim stays. Dropping it would leave the in-page flag as
+    // the only gate, and the popup's reader of that flag fails open by
+    // design so a slow tab stays usable. Nothing was resolved here, so
+    // nothing is unlocked.
+    expect(result.cleared.claim).toBe(false);
+    expect(claim()).not.toBeNull();
   }, 20000);
 
   test("force on a dead engine does not invent a cancel", async () => {
@@ -477,6 +521,17 @@ describe("the popup surfaces it", () => {
     // The success toast has to sit behind that check, or the user is
     // told they can start a run while an engine still holds the tab.
     expect(handler.indexOf("resp.stillRunning")).toBeLessThan(
+      handler.indexOf("runToastCleared")
+    );
+  });
+
+  test("a tab that refused the reset is reported too", () => {
+    const handler = popup.slice(
+      popup.indexOf("const handleRunBannerReset"),
+      popup.indexOf("const restoreActiveRunUI")
+    );
+    expect(handler).toContain("resp.tabActionFailed");
+    expect(handler.indexOf("resp.tabActionFailed")).toBeLessThan(
       handler.indexOf("runToastCleared")
     );
   });

@@ -492,5 +492,6 @@
   "runToastCleared": { "message": "effacé, vous pouvez lancer un nettoyage" },
   "runToastForced": { "message": "nettoyage effacé, l'annulation a été envoyée d'abord" },
   "runToastStillRunning": { "message": "annulé, mais il ne s'est pas encore arrêté, laissez-lui un instant" },
-  "runToastReloaded": { "message": "onglet Gmail rechargé pour arrêter un nettoyeur resté en place" }
+  "runToastReloaded": { "message": "onglet Gmail rechargé pour arrêter un nettoyeur resté en place" },
+  "runToastTabRefused": { "message": "impossible d'atteindre l'onglet Gmail, rechargez-le et réessayez" }
 }

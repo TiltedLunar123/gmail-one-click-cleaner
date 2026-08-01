@@ -492,5 +492,6 @@
   "runToastCleared": { "message": "cleared, you can start a run" },
   "runToastForced": { "message": "run cleared, cancel was sent first" },
   "runToastStillRunning": { "message": "cancelled, but it has not stopped yet, give it a moment" },
-  "runToastReloaded": { "message": "gmail tab reloaded to stop a leftover cleaner" }
+  "runToastReloaded": { "message": "gmail tab reloaded to stop a leftover cleaner" },
+  "runToastTabRefused": { "message": "could not reach the gmail tab, reload it and try again" }
 }

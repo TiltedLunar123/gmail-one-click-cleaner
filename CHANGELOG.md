@@ -47,6 +47,12 @@ This log tracks user-visible behavior, UI changes, and important internal fixes.
   same tab reload that was the only cure for any of this before 8.4,
   except now the extension knows when it is needed and does it for you.
 
+  Reset never reports success it did not achieve. If the run will not
+  stop, or the Gmail tab is open but refuses to be reached, nothing is
+  cleared at all and it says so, because a cheerful "you can start
+  again" backed by nothing is how you end up with two cleaners on one
+  mailbox.
+
 ### Fixed
 - **"Unsaved changes" appeared mid-sentence** in the Options subtitle,
   several screens above the Save button it was talking about. It now

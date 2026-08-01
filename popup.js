@@ -3875,6 +3875,19 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
+      if (resp.tabActionFailed) {
+        // The Gmail tab is open and would not take the reload or the
+        // flag clear, so nothing was cleared and nothing is safe to
+        // start. Reloading it by hand is still the reliable cure.
+        disarmReset();
+        showToast(
+          t("runToastTabRefused", "could not reach the gmail tab, reload it and try again"),
+          "error"
+        );
+        await refreshRunBanner();
+        return;
+      }
+
       hideRunBanner();
       state.isRunning = false;
       state.startedRunHere = false;

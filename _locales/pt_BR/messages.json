@@ -492,5 +492,6 @@
   "runToastCleared": { "message": "apagado, você já pode começar uma limpeza" },
   "runToastForced": { "message": "limpeza apagada, o cancelamento foi enviado antes" },
   "runToastStillRunning": { "message": "cancelado, mas ainda não parou, aguarde um momento" },
-  "runToastReloaded": { "message": "aba do Gmail recarregada para parar um limpador esquecido" }
+  "runToastReloaded": { "message": "aba do Gmail recarregada para parar um limpador esquecido" },
+  "runToastTabRefused": { "message": "não foi possível acessar a aba do Gmail, recarregue e tente de novo" }
 }

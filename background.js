@@ -384,6 +384,18 @@
     }
   }
 
+  // A tab that has closed cannot be holding an attach flag, so failing
+  // to reach one is not the same as failing to clear one.
+  async function tabStillOpen(tabId) {
+    if (typeof tabId !== "number") return false;
+    try {
+      await chrome.tabs.get(tabId);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async function engineStillRunningAfter(tabId, waitMs) {
     const deadline = Date.now() + waitMs;
     for (;;) {
@@ -447,6 +459,10 @@
 
     const cleared = { claim: false, attachFlag: false, reloadedTab: false };
     let attachWasSet = null;
+    // Set when the Gmail tab is still there but could not be acted on.
+    // Distinct from "the tab is gone", which holds nothing and is
+    // therefore nothing to worry about.
+    let tabActionFailed = false;
 
     // Attach flag FIRST, stored claim second.
     //
@@ -474,6 +490,7 @@
           cleared.attachFlag = true;
         } catch (e) {
           console.warn("[GCC SW] stuck-tab reload failed:", e?.message || e);
+          tabActionFailed = await tabStillOpen(targetTab);
         }
       } else if (attachWasSet !== false && chrome.scripting?.executeScript) {
         // Set and reachable, or unreadable. Either way the flag is the
@@ -486,17 +503,28 @@
           });
           cleared.attachFlag = true;
         } catch (e) {
-          // A tab that is gone, or one the extension has no host access
-          // to, cannot be holding a flag that matters.
           console.warn("[GCC SW] attach-flag clear failed:", e?.message || e);
+          // A tab that has closed holds no flag, so that is a success
+          // by another name. A tab that is still open and refused us is
+          // a real failure and must not be reported as a clean reset.
+          tabActionFailed = await tabStillOpen(targetTab);
         }
       }
     }
 
-    // The claim is bookkeeping, not a guard: it refuses runs but does
-    // not stop an injection, so dropping it is safe even while an
-    // engine is winding down.
-    if (claim) {
+    // The claim goes last, and only when nothing is left holding the
+    // tab.
+    //
+    // It is tempting to drop it regardless, on the grounds that it
+    // merely refuses runs rather than preventing an injection. That
+    // reasoning is what makes keeping it necessary: once it is gone the
+    // in-page flag is the ONLY gate, and the popup's reader of that
+    // flag deliberately fails open so a slow tab stays usable. Clearing
+    // the claim while an engine is still working, or while the tab
+    // could not be reached to check, would hand the user a green light
+    // backed by nothing.
+    const holdClaim = stillRunning || tabActionFailed;
+    if (claim && !holdClaim) {
       try {
         await chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: null });
       } catch {}
@@ -514,10 +542,13 @@
       wasReachable: probe.reachable,
       wasRunning: probe.running,
       forced: Boolean(force && probe.running),
-      // True when the engine refused to stop inside the wait. The claim
-      // is gone but the tab is still guarded, and saying so is the
-      // difference between "you can start again" and a second engine.
-      stillRunning
+      // True when the engine refused to stop inside the wait. Nothing
+      // was cleared, and saying so is the difference between "you can
+      // start again" and a second cleaner on the same mailbox.
+      stillRunning,
+      // True when the Gmail tab is still open but would not take the
+      // reload or the flag clear.
+      tabActionFailed
     };
   }
 

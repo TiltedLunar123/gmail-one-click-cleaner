@@ -492,5 +492,6 @@
   "runToastCleared": { "message": "解除しました。実行できます" },
   "runToastForced": { "message": "記録を消しました（先に中止を送信済み）" },
   "runToastStillRunning": { "message": "中止を送信しましたが、まだ停止していません。少し待ってください" },
-  "runToastReloaded": { "message": "残っていたクリーナーを止めるため Gmail タブを再読み込みしました" }
+  "runToastReloaded": { "message": "残っていたクリーナーを止めるため Gmail タブを再読み込みしました" },
+  "runToastTabRefused": { "message": "Gmail タブに到達できませんでした。再読み込みしてからもう一度お試しください" }
 }

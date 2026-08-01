@@ -492,5 +492,6 @@
   "runToastCleared": { "message": "borrado, ya puedes empezar una limpieza" },
   "runToastForced": { "message": "limpieza borrada, primero se envió la cancelación" },
   "runToastStillRunning": { "message": "cancelado, pero aún no ha parado, dale un momento" },
-  "runToastReloaded": { "message": "pestaña de Gmail recargada para parar un limpiador olvidado" }
+  "runToastReloaded": { "message": "pestaña de Gmail recargada para parar un limpiador olvidado" },
+  "runToastTabRefused": { "message": "no se pudo acceder a la pestaña de Gmail, recárgala e inténtalo otra vez" }
 }

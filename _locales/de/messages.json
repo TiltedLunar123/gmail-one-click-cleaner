@@ -492,5 +492,6 @@
   "runToastCleared": { "message": "gelöscht, du kannst einen Durchlauf starten" },
   "runToastForced": { "message": "Durchlauf gelöscht, der Abbruch ging zuerst raus" },
   "runToastStillRunning": { "message": "abgebrochen, aber noch nicht gestoppt, gib ihm einen Moment" },
-  "runToastReloaded": { "message": "Gmail-Tab neu geladen, um einen übrig gebliebenen Cleaner zu stoppen" }
+  "runToastReloaded": { "message": "Gmail-Tab neu geladen, um einen übrig gebliebenen Cleaner zu stoppen" },
+  "runToastTabRefused": { "message": "Gmail-Tab nicht erreichbar, lade ihn neu und versuche es erneut" }
 }

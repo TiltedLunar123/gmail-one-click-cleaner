@@ -492,5 +492,6 @@
   "runToastCleared": { "message": "очищено, можно запускать" },
   "runToastForced": { "message": "запись удалена, сначала была отправлена отмена" },
   "runToastStillRunning": { "message": "отменено, но остановка ещё не произошла, подождите немного" },
-  "runToastReloaded": { "message": "вкладка Gmail перезагружена, чтобы остановить зависшую очистку" }
+  "runToastReloaded": { "message": "вкладка Gmail перезагружена, чтобы остановить зависшую очистку" },
+  "runToastTabRefused": { "message": "не удалось обратиться ко вкладке Gmail, перезагрузите её и попробуйте снова" }
 }

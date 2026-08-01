@@ -1307,6 +1307,14 @@
           tabId: gmailTabId ?? null,
           force: true
         });
+        if (forced?.tabActionFailed) {
+          appendLog(
+            "The Gmail tab would not take the reset, so nothing was cleared. Reload that tab yourself.",
+            LOG_LEVELS.ERROR
+          );
+          showToast("could not reach the gmail tab", "error");
+          return;
+        }
         if (!forced?.ok) {
           appendLog(`Reset failed: ${forced?.error || "unknown error"}`, LOG_LEVELS.ERROR);
           showToast("reset failed", "error");
@@ -1333,6 +1341,16 @@
       if (!first?.ok) {
         appendLog(`Reset failed: ${first?.error || "unknown error"}`, LOG_LEVELS.ERROR);
         showToast("reset failed", "error");
+        return;
+      }
+
+      if (first.tabActionFailed) {
+        appendLog(
+          "The Gmail tab is still open but would not take the reset, so nothing was cleared. Reload that tab yourself: it clears everything this button was trying to clear.",
+          LOG_LEVELS.ERROR
+        );
+        setStatus("Could not reach the Gmail tab.");
+        showToast("could not reach the gmail tab", "error");
         return;
       }
 
