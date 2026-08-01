@@ -1038,6 +1038,30 @@
         </div>
       </section>
 
+      <section aria-labelledby="maximum-heading">
+        <div class="section-header">
+          <h2 id="maximum-heading"><span class="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H12l1-8.5Z"/></svg></span> Maximum</h2>
+          <span class="pill pill-deep">Most aggressive</span>
+        </div>
+        <p class="hint" id="maximum-description">
+          Everything Deep does, with younger age floors, plus bulk mail
+          that carries no Gmail category and old mail still sitting in
+          your Inbox. Built for a mailbox that has never been cleaned.
+          Run a Dry-Run first, and check your whitelist before you use it.
+        </p>
+        <label for="maximum" class="sr-only">Maximum cleanup rules (one query per line)</label>
+        <div class="textarea-wrapper">
+          <textarea
+            id="maximum"
+            spellcheck="false"
+            aria-describedby="maximum-description"
+            autocomplete="off"
+            autocapitalize="off"
+          ></textarea>
+          <div class="char-count" id="maximumCount" aria-hidden="true">0</div>
+        </div>
+      </section>
+
       <section class="divider" aria-labelledby="whitelist-heading">
         <div class="section-header" style="margin-top: 0">
           <h2 id="whitelist-heading"><span class="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 5.6v5.2c0 4.2 2.9 7 7 8.4 4.1-1.4 7-4.2 7-8.4V5.6L12 3Z"/><path d="M9 12l2 2 4-4.2"/></svg></span> Global Whitelist (Never Delete)</h2>
@@ -1216,6 +1240,7 @@
             <option value="light" selected>Light</option>
             <option value="normal">Normal</option>
             <option value="deep">Deep</option>
+            <option value="maximum">Maximum</option>
           </select>
         </div>
         <div style="min-width: 80px;">

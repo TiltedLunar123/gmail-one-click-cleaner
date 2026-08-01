@@ -471,5 +471,8 @@
   "progReceiptCopied": { "message": "Übersicht kopiert" },
   "progReceiptFailed": { "message": "Übersicht konnte nicht kopiert werden" },
   "reportRescanMain": { "message": "Erneut scannen" },
-  "reportRescanSub": { "message": "Gratis · aktualisiert die Zahlen unten" }
+  "reportRescanSub": { "message": "Gratis · aktualisiert die Zahlen unten" },
+  "intMaximum": { "message": "Maximum · Alles aus Deep, jünger und breiter" },
+  "maxConfirmLabel": { "message": "maximale Bereinigung bestätigen?" },
+  "maxConfirmStatus": { "message": "Maximum erfasst neuere Mails und den Posteingang - zum Bestätigen erneut klicken" }
 }

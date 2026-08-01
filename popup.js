@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "8.0.0";
+  const POPUP_VERSION = "8.1.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -1374,16 +1374,25 @@ document.addEventListener("DOMContentLoaded", () => {
     // window.confirm(): modals are a silent no-op in Firefox popups,
     // which would have made live deep cleans unstartable there.
     const intensity = elements.intensityEl?.value || "normal";
-    if (intensity === "deep" && !elements.dryRunEl?.checked) {
+    // 8.1: Maximum arms the same guard as Deep. It reaches younger mail
+    // and uncategorised bulk, so it is the last thing that should ever
+    // start on a single click.
+    const needsArming = intensity === "deep" || intensity === "maximum";
+    if (needsArming && !elements.dryRunEl?.checked) {
       if (!state.deepConfirmArmed) {
         state.deepConfirmArmed = true;
+        const isMax = intensity === "maximum";
         setRunButtonState({
           disabled: false,
-          label: t("deepConfirmLabel", "confirm deep clean?"),
+          label: isMax
+            ? t("maxConfirmLabel", "confirm maximum clean?")
+            : t("deepConfirmLabel", "confirm deep clean?"),
           sub: t("deepConfirmSub", "click again to run it - dry run is the safe preview"),
           state: BUTTON_STATES.IDLE
         });
-        setStatus(t("deepConfirmStatus", "deep targets many categories - click run again to confirm"), STATUS_TYPES.WARNING);
+        setStatus(isMax
+          ? t("maxConfirmStatus", "maximum reaches recent mail and your Inbox - click run again to confirm")
+          : t("deepConfirmStatus", "deep targets many categories - click run again to confirm"), STATUS_TYPES.WARNING);
         if (state.deepConfirmTimer) clearTimeout(state.deepConfirmTimer);
         state.deepConfirmTimer = setTimeout(disarmDeepConfirm, 8000);
         return;

@@ -471,5 +471,8 @@
   "progReceiptCopied": { "message": "receipt copied" },
   "progReceiptFailed": { "message": "could not copy receipt" },
   "reportRescanMain": { "message": "Scan again" },
-  "reportRescanSub": { "message": "Free · updates the counts below" }
+  "reportRescanSub": { "message": "Free · updates the counts below" },
+  "intMaximum": { "message": "Maximum · Everything Deep does, younger and wider" },
+  "maxConfirmLabel": { "message": "confirm maximum clean?" },
+  "maxConfirmStatus": { "message": "maximum reaches recent mail and your Inbox - click run again to confirm" }
 }

@@ -471,5 +471,8 @@
   "progReceiptCopied": { "message": "comprovante copiado" },
   "progReceiptFailed": { "message": "não foi possível copiar o comprovante" },
   "reportRescanMain": { "message": "Analisar de novo" },
-  "reportRescanSub": { "message": "Grátis · atualiza as contagens abaixo" }
+  "reportRescanSub": { "message": "Grátis · atualiza as contagens abaixo" },
+  "intMaximum": { "message": "Máximo · Tudo do Deep, mais recente e mais amplo" },
+  "maxConfirmLabel": { "message": "confirmar limpeza máxima?" },
+  "maxConfirmStatus": { "message": "o Máximo alcança e-mails recentes e a Caixa de entrada - clique de novo para confirmar" }
 }

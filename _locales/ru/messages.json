@@ -471,5 +471,8 @@
   "progReceiptCopied": { "message": "сводка скопирована" },
   "progReceiptFailed": { "message": "не удалось скопировать сводку" },
   "reportRescanMain": { "message": "Проверить снова" },
-  "reportRescanSub": { "message": "Бесплатно · обновляет числа ниже" }
+  "reportRescanSub": { "message": "Бесплатно · обновляет числа ниже" },
+  "intMaximum": { "message": "Максимум · Всё из Deep, но моложе и шире" },
+  "maxConfirmLabel": { "message": "подтвердить максимальную очистку?" },
+  "maxConfirmStatus": { "message": "Максимум затрагивает недавнюю почту и Входящие - нажмите ещё раз для подтверждения" }
 }

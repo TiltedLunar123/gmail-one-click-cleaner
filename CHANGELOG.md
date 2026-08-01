@@ -3,6 +3,31 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.1.0 - Maximum intensity
+
+### Added
+- **Maximum, a fourth cleanup intensity above Deep**, for a mailbox that
+  has never been cleaned. It shortens Deep's age floors, drops the
+  attachment size thresholds, and adds two more ways of naming bulk mail
+  that Gmail never filed into a category: the sender names marketing
+  actually uses, and the "view in browser" line that only ever appears in
+  a mass mailing.
+  - It deliberately does **not** sweep your Inbox wholesale or a bare age
+    range. Both of those reach ordinary correspondence, which the guards
+    narrow but do not protect: a two-year-old reply from a person is not
+    starred, not important, and not unread. Every rule it ships is either
+    size-bounded or age-bounded.
+  - Like Deep, it will not start on a single click, and it says which
+    intensity it is asking you to confirm.
+  - Editable on the Options page like the other three, and available to
+    scheduled cleanups.
+
+### Fixed
+- Saving on the Options page rebuilt the rule map from a hardcoded list of
+  the three intensities that existed at the time, so any intensity added
+  later was silently dropped on the next save, and its editor was never
+  watched for unsaved changes. Both now derive from the real key list.
+
 ## 8.0.0 - Mailbox Report, and a popup that finally explains itself
 
 The biggest release since Pro shipped. It adds the thing the product was

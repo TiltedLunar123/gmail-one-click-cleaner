@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "8.0.0";
+  const GCC_CONTENT_VERSION = "8.1.0";
 
   // =========================
   // Timing & behavior constants
@@ -406,7 +406,7 @@
       config = {};
     }
 
-    const validIntensities = ["light", "normal", "deep"];
+    const validIntensities = ["light", "normal", "deep", "maximum"];
     const validAgePattern = /^\d+[dwmy]$/i;
 
     return {

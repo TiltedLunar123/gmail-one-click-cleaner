@@ -471,5 +471,8 @@
   "progReceiptCopied": { "message": "récapitulatif copié" },
   "progReceiptFailed": { "message": "impossible de copier le récapitulatif" },
   "reportRescanMain": { "message": "Analyser à nouveau" },
-  "reportRescanSub": { "message": "Gratuit · met à jour les comptes ci-dessous" }
+  "reportRescanSub": { "message": "Gratuit · met à jour les comptes ci-dessous" },
+  "intMaximum": { "message": "Maximum · Tout le Deep, plus récent et plus large" },
+  "maxConfirmLabel": { "message": "confirmer le nettoyage maximum ?" },
+  "maxConfirmStatus": { "message": "le Maximum touche du courrier récent et votre boîte - cliquez encore pour confirmer" }
 }
