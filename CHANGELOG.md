@@ -3,6 +3,19 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.3.0 - Real result counts
+
+### Fixed
+- **The Mailbox Report showed 50 against band after band**, and a run
+  then cleared far less than the plan implied. Gmail renders its
+  "1-50 of 1,234" counter in the toolbar, outside the results element,
+  and the code only ever looked inside that element. So the total was
+  never found on a normal result page and every caller fell back to
+  counting the rows on screen: one page, fifty. The counter is now
+  looked for in the results area, then the toolbar, then the page.
+  The same total sizes the large-run guardrails, so those were reading
+  a page instead of a match set too.
+
 ## 8.2.0 - The guards you could not see
 
 Reported from real use: "unsubscribe doesn't work, storage doesn't work,
