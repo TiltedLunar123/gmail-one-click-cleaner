@@ -32,8 +32,13 @@ const SRC = RAW_SRC
 // bands, two noise bands and one inbox band all carry mail, and the top
 // two by count are noise bands (so sender attribution has somewhere to
 // look).
+// The headline is scoped away from Sent, Drafts and Chats: a bare
+// older_than:6m searches all mail, so it counted mail no band could
+// match and no run would touch.
+const HEADLINE = "older_than:6m -in:sent -in:drafts -in:chats";
+
 const COUNTS = {
-  "older_than:6m": 12000,
+  "older_than:6m -in:sent -in:drafts -in:chats": 12000,
   "larger:25M older_than:6m": 4,
   "larger:10M smaller:25M older_than:6m": 30,
   "larger:5M smaller:10M older_than:6m": 100,
@@ -51,7 +56,7 @@ const COUNTS = {
 // zero is the shape of the bug this models: notification mail is
 // overwhelmingly unread, so `-is:unread` empties the whole band.
 const GUARDED_COUNTS = {
-  "older_than:6m": 4500,
+  "older_than:6m -in:sent -in:drafts -in:chats": 4500,
   "category:promotions older_than:6m": 2000,
   "category:updates older_than:1y": 0
 };
@@ -249,8 +254,8 @@ describe("mailbox report engine (8.0)", () => {
     // 8.5: the headline is the GUARDED figure, because that is what a
     // run would reach. The raw figure is measured too, and the gap
     // between them is reported separately as guardedOutCount.
-    expect(done.cleanableCount).toBe(GUARDED("older_than:6m"));
-    expect(done.cleanableCount).toBeLessThan(COUNTS["older_than:6m"]);
+    expect(done.cleanableCount).toBe(GUARDED(HEADLINE));
+    expect(done.cleanableCount).toBeLessThan(COUNTS[HEADLINE]);
   });
 
   test("each band reports the count its own query returned", async () => {
@@ -359,11 +364,11 @@ describe("a band whose search fails", () => {
     // Every other band still carries its real number.
     expect(byId.social.count).toBe(GUARDED("category:social older_than:6m"));
     expect(byId.sizeBig.count).toBe(GUARDED("larger:5M smaller:10M older_than:6m"));
-    expect(done.cleanableCount).toBe(GUARDED("older_than:6m"));
+    expect(done.cleanableCount).toBe(GUARDED(HEADLINE));
   });
 
   test("a failed headline query costs the headline number, not the report", async () => {
-    const { done } = await runReport({ blackholes: new Set(["older_than:6m"]) });
+    const { done } = await runReport({ blackholes: new Set([HEADLINE]) });
     expect(done.phase).toBe("done");
     expect(done.cleanableCount).toBe(0);
     expect(done.bands.find((b) => b.id === "social").count)

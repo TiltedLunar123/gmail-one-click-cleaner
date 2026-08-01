@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "8.5.0";
+  const POPUP_VERSION = "8.5.1";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -1608,11 +1608,22 @@ document.addEventListener("DOMContentLoaded", () => {
   // The scan is free; executing unsubscribes is the Pro feature. The
   // gate lives here in the UI: the engine itself is not license-aware.
 
+  // 8.5.1: two of these were describing the sender when they were
+  // really describing us. "No 1-click option" reads as "this sender
+  // does not offer one", but the code produces it when it could not
+  // FIND Gmail's control, which until 8.5.1 was mostly a race it lost.
+  // Telling someone their sender is the problem, when the extension is,
+  // is the version of a bug that makes people stop trying.
   const SUBS_STATUS_LABELS = Object.freeze({
     unsubscribed: { text: t("subsStatusUnsubscribed", "Unsubscribed"), cls: "ok" },
-    manual: { text: t("subsStatusManual", "Manual step needed"), cls: "warn" },
-    no_button: { text: t("subsStatusNoButton", "No 1-click option"), cls: "warn" },
+    manual: { text: t("subsStatusManual", "Needs their website"), cls: "warn" },
+    no_button: { text: t("subsStatusNoButton", "No unsubscribe link"), cls: "warn" },
     no_dialog: { text: t("subsStatusUnconfirmed", "Unconfirmed"), cls: "warn" },
+    // The confirm was clicked and Gmail never closed the dialog, so
+    // the sender is NOT done. Reporting it as done would be the one
+    // failure the user cannot detect: they cross it off and the mail
+    // keeps coming.
+    not_confirmed: { text: t("subsStatusUnconfirmed", "Unconfirmed"), cls: "warn" },
     unknown_dialog: { text: t("subsStatusUnconfirmed", "Unconfirmed"), cls: "warn" },
     not_found: { text: t("subsStatusNotFound", "No mail found"), cls: "warn" },
     error: { text: t("subsStatusFailed", "Failed"), cls: "err" }
@@ -2220,7 +2231,20 @@ document.addEventListener("DOMContentLoaded", () => {
       const empty = document.createElement("div");
       empty.className = "scan-empty";
       const text = document.createElement("span");
-      text.textContent = t("reportNothing", "Nothing matched the plan. Your mailbox is already clean.");
+      // 8.5.1: "your mailbox is already clean" printed directly under a
+      // headline of 5,120 read as a broken product, and fairly. Empty
+      // bands and an empty mailbox are different findings: the bands
+      // only cover promotions, social, updates, forums, big
+      // attachments and old Inbox mail, so old mail that is none of
+      // those is real, is counted above, and simply has no step here.
+      const held = Number(state.report.cleanableCount || 0);
+      text.textContent = held > 0
+        ? t(
+          "reportNoStepsButMail",
+          `None of those ${held.toLocaleString()} old emails are promotions, social, updates, forums, big attachments or old Inbox mail, so the plan has no step for them. The Clean tab reaches further: Deep and Maximum are not limited to these groups.`,
+          [held.toLocaleString()]
+        )
+        : t("reportNothing", "Nothing matched the plan. Your mailbox is already clean.");
       empty.appendChild(text);
       elements.reportList.appendChild(empty);
       if (elements.reportPlanBtn) elements.reportPlanBtn.hidden = true;

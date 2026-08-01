@@ -3,6 +3,51 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.5.1 - Unsubscribe actually unsubscribes
+
+### Fixed
+- **Bulk unsubscribe skipped senders whose unsubscribe link was plainly
+  on screen**, and blamed them for it. The engine looked for Gmail's
+  Unsubscribe control exactly once, 300 milliseconds after opening the
+  message, with no retry, while every other control it drives is waited
+  for with a multi-second budget. Gmail renders that link only after it
+  has processed the message's List-Unsubscribe header, which is
+  routinely later than that. So the engine lost a race it did not know
+  it was running, and the row read "No 1-click option", which sounds
+  like the sender's fault and is not. It now waits up to six seconds.
+
+- **"No 1-click option" and "Manual step needed" were describing the
+  sender when they were describing us.** They now read "No unsubscribe
+  link" and "Needs their website".
+
+- **A confirmation Gmail never acknowledged was reported as success.**
+  The code waited for the dialog to close and then ignored the answer,
+  always returning "Unsubscribed". A dialog still sitting there means
+  the click did not take, and that is the one failure a user cannot
+  detect for themselves: they cross the sender off and keep getting the
+  mail. It now reports "Unconfirmed".
+
+- **Finding the control no longer rests on one Gmail class surviving
+  forever.** There is a third fallback for markup carrying neither the
+  class nor the role. It still refuses anything the sender wrote: the
+  message body, list rows, and any real link, because Gmail's control
+  acts in place while a sender's link navigates your tab to them.
+
+- **The report headline counted mail no run could ever touch.** A bare
+  `older_than:6m` searches all mail, which includes Sent, Drafts and
+  Chats, all three of which the cleaner refuses to act on by design. A
+  mailbox full of sent mail produced a five-figure headline above a plan
+  with no steps in it.
+
+- **"Nothing matched the plan. Your mailbox is already clean." printed
+  directly under a headline of 5,120**, which is not a sentence anyone
+  should have to read. Empty bands and an empty mailbox are different
+  findings, and it now says which one it found.
+
+### Changed
+- The popup is 440px wide, up from 380. Four tabs could not hold their
+  own labels at the old width and every list row was fighting for space.
+
 ## 8.5.0 - The number matches the run
 
 ### Fixed

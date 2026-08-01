@@ -259,8 +259,8 @@
   "dryOffToast": { "message": "Testlauf aus" },
 
   "subsStatusUnsubscribed": { "message": "Abbestellt" },
-  "subsStatusManual": { "message": "Manueller Schritt nötig" },
-  "subsStatusNoButton": { "message": "Keine 1-Klick-Option" },
+  "subsStatusManual": { "message": "Braucht ihre Website" },
+  "subsStatusNoButton": { "message": "Kein Link" },
   "subsStatusUnconfirmed": { "message": "Unbestätigt" },
   "subsStatusNotFound": { "message": "Keine Mail gefunden" },
   "subsStatusFailed": { "message": "Fehlgeschlagen" },
@@ -495,5 +495,6 @@
   "runToastReloaded": { "message": "Gmail-Tab neu geladen, um einen übrig gebliebenen Cleaner zu stoppen" },
   "runToastTabRefused": { "message": "Gmail-Tab nicht erreichbar, lade ihn neu und versuche es erneut" },
   "guardNoteText": { "message": "$1 weitere alte E-Mails sind durch deine Filter geschuetzt ($2), werden oben also nicht mitgezaehlt und von einem Durchlauf nicht angefasst." },
-  "guardNoteBtn": { "message": "Filter zeigen" }
+  "guardNoteBtn": { "message": "Filter zeigen" },
+  "reportNoStepsButMail": { "message": "Keine dieser $1 alten E-Mails ist Werbung, Soziales, Update, Forum, grosser Anhang oder alte Posteingangspost, also hat der Plan keinen Schritt dafuer. Der Clean-Tab reicht weiter: Tief und Maximum sind nicht auf diese Gruppen beschraenkt." }
 }

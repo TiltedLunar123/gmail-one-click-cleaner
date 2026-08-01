@@ -259,8 +259,8 @@
   "dryOffToast": { "message": "пробный запуск выключен" },
 
   "subsStatusUnsubscribed": { "message": "Отписано" },
-  "subsStatusManual": { "message": "Нужен ручной шаг" },
-  "subsStatusNoButton": { "message": "Нет отписки в 1 клик" },
+  "subsStatusManual": { "message": "Через их сайт" },
+  "subsStatusNoButton": { "message": "Нет ссылки" },
   "subsStatusUnconfirmed": { "message": "Не подтверждено" },
   "subsStatusNotFound": { "message": "Писем не найдено" },
   "subsStatusFailed": { "message": "Ошибка" },
@@ -495,5 +495,6 @@
   "runToastReloaded": { "message": "вкладка Gmail перезагружена, чтобы остановить зависшую очистку" },
   "runToastTabRefused": { "message": "не удалось обратиться ко вкладке Gmail, перезагрузите её и попробуйте снова" },
   "guardNoteText": { "message": "Ещё $1 старых писем защищены вашими фильтрами ($2), поэтому они не учтены выше и очистка их не тронет." },
-  "guardNoteBtn": { "message": "Показать" }
+  "guardNoteBtn": { "message": "Показать" },
+  "reportNoStepsButMail": { "message": "Ни одно из этих $1 старых писем не относится к промоакциям, соцсетям, обновлениям, форумам, большим вложениям или старой почте во Входящих, поэтому в плане для них нет шага. Вкладка Очистка берет шире: Глубокая и Максимальная не ограничены этими группами." }
 }
