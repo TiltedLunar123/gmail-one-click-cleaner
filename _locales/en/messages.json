@@ -29,7 +29,7 @@
 
   "tabsLabel": { "message": "Cleaner sections" },
   "tabClean": { "message": "Clean" },
-  "tabUnsubscribe": { "message": "Unsubscribe" },
+  "tabUnsubscribe": { "message": "Lists" },
   "tabStorage": { "message": "Storage" },
 
   "smartSummary": { "message": "Suggested · what to clean" },
@@ -493,5 +493,7 @@
   "runToastForced": { "message": "run cleared, cancel was sent first" },
   "runToastStillRunning": { "message": "cancelled, but it has not stopped yet, give it a moment" },
   "runToastReloaded": { "message": "gmail tab reloaded to stop a leftover cleaner" },
-  "runToastTabRefused": { "message": "could not reach the gmail tab, reload it and try again" }
+  "runToastTabRefused": { "message": "could not reach the gmail tab, reload it and try again" },
+  "guardNoteText": { "message": "$1 more old emails are protected by your guards ($2), so they are not counted above and a run will not touch them." },
+  "guardNoteBtn": { "message": "Show guards" }
 }

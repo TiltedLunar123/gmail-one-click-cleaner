@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "8.4.0";
+  const POPUP_VERSION = "8.5.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -162,6 +162,9 @@ document.addEventListener("DOMContentLoaded", () => {
     report: {
       bands: [],
       cleanableCount: 0,
+      // 8.5: old mail the global guards held back, measured by running
+      // the headline query both with and without them.
+      guardedOutCount: 0,
       largeMb: 0,
       topSenders: [],
       updatedAt: 0,
@@ -445,6 +448,9 @@ document.addEventListener("DOMContentLoaded", () => {
     tabUnsubLock: $("tabUnsubLock"),
     tabStorageLock: $("tabStorageLock"),
     reportStamp: $("reportStamp"),
+    reportGuardNote: $("reportGuardNote"),
+    reportGuardNoteText: $("reportGuardNoteText"),
+    reportGuardNoteBtn: $("reportGuardNoteBtn"),
     reportIntro: $("reportIntro"),
     reportScanBtn: $("reportScanBtn"),
     reportScanLabel: $("reportScanLabel"),
@@ -1385,6 +1391,32 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   };
 
+  // 8.5: the guard half of buildConfig, for the read-only scans that
+  // predict a purge.
+  //
+  // The Mailbox Report and the Storage X-ray both count with one query
+  // and then delete with another: the counts went out raw while the
+  // purge went through applyGlobalGuards. A report band said 5,000 and
+  // the run that followed cleared nothing, because `category:updates`
+  // is notification mail nobody opens and `-is:unread` removed all of
+  // it. A number the product shows next to a Clean button has to be the
+  // number that button acts on.
+  //
+  // Sent explicitly rather than left to default, because sanitizeConfig
+  // reads a MISSING guard as ON: a scan that shipped no guards would
+  // count as though all four were set even for a user who turned them
+  // off, which is the same lie pointing the other way.
+  const buildScanGuards = async () => ({
+    safeMode: Boolean(elements.safeModeEl?.checked),
+    minAge: elements.minAgeEl?.value || null,
+    guardSkipStarred: elements.skipStarredEl?.checked ?? true,
+    guardSkipImportant: elements.skipImportantEl?.checked ?? true,
+    guardSkipUnread: elements.skipUnreadEl?.checked ?? true,
+    guardSkipUserLabels: elements.skipLabeledEl?.checked ?? true,
+    whitelist: await getWhitelist(),
+    protectKeywords: await getProtectKeywords()
+  });
+
   // =========================
   // Run cleanup
   // =========================
@@ -2089,6 +2121,47 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  // 8.5: the line that explains a report full of small numbers.
+  //
+  // Every band is now counted through applyGlobalGuards, which is the
+  // only way a band's number can mean what its Clean button will do.
+  // The cost of that honesty is that a user with the default guards on
+  // and a mailbox of unread notifications sees a report of zeroes and
+  // concludes the product is broken. This is the other half: the exact
+  // number of older messages the guards are holding back, and the way
+  // to reach them.
+  const renderGuardNote = () => {
+    const note = elements.reportGuardNote;
+    if (!note) return;
+    const held = Number(state.report.guardedOutCount || 0);
+    // Nothing scanned yet, or the guards are not costing anything worth
+    // interrupting the page for.
+    if (!state.report.updatedAt || held < 1) {
+      note.hidden = true;
+      return;
+    }
+    const which = [];
+    if (elements.skipUnreadEl?.checked ?? true) which.push(t("skipUnread", "Skip Unread"));
+    if (elements.skipLabeledEl?.checked ?? true) which.push(t("skipLabeled", "Skip Labeled"));
+    if (elements.skipStarredEl?.checked ?? true) which.push(t("skipStarred", "Skip Starred"));
+    if (elements.skipImportantEl?.checked ?? true) which.push(t("skipImportant", "Skip Important"));
+    // The guards are all off and something still differs. Nothing to
+    // point the user at, so say nothing rather than guess.
+    if (!which.length) {
+      note.hidden = true;
+      return;
+    }
+    const n = held.toLocaleString();
+    if (elements.reportGuardNoteText) {
+      elements.reportGuardNoteText.textContent = t(
+        "guardNoteText",
+        `${n} more old emails are protected by your guards (${which.join(", ")}), so they are not counted above and a run will not touch them.`,
+        [n, which.join(", ")]
+      );
+    }
+    note.hidden = false;
+  };
+
   const renderReport = () => {
     if (!elements.reportList) return;
     const active = state.subs.licenseActive;
@@ -2121,6 +2194,7 @@ document.addEventListener("DOMContentLoaded", () => {
         ? GCC.relativeTime(state.report.updatedAt)
         : "";
     }
+    renderGuardNote();
     if (elements.reportNote) elements.reportNote.hidden = !state.report.updatedAt;
 
     elements.reportList.textContent = "";
@@ -2250,6 +2324,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!stored?.bands) return;
       state.report.bands = GCC.report.rankBands(stored.bands);
       state.report.cleanableCount = Number(stored.cleanableCount) || 0;
+      state.report.guardedOutCount = Number(stored.guardedOutCount) || 0;
       state.report.largeMb = Number(stored.largeMb) || 0;
       state.report.topSenders = Array.isArray(stored.topSenders) ? stored.topSenders : [];
       state.report.updatedAt = Number(stored.updatedAt) || 0;
@@ -2290,6 +2365,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (Array.isArray(msg.bands)) {
       state.report.bands = GCC.report.rankBands(msg.bands);
       state.report.cleanableCount = Number(msg.cleanableCount) || 0;
+      state.report.guardedOutCount = Number(msg.guardedOutCount) || 0;
       state.report.largeMb = Number(msg.largeMb) || 0;
       state.report.topSenders = Array.isArray(msg.topSenders) ? msg.topSenders : [];
       state.report.updatedAt = Date.now();
@@ -2310,10 +2386,11 @@ document.addEventListener("DOMContentLoaded", () => {
       if (elements.reportScanBtn) elements.reportScanBtn.disabled = true;
       setReportStatus(t("reportScanning", "Reading your mailbox..."));
       showSkeletonRows(elements.reportList, 4);
-      // Read-only, like the other scans: the engine needs nothing from
-      // the cleanup form to count search results.
+      // Read-only, but NOT config-free: the counts have to be measured
+      // through the same guards the purge will run through, or the
+      // report promises mail the run cannot touch.
       const tabId = await injectEngineRun(
-        { runKind: "reportScan", debugMode: state.debugMode },
+        { runKind: "reportScan", debugMode: state.debugMode, ...(await buildScanGuards()) },
         setReportStatus
       );
       if (tabId === null) {
@@ -2631,7 +2708,9 @@ document.addEventListener("DOMContentLoaded", () => {
       setXrayStatus(t("xraySizing", "Sizing up your mailbox..."));
       showSkeletonRows(elements.xrayList, 3);
       const tabId = await injectEngineRun(
-        { runKind: "storageScan", debugMode: state.debugMode },
+        // Same reasoning as the report: the X-ray's tier counts feed a
+        // purge button, so they are measured through the purge's guards.
+        { runKind: "storageScan", debugMode: state.debugMode, ...(await buildScanGuards()) },
         setXrayStatus
       );
       if (tabId === null) {
@@ -4137,6 +4216,23 @@ document.addEventListener("DOMContentLoaded", () => {
     // 8.4 stuck-run banner
     elements.runBannerShowBtn?.addEventListener("click", handleRunBannerShow);
     elements.runBannerResetBtn?.addEventListener("click", handleRunBannerReset);
+
+    // 8.5: the guards live in Advanced on the Clean tab, which is two
+    // clicks and a scroll away from the report that is complaining
+    // about them. Take the user there rather than describing where it
+    // is.
+    elements.reportGuardNoteBtn?.addEventListener("click", () => {
+      state.tabs?.select("tabClean");
+      const advanced = document.getElementById("advancedSection");
+      if (advanced) {
+        advanced.open = true;
+        // After the panel is actually displayed, or the scroll target
+        // has no laid-out position yet.
+        setTimeout(() => {
+          elements.skipUnreadEl?.closest(".toggle")?.scrollIntoView({ block: "center" });
+        }, 60);
+      }
+    });
 
     elements.openOptionsBtn?.addEventListener("click", openOptions);
     elements.openDiagnosticsBtn?.addEventListener("click", openDiagnostics);

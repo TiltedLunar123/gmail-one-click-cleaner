@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "8.4.0";
+  const GCC_CONTENT_VERSION = "8.5.0";
 
   // =========================
   // Timing & behavior constants
@@ -4400,7 +4400,10 @@
         });
 
         try {
-          await openSearch(queries[i]);
+          // 8.5: guarded, because the purge button beside these numbers
+          // runs applyGlobalGuards. Counting raw here promised big mail
+          // that -is:unread and -has:userlabels then held back.
+          await openSearch(applyGlobalGuards(queries[i]));
         } catch (e) {
           if (e instanceof CancellationError) throw e;
           // 8.2: this used to be swallowed. If every tier timed out the
@@ -4527,7 +4530,7 @@
     HEADLINE_QUERY: "older_than:6m",
     // Hard budget. The scan spends one search per entry below; a future
     // band cannot quietly turn a fast scan into a minutes-long one.
-    MAX_QUERIES: 14,
+    MAX_QUERIES: 15,
     SENDER_SAMPLE_CAP: 25,
     TOP_SENDERS: 5,
     // Sender attribution costs nothing extra (the rows are already on
@@ -4551,8 +4554,20 @@
         return;
       }
 
-      const steps = [{ id: "__headline", query: REPORT.HEADLINE_QUERY }]
-        .concat(REPORT_BANDS.map((b) => ({ id: b.id, query: b.query })));
+      // 8.5: every band is measured through applyGlobalGuards, the same
+      // filter the purge runs through, so a band's number is the number
+      // its Clean button will act on. Counting raw is what made a band
+      // read 5,000 and then clear nothing: `category:updates` is
+      // notification mail nobody opens, and the purge's own
+      // `-is:unread` removed all of it.
+      //
+      // The headline is measured BOTH ways. The difference is the mail
+      // the guards are holding back, which is the one number that
+      // explains an empty-looking report, and it costs one search.
+      const steps = [
+        { id: "__headlineRaw", query: REPORT.HEADLINE_QUERY, guarded: false },
+        { id: "__headline", query: REPORT.HEADLINE_QUERY, guarded: true }
+      ].concat(REPORT_BANDS.map((b) => ({ id: b.id, query: b.query, guarded: true })));
 
       // Count the sender-attribution re-runs too. They are cheap but
       // they are still searches, and a future band added without
@@ -4573,35 +4588,48 @@
 
       const counts = Object.create(null);
       let cleanableCount = 0;
+      let unguardedCount = 0;
 
       for (let i = 0; i < steps.length; i++) {
         if (CANCELLED) throw new CancellationError("Scan cancelled by user");
+
+        const searchQuery = steps[i].guarded
+          ? applyGlobalGuards(steps[i].query)
+          : steps[i].query;
 
         safeSendImmediate({
           runKind: "reportScan",
           phase: "running",
           status: `Measuring your mailbox (${i + 1}/${steps.length})...`,
-          detail: steps[i].query,
+          detail: searchQuery,
           percent: Math.round((i / steps.length) * 100)
         });
 
         try {
-          await openSearch(steps[i].query);
+          await openSearch(searchQuery);
         } catch (e) {
           if (e instanceof CancellationError) throw e;
           // One failed band must not lose the whole report. Mirrors the
           // per-tier catch in storageScan.
-          debugLog("Report band query failed, continuing", { query: steps[i].query, error: e?.message });
+          debugLog("Report band query failed, continuing", { query: searchQuery, error: e?.message });
           continue;
         }
 
         const count = countCurrentResults();
-        if (steps[i].id === "__headline") {
+        if (steps[i].id === "__headlineRaw") {
+          unguardedCount = count;
+        } else if (steps[i].id === "__headline") {
           cleanableCount = count;
         } else {
           counts[steps[i].id] = count;
         }
       }
+
+      // What the guards are holding back. Never negative: the guarded
+      // query is a strict subset of the raw one, but a failed search on
+      // either side leaves a zero behind and the subtraction would
+      // otherwise invent a nonsense figure.
+      const guardedOutCount = Math.max(0, unguardedCount - cleanableCount);
 
       const bands = REPORT_BANDS.map((band) => {
         const count = Math.max(0, Math.floor(Number(counts[band.id]) || 0));
@@ -4629,7 +4657,9 @@
         const def = REPORT_BANDS.find((b) => b.id === band.id);
         if (!def) continue;
         try {
-          await openSearch(def.query);
+          // Guarded, like the count it is attributing. Sampling the raw
+          // band would name senders whose mail the purge will not touch.
+          await openSearch(applyGlobalGuards(def.query));
         } catch (e) {
           if (e instanceof CancellationError) throw e;
           continue;
@@ -4661,7 +4691,8 @@
             bands,
             cleanableCount,
             largeMb,
-            topSenders
+            topSenders,
+            guardedOutCount
           });
         }
       } catch (e) {

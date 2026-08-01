@@ -3,6 +3,38 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.5.0 - The number matches the run
+
+### Fixed
+- **A report band said 5,000 and cleaning it removed nothing.** The
+  count and the button were asking Gmail two different questions. The
+  band was counted with its own query, `category:updates older_than:1y`,
+  while the run that followed searched
+  `category:updates older_than:1y -is:starred -is:important -is:unread
+  -has:userlabels`. Updates are notification mail nobody opens, so
+  `-is:unread` removed the entire band and the run cleared zero.
+
+  Every count in the Mailbox Report is now measured through exactly the
+  filter its Clean button applies, so the number on screen is the number
+  that button acts on. Sender attribution is measured the same way, and
+  band ranking changes as a result: a band with more mail but less
+  reachable mail no longer outranks one you can actually clear.
+
+  The Storage X-ray had the identical bug and got the identical fix.
+
+- **A report that reads honestly can still read as empty**, so it now
+  says why. The headline is measured twice, once raw and once guarded,
+  and the difference is shown: "12,431 more old emails are protected by
+  your guards (Skip Unread, Skip Labeled)", with a button that takes you
+  straight to those switches. That costs one extra search.
+
+- **The tab bar overflowed the popup.** Four tabs, two of them carrying
+  a padlock, in 380px, and the labels were long: "Unsubscribe" barely
+  fit, "Cancelar inscrição" and "Se désabonner" never did. The labels
+  are short now, and a tab can shrink below its own text instead of
+  pushing the bar wider, so a long translation ellipsises rather than
+  breaking the layout.
+
 ## 8.4.0 - Sender marks, and a way out of a stuck run
 
 ### Added

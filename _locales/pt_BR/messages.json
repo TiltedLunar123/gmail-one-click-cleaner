@@ -29,7 +29,7 @@
 
   "tabsLabel": { "message": "Seções do limpador" },
   "tabClean": { "message": "Limpar" },
-  "tabUnsubscribe": { "message": "Cancelar inscrição" },
+  "tabUnsubscribe": { "message": "Listas" },
   "tabStorage": { "message": "Espaço" },
 
   "smartSummary": { "message": "Sugestões · o que limpar" },
@@ -493,5 +493,7 @@
   "runToastForced": { "message": "limpeza apagada, o cancelamento foi enviado antes" },
   "runToastStillRunning": { "message": "cancelado, mas ainda não parou, aguarde um momento" },
   "runToastReloaded": { "message": "aba do Gmail recarregada para parar um limpador esquecido" },
-  "runToastTabRefused": { "message": "não foi possível acessar a aba do Gmail, recarregue e tente de novo" }
+  "runToastTabRefused": { "message": "não foi possível acessar a aba do Gmail, recarregue e tente de novo" },
+  "guardNoteText": { "message": "Mais $1 e-mails antigos estao protegidos pelos seus filtros ($2), entao nao entram na conta acima e a limpeza nao vai toca-los." },
+  "guardNoteBtn": { "message": "Ver filtros" }
 }

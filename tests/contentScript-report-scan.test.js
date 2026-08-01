@@ -46,6 +46,32 @@ const COUNTS = {
   "in:inbox older_than:1y newer_than:5y": 900
 };
 
+// What the four default guards leave behind, keyed by rule. Only the
+// rules that need to differ are listed. `category:updates` going to
+// zero is the shape of the bug this models: notification mail is
+// overwhelmingly unread, so `-is:unread` empties the whole band.
+const GUARDED_COUNTS = {
+  "older_than:6m": 4500,
+  "category:promotions older_than:6m": 2000,
+  "category:updates older_than:1y": 0
+};
+
+// sanitizeConfig defaults all four guards ON when the config omits
+// them, and applyGlobalGuards appends them in this order.
+const GUARD_SUFFIX = " -is:starred -is:important -is:unread -has:userlabels";
+const stripGuards = (q) =>
+  q.endsWith(GUARD_SUFFIX) ? q.slice(0, -GUARD_SUFFIX.length) : q;
+
+// What a band's Clean button would actually act on, which since 8.5
+// is also what the band reports. Guards are a filter, never a
+// source, so they can only take the count down.
+const guardedCount = (rule, raw) =>
+  Object.prototype.hasOwnProperty.call(GUARDED_COUNTS, rule)
+    ? Math.min(raw, Number(GUARDED_COUNTS[rule]) || 0)
+    : raw;
+
+const GUARDED = (rule) => guardedCount(rule, Number(COUNTS[rule]) || 0);
+
 const SIZE_FLOORS = {
   "larger:25M older_than:6m": 25,
   "larger:10M smaller:25M older_than:6m": 10,
@@ -84,13 +110,28 @@ function installGmail({ counts = COUNTS, blackholes = new Set(), onSearch = null
     const query = decodeURIComponent(hash.slice("#search/".length));
     searched.push(query);
 
-    if (blackholes.has(query)) {
+    // 8.5: the report measures every band through applyGlobalGuards,
+    // the same filter its Clean button runs through. COUNTS stays keyed
+    // by the RULE so the table still reads as the band list; what
+    // survives the guards is GUARDED_COUNTS, and a rule absent from it
+    // survives whole.
+    const rule = stripGuards(query);
+    const isGuarded = rule !== query;
+
+    if (blackholes.has(rule)) {
       document.body.innerHTML = "<div id='shell'>Loading</div>";
       if (onSearch) onSearch(query, searched.length);
       return;
     }
 
-    const total = Number(counts[query]) || 0;
+    // The guarded column only applies to rules the caller's own table
+    // carries. A test that hands in an empty mailbox means empty, and
+    // must not have the module-level guarded figures put back.
+    // Guards can only ever remove mail, so the guarded figure is the
+    // smaller of the two. Taking the minimum rather than switching
+    // tables is what keeps a caller's explicit zeros at zero.
+    const raw = Number(counts[rule]) || 0;
+    const total = isGuarded ? guardedCount(rule, raw) : raw;
     if (total === 0) {
       // Gmail's settled empty state: the grid is present with no data
       // rows and the td.TC container is painted inside it. openSearch
@@ -205,14 +246,18 @@ describe("mailbox report engine (8.0)", () => {
     expect(Array.isArray(done.bands)).toBe(true);
     expect(done.bands).toHaveLength(I.REPORT_BANDS.length);
     expect(done.bands.map((b) => b.id)).toEqual(I.REPORT_BANDS.map((b) => b.id));
-    expect(done.cleanableCount).toBe(COUNTS["older_than:6m"]);
+    // 8.5: the headline is the GUARDED figure, because that is what a
+    // run would reach. The raw figure is measured too, and the gap
+    // between them is reported separately as guardedOutCount.
+    expect(done.cleanableCount).toBe(GUARDED("older_than:6m"));
+    expect(done.cleanableCount).toBeLessThan(COUNTS["older_than:6m"]);
   });
 
   test("each band reports the count its own query returned", async () => {
     const { I, done } = await runReport();
     const byId = Object.fromEntries(done.bands.map((b) => [b.id, b]));
     for (const band of I.REPORT_BANDS) {
-      expect(`${band.id}:${byId[band.id].count}`).toBe(`${band.id}:${COUNTS[band.query]}`);
+      expect(`${band.id}:${byId[band.id].count}`).toBe(`${band.id}:${GUARDED(band.query)}`);
       expect(`${band.id}:${byId[band.id].kind}`).toBe(`${band.id}:${band.kind}`);
       expect(`${band.id}:${byId[band.id].action}`).toBe(`${band.id}:${band.action}`);
     }
@@ -221,7 +266,7 @@ describe("mailbox report engine (8.0)", () => {
   test("largeMb is the size bands' count * mbFloor and nothing else", async () => {
     const { done } = await runReport();
     const expected = Object.entries(SIZE_FLOORS)
-      .reduce((sum, [query, floor]) => sum + COUNTS[query] * floor, 0);
+      .reduce((sum, [query, floor]) => sum + GUARDED(query) * floor, 0);
 
     expect(done.largeMb).toBe(expected);
     // The noise and inbox bands overlap everything else, so not one of
@@ -247,7 +292,16 @@ describe("mailbox report engine (8.0)", () => {
   test("sender attribution runs on the biggest bands only", async () => {
     const { I, done } = await runReport();
     expect(done.topSenders.length).toBeLessThanOrEqual(I.REPORT.SENDER_BANDS);
-    expect(done.topSenders.map((g) => g.bandId)).toEqual(["promotions", "social"]);
+    // Ranked by the GUARDED count, so this is not the raw ordering.
+    // Promotions has the most mail (8,000) but most of it is unread,
+    // so only 2,000 of it is reachable and social (3,000) outranks
+    // it. Attributing senders by raw size would send the user after
+    // the band their run can do least about.
+    expect(done.topSenders.map((g) => g.bandId)).toEqual(["social", "promotions"]);
+    expect(GUARDED("category:social older_than:6m"))
+      .toBeGreaterThan(GUARDED("category:promotions older_than:6m"));
+    expect(COUNTS["category:social older_than:6m"])
+      .toBeLessThan(COUNTS["category:promotions older_than:6m"]);
     for (const group of done.topSenders) {
       expect(group.senders.length).toBeLessThanOrEqual(I.REPORT.TOP_SENDERS);
       expect(group.senders[0].count).toBeGreaterThanOrEqual(group.senders[1]?.count ?? 0);
@@ -266,7 +320,13 @@ describe("query budget", () => {
 
   test("it issues exactly the headline plus one search per band, plus attribution", async () => {
     const { I } = await runReport();
-    const planned = [I.REPORT.HEADLINE_QUERY, ...I.REPORT_BANDS.map((b) => b.query)];
+    // The headline is measured twice, raw then guarded, so the gap the
+    // guards create can be reported. Every band is guarded.
+    const planned = [
+      I.REPORT.HEADLINE_QUERY,
+      I.REPORT.HEADLINE_QUERY + GUARD_SUFFIX,
+      ...I.REPORT_BANDS.map((b) => b.query + GUARD_SUFFIX)
+    ];
     expect(searched.slice(0, planned.length)).toEqual(planned);
     // Anything beyond the plan is sender attribution re-running a band
     // query that was already part of the plan.
@@ -279,7 +339,7 @@ describe("query budget", () => {
   test("an empty mailbox spends no attribution searches at all", async () => {
     const zeros = Object.fromEntries(Object.keys(COUNTS).map((q) => [q, 0]));
     const { I, done } = await runReport({ counts: zeros });
-    expect(searched).toHaveLength(I.REPORT_BANDS.length + 1);
+    expect(searched).toHaveLength(I.REPORT_BANDS.length + 2);
     expect(done.topSenders).toEqual([]);
     expect(done.largeMb).toBe(0);
     expect(done.cleanableCount).toBe(0);
@@ -292,14 +352,14 @@ describe("a band whose search fails", () => {
     const { done } = await runReport({ blackholes: new Set([broken]) });
 
     expect(done.phase).toBe("done");
-    expect(searched).toContain(broken);
+    expect(searched).toContain(broken + GUARD_SUFFIX);
 
     const byId = Object.fromEntries(done.bands.map((b) => [b.id, b]));
     expect(byId.promotions.count).toBe(0);
     // Every other band still carries its real number.
-    expect(byId.social.count).toBe(COUNTS["category:social older_than:6m"]);
-    expect(byId.sizeBig.count).toBe(COUNTS["larger:5M smaller:10M older_than:6m"]);
-    expect(done.cleanableCount).toBe(COUNTS["older_than:6m"]);
+    expect(byId.social.count).toBe(GUARDED("category:social older_than:6m"));
+    expect(byId.sizeBig.count).toBe(GUARDED("larger:5M smaller:10M older_than:6m"));
+    expect(done.cleanableCount).toBe(GUARDED("older_than:6m"));
   });
 
   test("a failed headline query costs the headline number, not the report", async () => {
@@ -307,7 +367,7 @@ describe("a band whose search fails", () => {
     expect(done.phase).toBe("done");
     expect(done.cleanableCount).toBe(0);
     expect(done.bands.find((b) => b.id === "social").count)
-      .toBe(COUNTS["category:social older_than:6m"]);
+      .toBe(GUARDED("category:social older_than:6m"));
   });
 });
 
