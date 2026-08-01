@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "8.2.0";
+  const SW_VERSION = "8.3.0";
 
   // =========================
   // Storage Keys

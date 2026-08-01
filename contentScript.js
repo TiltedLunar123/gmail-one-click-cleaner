@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "8.2.0";
+  const GCC_CONTENT_VERSION = "8.3.0";
 
   // =========================
   // Timing & behavior constants
@@ -2750,6 +2750,11 @@
     // never start where the pattern expects them and the whole estimate
     // comes back null, so the caller silently falls back to the row
     // count for the current page.
+    // Guard applies to EVERY branch now, not just the range one. The
+    // counter's own node is short; anything long is an ancestor whose
+    // concatenated text happens to contain the word "of".
+    if (text.length > MAX_COUNTER_TEXT_LENGTH) return null;
+
     const ofMatch = text.match(/\bof\s+(?:about\s+)?([\d,.\s]+)/i);
     if (ofMatch) {
       const n = digitsToCount(ofMatch[1]);
@@ -2785,14 +2790,30 @@
     return best;
   }
 
+  // 8.3: this only ever searched div[role="main"], and Gmail renders the
+  // "1-50 of 1,234" counter in the TOOLBAR, outside that element. So on a
+  // normal result page the total was never found, and every caller fell
+  // back to getGridRowCount(): one page, fifty rows. That is why the
+  // Mailbox Report showed 50 against band after band on a mailbox holding
+  // tens of thousands of messages, and why the guardrails that size a run
+  // were reading a page instead of a match set. Search main first, then
+  // the toolbar, then the document.
   function estimateTotalResults() {
-    const mainRoot = getMainRoot();
-    const nodes = qsa("span, div", mainRoot);
+    const scopes = [];
+    const main = qs(SELECTORS.main);
+    if (main) scopes.push(main);
+    const toolbar = findToolbarRoot();
+    if (toolbar) scopes.push(toolbar);
+    scopes.push(document);
 
-    for (const el of nodes) {
-      const text = getTextContent(el);
-      const count = parseCountFromText(text);
-      if (count !== null) return count;
+    const seen = new Set();
+    for (const scope of scopes) {
+      if (!scope || seen.has(scope)) continue;
+      seen.add(scope);
+      for (const el of qsa("span, div", scope)) {
+        const count = parseCountFromText(getTextContent(el));
+        if (count !== null) return count;
+      }
     }
 
     return null;
@@ -5736,6 +5757,7 @@
       labelQuery,
       applyGlobalGuards,
       parseCountFromText,
+      estimateTotalResults,
       sanitizeConfig,
       clickSelectAllConversations,
       handleBulkConfirmation,
