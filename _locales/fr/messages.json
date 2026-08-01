@@ -474,5 +474,9 @@
   "reportRescanSub": { "message": "Gratuit · met à jour les comptes ci-dessous" },
   "intMaximum": { "message": "Maximum · Tout le Deep, plus récent et plus large" },
   "maxConfirmLabel": { "message": "confirmer le nettoyage maximum ?" },
-  "maxConfirmStatus": { "message": "le Maximum touche du courrier récent et votre boîte - cliquez encore pour confirmer" }
+  "maxConfirmStatus": { "message": "le Maximum touche du courrier récent et votre boîte - cliquez encore pour confirmer" },
+  "skipUnread": { "message": "Ignorer non lus" },
+  "skipUnreadAria": { "message": "Ignorer les e-mails non lus" },
+  "skipLabeled": { "message": "Ignorer les libellés" },
+  "skipLabeledAria": { "message": "Ignorer les e-mails que vous avez libellés" }
 }

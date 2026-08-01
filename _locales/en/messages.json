@@ -474,5 +474,9 @@
   "reportRescanSub": { "message": "Free · updates the counts below" },
   "intMaximum": { "message": "Maximum · Everything Deep does, younger and wider" },
   "maxConfirmLabel": { "message": "confirm maximum clean?" },
-  "maxConfirmStatus": { "message": "maximum reaches recent mail and your Inbox - click run again to confirm" }
+  "maxConfirmStatus": { "message": "maximum reaches recent mail and your Inbox - click run again to confirm" },
+  "skipUnread": { "message": "Skip Unread" },
+  "skipUnreadAria": { "message": "Skip unread emails" },
+  "skipLabeled": { "message": "Skip Labeled" },
+  "skipLabeledAria": { "message": "Skip emails you have labeled" }
 }

@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "8.1.0";
+  const POPUP_VERSION = "8.2.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -336,6 +336,8 @@ document.addEventListener("DOMContentLoaded", () => {
     safeModeEl: $("safeMode"),
     skipStarredEl: $("skipStarred"),
     skipImportantEl: $("skipImportant"),
+    skipUnreadEl: $("skipUnread"),
+    skipLabeledEl: $("skipLabeled"),
 
     openOptionsBtn: $("openOptions"),
     openDiagnosticsBtn: $("openDiagnostics"),
@@ -444,6 +446,7 @@ document.addEventListener("DOMContentLoaded", () => {
     reportUpsellText: $("reportUpsellText"),
     reportBuyLink: $("reportBuyLink"),
     reportEnterKey: $("reportEnterKey"),
+    autoPilotProPill: $("autoPilotProPill"),
     reportNote: $("reportNote"),
 
     // 8.0 Pro proof panel
@@ -718,7 +721,12 @@ document.addEventListener("DOMContentLoaded", () => {
     reviewMode: Boolean(elements.reviewModeEl?.checked),
     safeMode: Boolean(elements.safeModeEl?.checked),
     guardSkipStarred: Boolean(elements.skipStarredEl?.checked),
-    guardSkipImportant: Boolean(elements.skipImportantEl?.checked)
+    guardSkipImportant: Boolean(elements.skipImportantEl?.checked),
+    // Sent explicitly, because the engine reads a MISSING key as "on"
+    // (`config.guardSkipUnread !== false`). Leaving them out was what
+    // made both guards permanent and invisible.
+    guardSkipUnread: Boolean(elements.skipUnreadEl?.checked),
+    guardSkipUserLabels: Boolean(elements.skipLabeledEl?.checked)
   });
 
   const persistLastConfig = async (config) => {
@@ -774,9 +782,14 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.safeModeEl) elements.safeModeEl.checked = Boolean(ui.safeMode);
     if (elements.skipStarredEl) elements.skipStarredEl.checked = Boolean(ui.guardSkipStarred);
     if (elements.skipImportantEl) elements.skipImportantEl.checked = Boolean(ui.guardSkipImportant);
+    // Restored with `!== false` so a config saved before these existed
+    // keeps the old behaviour instead of silently switching the guards off.
+    if (elements.skipUnreadEl) elements.skipUnreadEl.checked = ui.guardSkipUnread !== false;
+    if (elements.skipLabeledEl) elements.skipLabeledEl.checked = ui.guardSkipUserLabels !== false;
 
     [elements.dryRunEl, elements.reviewModeEl, elements.safeModeEl,
-     elements.skipStarredEl, elements.skipImportantEl].forEach(syncSwitchAria);
+     elements.skipStarredEl, elements.skipImportantEl,
+     elements.skipUnreadEl, elements.skipLabeledEl].forEach(syncSwitchAria);
   };
 
   const setActiveRun = async (gmailTabId, runId) => {
@@ -1343,6 +1356,8 @@ document.addEventListener("DOMContentLoaded", () => {
       minAge: elements.minAgeEl?.value || null,
       guardSkipStarred: elements.skipStarredEl?.checked ?? true,
       guardSkipImportant: elements.skipImportantEl?.checked ?? true,
+      guardSkipUnread: elements.skipUnreadEl?.checked ?? true,
+      guardSkipUserLabels: elements.skipLabeledEl?.checked ?? true,
       reviewMode: Boolean(elements.reviewModeEl?.checked),
       whitelist,
       protectKeywords,
@@ -1571,15 +1586,30 @@ document.addEventListener("DOMContentLoaded", () => {
     // always shows and simply changes what it says, and the tab bar
     // carries a small padlock, so a user who never opens a tab still
     // learns a paid tier exists.
-    if (elements.subsProPill) {
-      elements.subsProPill.hidden = false;
-      elements.subsProPill.classList.toggle("is-active", active);
-      elements.subsProPill.textContent = active
-        ? t("proActive", "Pro active")
-        : t("proShort", "Pro");
+    // 8.2: these pills exist to tell a FREE user a paid tier is there.
+    // Once a licence verifies they are just noise on every section, and
+    // the Auto-Pilot one was static markup that nothing ever updated, so
+    // it sat there in gold saying "Pro" to people who had bought it.
+    // Hide all three when active; the footer still confirms the licence.
+    for (const pill of [elements.subsProPill, elements.xrayProPill, elements.autoPilotProPill]) {
+      if (!pill) continue;
+      if (active) {
+        pill.setAttribute("hidden", "");
+      } else {
+        pill.removeAttribute("hidden");
+        pill.classList.remove("is-active");
+        pill.textContent = t("proShort", "Pro");
+      }
     }
-    if (elements.tabUnsubLock) elements.tabUnsubLock.hidden = active;
-    if (elements.tabStorageLock) elements.tabStorageLock.hidden = active;
+    // These are SVG elements, and `hidden` is an HTMLElement property.
+    // Assigning it on an SVGElement sets a plain JS property and never
+    // reflects to the attribute, so the padlock stayed on the tabs even
+    // after a licence verified. Set the attribute directly.
+    for (const lock of [elements.tabUnsubLock, elements.tabStorageLock]) {
+      if (!lock) continue;
+      if (active) lock.setAttribute("hidden", "");
+      else lock.removeAttribute("hidden");
+    }
     if (elements.subsUpsell) elements.subsUpsell.hidden = active;
     if (elements.unsubBtnSub) {
       elements.unsubBtnSub.textContent = active
@@ -1592,13 +1622,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.proPromo) elements.proPromo.hidden = active;
 
     // 7.2 storage X-ray shares the same license.
-    if (elements.xrayProPill) {
-      elements.xrayProPill.hidden = false;
-      elements.xrayProPill.classList.toggle("is-active", active);
-      elements.xrayProPill.textContent = active
-        ? t("proActive", "Pro active")
-        : t("proShort", "Pro");
-    }
     if (elements.xrayBuyLink) elements.xrayBuyLink.href = GCC.license.buyUrl("storage_xray");
     if (elements.xrayPurgeBtn) elements.xrayPurgeBtn.classList.toggle("locked", !active);
     if (elements.xrayPurgeBtnSub) {
@@ -3655,7 +3678,9 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.reviewModeEl,
       elements.safeModeEl,
       elements.skipStarredEl,
-      elements.skipImportantEl
+      elements.skipImportantEl,
+      elements.skipUnreadEl,
+      elements.skipLabeledEl
     ].filter(Boolean);
 
     watch.forEach((el) => {

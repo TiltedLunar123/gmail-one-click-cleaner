@@ -474,5 +474,9 @@
   "reportRescanSub": { "message": "無料 · 下の件数を更新します" },
   "intMaximum": { "message": "最大 · Deepの内容すべてを、より新しく広く" },
   "maxConfirmLabel": { "message": "最大クリーンアップを実行しますか?" },
-  "maxConfirmStatus": { "message": "最大は最近のメールと受信トレイにも及びます。もう一度クリックで確定" }
+  "maxConfirmStatus": { "message": "最大は最近のメールと受信トレイにも及びます。もう一度クリックで確定" },
+  "skipUnread": { "message": "未読をスキップ" },
+  "skipUnreadAria": { "message": "未読メールをスキップ" },
+  "skipLabeled": { "message": "ラベル付きをスキップ" },
+  "skipLabeledAria": { "message": "自分でラベルを付けたメールをスキップ" }
 }

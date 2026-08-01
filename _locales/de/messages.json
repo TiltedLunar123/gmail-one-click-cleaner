@@ -474,5 +474,9 @@
   "reportRescanSub": { "message": "Gratis · aktualisiert die Zahlen unten" },
   "intMaximum": { "message": "Maximum · Alles aus Deep, jünger und breiter" },
   "maxConfirmLabel": { "message": "maximale Bereinigung bestätigen?" },
-  "maxConfirmStatus": { "message": "Maximum erfasst neuere Mails und den Posteingang - zum Bestätigen erneut klicken" }
+  "maxConfirmStatus": { "message": "Maximum erfasst neuere Mails und den Posteingang - zum Bestätigen erneut klicken" },
+  "skipUnread": { "message": "Ungelesene überspringen" },
+  "skipUnreadAria": { "message": "Ungelesene E-Mails überspringen" },
+  "skipLabeled": { "message": "Mit Label überspringen" },
+  "skipLabeledAria": { "message": "E-Mails mit deinen Labels überspringen" }
 }

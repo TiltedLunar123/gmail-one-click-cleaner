@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "8.1.0";
+  const GCC_CONTENT_VERSION = "8.2.0";
 
   // =========================
   // Timing & behavior constants
@@ -3970,15 +3970,27 @@
     }
   }
 
-  // Open a conversation from the current result list. Prefers an
-  // already-read row (class zE) so the run changes as little mailbox
-  // state as possible; opening an unread one only flips it to read.
+  // Open a conversation from the current result list, preferring one
+  // that is already read so the run changes as little mailbox state as
+  // possible.
+  //
+  // 8.2: this preferred `zE` and its comment called that "already
+  // read". In Gmail `tr.zA.zE` is the UNREAD row; a read row carries
+  // `yO`. So the unsubscribe run was systematically opening unread mail
+  // and marking it read, which is the one side effect the preference
+  // existed to avoid. The fixture in tests/contentScript-subscriptions
+  // marked every row `zA zE`, so no test could tell the difference.
+  // Prefer `yO`, fall back to any row that is not flagged unread, then
+  // to the first row.
   async function openMessageFromCurrentList() {
     const rows = qsa('tr[role="row"]', getMainRoot());
     if (!rows.length || hasNoResults()) {
       return { opened: false, reason: "no_results" };
     }
-    const row = rows.find((r) => r.classList.contains("zE")) || rows[0];
+    const row =
+      rows.find((r) => r.classList.contains("yO")) ||
+      rows.find((r) => !r.classList.contains("zE")) ||
+      rows[0];
     const cell = qsFirst(SELECTORS.subjectCell, row);
     fireMouseSequence(cell || row);
     const opened = await waitFor(
@@ -4036,6 +4048,7 @@
     CANCELLED = false;
     const originHash = location.hash;
     const bySender = new Map();
+    let failedQueries = 0;
 
     try {
       if (!isGmailTab()) {
@@ -4068,6 +4081,7 @@
         } catch (e) {
           if (e instanceof CancellationError) throw e;
           debugLog("Scan query failed, continuing", { query: queries[i], error: e?.message });
+          failedQueries++;
           continue;
         }
 
@@ -4099,12 +4113,19 @@
       safeSendImmediate({
         runKind: "subscriptionScan",
         phase: "done",
-        status: `Found ${senders.length} subscription senders.`,
+        status: senders.length
+          ? `Found ${senders.length} subscription senders.`
+          : (failedQueries === queries.length
+            ? "Gmail did not respond to the scan."
+            : "Found 0 subscription senders."),
         detail: senders.length
-          ? "Pick the ones you never read and unsubscribe in one pass."
-          : "No subscription-style mail found in the last year.",
+          ? `Pick the ones you never read and unsubscribe in one pass.${failedQueries ? ` ${failedQueries} of ${queries.length} searches timed out, so this list is incomplete.` : ""}`
+          : (failedQueries === queries.length
+            ? "Every search timed out. Reload the Gmail tab and try again."
+            : "No subscription-style mail found in the last year."),
         percent: 100,
         done: true,
+        failedQueries,
         scanSenders: senders
       });
     } catch (e) {
@@ -4329,6 +4350,7 @@
     CANCELLED = false;
     const originHash = location.hash;
     const bySender = new Map();
+    let failedQueries = 0;
 
     try {
       if (!isGmailTab()) {
@@ -4360,6 +4382,11 @@
           await openSearch(queries[i]);
         } catch (e) {
           if (e instanceof CancellationError) throw e;
+          // 8.2: this used to be swallowed. If every tier timed out the
+          // scan still reported a tidy "No large mail found", which is a
+          // different claim from "Gmail never answered" and sent people
+          // looking for a bug in the wrong place.
+          failedQueries++;
           debugLog("Storage tier query failed, continuing", { query: queries[i], error: e?.message });
           continue;
         }
@@ -4396,10 +4423,15 @@
         phase: "done",
         status: senders.length
           ? `Found at least ${totalMb.toLocaleString()} MB in large mail.`
-          : "No large mail found.",
+          : (failedQueries === queries.length
+            ? "Gmail did not respond to the scan."
+            : "No large mail found."),
         detail: senders.length
-          ? `${totalCount.toLocaleString()} large emails across ${senders.length} senders.`
-          : "Nothing bigger than 5 MB turned up.",
+          ? `${totalCount.toLocaleString()} large emails across ${senders.length} senders.${failedQueries ? ` ${failedQueries} of ${queries.length} searches timed out, so this is a partial result.` : ""}`
+          : (failedQueries === queries.length
+            ? "Every search timed out. Reload the Gmail tab and try again."
+            : "Nothing bigger than 5 MB turned up."),
+        failedQueries,
         percent: 100,
         done: true,
         scanSenders: senders,
