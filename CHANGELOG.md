@@ -1030,7 +1030,7 @@ joined by a list **you** control.
 - **Protected keywords.** A new "Protected Keywords (Never Delete)"
   section on the Options page. Any word or phrase you list there protects
   every message whose **subject** contains it from *every* rule, by
-  appending a single `-subject:(kw1 OR "two words" OR …)` clause to each
+  appending a single `-subject:(kw1 OR "two words" OR ...)` clause to each
   search. Where the Whitelist protects by sender, this protects by
   subject content (e.g. `tax`, `invoice`, `"flight confirmation"`,
   `lease`). It applies to manual *and* scheduled runs, in both live and
@@ -1044,7 +1044,7 @@ joined by a list **you** control.
 - Keywords are sanitized at three layers (options page, popup, and a
   defence-in-depth copy at the engine boundary): quoting, grouping, and
   boolean operators are stripped so a keyword can never break out of the
-  `subject:( … )` group it is injected into; the list is trimmed,
+  `subject:( ... )` group it is injected into; the list is trimmed,
   deduped case-insensitively, and capped (25 keywords, 50 chars each).
   The only failure mode is "protect more mail," which is the safe
   direction. No new permissions.
@@ -1210,7 +1210,7 @@ killing the run (≤5.0.1).
   now resolve in well under a second; `hasNoResults()` downstream
   classifies them with `count=0` cleanly.
 - `waitFor()` accepts an optional `onTick` callback; `openSearch`
-  uses it to surface "Still waiting for search results (Ns)…" beats
+  uses it to surface "Still waiting for search results (Ns)..." beats
   every ~5s so the user has evidence the engine isn't dead while
   Gmail is slow to render a heavy search.
 
@@ -1233,7 +1233,7 @@ override wins reliably.
 
 The meta CSP on every extension page declared `img-src 'self'`, which
 blocks `data:` URLs. The select-dropdown chevron (an inline
-`url("data:image/svg+xml,…")` background image in `popup.html` and
+`url("data:image/svg+xml,...")` background image in `popup.html` and
 `options.html`) tripped this on every render, producing a console
 error and dropping the down-arrow glyph on the rule-intensity / age
 selects.
@@ -1429,7 +1429,7 @@ features, and shipping a deep deglitch + test pass across the codebase.
   - Added a real button state machine (starting, running, success) with better status copy.
   - Added toast notifications for key actions and failures.
   - Added best-effort popup progress bar (so users get feedback before the popup auto-closes).
-  - Added “open gmail” helper when no Gmail tab is detected.
+  - Added "open gmail" helper when no Gmail tab is detected.
   - Persisted last-used config more reliably (session + local fallback) so runs feel consistent.
 
 - **Active run detection + quick actions**
@@ -1442,7 +1442,7 @@ features, and shipping a deep deglitch + test pass across the codebase.
     - Activity log with timestamps + log levels
     - Copy logs / Clear logs controls
     - Per-query summary table with counts + duration
-    - Cleaner “done / cancelled / error” end states
+    - Cleaner "done / cancelled / error" end states
   - Added keyboard shortcuts:
     - `Esc` cancels run (or skips review when a review modal is open)
     - `Enter` proceeds in review modal
@@ -1457,7 +1457,7 @@ features, and shipping a deep deglitch + test pass across the codebase.
   - **Re-inject** button: re-injects last config (if available) + content script to resume progress messaging.
 
 - **Share + support polish**
-  - Added “Share” flow (copy Web Store link to clipboard, fallback to opening the link).
+  - Added "Share" flow (copy Web Store link to clipboard, fallback to opening the link).
   - Tip intent tracking stored locally (user-initiated link clicks only).
 
 - **Internal hardening**
@@ -1483,7 +1483,7 @@ features, and shipping a deep deglitch + test pass across the codebase.
   - **Soft Rating Prompt:** A gentle request for a 5-star rating appears after 2-3 successful runs.
 
 - **Affiliate & Support**
-  - Added "Jude’s cheap storage & setup picks" section in the Popup and Progress window to recommend physical storage solutions for users running out of digital space.
+  - Added "Jude's cheap storage & setup picks" section in the Popup and Progress window to recommend physical storage solutions for users running out of digital space.
 
 ## 3.0.0
 
@@ -1504,16 +1504,16 @@ features, and shipping a deep deglitch + test pass across the codebase.
 
 - Stability + clarity patch focused on safer runs and more honest feedback:
   - Added a soft cap on how many conversations a single run will act on, with a confirmation step before continuing on very large inboxes.
-  - Improved handling of empty or failed Gmail searches so runs end with clear “nothing matched” or “search failed” messages instead of looking like a silent success.
+  - Improved handling of empty or failed Gmail searches so runs end with clear "nothing matched" or "search failed" messages instead of looking like a silent success.
 
 - More accurate progress and end-of-run reporting:
   - Progress bar now reflects the number of conversations matched at the start of the run, not just rough batches.
-  - Tracked counts for “checked”, “labeled / archived”, and “skipped” threads and surfaced them in the end-of-run summary.
-  - Dry Run now ends with a “would have affected” summary so you can see what a real run would do without touching your inbox.
+  - Tracked counts for "checked", "labeled / archived", and "skipped" threads and surfaced them in the end-of-run summary.
+  - Dry Run now ends with a "would have affected" summary so you can see what a real run would do without touching your inbox.
 
 - Better safety and recovery behavior:
-  - Hardened the content script boot sequence to avoid duplicate injection and to fail visibly if Gmail isn’t ready.
-  - Ensured runs cannot stay stuck in a “Running” state after errors, and that cancel / stop exits cleanly.
+  - Hardened the content script boot sequence to avoid duplicate injection and to fail visibly if Gmail isn't ready.
+  - Ensured runs cannot stay stuck in a "Running" state after errors, and that cancel / stop exits cleanly.
 
 - Optional Debug mode for advanced users:
   - New toggle in settings that logs key events (start, batches, errors) with a consistent prefix in the browser console.
@@ -1525,11 +1525,11 @@ features, and shipping a deep deglitch + test pass across the codebase.
 
 - Added new safety guardrails and a non-destructive mode option:
   - You can now choose to **archive** matching conversations instead of deleting them for extra-safe first runs.
-  - New global guardrail can skip **starred** and **Important** threads so they’re never touched by bulk cleanups.
-  - Added a “minimum age” dropdown so rule sets only act on mail older than 3, 6, or 12 months, even if a rule is looser.
+  - New global guardrail can skip **starred** and **Important** threads so they're never touched by bulk cleanups.
+  - Added a "minimum age" dropdown so rule sets only act on mail older than 3, 6, or 12 months, even if a rule is looser.
 
 - Improved rule editing and testing on the Options page:
-  - Each rule set now includes a quick “open in Gmail” test action so you can preview what a query will match before running a cleanup.
+  - Each rule set now includes a quick "open in Gmail" test action so you can preview what a query will match before running a cleanup.
   - Clarified copy around what Light / Normal / Deep target and how Safe Mode further narrows the rules.
 
 - Internal configuration cleanup:
@@ -1539,7 +1539,7 @@ features, and shipping a deep deglitch + test pass across the codebase.
 ## 2.9.8
 
 - Fixed issues when running in Brave and multi-Gmail setups:
-  - Improved detection of the “active” Gmail tab so cleanup runs against the right account.
+  - Improved detection of the "active" Gmail tab so cleanup runs against the right account.
   - Reduced dependence on the extension docs / options tab being in focus.
 - Hardened content script messaging and reconnection behavior when Gmail reloads mid-run.
 - Small polish to the Progress window layout and copy.
@@ -1550,7 +1550,7 @@ features, and shipping a deep deglitch + test pass across the codebase.
 - Added a richer Progress window:
   - Live percent complete and current phase text.
   - A summary table with per-query counts and durations.
-  - “Tags” area for showing current rule labels / hints.
+  - "Tags" area for showing current rule labels / hints.
 - Added **Reconnect** and **Re-inject** buttons to recover from:
   - Gmail reloads
   - Lost content script connections
@@ -1569,7 +1569,7 @@ features, and shipping a deep deglitch + test pass across the codebase.
 
 ## 2.9.5
 
-- Added optional “tag before trash” behavior in the cleanup flow:
+- Added optional "tag before trash" behavior in the cleanup flow:
   - Before deleting, messages can be tagged with a dedicated Gmail label.
   - This makes it easier to search the Trash by that label and verify results.
 - Internal changes to how rule metadata is passed from options → progress page.
@@ -1608,7 +1608,7 @@ features, and shipping a deep deglitch + test pass across the codebase.
 
 - Added **Safe Mode** toggle:
   - Runs only the safest, least risky rule subset.
-  - Skips any “heavier” queries that might get too close to long-term history.
+  - Skips any "heavier" queries that might get too close to long-term history.
 - Improved **Dry Run** behavior:
   - Ensures no destructive actions are taken when Dry Run is on.
   - Still drives the UI and progress screen so users can see what would happen.
@@ -1617,7 +1617,7 @@ features, and shipping a deep deglitch + test pass across the codebase.
 
 - Major internal refactor of the run logic:
   - Centralized state management for phases, counts, and errors.
-  - Clear separation between “rules” and “execution engine”.
+  - Clear separation between "rules" and "execution engine".
 - Better handling of Gmail rate limits and slower accounts:
   - Slight randomized delays between operations.
   - Reduced chance of hitting hard limits during long runs.
@@ -1628,7 +1628,7 @@ features, and shipping a deep deglitch + test pass across the codebase.
 
 - Added support for more Gmail categories (Updates, Forums) in some rule sets.
 - Tuned large-attachment filters (e.g. `larger:20M`, `has:attachment larger:10M older_than:6m`).
-- Fixed occasional issues where “Select all conversations” was not clicked properly on some layouts.
+- Fixed occasional issues where "Select all conversations" was not clicked properly on some layouts.
 - First iteration of the dark theme for the progress window.
 
 ---

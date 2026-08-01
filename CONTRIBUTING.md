@@ -1,6 +1,8 @@
 # Contributing to Gmail One-Click Cleaner
 
-Thanks for your interest in contributing! Here's how to get started.
+This extension deletes people's mail, so the bar for changes that touch the cleaning
+engine is higher than the code alone would suggest. Read the safety notes below before
+you start on anything in that area.
 
 ## Development Setup
 

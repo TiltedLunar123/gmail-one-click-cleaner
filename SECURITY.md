@@ -12,8 +12,8 @@ I aim to support the latest published store release (Chrome Web Store and Firefo
 
 | Version | Status | Description |
 | :--- | :--- | :--- |
-| **Latest store release (7.x)** | ✅ Supported | Current Chrome Web Store / Firefox Add-ons release (recommended) |
-| **Dev / Unpacked** | ⚠️ Best-effort | Current GitHub or local “Load unpacked” build |
+| Latest store release (8.x) | Supported | Current Chrome Web Store / Firefox Add-ons release, and what I recommend you run |
+| Dev / unpacked | Best effort | Current GitHub checkout or a local "Load unpacked" build |
 
 If you find a security issue in an older version, please confirm it still exists in the latest Stable or Dev build before reporting.
 
@@ -41,7 +41,7 @@ Gmail One-Click Cleaner requests only the permissions needed to automate cleanup
   - Powers scheduled cleanups and the weekly Auto-Pilot sweep (Pro). Timers only; no data involved.
 
 - `notifications`
-  - Shows the local “cleanup finished” notification. Nothing is sent anywhere.
+  - Shows the local "cleanup finished" notification. Nothing is sent anywhere.
 
 ### Host permissions
 
@@ -59,22 +59,22 @@ Inside Gmail, the extension:
   - Detect result state and selection counts
   - Click built-in Gmail UI controls (select all, label, move to Trash, archive)
 
-- Uses **Gmail’s own search syntax** (example: `category:promotions older_than:6m`) to target low-value mail.
+- Uses **Gmail's own search syntax** (example: `category:promotions older_than:6m`) to target low-value mail.
 
 - **Subscription scan + bulk unsubscribe:** samples the sender
   addresses behind subscription-style mail so the popup can list who is
   filling your inbox (the scan is read-only and changes nothing). For
   the senders you choose, the extension opens one of their messages and
-  clicks **Gmail’s own built-in Unsubscribe control** (the header
+  clicks **Gmail's own built-in Unsubscribe control** (the header
   "Unsubscribe" link and its confirmation dialog). It never follows
   unsubscribe links inside message bodies, which can point anywhere;
-  only Gmail’s native, list-unsubscribe-backed control is used. Sender
+  only Gmail's native, list-unsubscribe-backed control is used. Sender
   addresses are validated to a strict email shape before being placed
   in a `from:(...)` search, so a crafted address can never break out of
   the query.
 
 - **Storage X-ray and Smart Suggestions scans:** both are read-only.
-  They walk Gmail’s own size searches (`larger:25M` etc.) and a small
+  They walk Gmail's own size searches (`larger:25M` etc.) and a small
   set of signal queries (unread ratio, age, starred, Sent activity) to
   rank senders locally. Applying a suggestion or purge runs as an
   ordinary cleanup with every guard below intact.
@@ -95,7 +95,7 @@ Inside Gmail, the extension:
   - **Review Mode:** If enabled, the run pauses and the Progress page asks you to **Proceed** or **Skip** before acting on a batch.
   - **Monthly Light Clean preset:** A predefined local configuration (Safe Mode on, Trash action, 3-month age limit).
 
-- Uses Gmail’s controls to:
+- Uses Gmail's controls to:
   - Select conversations
   - Apply labels like `GmailCleaner - Promotions` (optional, before action)
   - Move selected conversations to **Trash** or **All Mail** (Archive)
@@ -149,7 +149,7 @@ The extension stores small values using `chrome.storage` so your settings persis
   mail it acted on, so you can find that mail again in Trash or All
   Mail.
 
-Those last three are the only places any part of your mailbox’s contents
+Those last three are the only places any part of your mailbox's contents
 is persisted, and it is limited to sender addresses, searches and thread
 IDs, never message content. All three are local to the device: they are
 never synced and never transmitted anywhere.
@@ -161,11 +161,11 @@ stored or sent.
 
 ## Network calls
 
-The extension does not “phone home” and does not use analytics trackers.
+The extension does not "phone home" and does not use analytics trackers.
 It never contacts a server on its own, not on startup, not during a
 cleanup, and **not even to check your Pro license**. License keys are
 verified entirely offline: the extension carries the matching public
-key and checks the signature with the browser’s built-in WebCrypto. A
+key and checks the signature with the browser's built-in WebCrypto. A
 valid key works with no network at all.
 
 External network activity happens only when **you** initiate it:
@@ -218,7 +218,7 @@ install source next to the version.
 
 ## Progress, Messaging, and Safety Signals
 
-During a run, the extension uses Chrome’s local extension messaging:
+During a run, the extension uses Chrome's local extension messaging:
 - Content script sends progress updates to the Progress page (`chrome.runtime.onMessage`)
 - Progress page can send control signals back to the Gmail tab:
   - Cancel
@@ -237,7 +237,7 @@ A Diagnostics page is included to help debug tab selection and injection issues:
 - Lists open Gmail tabs (tab ID/window ID, truncated URL)
 - Shows which Gmail tab the popup will pick
 - Shows environment info (browser/platform/extension version and permissions)
-- Can run a **Test inject** that logs a timestamp/URL to the Gmail tab’s console
+- Can run a **Test inject** that logs a timestamp/URL to the Gmail tab's console
 
 Diagnostics are meant for troubleshooting selector issues, tab selection, and script injection problems. They do not read or send email content.
 
@@ -245,7 +245,7 @@ Diagnostics are meant for troubleshooting selector issues, tab selection, and sc
 
 ## How to Report a Vulnerability
 
-If you believe you’ve found a security or privacy issue (unexpected data access, arbitrary code execution, permission misuse, etc.):
+If you believe you've found a security or privacy issue (unexpected data access, arbitrary code execution, permission misuse, etc.):
 
 1. Do **not** post full exploit details publicly (Chrome reviews, social media).
 2. Collect:
@@ -257,7 +257,7 @@ If you believe you’ve found a security or privacy issue (unexpected data acces
 
 3. Report via one of:
    - **GitHub Issues:** Create an issue titled **[Security] ...** with a high-level, non-sensitive summary.
-   - **Chrome Web Store Support:** Use “Security issue” in the subject with a high-level summary.
+   - **Chrome Web Store Support:** Use "Security issue" in the subject with a high-level summary.
 
 If extra-sensitive details are needed, you can offer to share them privately after initial triage.
 
@@ -268,9 +268,9 @@ If extra-sensitive details are needed, you can offer to share them privately aft
 Please allow reasonable time to investigate and fix issues before public disclosure.
 
 In general:
-- I’ll acknowledge security-relevant reports quickly.
+- I'll acknowledge security-relevant reports quickly.
 - Serious issues are prioritized for a Web Store update.
-- Release notes may reference “security hardening” without disclosing exploit details until most users have updated.
+- Release notes may reference "security hardening" without disclosing exploit details until most users have updated.
 
 ---
 
