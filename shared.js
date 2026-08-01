@@ -614,6 +614,11 @@ const GCC = (() => {
     return `-subject:(${terms.join(" OR ")})`;
   };
 
+  // The project's own ceiling for a single Gmail search. 8.0 made it a
+  // named constant because the Storage X-ray purge builder has to pack
+  // addresses against it, and a second hardcoded 512 would drift.
+  const MAX_QUERY_CHARS = 512;
+
   const validateGmailQuery = (rawQuery) => {
     const errors = [];
     const warnings = [];
@@ -623,8 +628,8 @@ const GCC = (() => {
       errors.push("Query is empty");
       return { valid: false, errors, warnings };
     }
-    if (q.length > 512) {
-      errors.push(`Query is too long (${q.length} chars, max 512)`);
+    if (q.length > MAX_QUERY_CHARS) {
+      errors.push(`Query is too long (${q.length} chars, max ${MAX_QUERY_CHARS})`);
     }
 
     const lower = q.toLowerCase();
@@ -982,13 +987,50 @@ const GCC = (() => {
   };
 
   // "" when nothing valid survives; callers must treat that as a no-op.
-  const buildStoragePurgeQuery = (emails, age = "") => {
+  //
+  // 8.0: this used to return one string, and 25 long addresses produced
+  // ~1,270 characters against the project's own 512-char ceiling in
+  // validateGmailQuery, which the rulesOverride path never called. The
+  // builder now packs addresses into as many from:() groups as the
+  // ceiling allows and returns them all; the purge runs them as ordinary
+  // multi-rule cleanup, which the engine already does. buildPurgeQuery
+  // keeps its single-string shape for existing callers and tests, and
+  // returns the FIRST chunk only when the list overflows, so nothing can
+  // silently emit an over-length query again.
+  const purgeQueryChunks = (emails, age = "") => {
     const clean = sanitizeStorageEmails(emails);
-    if (clean.length === 0) return "";
+    if (clean.length === 0) return [];
     const ageToken = STORAGE_XRAY_LIMITS.VALID_AGES.includes(age) && age
       ? ` older_than:${age}`
       : "";
-    return `from:(${clean.join(" OR ")}) ${STORAGE_XRAY_LIMITS.PURGE_SIZE_FLOOR}${ageToken}`;
+    const suffix = `) ${STORAGE_XRAY_LIMITS.PURGE_SIZE_FLOOR}${ageToken}`;
+    const budget = MAX_QUERY_CHARS - "from:(".length - suffix.length;
+
+    const out = [];
+    let group = [];
+    let groupLen = 0;
+    for (const email of clean) {
+      // " OR " only costs anything from the second address onward.
+      const cost = email.length + (group.length ? 4 : 0);
+      if (group.length && groupLen + cost > budget) {
+        out.push(`from:(${group.join(" OR ")}${suffix}`);
+        group = [];
+        groupLen = 0;
+      }
+      // A single address longer than the whole budget cannot be packed;
+      // dropping it is the safe failure (the purge just misses a sender)
+      // and sanitizeStorageEmails already caps addresses at 320 chars.
+      if (email.length > budget) continue;
+      group.push(email);
+      groupLen += group.length === 1 ? email.length : cost;
+    }
+    if (group.length) out.push(`from:(${group.join(" OR ")}${suffix}`);
+    return out;
+  };
+
+  const buildStoragePurgeQuery = (emails, age = "") => {
+    const chunks = purgeQueryChunks(emails, age);
+    return chunks.length ? chunks[0] : "";
   };
 
   // Normalize a stored/scanned sender list for display: shape-check,
@@ -1013,7 +1055,198 @@ const GCC = (() => {
     LIMITS: STORAGE_XRAY_LIMITS,
     sanitizeEmails: sanitizeStorageEmails,
     buildPurgeQuery: buildStoragePurgeQuery,
+    buildPurgeQueries: purgeQueryChunks,
     rankSenders: rankStorageSenders
+  });
+
+  // =========================
+  // Mailbox Report (8.0)
+  // =========================
+  // The report is one read-only scan that renders the whole mailbox as a
+  // ranked cleanup plan. Every band below is a plain Gmail search the
+  // engine already knows how to run: openSearch, then read the result
+  // count. No new selectors, no new Gmail verbs, nothing opened.
+  //
+  // Two rules keep the numbers honest:
+  //   1. Only the three size bands carry an MB figure, they are mutually
+  //      disjoint (larger:/smaller: pairs), and each email is credited
+  //      its tier FLOOR. So the headline is a defensible "at least".
+  //   2. Noise and inbox bands overlap the size bands and each other, so
+  //      their counts are never summed into a headline figure. A plan run
+  //      passes them as separate rules and reports what actually moved.
+  //
+  // Nothing here reconciles against Google's 15 GB bar: that quota is
+  // shared with Drive and Photos and the extension can never see it.
+
+  const REPORT_BANDS = Object.freeze([
+    Object.freeze({ id: "sizeHuge", kind: "size", query: "larger:25M older_than:6m", mbFloor: 25, action: "delete" }),
+    Object.freeze({ id: "sizeLarge", kind: "size", query: "larger:10M smaller:25M older_than:6m", mbFloor: 10, action: "delete" }),
+    Object.freeze({ id: "sizeBig", kind: "size", query: "larger:5M smaller:10M older_than:6m", mbFloor: 5, action: "delete" }),
+    Object.freeze({ id: "promotions", kind: "noise", query: "category:promotions older_than:6m", mbFloor: 0, action: "delete" }),
+    Object.freeze({ id: "social", kind: "noise", query: "category:social older_than:6m", mbFloor: 0, action: "delete" }),
+    Object.freeze({ id: "updates", kind: "noise", query: "category:updates older_than:1y", mbFloor: 0, action: "delete" }),
+    Object.freeze({ id: "forums", kind: "noise", query: "category:forums older_than:1y", mbFloor: 0, action: "delete" }),
+    Object.freeze({ id: "newsletters", kind: "noise", query: "\"unsubscribe\" older_than:1y", mbFloor: 0, action: "delete" }),
+    Object.freeze({ id: "inboxAncient", kind: "inbox", query: "in:inbox older_than:5y", mbFloor: 0, action: "archive" }),
+    Object.freeze({ id: "inboxOld", kind: "inbox", query: "in:inbox older_than:1y newer_than:5y", mbFloor: 0, action: "archive" })
+  ]);
+
+  const REPORT_HEADLINE_QUERY = "older_than:6m";
+
+  const REPORT_LIMITS = Object.freeze({
+    // One headline query plus one per band, with headroom. The engine
+    // asserts against this so a future band cannot quietly turn a fast
+    // scan into a minutes-long one (smartScan already spends up to 63).
+    MAX_QUERIES: 14,
+    MAX_PLAN_RULES: 10,
+    // Senders are attributed for the two biggest bands only; the sample
+    // is what Gmail already rendered on screen.
+    SENDER_SAMPLE_CAP: 25,
+    TOP_SENDERS: 5,
+    MAX_COUNT: 10000000
+  });
+
+  const REPORT_BAND_BY_ID = new Map(REPORT_BANDS.map((b) => [b.id, b]));
+
+  const buildReportQueries = () => {
+    const out = [{ id: "__headline", query: REPORT_HEADLINE_QUERY }];
+    for (const band of REPORT_BANDS) out.push({ id: band.id, query: band.query });
+    return out;
+  };
+
+  const clampReportCount = (value) => {
+    const n = Math.floor(Number(value));
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return Math.min(n, REPORT_LIMITS.MAX_COUNT);
+  };
+
+  // rawCounts: { [bandId]: number }. Unknown ids are dropped, missing
+  // ids become zero-count bands so the report always has a full shape.
+  const foldReportBands = (rawCounts) => {
+    const counts = rawCounts && typeof rawCounts === "object" ? rawCounts : {};
+    return REPORT_BANDS.map((band) => {
+      const count = clampReportCount(counts[band.id]);
+      return {
+        id: band.id,
+        kind: band.kind,
+        action: band.action,
+        query: band.query,
+        count,
+        estMb: band.mbFloor ? count * band.mbFloor : 0
+      };
+    });
+  };
+
+  // Deterministic: MB first, then count, then the order bands are
+  // declared in. Ties never depend on object key order, so the free band
+  // is the same on every render of the same scan.
+  const rankReportBands = (bands) => {
+    const list = Array.isArray(bands) ? bands.filter((b) => b && REPORT_BAND_BY_ID.has(b.id)) : [];
+    const order = new Map(REPORT_BANDS.map((b, i) => [b.id, i]));
+    return list
+      .map((b) => {
+        const def = REPORT_BAND_BY_ID.get(b.id);
+        const count = clampReportCount(b.count);
+        return {
+          id: b.id,
+          kind: def.kind,
+          action: def.action,
+          query: def.query,
+          count,
+          // Derived, never trusted from the caller. The headline says
+          // "at least N MB", and that is only honest while every MB
+          // figure is this band's own floor times a clamped count. A
+          // stored report that came back corrupted would otherwise
+          // inflate the one number the copy promises is conservative.
+          estMb: def.mbFloor ? count * def.mbFloor : 0,
+          cleanedAt: Number(b.cleanedAt) || 0
+        };
+      })
+      .sort((a, b) =>
+        b.estMb - a.estMb ||
+        b.count - a.count ||
+        order.get(a.id) - order.get(b.id));
+  };
+
+  // The one band a free user may act on, so the mechanism proves itself
+  // on their own mail before they are asked for money. Structural, not a
+  // counter: the same scan always yields the same band.
+  const freeReportBandId = (bands) => {
+    const ranked = rankReportBands(bands);
+    for (const band of ranked) {
+      if (band.count > 0) return band.id;
+    }
+    return null;
+  };
+
+  const reportTotals = (bands) => {
+    const ranked = rankReportBands(bands);
+    let largeMb = 0;
+    let bandedCount = 0;
+    for (const band of ranked) {
+      if (band.kind === "size") largeMb += band.estMb;
+      bandedCount += band.count;
+    }
+    return { largeMb, bandedCount };
+  };
+
+  // Queries for a purge run. Every one is re-validated here because this
+  // is the last stop before the destructive path: an id that is not a
+  // known band, or a query that trips the dangerous-token matcher or the
+  // length ceiling, is dropped rather than run.
+  const bandPurgeRules = (bandIds) => {
+    if (!Array.isArray(bandIds)) return [];
+    const seen = new Set();
+    const out = [];
+    for (const raw of bandIds) {
+      if (typeof raw !== "string") continue;
+      const band = REPORT_BAND_BY_ID.get(raw);
+      if (!band || seen.has(band.id)) continue;
+      seen.add(band.id);
+      const check = validateGmailQuery(band.query);
+      if (!check.valid) continue;
+      out.push(band.query);
+      if (out.length >= REPORT_LIMITS.MAX_PLAN_RULES) break;
+    }
+    return out;
+  };
+
+  // Free users get the report in full and one working purge. Pro unlocks
+  // the rest and the whole-plan run.
+  const isBandUnlocked = (bandId, bands, licenseActive) => {
+    if (licenseActive) return Boolean(REPORT_BAND_BY_ID.has(bandId));
+    return Boolean(bandId) && bandId === freeReportBandId(bands);
+  };
+
+  const reportUpsellLine = (bands) => {
+    const ranked = rankReportBands(bands);
+    const locked = ranked.filter((b) => b.count > 0).slice(1);
+    if (locked.length === 0) {
+      return t("reportUpsellNone", "Pro is $19.99 once: it unlocks every step of the plan and one-click Run the whole plan.");
+    }
+    const total = locked.reduce((sum, b) => sum + b.count, 0);
+    if (locked.length === 1) {
+      return t("reportUpsellOne", `1 more step is holding ${total.toLocaleString()} emails. Pro clears it for $19.99.`, [total.toLocaleString()]);
+    }
+    return t(
+      "reportUpsellMany",
+      `${locked.length} more steps are holding ${total.toLocaleString()} emails. Pro clears them for $19.99.`,
+      [String(locked.length), total.toLocaleString()]
+    );
+  };
+
+  const report = Object.freeze({
+    BANDS: REPORT_BANDS,
+    HEADLINE_QUERY: REPORT_HEADLINE_QUERY,
+    LIMITS: REPORT_LIMITS,
+    buildQueries: buildReportQueries,
+    foldBands: foldReportBands,
+    rankBands: rankReportBands,
+    freeBandId: freeReportBandId,
+    totals: reportTotals,
+    bandPurgeRules,
+    isBandUnlocked,
+    upsellLine: reportUpsellLine
   });
 
   // =========================
@@ -1572,6 +1805,7 @@ const GCC = (() => {
     SYNC_LIMIT_ITEM,
     SYNC_LIMIT_TOTAL,
     validateGmailQuery,
+    MAX_QUERY_CHARS,
     sanitizeProtectKeywords,
     buildSubjectExclusion,
     MAX_PROTECT_KEYWORDS,
@@ -1604,6 +1838,9 @@ const GCC = (() => {
 
     // New in 7.13
     i18n,
-    installSource
+    installSource,
+
+    // New in 8.0
+    report
   });
 })();

@@ -30,6 +30,15 @@
   --success-bg: rgba(52, 211, 153, 0.15);
   --success-border: rgba(52, 211, 153, 0.3);
 
+  /* Pro (8.0). Until now emerald meant both "your cleanup worked" and
+     "pay us", so a locked control and a success state looked identical
+     and Pro had no visual identity anywhere in the product. Gold is
+     reserved: nothing that is not about the paid tier uses it. */
+  --pro: #f0b429;
+  --pro-bg: rgba(240, 180, 41, 0.13);
+  --pro-border: rgba(240, 180, 41, 0.34);
+  --on-pro: #241a02;
+
   --warning: #fbbf24;
   --warning-bg: rgba(251, 191, 36, 0.15);
   --warning-border: rgba(251, 191, 36, 0.32);
@@ -116,6 +125,12 @@
   --success: #059669;
   --success-bg: rgba(5, 150, 105, 0.1);
   --success-border: rgba(5, 150, 105, 0.28);
+
+  /* Gold has to darken hard on white to clear 4.5:1 as text. */
+  --pro: #8a5a00;
+  --pro-bg: rgba(240, 180, 41, 0.14);
+  --pro-border: rgba(138, 90, 0, 0.3);
+  --on-pro: #ffffff;
 
   --warning: #b45309;
   --warning-bg: rgba(180, 83, 9, 0.1);
@@ -312,6 +327,7 @@
 
 .tag-primary { background: rgba(34, 211, 238, 0.14); color: var(--primary); }
 .tag-success { background: var(--success-bg); color: var(--success); }
+.tag-pro { background: var(--pro-bg); color: var(--pro); }
 .tag-warning { background: var(--warning-bg); color: var(--warning); }
 .tag-danger { background: var(--danger-bg); color: var(--danger); }
 .tag-info { background: var(--info-bg); color: var(--info); }

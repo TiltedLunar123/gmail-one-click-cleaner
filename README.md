@@ -12,6 +12,14 @@ A browser extension that bulk-cleans Gmail in one click. Run configurable cleanu
 
 ## Features
 
+### Mailbox Report
+One read-only pass counts what is actually in your mailbox and turns it into a ranked plan you can run a step at a time. Nothing is opened and nothing moves during the scan.
+- **The whole report is free** - old promotions, big attachments, forgotten newsletters, social and forum mail, and inbox mail you never archived, each with a real count from Gmail's own search.
+- **The biggest step is free to run**, so you see the mechanism work on your own mail before deciding anything.
+- **Honest numbers** - storage figures are floors built from Gmail's size tiers, so the report says "at least N MB" and means it. Nothing is reconciled against Google's 15 GB bar, which is shared with Drive and Photos.
+- **Every step is an ordinary cleanup run** - tagged first, dry-run honoured, whitelist and protected keywords applied, and it shows up in the Recovery Log with one-click Restore.
+- **Pro** - every other step, and **Run the whole plan** in a single pass.
+
 ### In your language
 The popup is available in English, Portuguese (Brazil), Spanish, French, German, Russian and Japanese, following your browser's UI language automatically. The cleaning engine itself adapts to the language your Gmail runs in (17 locales) independently of the popup language.
 
@@ -85,7 +93,7 @@ has:attachment larger:10M older_than:6m
 
 ## Pro
 
-Pro is a **one-time $19.99 purchase** (no subscription) that unlocks four things: bulk unsubscribe, the full Storage X-ray with one-click purge, the full Smart Suggestions list with bulk apply, and Auto-Pilot, which keeps your inbox clean every week, automatically. Everything that is free today stays free forever. Compare: Google One storage starts at about $20 per year, forever, and inbox-cleaning subscriptions run about $10 per month.
+Pro is a **one-time $19.99 purchase** (no subscription) that unlocks five things: the whole Mailbox Report plan, bulk unsubscribe, the full Storage X-ray with one-click purge, the full Smart Suggestions list with bulk apply, and Auto-Pilot, which keeps your inbox clean every week, automatically. Everything that is free today stays free forever. Compare (prices checked 2026-08-01): Clean Email is $29.99 a year for one account, Trimbox is $39.99 a year, Mailstrom is $59.95 a year, and Google One storage starts at about $20 a year, forever.
 
 - Your license key is verified **entirely on your device** with a built-in public key. The extension never contacts a server, not even to check the license.
 - The key is a signed token with no personal data. Stored in Chrome sync, so Pro follows you to your other signed-in browsers.

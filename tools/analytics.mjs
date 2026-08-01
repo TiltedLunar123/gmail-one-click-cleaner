@@ -118,7 +118,13 @@ const SOURCE_LABELS = {
   gcc_autopilot_toggle_locked: "Auto-Pilot, flipped the locked toggle",
   gcc_popup_promo: "Popup promo strip",
   gcc_options: "Options page, Pro License section",
-  gcc_progress: "Progress dashboard link"
+  gcc_progress: "Progress dashboard link (retired in 8.0)",
+  // 8.0
+  gcc_report_band_locked: "Mailbox Report, clicked a locked plan step",
+  gcc_report_plan_locked: "Mailbox Report, clicked Run the whole plan",
+  gcc_report_upsell: "Mailbox Report, Get Pro link",
+  gcc_progress_done: "Progress dashboard, run-completion card",
+  gcc_pro_panel: "Pro panel, opened without a recorded source"
 };
 
 const describeSource = (ref) => {

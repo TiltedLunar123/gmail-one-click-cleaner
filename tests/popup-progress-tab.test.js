@@ -21,7 +21,7 @@ const path = require("path");
 
 const src = fs.readFileSync(path.join(__dirname, "..", "popup.js"), "utf-8");
 
-const RUN_PATHS = 3; // runCleanup, storage purge, smart apply
+const RUN_PATHS = 4; // runCleanup, storage purge, smart apply, report plan step
 
 const indicesOf = (haystack, needle) => {
   const out = [];

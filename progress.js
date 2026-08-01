@@ -5,16 +5,25 @@
   // Constants & Configuration
   // =========================
 
-  const PROGRESS_VERSION = "7.15.0";
+  const PROGRESS_VERSION = "8.0.0";
 
   const CONFIG = Object.freeze({
     MAX_LOG_ENTRIES: 300,
     TOAST_DURATION_MS: 3000,
-    TIP_THRESHOLD_COUNT: 50,
     RECONNECT_TIMEOUT_MS: 5000,
     AUTO_RECONNECT_INTERVAL_MS: 30000,
     AUTO_RECONNECT_STALE_MS: 60000,
-    MAX_AUTO_RECONNECT_ATTEMPTS: 3
+    MAX_AUTO_RECONNECT_ATTEMPTS: 3,
+
+    // How many labels of the run's own tag list the completion card
+    // spells out before it collapses the rest into "and N more".
+    MAX_VISIBLE_TAG_LABELS: 3,
+
+    // The Pro line on the completion card is only honest when this run
+    // actually cleaned bulk mail, because its whole claim is that the
+    // same senders refill next month. Below this the line stays hidden
+    // rather than being padded out with a generic pitch.
+    PRO_LINE_MIN_NOISE_COUNT: 50
   });
 
   const PHASES = Object.freeze({
@@ -24,6 +33,7 @@
     QUERY_DONE: "query-done",
     TAG: "tag",
     REVIEW: "review",
+    GUARDRAIL: "guardrail",
     DONE: "done",
     CANCELLED: "cancelled",
     ERROR: "error"
@@ -36,10 +46,24 @@
     [PHASES.QUERY_DONE]: "query finished",
     [PHASES.TAG]: "tagging",
     [PHASES.REVIEW]: "reviewing",
+    [PHASES.GUARDRAIL]: "waiting for confirmation",
     [PHASES.DONE]: "done",
     [PHASES.CANCELLED]: "cancelled",
     [PHASES.ERROR]: "error"
   });
+
+  // Rule labels the engine's labelQuery() assigns to bulk mail. The Pro
+  // line counts only these: a run that emptied Big attachments has not
+  // earned a bulk-unsubscribe pitch, because unsubscribing would not
+  // have stopped any of it.
+  const NOISE_RULE_LABELS = Object.freeze([
+    "Promotions",
+    "Social",
+    "Updates",
+    "Forums",
+    "Newsletters",
+    "No-reply"
+  ]);
 
   const LOG_LEVELS = Object.freeze({
     INFO: "info",
@@ -77,7 +101,13 @@
     mode: "live",
     logsVisible: true, // the whole log section shows/hides as one unit
     rows: [],
-    tipShown: false,
+    // The guardrail question is answered exactly once: every dismissal
+    // path funnels through resolveGuard, and this flag is what stops a
+    // native close event from sending a second signal after a proceed.
+    guardOpen: false,
+    // The finished run's stats, kept so Copy receipt can rebuild the
+    // summary without re-reading storage.
+    doneStats: null,
     isReconnecting: false,
     logHistory: [],
     startTime: Date.now(),
@@ -116,6 +146,7 @@
     logsCollapsedLast: document.getElementById("logsCollapsedLast"),
 
     // Control buttons
+    controls: document.querySelector(".controls"),
     cancel: document.getElementById("cancelBtn"),
     reconnect: document.getElementById("reconnectBtn"),
     reinject: document.getElementById("reinjectBtn"),
@@ -124,7 +155,20 @@
     // Summary elements
     summary: document.getElementById("summary"),
     table: document.getElementById("summaryTable"),
-    tipPrompt: document.getElementById("tipPrompt"),
+
+    // Run-completion card
+    doneCard: document.getElementById("doneCard"),
+    doneNumber: document.getElementById("doneNumber"),
+    doneSafetyText: document.getElementById("doneSafetyText"),
+    doneLabels: document.getElementById("doneLabels"),
+    openRecoveryBtn: document.getElementById("openRecoveryBtn"),
+    copyReceiptBtn: document.getElementById("copyReceiptBtn"),
+    doneRating: document.getElementById("doneRating"),
+    doneRateBtn: document.getElementById("doneRateBtn"),
+    doneRateDismiss: document.getElementById("doneRateDismiss"),
+    donePro: document.getElementById("donePro"),
+    doneProText: document.getElementById("doneProText"),
+    doneProBuy: document.getElementById("doneProBuy"),
 
     // Review modal
     reviewModal: document.getElementById("reviewModal"),
@@ -132,6 +176,15 @@
     modalQuery: document.getElementById("modalQuery"),
     modalSkipBtn: document.getElementById("modalSkipBtn"),
     modalProceedBtn: document.getElementById("modalProceedBtn"),
+
+    // Guardrail modal
+    guardModal: document.getElementById("guardModal"),
+    guardCount: document.getElementById("guardCount"),
+    guardLead: document.getElementById("guardLead"),
+    guardAlternatives: document.getElementById("guardAlternatives"),
+    guardTrashNote: document.getElementById("guardTrashNote"),
+    guardProceedBtn: document.getElementById("guardProceedBtn"),
+    guardStopBtn: document.getElementById("guardStopBtn"),
 
     // Log filter
     logFilter: document.getElementById("logFilter"),
@@ -167,6 +220,11 @@
   };
 
   const formatNumber = GCC.formatNumber;
+
+  // Catalog lookup with the English fallback inline at the call site,
+  // matching popup.js. Static markup is translated by GCC.i18n.apply at
+  // init; this covers the strings only the run's own numbers can build.
+  const t = GCC.i18n.t;
 
   const formatMB = (mb) => {
     const n = Number(mb);
@@ -239,7 +297,9 @@
   const phaseToCssPhase = (phase) => {
     if (phase === PHASES.ERROR) return "error";
     if (phase === PHASES.DONE || phase === PHASES.CANCELLED) return "complete";
-    if (phase === PHASES.TAG) return "cleaning";
+    // The guardrail shares the amber "cleaning" bucket on purpose: the
+    // run is paused mid-action and needs an answer, not a status read.
+    if (phase === PHASES.TAG || phase === PHASES.GUARDRAIL) return "cleaning";
     if (phase === PHASES.QUERY || phase === PHASES.QUERY_DONE || phase === PHASES.REVIEW) return "searching";
     return "starting";
   };
@@ -465,24 +525,266 @@
     tbody.appendChild(fragment);
   };
 
-  // 7.0: the post-run prompt now pitches Pro (bulk unsubscribe), so it
-  // must stay hidden for users who already own a license.
-  const maybeShowTipPrompt = (stats) => {
-    if (!ui.tipPrompt || state.tipShown) return;
-    if (!stats) return;
+  // =========================
+  // Run-completion card (8.0)
+  // =========================
+  // A finished run is the highest-intent moment this product has, and
+  // until 8.0 it ended on a disabled button reading "Run finished". The
+  // card answers the three questions people actually have at that point:
+  // how much went, whether it is recoverable, and what to do next.
 
-    const mode = stats.mode === "dry" ? "dry" : "live";
-    if (mode !== "live") return;
+  // A dry run books its findings under totalWouldDelete, so reading the
+  // live counters there would headline every preview as zero. Same split
+  // renderStatsSummary already makes for the KPI chips.
+  const cleanedTotalOf = (stats) => (stats?.mode === "dry"
+    ? (Number(stats?.totalWouldDelete) || 0) + (Number(stats?.totalWouldArchive) || 0)
+    : (Number(stats?.totalDeleted) || 0) + (Number(stats?.totalArchived) || 0));
 
-    const cleanedTotal = (stats.totalDeleted || 0) + (stats.totalArchived || 0);
-    if (cleanedTotal < CONFIG.TIP_THRESHOLD_COUNT) return;
+  const freedMbOf = (stats) => {
+    const mb = Number(stats?.totalFreedMb ?? stats?.freedMb);
+    return Number.isFinite(mb) && mb > 0 ? mb : 0;
+  };
 
-    state.tipShown = true;
+  // Only bulk-mail rules count toward the Pro line. Labels come from the
+  // engine's own fixed English label map, not from user text.
+  const noiseCleanedCount = (stats) => {
+    if (!Array.isArray(stats?.perQuery)) return 0;
+    let total = 0;
+    for (const row of stats.perQuery) {
+      if (NOISE_RULE_LABELS.includes(row?.label)) total += Number(row?.count) || 0;
+    }
+    return total;
+  };
+
+  const renderDoneNumber = (stats) => {
+    if (!ui.doneNumber) return;
+    ui.doneNumber.replaceChildren();
+
+    const cleaned = cleanedTotalOf(stats);
+    const countText = formatNumber(cleaned);
+
+    const main = document.createElement("span");
+    main.textContent = stats.mode === "dry"
+      ? t("progDoneMatchedDry", `${countText} emails matched, nothing was moved`, [countText])
+      : t("progDoneCleaned", `${countText} emails cleaned`, [countText]);
+    ui.doneNumber.appendChild(main);
+
+    // "at least" is not a hedge, it is the truth: the engine reads
+    // Gmail's own rounded per-message sizes, so the total is a floor.
+    const freedMb = freedMbOf(stats);
+    if (freedMb > 0) {
+      const mbText = `${formatMB(freedMb)} MB`;
+      const freed = document.createElement("span");
+      freed.className = "done-number-freed";
+      freed.textContent = t("progDoneFreed", `at least ~${mbText}`, [mbText]);
+      ui.doneNumber.appendChild(document.createTextNode(", "));
+      ui.doneNumber.appendChild(freed);
+    }
+  };
+
+  const renderDoneSafety = (stats) => {
+    if (!ui.doneSafetyText) return;
+
+    if (stats.mode === "dry") {
+      ui.doneSafetyText.textContent = t(
+        "progDoneSafetyDry",
+        "This was a Dry Run, so nothing was labelled, moved or deleted."
+      );
+      return;
+    }
+
+    ui.doneSafetyText.textContent = stats.action === "archive"
+      ? t(
+        "progDoneSafetyArchive",
+        "Every match was labelled first, then archived. Archived mail stays in All Mail with no deadline."
+      )
+      : t(
+        "progDoneSafetyDelete",
+        "Every match was labelled first, then moved to Trash. Gmail keeps Trash for about 30 days, so it is still there."
+      );
+  };
+
+  // Showing the label names is the only proof the tagging promise was
+  // kept, so an empty list drops the clause instead of asserting it.
+  const renderDoneLabels = (stats) => {
+    if (!ui.doneLabels) return;
+
+    const labels = Array.isArray(stats?.tagLabels)
+      ? stats.tagLabels.filter((label) => typeof label === "string" && label.trim())
+      : [];
+
+    if (labels.length === 0) {
+      ui.doneLabels.hidden = true;
+      return;
+    }
+
+    // Keep the lead-in span the markup ships; replace only the chips.
+    for (const chip of ui.doneLabels.querySelectorAll(".done-label-chip, .done-labels-more")) {
+      chip.remove();
+    }
+
+    const visible = labels.slice(0, CONFIG.MAX_VISIBLE_TAG_LABELS);
+    for (const label of visible) {
+      const chip = document.createElement("span");
+      chip.className = "done-label-chip";
+      chip.textContent = label;
+      ui.doneLabels.appendChild(chip);
+    }
+
+    const hidden = labels.length - visible.length;
+    if (hidden > 0) {
+      const more = document.createElement("span");
+      more.className = "done-labels-more";
+      more.textContent = t("progDoneLabelsMore", `and ${formatNumber(hidden)} more`, [formatNumber(hidden)]);
+      ui.doneLabels.appendChild(more);
+    }
+
+    ui.doneLabels.hidden = false;
+  };
+
+  const maybeShowRatingAsk = (stats) => {
+    if (!ui.doneRating) return;
+    const qualifies = GCC.popupUi.ratingRunQualifies({
+      dryRun: stats.mode === "dry",
+      cleaned: cleanedTotalOf(stats),
+      freedMb: freedMbOf(stats)
+    });
+    ui.doneRating.hidden = !qualifies;
+  };
+
+  // One data-led line, built from this run's own bulk-mail count. It
+  // stays hidden for dry runs (nothing was cleaned to point at), for
+  // small runs (the claim would not be earned) and for anyone who
+  // already paid. The license read is the last gate on purpose: a
+  // failed lookup leaves the line hidden rather than pitching an owner.
+  const maybeShowProLine = (stats) => {
+    if (!ui.donePro || !ui.doneProText || !ui.doneProBuy) return;
+    if (stats.mode === "dry") return;
+
+    const noise = noiseCleanedCount(stats);
+    if (noise < CONFIG.PRO_LINE_MIN_NOISE_COUNT) return;
+
+    const noiseText = formatNumber(noise);
     GCC.license.getState().then((licenseState) => {
-      if (!licenseState.active && ui.tipPrompt) {
-        ui.tipPrompt.style.display = "block";
-      }
+      if (licenseState.active) return;
+      ui.doneProText.textContent = t(
+        "progDoneProNoise",
+        `${noiseText} of what this run cleaned was promotional or list mail, and the same senders refill it next month. Pro unsubscribes from them in bulk: $19.99 once, no subscription.`,
+        [noiseText]
+      );
+      ui.doneProBuy.href = GCC.license.buyUrl("progress_done");
+      ui.donePro.hidden = false;
     }).catch(() => {});
+  };
+
+  // Plain text, clipboard only: no download, no network. Raw Gmail
+  // queries are deliberately absent, because a scoped run's query is a
+  // list of sender addresses harvested from the user's own mailbox
+  // (7.15.0 stripped them from everything persisted for the same reason).
+  const buildReceipt = (stats) => {
+    const lines = ["Gmail One-Click Cleaner run receipt"];
+    lines.push(`Date: ${new Date().toLocaleString()}`);
+    lines.push(`Mode: ${stats.mode === "dry" ? "Dry run" : "Live run"}`);
+    lines.push(`Action: ${stats.action === "archive" ? "Archived" : "Moved to Trash"}`);
+
+    const cleaned = formatNumber(cleanedTotalOf(stats));
+    lines.push(stats.mode === "dry"
+      ? `Matched: ${cleaned} conversations (nothing was moved)`
+      : `Cleaned: ${cleaned} conversations`);
+
+    const freedMb = freedMbOf(stats);
+    if (freedMb > 0) lines.push(`Storage: at least ~${formatMB(freedMb)} MB`);
+
+    const labels = Array.isArray(stats?.tagLabels)
+      ? stats.tagLabels.filter((label) => typeof label === "string" && label.trim())
+      : [];
+    if (labels.length > 0) lines.push(`Labels applied: ${labels.join(", ")}`);
+
+    if (Array.isArray(stats?.perQuery) && stats.perQuery.length > 0) {
+      lines.push("Rules:");
+      for (const row of stats.perQuery) {
+        lines.push(`  ${row?.label || "(unlabelled rule)"}: ${formatNumber(Number(row?.count) || 0)}`);
+      }
+    }
+
+    return lines.join("\n");
+  };
+
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // The async clipboard is refused whenever the page is not the
+      // focused document, which a just-opened tab or a stray click on
+      // the Gmail window is enough to cause. The textarea path has no
+      // such requirement.
+      try {
+        const scratch = document.createElement("textarea");
+        scratch.value = text;
+        scratch.setAttribute("readonly", "");
+        scratch.style.position = "fixed";
+        scratch.style.top = "-1000px";
+        document.body.appendChild(scratch);
+        scratch.select();
+        const copied = document.execCommand("copy");
+        scratch.remove();
+        return copied;
+      } catch {
+        return false;
+      }
+    }
+  };
+
+  const handleCopyReceipt = async () => {
+    if (!state.doneStats) {
+      showToast("no finished run to copy", "warning");
+      return;
+    }
+    const copied = await copyToClipboard(buildReceipt(state.doneStats));
+    if (copied) showToast(t("progReceiptCopied", "receipt copied"), "success");
+    else showToast(t("progReceiptFailed", "could not copy receipt"), "error");
+  };
+
+  const openInNewTab = async (url) => {
+    if (!GCC.hasChromeTabs()) {
+      appendLog("Cannot open a new tab: chrome.tabs unavailable", LOG_LEVELS.ERROR);
+      showToast("cannot open tab", "error");
+      return;
+    }
+    try {
+      await GCC.promisify(chrome.tabs.create.bind(chrome.tabs), { url, active: true });
+    } catch (err) {
+      log("error", "Failed to open tab:", err);
+      appendLog(`Failed to open a new tab: ${err?.message || err}`, LOG_LEVELS.ERROR);
+      showToast("could not open tab", "error");
+    }
+  };
+
+  // No inline "Restore this run" button here on purpose: a run applies
+  // one label per rule, so a single control could only ever put some of
+  // it back. The Recovery Log restores per entry, which is honest.
+  const recoveryLogUrl = () => {
+    if (GCC.hasChrome() && chrome.runtime?.getURL) {
+      return chrome.runtime.getURL("stats.html#recovery");
+    }
+    return "stats.html#recovery";
+  };
+
+  const renderCompletionCard = (stats) => {
+    if (!ui.doneCard || !stats) return false;
+
+    state.doneStats = stats;
+    ui.doneCard.classList.toggle("dry", stats.mode === "dry");
+
+    renderDoneNumber(stats);
+    renderDoneSafety(stats);
+    renderDoneLabels(stats);
+    maybeShowRatingAsk(stats);
+    maybeShowProLine(stats);
+
+    ui.doneCard.hidden = false;
+    return true;
   };
 
   // =========================
@@ -511,7 +813,15 @@
     }
   };
 
-  const updateButtonsForDone = (phase) => {
+  // A cancelled or errored run still needs Reconnect and Re-inject, so
+  // the row stays. A clean finish does not: the completion card takes
+  // its place, and a greyed-out "Run finished" button reads as broken.
+  const updateButtonsForDone = (phase, cardShown) => {
+    if (phase === PHASES.DONE && cardShown) {
+      if (ui.controls) ui.controls.hidden = true;
+      return;
+    }
+
     if (ui.cancel) {
       ui.cancel.disabled = true;
       ui.cancel.classList.remove("loading");
@@ -579,6 +889,111 @@
   };
 
   // =========================
+  // Guardrail Modal (8.0)
+  // =========================
+  // The engine's soft cap (10k) and huge-run gate (20k) now ask this
+  // page instead of raising confirm() in the backgrounded Gmail tab.
+  // Its contract: it polls for a proceed/stop signal and stops the run
+  // if nothing answers within five minutes. Silence is a refusal, so
+  // every path out of this dialog that is not an explicit "continue"
+  // has to send stop rather than nothing.
+
+  const openGuardModal = (kind, count, actionWord) => {
+    if (!ui.guardModal) return;
+
+    const countText = formatNumber(count);
+    const isArchive = actionWord === "archive";
+
+    if (ui.guardCount) ui.guardCount.textContent = countText;
+
+    if (ui.guardLead) {
+      if (kind === "hugeRun") {
+        ui.guardLead.textContent = t(
+          "progGuardLeadHuge",
+          `About ${countText} conversations will be deleted.`,
+          [countText]
+        );
+      } else if (isArchive) {
+        ui.guardLead.textContent = t(
+          "progGuardLeadArchive",
+          `This run would archive about ${countText} conversations.`,
+          [countText]
+        );
+      } else {
+        ui.guardLead.textContent = t(
+          "progGuardLeadDelete",
+          `This run would delete about ${countText} conversations.`,
+          [countText]
+        );
+      }
+    }
+
+    // The alternatives only make sense for the soft cap, which fires
+    // before the run commits to anything; the huge-run gate is the
+    // final yes/no on a delete already in motion.
+    if (ui.guardAlternatives) ui.guardAlternatives.hidden = kind !== "softCap";
+
+    // Archived mail never reaches Trash, so the 30-day promise would be
+    // a claim about something that is not going to happen.
+    if (ui.guardTrashNote) ui.guardTrashNote.hidden = isArchive;
+
+    state.guardOpen = true;
+    try {
+      ui.guardModal.showModal();
+    } catch (err) {
+      log("error", "Failed to show guardrail modal:", err);
+    }
+  };
+
+  const closeGuardModal = () => {
+    if (!ui.guardModal?.open) return;
+    try {
+      ui.guardModal.close();
+    } catch {
+      // ignore
+    }
+  };
+
+  const sendGuardSignal = async (signal) => {
+    if (!gmailTabId) {
+      appendLog("Cannot send guardrail decision: Gmail tab ID missing", LOG_LEVELS.ERROR);
+      return;
+    }
+    if (!GCC.hasChromeTabs()) {
+      appendLog("Cannot send guardrail decision: chrome.tabs unavailable", LOG_LEVELS.ERROR);
+      return;
+    }
+
+    try {
+      const type = signal === "proceed" ? "gmailCleanerGuardProceed" : "gmailCleanerGuardStop";
+      await GCC.promisify(chrome.tabs.sendMessage.bind(chrome.tabs), gmailTabId, { type });
+
+      if (signal === "proceed") {
+        appendLog("Guardrail decision: PROCEED", LOG_LEVELS.WARNING);
+        setPhaseTag(PHASES.TAG);
+        setStatusLoading("Continuing the run...");
+      } else {
+        appendLog("Guardrail decision: STOP", LOG_LEVELS.SUCCESS);
+        setStatus("Stopping the run. Nothing further will be touched.");
+      }
+    } catch (err) {
+      log("error", "Failed to send guardrail decision:", err);
+      appendLog(`Error sending guardrail decision: ${err?.message || err}`, LOG_LEVELS.ERROR);
+      showToast("failed to send guardrail decision", "error");
+    }
+  };
+
+  // Single funnel for every way this dialog can end. Flipping the flag
+  // before closing means the close event's own stop is a no-op after a
+  // proceed, and a second dismissal can never contradict the first.
+  const resolveGuard = (signal) => {
+    if (!state.guardOpen) return;
+    state.guardOpen = false;
+    closeGuardModal();
+    sendGuardSignal(signal);
+  };
+
+  // =========================
   // Storage Operations
   // =========================
 
@@ -639,17 +1054,25 @@
     stopAutoReconnect();
     const phase = msg.phase || PHASES.DONE;
 
+    // A run that ended while the guardrail was still on screen has
+    // already answered the question by ending; leaving the dialog up
+    // would invite an answer to a run that no longer exists.
+    resolveGuard("stop");
+
     setPhaseTag(phase);
     setPercent(msg.percent ?? 100);
-    updateButtonsForDone(phase);
+
+    let cardShown = false;
 
     if (msg.stats) {
       renderStatsSummary(msg.stats);
       if (phase === PHASES.DONE) {
-        maybeShowTipPrompt(msg.stats);
+        cardShown = renderCompletionCard(msg.stats);
         saveStatsToStorage(msg.stats);
       }
     }
+
+    updateButtonsForDone(phase, cardShown);
 
     const summary = msg.detail || "All queries processed.";
     appendLog(`Run finished: ${summary}`, LOG_LEVELS.SUCCESS);
@@ -672,6 +1095,22 @@
       setPhaseTag(PHASES.REVIEW);
       setStatus("Waiting for your review...");
       openReviewModal(message.label, message.count, message.query);
+      return;
+    }
+
+    // Guardrail request. The engine is blocked on the answer and will
+    // stop the run if none arrives, so this cannot be queued behind
+    // anything or dropped for want of a progress phase.
+    if (message.type === "gmailCleanerRequestGuardrail") {
+      const count = Number(message.count) || 0;
+      const actionWord = message.actionWord === "archive" ? "archive" : "delete";
+      appendLog(
+        `Confirmation needed: this run would ${actionWord} about ${formatNumber(count)} conversations.`,
+        LOG_LEVELS.WARNING
+      );
+      setPhaseTag(PHASES.GUARDRAIL);
+      setStatus("Waiting for your confirmation...");
+      openGuardModal(message.guardKind, count, actionWord);
       return;
     }
 
@@ -942,6 +1381,10 @@
     document.addEventListener("keydown", (e) => {
       // Escape
       if (e.key === "Escape") {
+        // The dialog's own close event routes to stop, so this branch
+        // only has to keep Escape from falling through to handleCancel.
+        if (ui.guardModal?.open) return;
+
         if (ui.reviewModal?.open) {
           closeReviewModal();
           sendReviewSignal("skip");
@@ -1157,6 +1600,37 @@
       }
     });
 
+    ui.guardProceedBtn?.addEventListener("click", () => resolveGuard("proceed"));
+    ui.guardStopBtn?.addEventListener("click", () => resolveGuard("stop"));
+
+    // Backdrop click and Escape both mean stop. The close listener is
+    // the backstop: whatever dismisses this dialog, the engine hears a
+    // decision rather than waiting out its five-minute timeout.
+    ui.guardModal?.addEventListener("click", (e) => {
+      if (e.target === ui.guardModal) resolveGuard("stop");
+    });
+    ui.guardModal?.addEventListener("close", () => resolveGuard("stop"));
+
+    ui.openRecoveryBtn?.addEventListener("click", () => {
+      openInNewTab(recoveryLogUrl());
+    });
+
+    ui.copyReceiptBtn?.addEventListener("click", handleCopyReceipt);
+
+    ui.doneRateBtn?.addEventListener("click", () => {
+      // Reviews land on the store this browser installed from, so the
+      // Firefox build never sends anyone to the Chrome Web Store.
+      openInNewTab(GCC.storeLinks().reviews);
+      if (ui.doneRating) ui.doneRating.hidden = true;
+    });
+
+    // "Not now" is deliberately page-scoped: the popup owns the
+    // persistent rating state, and this page should not be able to
+    // silence an ask it did not schedule.
+    ui.doneRateDismiss?.addEventListener("click", () => {
+      if (ui.doneRating) ui.doneRating.hidden = true;
+    });
+
     setupKeyboardShortcuts();
 
     if (GCC.hasChrome() && chrome.runtime.onMessage) {
@@ -1192,6 +1666,11 @@
 
   const init = async () => {
     log("info", `Progress page v${PROGRESS_VERSION} initializing...`);
+
+    // 8.0: swap the inline English for catalog messages before anything
+    // reads or clones markup text. No-ops outside a real extension
+    // context, so tests and the plain HTTP render harness stay English.
+    GCC.i18n.apply(document);
 
     await GCC.theme.init();
     wireThemeSwitcher();

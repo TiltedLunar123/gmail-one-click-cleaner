@@ -628,46 +628,222 @@
     }
 
 
-    #tipPrompt {
-      margin-top: 20px;
-      display: none;
-      font-size: 13px;
-      color: var(--text-muted);
-      text-align: center;
-      padding: 16px;
-      background: rgba(34, 211, 238, 0.03);
-      border-radius: var(--radius-md);
-      animation: fadeIn 0.5s ease-out;
-    }
-
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
     }
 
-    #tipPrompt a {
-      color: #7bf1fd;
-      text-decoration: none;
-      font-weight: 500;
-      transition: color var(--transition-fast);
-      border-bottom: 1px solid transparent;
-    }
-
-    #tipPrompt a:hover {
-      color: #fff;
-      border-bottom-color: currentColor;
-    }
-
     .muted { color: var(--text-muted); }
 
-    dialog#reviewModal {
-      background: #141d27;
+    /* =========================
+       Run-completion card (8.0)
+       =========================
+       Every run path opens this tab and closes the popup, so a finished
+       run leaves the user looking at this page. It used to answer with a
+       greyed-out button reading "Run finished", which reads as broken.
+       The card takes the controls row's place on DONE only: cancelled
+       and errored runs still need the row's recovery buttons. */
+    .controls[hidden] { display: none; }
+
+    .done-card {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 24px;
+      padding: 24px;
+      border: 1px solid var(--success-border);
+      border-radius: var(--radius-lg);
+      background: var(--success-bg);
+      font-size: 13px;
+      animation: fadeIn 0.35s ease-out;
+    }
+
+    .done-card[hidden] { display: none; }
+
+    /* A dry run moved nothing, so it does not get the "your cleanup
+       worked" green. */
+    .done-card.dry {
+      border-color: var(--info-border);
+      background: var(--info-bg);
+    }
+
+    .done-number {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      color: var(--text-main);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .done-number-freed {
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .done-safety {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+    }
+
+    .done-safety .ico {
+      margin-top: 4px;
+      color: var(--success);
+    }
+
+    .done-card.dry .done-safety .ico { color: var(--info); }
+
+    .done-labels {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 0;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .done-labels[hidden] { display: none; }
+
+    .done-label-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-surface-2);
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      max-width: 260px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .done-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .done-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-full);
+      background: transparent;
+      color: var(--text-main);
+      padding: 8px 16px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition:
+        background var(--transition-fast),
+        border-color var(--transition-fast);
+    }
+
+    .done-btn:hover {
+      background: var(--bg-surface-hover);
+      border-color: var(--border-highlight);
+    }
+
+    .done-btn.primary {
+      background: var(--primary);
+      border-color: transparent;
+      color: var(--on-primary);
+      font-weight: 700;
+    }
+
+    .done-btn.primary:hover { background: var(--primary-hover); }
+
+    .done-rating {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border-subtle);
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .done-rating[hidden] { display: none; }
+
+    .done-rating-ask { margin-right: 4px; }
+
+    .done-rating-dismiss {
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-family: inherit;
+      font-size: 12px;
+      padding: 4px 8px;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    .done-rating-dismiss:hover { color: var(--text-main); }
+
+    /* Pro gets its own identity in 8.0: emerald already means "your
+       cleanup worked", so it cannot also mean "pay us". */
+    .done-pro {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 0;
+      padding: 12px;
+      border: 1px solid var(--pro-border);
+      border-radius: var(--radius-md);
+      background: var(--pro-bg);
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+    }
+
+    .done-pro[hidden] { display: none; }
+
+    .done-pro .ico {
+      color: var(--pro);
+      flex: 0 0 auto;
+    }
+
+    .done-pro-text { flex: 1 1 240px; }
+
+    .done-pro-cta {
+      color: var(--pro);
+      font-weight: 600;
+      text-decoration: none;
+      border-bottom: 1px solid currentColor;
+      white-space: nowrap;
+    }
+
+    .done-pro-cta:hover { color: var(--text-main); }
+
+    /* One dialog skin for both modals. 8.0 added the guardrail
+       confirmation, so the rules moved off #reviewModal onto a class and
+       the hardcoded dark values became tokens: this surface is the last
+       thing a user reads before 20,000 conversations move, and in the
+       light theme #fff titles on a #141d27 panel were unreadable. */
+    dialog.gcc-modal {
+      background: var(--bg-deep);
       color: var(--text-main);
       border: 1px solid var(--border-highlight);
       border-radius: var(--radius-lg);
       padding: 0;
       max-width: 420px;
       width: 90%;
+      font-size: 13px;
       box-shadow:
         0 25px 50px -12px rgba(0, 0, 0, 0.9),
         0 0 0 1px rgba(255, 255, 255, 0.05) inset;
@@ -679,7 +855,7 @@
       to { opacity: 1; transform: scale(1) translateY(0); }
     }
 
-    dialog#reviewModal::backdrop {
+    dialog.gcc-modal::backdrop {
       background: rgba(0, 0, 0, 0.7);
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
@@ -691,24 +867,26 @@
       font-size: 18px;
       font-weight: 600;
       margin: 0 0 12px 0;
-      color: #fff;
+      color: var(--text-main);
     }
 
     .modal-body {
-      font-size: 14px;
+      font-size: 13px;
       color: var(--text-muted);
       margin-bottom: 0;
       line-height: 1.6;
     }
 
+    .modal-strong { color: var(--text-main); }
+
     .modal-query {
       display: block;
       font-family: var(--font-mono);
-      background: rgba(0, 0, 0, 0.3);
+      background: var(--bg-input);
       padding: 8px 12px;
       border-radius: var(--radius-sm);
       border: 1px solid var(--border-subtle);
-      color: #7bf1fd;
+      color: var(--primary);
       margin: 12px 0 0 0;
       word-break: break-all;
       font-size: 12px;
@@ -718,7 +896,7 @@
       display: flex;
       justify-content: flex-end;
       gap: 12px;
-      background: rgba(17, 26, 36, 0.3);
+      background: var(--bg-surface-2);
       padding: 16px 24px;
       border-top: 1px solid var(--border-subtle);
     }
@@ -728,7 +906,7 @@
       border: 1px solid var(--border-subtle);
       background: transparent;
       color: var(--text-main);
-      padding: 8px 18px;
+      padding: 8px 16px;
       cursor: pointer;
       font-size: 13px;
       font-weight: 500;
@@ -736,7 +914,7 @@
     }
 
     .modal-btn:hover {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--bg-surface-hover);
       border-color: var(--border-highlight);
     }
 
@@ -751,6 +929,63 @@
     .modal-btn.primary:hover {
       background: var(--primary-hover);
       box-shadow: 0 4px 12px rgba(34, 211, 238, 0.5);
+    }
+
+    /* Guardrail variant. Deliberately heavier than the review modal:
+       review skips one rule, this one is the last stop before a very
+       large irreversible action, so the warning hue frames it and the
+       count is set at display size rather than buried in a sentence. */
+    dialog.gcc-modal.guard {
+      max-width: 460px;
+      border-color: var(--warning-border);
+    }
+
+    .guard-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      color: var(--warning);
+    }
+
+    .guard-head .modal-title {
+      margin: 0;
+      color: var(--warning);
+    }
+
+    .guard-count {
+      margin: 0 0 12px 0;
+      font-size: 22px;
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      color: var(--text-main);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .guard-count-unit {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .guard-lead { margin: 0; }
+
+    .guard-note { margin: 12px 0 0 0; }
+    .guard-note[hidden] { display: none; }
+
+    .modal-btn.guard-safe {
+      background: var(--warning);
+      border-color: transparent;
+      color: var(--bg-deep);
+      font-weight: 700;
+      box-shadow: none;
+    }
+
+    .modal-btn.guard-safe:hover {
+      background: var(--warning);
+      border-color: var(--warning-border);
+      filter: brightness(1.08);
     }
 
     .toast {
@@ -786,7 +1021,6 @@
     html[data-theme="light"] #summaryTable tbody tr:hover td { background: var(--bg-surface-hover); }
     html[data-theme="light"] .ghost-btn:hover:not(:disabled),
     html[data-theme="light"] .icon-btn:hover { color: var(--text-main); }
-    html[data-theme="light"] #tipPrompt a { color: var(--primary); }
     html[data-theme="light"] .ghost-btn[aria-pressed="true"] { color: var(--primary-hover); }
     html[data-theme="light"] .pill { color: #047857; }
     html[data-theme="light"] #summary .pill {
@@ -815,8 +1049,10 @@
       .controls-secondary { justify-content: center; width: 100%; }
       .meta { flex-direction: column; align-items: flex-start; gap: 8px; }
       #summary { width: 100%; }
-      dialog#reviewModal { margin: auto 16px; max-width: calc(100% - 32px); }
+      dialog.gcc-modal { margin: auto 16px; max-width: calc(100% - 32px); }
       .toast { left: 16px; right: 16px; bottom: 16px; }
+      .done-card { padding: 16px; }
+      .done-actions .done-btn { flex: 1 1 100%; justify-content: center; }
     }
 
     @media print {
@@ -824,7 +1060,9 @@
       .panel { background: white; border: 1px solid #ccc; box-shadow: none; }
       .controls,
       .controls-secondary,
-      #tipPrompt,
+      .done-actions,
+      .done-rating,
+      .done-pro,
       .skip-link { display: none !important; }
     }
   </style>
@@ -845,7 +1083,7 @@
           </p>
         </div>
         <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
-          <span class="pill" id="versionPill" aria-label="Status: Live progress">v7.15.0</span>
+          <span class="pill" id="versionPill" aria-label="Status: Live progress">v8.0.0</span>
           <div class="theme-switcher" id="themeSwitcher" role="group" aria-label="Color theme">
             <button type="button" data-theme-value="system" aria-pressed="true">Auto</button>
             <button type="button" data-theme-value="light" aria-pressed="false">Light</button>
@@ -887,6 +1125,57 @@
           </button>
         </div>
       </nav>
+
+      <!-- Run-completion card. Hidden until the run reaches DONE, where
+           it replaces the controls row above. Every figure in here is
+           written by progress.js from the engine's own stats. -->
+      <section id="doneCard" class="done-card" hidden role="region" data-i18n-label="progDoneCardLabel" aria-label="Run summary">
+        <p id="doneNumber" class="done-number"></p>
+
+        <p id="doneSafety" class="done-safety">
+          <svg class="ico ico--md" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2l7 3v5.1c0 4.2-2.9 7.6-7 9.5-4.1-1.9-7-5.3-7-9.5V6.2l7-3Z"/><path d="M9 12.2l2.1 2.1 4-4.2"/></svg>
+          <span id="doneSafetyText"></span>
+        </p>
+
+        <p id="doneLabels" class="done-labels" hidden>
+          <span id="doneLabelsLead" data-i18n="progDoneLabelsLead">Labels applied:</span>
+        </p>
+
+        <div class="done-actions">
+          <button id="openRecoveryBtn" type="button" class="done-btn primary">
+            <svg class="ico ico--md" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4.5V9h4.5"/></svg>
+            <span data-i18n="progDoneOpenRecovery">Open Recovery Log</span>
+          </button>
+
+          <button id="copyReceiptBtn" type="button" class="done-btn">
+            <svg class="ico ico--md" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4.5A1.5 1.5 0 0 1 3 13.5v-9A1.5 1.5 0 0 1 4.5 3h9A1.5 1.5 0 0 1 15 4.5V5"/></svg>
+            <span data-i18n="progDoneCopyReceipt">Copy receipt</span>
+          </button>
+        </div>
+
+        <div id="doneRating" class="done-rating" hidden>
+          <span class="done-rating-ask" data-i18n="ratingQuestion">Was this cleanup helpful?</span>
+          <button id="doneRateBtn" type="button" class="done-btn">
+            <svg class="ico ico--md" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.6l2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.1l6.1-.9L12 2.6Z"/></svg>
+            <span data-i18n="rate5">Rate 5 stars</span>
+          </button>
+          <button id="doneRateDismiss" type="button" class="done-rating-dismiss" data-i18n="progDoneNotNow">Not now</button>
+        </div>
+
+        <p id="donePro" class="done-pro" hidden>
+          <svg class="ico ico--md" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 7.5l4 3 4.5-6 4.5 6 4-3-1.8 10H5.3L3.5 7.5Z"/></svg>
+          <span id="doneProText" class="done-pro-text"></span>
+          <a
+            id="doneProBuy"
+            class="done-pro-cta"
+            href="#"
+            target="_blank"
+            rel="noopener noreferrer"
+            referrerpolicy="no-referrer"
+            data-i18n="progDoneProCta"
+          >Get Pro</a>
+        </p>
+      </section>
 
       <div class="meta">
         <div>
@@ -933,38 +1222,20 @@
         <summary class="shortcuts-summary">Keyboard shortcuts</summary>
         <div class="shortcuts-list">
           <div class="shortcut-item"><kbd>Esc</kbd> Cancel run / skip review</div>
+          <div class="shortcut-item"><kbd>Esc</kbd> <span data-i18n="progShortcutGuard">Stop the run at a large-run confirmation</span></div>
           <div class="shortcut-item"><kbd>Enter</kbd> Proceed in review modal</div>
           <div class="shortcut-item"><kbd>Ctrl+Shift+C</kbd> Copy logs</div>
         </div>
       </details>
 
-      <aside id="tipPrompt" aria-label="Pro upgrade">
-        <p style="margin: 0;">
-          Big cleanup? The same senders will refill your inbox.
-          <strong>Pro</strong> adds bulk unsubscribe so they stop at the
-          source: a one-time $19.99, no subscription.
-          <a
-            id="tipPromptBuy"
-            href="https://buy.stripe.com/4gMaEY6wb7Jwezufg7dUY05?client_reference_id=gcc_progress"
-            target="_blank"
-            rel="noopener noreferrer"
-            referrerpolicy="no-referrer"
-            aria-label="Get Pro for $19.99, lifetime license (opens in new tab)"
-          >
-            Get Pro - $19.99 lifetime
-          </a>
-          (then scan for subscriptions from the extension popup).
-        </p>
-      </aside>
-
     </main>
   </div>
 
-  <dialog id="reviewModal" aria-labelledby="modal-title" aria-describedby="modal-desc">
+  <dialog id="reviewModal" class="gcc-modal" aria-labelledby="modal-title" aria-describedby="modal-desc">
     <div class="modal-content">
       <h2 id="modal-title" class="modal-title">Review Matches</h2>
       <div id="modal-desc" class="modal-body">
-        Found roughly <strong id="modalCount" style="color:#fff">...</strong> conversations for:
+        Found roughly <strong id="modalCount" class="modal-strong">...</strong> conversations for:
         <code id="modalQuery" class="modal-query">...</code>
         Proceed with cleaning this batch, or skip it?
       </div>
@@ -972,6 +1243,42 @@
     <div class="modal-actions">
       <button id="modalSkipBtn" class="modal-btn" type="button">Skip This Rule</button>
       <button id="modalProceedBtn" class="modal-btn primary" type="button" autofocus>Proceed</button>
+    </div>
+  </dialog>
+
+  <!-- Guardrail confirmation (8.0). The soft cap and the huge-run gate
+       used to raise confirm() inside the Gmail tab, which every run path
+       had just backgrounded by focusing this page. The engine now asks
+       here and treats silence as a refusal, so the safe answer is the
+       default and every dismissal path routes to "stop". -->
+  <dialog id="guardModal" class="gcc-modal guard" aria-labelledby="guard-title" aria-describedby="guard-desc">
+    <div class="modal-content">
+      <div class="guard-head">
+        <svg class="ico ico--md" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.6L21.2 19.4H2.8L12 3.6Z"/><path d="M12 9.6v4.2"/><path d="M12 17.1h.01"/></svg>
+        <h2 id="guard-title" class="modal-title" data-i18n="progGuardTitle">This is a very large run</h2>
+      </div>
+
+      <p class="guard-count">
+        <span id="guardCount"></span>
+        <span class="guard-count-unit" data-i18n="progGuardCountUnit">conversations</span>
+      </p>
+
+      <div id="guard-desc" class="modal-body">
+        <p id="guardLead" class="guard-lead"></p>
+        <p id="guardAlternatives" class="guard-note" data-i18n="progGuardAlternatives" hidden>
+          If that is more than you expected, stop and try a Dry Run, Safe Mode, or a smaller set of rules first.
+        </p>
+        <p id="guardTrashNote" class="guard-note" data-i18n="progGuardTrashNote" hidden>
+          Mail goes to Trash, and Gmail keeps Trash for about 30 days.
+        </p>
+        <p class="guard-note" data-i18n="progGuardStopNote">
+          Stopping now leaves everything untouched.
+        </p>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button id="guardProceedBtn" class="modal-btn" type="button" data-i18n="progGuardProceed">Yes, continue</button>
+      <button id="guardStopBtn" class="modal-btn guard-safe" type="button" autofocus data-i18n="progGuardStop">Stop the run</button>
     </div>
   </dialog>
 

@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "7.15.0";
+  const POPUP_VERSION = "8.0.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -45,6 +45,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 7.8: whether the Suggested disclosure was left open.
     SMART_OPEN: "smartSectionOpen",
+
+    // 8.0: which tab was open last. The popup used to reset to Clean on
+    // every open, so a user working through the report or a sender list
+    // had to re-navigate every single time.
+    ACTIVE_TAB: "activeTab",
+
+    // 8.0: which senders were ticked on the Unsubscribe tab. The
+    // license check ran BEFORE the checkboxes were read and then closed
+    // the popup, so the people who lost their triage were exactly the
+    // people who had just decided to pay.
+    SUBS_CHECKED: "subsCheckedEmails",
+
+    // 8.0: the "Bought Pro? Paste your key" strip, dismissed.
+    ACTIVATE_HINT_DISMISSED: "activateHintDismissed",
 
     // 7.4: post-run recap. STATS mirrors the service worker's stats key
     // (read-only here); RECAP_SEEN is the "already shown" timestamp.
@@ -108,7 +122,10 @@ document.addEventListener("DOMContentLoaded", () => {
     subs: {
       licenseActive: false,
       senders: [],
-      running: null
+      running: null,
+      // 8.0: which senders were ticked, so a trip to checkout does not
+      // throw the triage away.
+      checked: new Set()
     },
 
     // 7.2 storage X-ray: last scan + totals. Pro gating reads
@@ -129,6 +146,17 @@ document.addEventListener("DOMContentLoaded", () => {
       whitelist: [],
       protectKeywords: [],
       visibleCount: 0,
+      running: null
+    },
+
+    // 8.0 Mailbox Report: the stored band scan and which report run
+    // (if any) this popup instance is watching.
+    report: {
+      bands: [],
+      cleanableCount: 0,
+      largeMb: 0,
+      topSenders: [],
+      updatedAt: 0,
       running: null
     },
 
@@ -330,11 +358,11 @@ document.addEventListener("DOMContentLoaded", () => {
     ratingDismiss: $("ratingDismiss"),
     ratingBtn: $("ratingBtn"),
 
+    rateBtn: $("rateBtn"),
     shareBtn: $("shareBtn"),
 
     toastContainer: $("toastContainer"),
     accountSelector: $("accountSelector"),
-    wlSuggestions: $("wlSuggestions"),
     openStatsBtn: $("openStats"),
 
     // 5.0
@@ -394,6 +422,41 @@ document.addEventListener("DOMContentLoaded", () => {
     xrayUpsellText: $("xrayUpsellText"),
     xrayBuyLink: $("xrayBuyLink"),
     xrayEnterKey: $("xrayEnterKey"),
+
+    // 8.0 Mailbox Report
+    tabReport: $("tabReport"),
+    tabUnsubLock: $("tabUnsubLock"),
+    tabStorageLock: $("tabStorageLock"),
+    reportStamp: $("reportStamp"),
+    reportIntro: $("reportIntro"),
+    reportScanBtn: $("reportScanBtn"),
+    reportScanLabel: $("reportScanLabel"),
+    reportScanSub: $("reportScanSub"),
+    reportStatus: $("reportStatus"),
+    reportHero: $("reportHero"),
+    reportHeroCount: $("reportHeroCount"),
+    reportHeroLabel: $("reportHeroLabel"),
+    reportHeroMb: $("reportHeroMb"),
+    reportList: $("reportList"),
+    reportPlanBtn: $("reportPlanBtn"),
+    reportPlanBtnSub: $("reportPlanBtnSub"),
+    reportUpsell: $("reportUpsell"),
+    reportUpsellText: $("reportUpsellText"),
+    reportBuyLink: $("reportBuyLink"),
+    reportEnterKey: $("reportEnterKey"),
+    reportNote: $("reportNote"),
+
+    // 8.0 Pro proof panel
+    proPanel: $("proPanel"),
+    proPanelLead: $("proPanelLead"),
+    proPanelBuy: $("proPanelBuy"),
+    proPanelKey: $("proPanelKey"),
+    proPanelBack: $("proPanelBack"),
+    proPanelClose: $("proPanelClose"),
+    activateHint: $("activateHint"),
+    activateHintBtn: $("activateHintBtn"),
+    activateHintClose: $("activateHintClose"),
+    rateBtnLabel: $("rateBtnLabel"),
 
     // 7.8 Smart Suggestions
     smartSection: $("smartSection"),
@@ -571,7 +634,16 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.resultSummary?.classList.remove("show");
   };
 
-  const showSuccessCtas = () => elements.successCtas?.classList.add("show");
+  // 8.0: the Rate button here used to show after EVERY run, including
+  // dry runs and two-email maintenance sweeps, which walked straight
+  // around the deliberately gated ask in #ratingPrompt. It now answers
+  // to the same rule.
+  const showSuccessCtas = (run) => {
+    elements.successCtas?.classList.add("show");
+    if (!elements.rateBtn) return;
+    const earned = !run || GCC.popupUi.ratingRunQualifies(run);
+    elements.rateBtn.hidden = !earned;
+  };
   const hideSuccessCtas = () => elements.successCtas?.classList.remove("show");
 
   const hideRatingPrompt = () => elements.ratingPrompt?.classList.remove("show");
@@ -890,56 +962,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  // =========================
-  // Whitelist Suggestions
-  // =========================
-
-  const loadWhitelistSuggestions = async () => {
-    if (!GCC.hasChrome() || !chrome.runtime?.sendMessage || !elements.wlSuggestions) return;
-    try {
-      const resp = await new Promise((resolve) => {
-        chrome.runtime.sendMessage({ type: "gmailCleanerGetWhitelistSuggestions" }, resolve);
-      });
-      const suggestions = resp?.suggestions || [];
-      if (suggestions.length === 0) return;
-
-      const currentWhitelist = await getWhitelist();
-
-      const filtered = suggestions.filter(s => !currentWhitelist.includes(s.sender));
-      if (filtered.length === 0) return;
-
-      elements.wlSuggestions.style.display = "flex";
-      elements.wlSuggestions.textContent = "";
-
-      const label = document.createElement("span");
-      label.style.fontSize = "10px";
-      label.style.color = "#64748b";
-      label.style.marginRight = "4px";
-      label.textContent = t("protectLabel", "Protect:");
-      elements.wlSuggestions.appendChild(label);
-
-      filtered.slice(0, 5).forEach(s => {
-        const chip = document.createElement("button");
-        chip.type = "button";
-        chip.className = "wl-suggest-chip";
-        chip.textContent = "+ " + s.sender;
-        chip.title = "Add to whitelist (opens: " + s.opens + ", replies: " + s.replies + ")";
-        chip.addEventListener("click", async () => {
-          const wl = await getWhitelist();
-          if (!wl.includes(s.sender)) {
-            wl.push(s.sender);
-            await storageSet("sync", { whitelist: wl });
-            showToast(t("addedToWhitelist", "added " + s.sender + " to whitelist", [s.sender]), "success");
-            chip.remove();
-          }
-        });
-        elements.wlSuggestions.appendChild(chip);
-      });
-    } catch (e) {
-      log("warn", "loadWhitelistSuggestions failed", e);
-    }
-  };
-
   // 7.12: no Gmail tab is not the user's problem to fix. Every run
   // path opens one automatically and waits for it to finish loading.
   // The tab opens in the BACKGROUND on purpose: an active tab steals
@@ -1187,16 +1209,43 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     const r = await storageGet("local", STORAGE_KEYS.RATING_DISMISSED);
-    if (Boolean(r?.[STORAGE_KEYS.RATING_DISMISSED])) {
+    const stored = r?.[STORAGE_KEYS.RATING_DISMISSED];
+    // A legacy `true` carries no date, so stamp one now and let the TTL
+    // run from here rather than either forgetting the dismissal or
+    // honouring it forever.
+    if (stored === true) {
+      await storageSet("local", { [STORAGE_KEYS.RATING_DISMISSED]: Date.now() });
+      hideRatingPrompt();
+      return;
+    }
+    if (ratingDismissalActive(stored)) {
       hideRatingPrompt();
       return;
     }
     elements.ratingPrompt.classList.add("show");
   };
 
+  // 8.0: "Maybe later" used to mean "never again for the life of this
+  // install", which permanently silenced the ask on a listing whose
+  // weakest ranking input is its handful of ratings. It now expires
+  // after 90 days, the same TTL the suggestion dismissals already use.
+  // A legacy `true` (written before this change) is honoured for that
+  // same window from now rather than reset, so nobody is re-prompted
+  // the day they update.
+  const RATING_DISMISS_TTL_MS = 1000 * 60 * 60 * 24 * 90;
+
+  const ratingDismissalActive = (stored) => {
+    if (!stored) return false;
+    const at = Number(stored);
+    // Unparseable means "dismissed at some unknown time"; staying quiet
+    // is the polite failure.
+    if (!Number.isFinite(at) || at <= 0) return true;
+    return Date.now() - at < RATING_DISMISS_TTL_MS;
+  };
+
   const dismissRatingPrompt = async () => {
     elements.ratingPrompt?.classList.remove("show");
-    await storageSet("local", { [STORAGE_KEYS.RATING_DISMISSED]: true });
+    await storageSet("local", { [STORAGE_KEYS.RATING_DISMISSED]: Date.now() });
   };
 
   const bumpRunCount = async () => {
@@ -1233,7 +1282,7 @@ document.addEventListener("DOMContentLoaded", () => {
         t("recapDynamic", `Recap: your last cleanup finished ${when}, while the popup was closed.`, [when]);
       elements.recapNote.hidden = false;
     }
-    showSuccessCtas();
+    showSuccessCtas({ dryRun: false, cleaned, freedMb });
   };
 
   const maybeShowPostRunRecap = async () => {
@@ -1508,7 +1557,20 @@ document.addEventListener("DOMContentLoaded", () => {
       state.subs.licenseActive = false;
     }
     const active = state.subs.licenseActive;
-    if (elements.subsProPill) elements.subsProPill.hidden = !active;
+    // 8.0: the pill used to unhide only when the license was ALREADY
+    // active, so it rewarded buyers and told free users nothing. It now
+    // always shows and simply changes what it says, and the tab bar
+    // carries a small padlock, so a user who never opens a tab still
+    // learns a paid tier exists.
+    if (elements.subsProPill) {
+      elements.subsProPill.hidden = false;
+      elements.subsProPill.classList.toggle("is-active", active);
+      elements.subsProPill.textContent = active
+        ? t("proActive", "Pro active")
+        : t("proShort", "Pro");
+    }
+    if (elements.tabUnsubLock) elements.tabUnsubLock.hidden = active;
+    if (elements.tabStorageLock) elements.tabStorageLock.hidden = active;
     if (elements.subsUpsell) elements.subsUpsell.hidden = active;
     if (elements.unsubBtnSub) {
       elements.unsubBtnSub.textContent = active
@@ -1521,7 +1583,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.proPromo) elements.proPromo.hidden = active;
 
     // 7.2 storage X-ray shares the same license.
-    if (elements.xrayProPill) elements.xrayProPill.hidden = !active;
+    if (elements.xrayProPill) {
+      elements.xrayProPill.hidden = false;
+      elements.xrayProPill.classList.toggle("is-active", active);
+      elements.xrayProPill.textContent = active
+        ? t("proActive", "Pro active")
+        : t("proShort", "Pro");
+    }
     if (elements.xrayBuyLink) elements.xrayBuyLink.href = GCC.license.buyUrl("storage_xray");
     if (elements.xrayPurgeBtn) elements.xrayPurgeBtn.classList.toggle("locked", !active);
     if (elements.xrayPurgeBtnSub) {
@@ -1536,6 +1604,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.smartBuyLink) elements.smartBuyLink.href = GCC.license.buyUrl("smart_suggestions");
     if (elements.smartBulkBtn) elements.smartBulkBtn.classList.toggle("locked", !active);
     renderSmartList();
+
+    // 8.0 Mailbox Report shares the same license: the report is free
+    // and complete, the top-ranked step is free to run, the rest is Pro.
+    renderReport();
   };
 
   // 7.12: locked Pro controls go straight to checkout. The click on
@@ -1551,6 +1623,65 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (fallbackUpsell) fallbackUpsell.hidden = false;
     showToast(t("checkoutFailedToast", "could not open checkout - use the Get Pro link"), "warning");
+  };
+
+  // 8.0: 7.12's straight-to-checkout was half right. It is correct that
+  // a second hunt for a Get Pro link loses sales, but the destination
+  // was a raw Stripe card form from a developer the user has never
+  // heard of, and three of the six gates did not even state the price
+  // at the moment of the click. The panel below costs a decided buyer
+  // one extra click and gives everybody else the pitch: their own scan
+  // number, what the four pillars do, and the three facts that until
+  // now existed only on a landing page nothing linked to. The Get Pro
+  // button performs exactly the old jump with exactly the old
+  // attribution label, so tools/analytics.mjs keeps working.
+  const proPanelState = { source: null, fallbackUpsell: null, lastFocus: null };
+
+  // The panel leads with the same number the surface's own inline
+  // upsell would have shown, so the pitch is always about this user's
+  // mailbox and never a generic claim.
+  const xrayRankedMb = () =>
+    state.xray.senders.reduce((sum, s) => sum + (Number(s.estMb) || 0), 0);
+
+  const hiddenSmartCount = () =>
+    Math.max(0, state.smart.visibleCount - GCC.smart.LIMITS.FREE_VISIBLE);
+
+  const openProPanel = (source, { lead = "", fallbackUpsell = null } = {}) => {
+    if (!elements.proPanel) {
+      // No panel in this document (a trimmed test fixture): keep the
+      // old behaviour rather than silently swallowing the click.
+      openProCheckout(fallbackUpsell, source).catch(() => {});
+      return;
+    }
+    proPanelState.source = source;
+    proPanelState.fallbackUpsell = fallbackUpsell;
+    proPanelState.lastFocus = document.activeElement;
+
+    if (elements.proPanelLead) {
+      elements.proPanelLead.textContent = lead
+        || t("proPanelLeadDefault", "One payment unlocks every paid feature, forever.");
+    }
+    elements.proPanel.hidden = false;
+    elements.proPanelBuy?.focus();
+  };
+
+  // Hoisted out of setupEventListeners in 8.0: the report and the Pro
+  // panel wire it before the listener block reaches its old definition,
+  // and a const arrow read before its initializer throws.
+  const openProOptions = async () => {
+    await tabsCreate({ url: chrome.runtime.getURL("options.html#pro"), active: true });
+    setTimeout(safeClosePopup, 150);
+  };
+
+  const closeProPanel = () => {
+    if (!elements.proPanel || elements.proPanel.hidden) return;
+    elements.proPanel.hidden = true;
+    try {
+      proPanelState.lastFocus?.focus?.();
+    } catch {
+      // The control that opened the panel can be gone after a re-render.
+    }
+    proPanelState.lastFocus = null;
   };
 
   const getCheckedSubEmails = () =>
@@ -1578,6 +1709,21 @@ document.addEventListener("DOMContentLoaded", () => {
       GCC.popupUi.subsUpsellLine(state.subs.senders.length);
   };
 
+  const persistSubsSelection = () => {
+    storageSet("local", { [STORAGE_KEYS.SUBS_CHECKED]: getCheckedSubEmails().slice(0, 200) })
+      .catch(() => {});
+  };
+
+  const loadSubsSelection = async () => {
+    try {
+      const r = await storageGet("local", STORAGE_KEYS.SUBS_CHECKED);
+      const list = r?.[STORAGE_KEYS.SUBS_CHECKED];
+      state.subs.checked = new Set(Array.isArray(list) ? list.filter((e) => typeof e === "string") : []);
+    } catch {
+      state.subs.checked = new Set();
+    }
+  };
+
   const renderSubsList = () => {
     if (!elements.subsList) return;
     updateSubsUpsellCopy();
@@ -1595,8 +1741,16 @@ document.addEventListener("DOMContentLoaded", () => {
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
       checkbox.setAttribute("data-email", sender.email);
-      checkbox.addEventListener("change", updateSubsCount);
+      checkbox.addEventListener("change", () => {
+        updateSubsCount();
+        persistSubsSelection();
+      });
       if (sender.status === "unsubscribed") checkbox.disabled = true;
+      // 8.0: restore a selection the user made before they were sent to
+      // checkout. handleUnsubscribe checks the licence BEFORE it reads
+      // the checkboxes and then closes the popup, so the people who
+      // lost their triage were exactly the people about to pay.
+      if (state.subs.checked.has(sender.email) && !checkbox.disabled) checkbox.checked = true;
 
       const name = document.createElement("span");
       name.className = "subs-row-name";
@@ -1699,6 +1853,7 @@ document.addEventListener("DOMContentLoaded", () => {
       state.subs.running = "subscriptionScan";
       if (elements.scanSubsBtn) elements.scanSubsBtn.disabled = true;
       setSubsStatus(t("subsScanning", "Scanning your mailbox for subscription senders..."));
+      showSkeletonRows(elements.subsList, 4);
       const tabId = await injectSubscriptionRun("subscriptionScan");
       if (tabId === null) {
         state.subs.running = null;
@@ -1718,7 +1873,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (state.subs.running) return;
 
     if (!state.subs.licenseActive) {
-      await openProCheckout(elements.subsUpsell, "unsubscribe_locked");
+      openProPanel("unsubscribe_locked", {
+        lead: GCC.popupUi.subsUpsellLine(state.subs.senders.length),
+        fallbackUpsell: elements.subsUpsell
+      });
       return;
     }
 
@@ -1814,6 +1972,423 @@ document.addEventListener("DOMContentLoaded", () => {
       );
     }
     finishSubsRun();
+  };
+
+  // =========================
+  // Mailbox Report (8.0)
+  // =========================
+  // The landing tab. One read-only scan counts what is actually in the
+  // mailbox and turns it into a ranked plan. The report itself is free
+  // and complete, and the top-ranked step is free to run, so the
+  // mechanism proves itself on the user's own mail before anyone is
+  // asked for money. Every other step and "Run the whole plan" are Pro.
+  //
+  // Running a step is not a new engine surface: it is an ordinary
+  // cleanup whose rulesOverride is the band's query, exactly like the
+  // X-ray purge below, so tagging, the whitelist, protected keywords,
+  // Minimum Age, dry run, the undo log and Restore all apply unchanged.
+
+  const REPORT_LABELS = Object.freeze({
+    sizeHuge: { title: "Huge attachments", desc: "Over 25 MB, older than 6 months" },
+    sizeLarge: { title: "Large attachments", desc: "10 to 25 MB, older than 6 months" },
+    sizeBig: { title: "Big attachments", desc: "5 to 10 MB, older than 6 months" },
+    promotions: { title: "Old promotions", desc: "Promotions tab, older than 6 months" },
+    social: { title: "Old social mail", desc: "Social tab, older than 6 months" },
+    updates: { title: "Old updates", desc: "Updates tab, older than a year" },
+    forums: { title: "Old forum mail", desc: "Forums tab, older than a year" },
+    newsletters: { title: "Old newsletters", desc: "Carries an unsubscribe link, older than a year" },
+    inboxAncient: { title: "Inbox, 5 years and older", desc: "Archived out of the Inbox, never deleted" },
+    inboxOld: { title: "Inbox, 1 to 5 years old", desc: "Archived out of the Inbox, never deleted" }
+  });
+
+  const reportBandTitle = (id) =>
+    t(`reportBand_${id}`, REPORT_LABELS[id]?.title || id);
+
+  const reportBandDesc = (id) =>
+    t(`reportBandDesc_${id}`, REPORT_LABELS[id]?.desc || "");
+
+  const setReportStatus = (text) => {
+    if (elements.reportStatus) elements.reportStatus.textContent = text || "";
+  };
+
+  const showSkeletonRows = (container, count) => {
+    if (!container) return;
+    container.textContent = "";
+    for (let i = 0; i < count; i++) {
+      const row = document.createElement("div");
+      row.className = "skeleton-row";
+      row.setAttribute("aria-hidden", "true");
+      container.appendChild(row);
+    }
+  };
+
+  const renderReport = () => {
+    if (!elements.reportList) return;
+    const active = state.subs.licenseActive;
+    const ranked = GCC.report.rankBands(state.report.bands).filter((b) => b.count > 0);
+    const freeId = GCC.report.freeBandId(state.report.bands);
+    const totals = GCC.report.totals(state.report.bands);
+
+    const scanned = Boolean(state.report.updatedAt);
+    if (elements.reportHero) elements.reportHero.hidden = !scanned;
+    // Once the number is on screen the pitch for the scan is dead
+    // weight, and the scan button becomes a rescan.
+    if (elements.reportIntro) elements.reportIntro.hidden = scanned;
+    if (elements.reportScanLabel && scanned) {
+      elements.reportScanLabel.textContent = t("reportRescanMain", "Scan again");
+    }
+    if (elements.reportScanSub && scanned) {
+      elements.reportScanSub.textContent = t("reportRescanSub", "Free · updates the counts below");
+    }
+    if (elements.reportScanBtn) elements.reportScanBtn.classList.toggle("is-compact", scanned);
+    if (elements.reportHeroCount) {
+      elements.reportHeroCount.textContent = Number(state.report.cleanableCount || 0).toLocaleString();
+    }
+    if (elements.reportHeroMb) {
+      elements.reportHeroMb.textContent = totals.largeMb
+        ? t("reportHeroMb", `At least ${totals.largeMb.toLocaleString()} MB of it is large mail`, [totals.largeMb.toLocaleString()])
+        : "";
+    }
+    if (elements.reportStamp && state.report.updatedAt) {
+      elements.reportStamp.textContent = GCC.relativeTime
+        ? GCC.relativeTime(state.report.updatedAt)
+        : "";
+    }
+    if (elements.reportNote) elements.reportNote.hidden = !state.report.updatedAt;
+
+    elements.reportList.textContent = "";
+
+    if (!state.report.updatedAt) {
+      if (elements.reportPlanBtn) elements.reportPlanBtn.hidden = true;
+      if (elements.reportUpsell) elements.reportUpsell.hidden = true;
+      const empty = document.createElement("div");
+      empty.className = "scan-empty";
+      empty.innerHTML =
+        '<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
+      const text = document.createElement("span");
+      text.textContent = t(
+        "reportEmpty",
+        "The scan counts old promotions, big attachments, forgotten newsletters and inbox mail you never archived, then ranks them so you can clear the biggest first."
+      );
+      empty.appendChild(text);
+      elements.reportList.appendChild(empty);
+      return;
+    }
+
+    if (ranked.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "scan-empty";
+      const text = document.createElement("span");
+      text.textContent = t("reportNothing", "Nothing matched the plan. Your mailbox is already clean.");
+      empty.appendChild(text);
+      elements.reportList.appendChild(empty);
+      if (elements.reportPlanBtn) elements.reportPlanBtn.hidden = true;
+      if (elements.reportUpsell) elements.reportUpsell.hidden = true;
+      return;
+    }
+
+    for (const band of ranked) {
+      const unlocked = GCC.report.isBandUnlocked(band.id, state.report.bands, active);
+      const row = document.createElement("div");
+      row.className = "report-row";
+      if (!active && band.id === freeId) row.classList.add("is-free");
+      if (band.cleanedAt) row.classList.add("is-done");
+      row.setAttribute("role", "listitem");
+
+      const main = document.createElement("div");
+      main.className = "report-row-main";
+      const title = document.createElement("div");
+      title.className = "report-row-title";
+      title.textContent = reportBandTitle(band.id);
+      const meta = document.createElement("div");
+      meta.className = "report-row-meta";
+      meta.textContent = [
+        reportBandDesc(band.id),
+        band.action === "archive"
+          ? t("reportActionArchive", "archives")
+          : t("reportActionDelete", "to Trash")
+      ].filter(Boolean).join(" · ");
+      main.appendChild(title);
+      main.appendChild(meta);
+
+      // The figures get their own column so a long band description can
+      // never truncate the number, which is the thing the row is for.
+      const figures = document.createElement("div");
+      figures.className = "report-row-figures";
+      const count = document.createElement("span");
+      count.className = "report-row-count";
+      count.textContent = band.count.toLocaleString();
+      figures.appendChild(count);
+      if (band.estMb) {
+        const mb = document.createElement("span");
+        mb.className = "report-row-mb";
+        mb.textContent = t("reportAtLeastMb", `at least ${band.estMb.toLocaleString()} MB`, [band.estMb.toLocaleString()]);
+        figures.appendChild(mb);
+      }
+
+      row.appendChild(main);
+      row.appendChild(figures);
+
+      if (band.cleanedAt) {
+        const done = document.createElement("span");
+        done.className = "report-row-done";
+        done.textContent = t("reportDone", "Cleared");
+        row.appendChild(done);
+      } else {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "report-row-btn";
+        btn.setAttribute("data-band", band.id);
+        if (unlocked) {
+          btn.textContent = t("reportRunStep", "Run");
+          btn.setAttribute(
+            "aria-label",
+            t("reportRunStepAria", `Run this step: ${reportBandTitle(band.id)}`, [reportBandTitle(band.id)])
+          );
+        } else {
+          btn.classList.add("is-locked");
+          btn.innerHTML =
+            '<svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg>';
+          const span = document.createElement("span");
+          span.textContent = t("proShort", "Pro");
+          btn.appendChild(span);
+          btn.setAttribute(
+            "aria-label",
+            t("reportLockedAria", `Unlock this step with Pro: ${reportBandTitle(band.id)}`, [reportBandTitle(band.id)])
+          );
+        }
+        row.appendChild(btn);
+      }
+
+      elements.reportList.appendChild(row);
+    }
+
+    if (elements.reportPlanBtn) elements.reportPlanBtn.hidden = ranked.length < 2;
+    if (elements.reportPlanBtn) elements.reportPlanBtn.classList.toggle("locked", !active);
+    if (elements.reportPlanBtnSub) {
+      elements.reportPlanBtnSub.textContent = active
+        ? t("smartBulkSub", "Tagged first, then Trash - undo applies")
+        : t("proPriceSub", "Pro · $19.99 lifetime");
+    }
+    if (elements.reportUpsell) elements.reportUpsell.hidden = active;
+    if (elements.reportUpsellText && !active) {
+      elements.reportUpsellText.textContent = GCC.report.upsellLine(state.report.bands);
+    }
+  };
+
+  const loadStoredReport = async () => {
+    try {
+      const res = await GCC.sendMessage({ type: "gmailCleanerGetReport" });
+      const stored = res?.report;
+      if (!stored?.bands) return;
+      state.report.bands = GCC.report.rankBands(stored.bands);
+      state.report.cleanableCount = Number(stored.cleanableCount) || 0;
+      state.report.largeMb = Number(stored.largeMb) || 0;
+      state.report.topSenders = Array.isArray(stored.topSenders) ? stored.topSenders : [];
+      state.report.updatedAt = Number(stored.updatedAt) || 0;
+    } catch {
+      // A missing report is the normal first-run state.
+    }
+    // Render either way: the pre-scan empty state is what a first-time
+    // user sees, and it must not depend on a storage read succeeding.
+    renderReport();
+  };
+
+  const finishReportRun = () => {
+    state.report.running = null;
+    if (elements.reportScanBtn) elements.reportScanBtn.disabled = false;
+  };
+
+  const handleReportProgress = (msg) => {
+    const { phase, status, detail } = msg;
+
+    if (phase === "error") {
+      setReportStatus(detail || t("reportFailed", "Report failed."));
+      if (elements.reportList) elements.reportList.textContent = "";
+      renderReport();
+      finishReportRun();
+      return;
+    }
+    if (phase === "cancelled") {
+      setReportStatus(t("reportCancelled", "Report cancelled."));
+      renderReport();
+      finishReportRun();
+      return;
+    }
+    if (!msg.done) {
+      setReportStatus(status || detail || "");
+      return;
+    }
+
+    if (Array.isArray(msg.bands)) {
+      state.report.bands = GCC.report.rankBands(msg.bands);
+      state.report.cleanableCount = Number(msg.cleanableCount) || 0;
+      state.report.largeMb = Number(msg.largeMb) || 0;
+      state.report.topSenders = Array.isArray(msg.topSenders) ? msg.topSenders : [];
+      state.report.updatedAt = Date.now();
+      renderReport();
+      setReportStatus(status || t("scanComplete", "Scan complete."));
+      // The worker persists the same payload; re-read it shortly after
+      // so the stored cleanedAt marks come back in.
+      setTimeout(() => { loadStoredReport().catch(() => {}); }, 400);
+      showToast(t("reportCompleteToast", "mailbox report ready"), "success");
+    }
+    finishReportRun();
+  };
+
+  const handleReportScan = async () => {
+    if (state.report.running) return;
+    try {
+      state.report.running = "reportScan";
+      if (elements.reportScanBtn) elements.reportScanBtn.disabled = true;
+      setReportStatus(t("reportScanning", "Reading your mailbox..."));
+      showSkeletonRows(elements.reportList, 4);
+      // Read-only, like the other scans: the engine needs nothing from
+      // the cleanup form to count search results.
+      const tabId = await injectEngineRun(
+        { runKind: "reportScan", debugMode: state.debugMode },
+        setReportStatus
+      );
+      if (tabId === null) {
+        state.report.running = null;
+        if (elements.reportScanBtn) elements.reportScanBtn.disabled = false;
+        renderReport();
+      }
+    } catch (err) {
+      log("error", "report scan start failed", err);
+      showToast(t("scanFailedPrefix", `scan failed: ${err?.message || "unknown error"}`, [err?.message || "unknown error"]), "error");
+      setReportStatus("");
+      state.report.running = null;
+      if (elements.reportScanBtn) elements.reportScanBtn.disabled = false;
+      renderReport();
+    }
+  };
+
+  // Running a plan step. A clone of handleXrayPurge below, down to the
+  // ordering of the claim, the attached-engine guard and the pending
+  // marker, because that ordering is the product of several fixes: a
+  // refused duplicate run must not leave a scoped config or a dangling
+  // marker behind.
+  const startReportRun = async (bandIds, { source }) => {
+    if (state.isRunning || state.report.running) return;
+
+    const rules = GCC.report.bandPurgeRules(bandIds);
+    if (!rules.length) {
+      showToast(t("reportNoSteps", "no steps selected"), "warning");
+      return;
+    }
+
+    // Every band in one run must agree on the action, and the engine
+    // takes one archiveInsteadOfDelete for the whole run. Archive is
+    // the gentler outcome, so a mixed selection archives: doing less
+    // than asked is always the safe direction.
+    const bands = GCC.report.rankBands(state.report.bands);
+    const chosen = bands.filter((b) => bandIds.includes(b.id));
+    const anyArchive = chosen.some((b) => b.action === "archive");
+
+    state.isRunning = true;
+    let claimedRunId = null;
+    try {
+      if (!(await GCC.gmailAccess.check())) {
+        refreshBanners().catch(() => {});
+        setReportStatus(t("allowAccessFirst", "Allow Gmail access at the top of this popup first."));
+        showToast(t("accessNeededToast", "gmail access needed"), "warning");
+        state.isRunning = false;
+        return;
+      }
+
+      const gmailTab = await findOrOpenGmailTab(setReportStatus);
+      if (!gmailTab?.id) {
+        state.isRunning = false;
+        return;
+      }
+
+      const claim = await tryClaimRun(gmailTab.id);
+      if (!claim.ok) {
+        showToast(t("alreadyRunningToast", "a cleanup is already running"), "warning");
+        state.isRunning = false;
+        return;
+      }
+      claimedRunId = claim.claim.runId;
+
+      const config = await buildConfig();
+      config.runId = claim.claim.runId;
+      config.rulesOverride = rules;
+      config.archiveInsteadOfDelete = anyArchive;
+      state.currentGmailTabId = gmailTab.id;
+      state.startedRunHere = true;
+      setReportStatus(config.dryRun
+        ? t("reportDryCounting", "Dry run: counting what this step would clear...")
+        : t("reportRunning", "Running the plan..."));
+
+      if (await isEngineAttached(gmailTab.id)) {
+        showToast(t("alreadyRunningToast", "a cleanup is already running"), "warning");
+        await clearActiveRun(claimedRunId);
+        claimedRunId = null;
+        state.isRunning = false;
+        return;
+      }
+
+      await persistLastConfig(config);
+
+      if (!config.dryRun) {
+        GCC.sendMessage({
+          type: "gmailCleanerReportPurgeStarted",
+          runId: config.runId,
+          bandIds: chosen.map((b) => b.id)
+        }).catch(() => {});
+      }
+
+      await openProgressTab(gmailTab.id);
+
+      await scriptingExecuteScript({
+        target: { tabId: gmailTab.id },
+        func: (cfg) => { window.GMAIL_CLEANER_CONFIG = cfg; },
+        args: [config]
+      });
+      await scriptingExecuteScript({
+        target: { tabId: gmailTab.id },
+        files: ["contentScript.js"]
+      });
+
+      await bumpRunCount();
+      showToast(config.dryRun ? t("reportDryStarted", "plan dry run started") : t("reportStarted", "plan started"), "success");
+      setTimeout(safeClosePopup, 200);
+    } catch (err) {
+      const m = err?.message || String(err);
+      log("error", `startReportRun (${source}) error:`, err);
+      setReportStatus(t("failedToStart", `Failed to start: ${m}`, [m]));
+      showToast(t("reportFailedPrefix", `plan failed: ${m}`, [m]), "error");
+      if (claimedRunId) await clearActiveRun(claimedRunId);
+      state.isRunning = false;
+      state.currentGmailTabId = null;
+    }
+  };
+
+  const handleReportBandClick = async (bandId) => {
+    const active = state.subs.licenseActive;
+    if (!GCC.report.isBandUnlocked(bandId, state.report.bands, active)) {
+      openProPanel("report_band_locked", {
+        lead: GCC.report.upsellLine(state.report.bands),
+        fallbackUpsell: elements.reportUpsell
+      });
+      return;
+    }
+    await startReportRun([bandId], { source: "band" });
+  };
+
+  const handleReportPlan = async () => {
+    if (!state.subs.licenseActive) {
+      openProPanel("report_plan_locked", {
+        lead: GCC.report.upsellLine(state.report.bands),
+        fallbackUpsell: elements.reportUpsell
+      });
+      return;
+    }
+    const ids = GCC.report.rankBands(state.report.bands)
+      .filter((b) => b.count > 0 && !b.cleanedAt)
+      .map((b) => b.id);
+    await startReportRun(ids, { source: "plan" });
   };
 
   // =========================
@@ -1987,6 +2562,7 @@ document.addEventListener("DOMContentLoaded", () => {
       state.xray.running = "storageScan";
       if (elements.xrayScanBtn) elements.xrayScanBtn.disabled = true;
       setXrayStatus(t("xraySizing", "Sizing up your mailbox..."));
+      showSkeletonRows(elements.xrayList, 3);
       const tabId = await injectEngineRun(
         { runKind: "storageScan", debugMode: state.debugMode },
         setXrayStatus
@@ -2048,7 +2624,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (state.isRunning || state.xray.running) return;
 
     if (!state.subs.licenseActive) {
-      await openProCheckout(elements.xrayUpsell, "storage_xray_locked");
+      openProPanel("storage_xray_locked", {
+        lead: GCC.popupUi.xrayUpsellLine(state.xray.senders.length, xrayRankedMb()),
+        fallbackUpsell: elements.xrayUpsell
+      });
       return;
     }
 
@@ -2059,8 +2638,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const age = elements.xrayAge?.value || "";
-    const purgeQuery = GCC.storageXray.buildPurgeQuery(emails, age);
-    if (!purgeQuery) {
+    // 8.0: buildPurgeQuery returns only the FIRST chunk, because a
+    // single string cannot hold 25 long addresses inside the project's
+    // 512-character ceiling. The run takes the whole set as separate
+    // rules, which the engine already supports; using the singular API
+    // here would silently skip every sender past the first chunk.
+    const purgeQueries = GCC.storageXray.buildPurgeQueries(emails, age);
+    if (!purgeQueries.length) {
       showToast(t("noValidSenders", "no valid senders selected"), "warning");
       return;
     }
@@ -2093,7 +2677,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const config = await buildConfig();
       config.runId = claim.claim.runId;
-      config.rulesOverride = [purgeQuery];
+      config.rulesOverride = purgeQueries;
       // 7.15: the global Minimum Age stays. Nulling it here predated the
       // engine learning to compare ages: applyGlobalGuards now appends the
       // floor only when it is STRICTER than the age the rule already
@@ -2351,6 +2935,7 @@ document.addEventListener("DOMContentLoaded", () => {
       state.smart.running = "smartScan";
       if (elements.smartScanBtn) elements.smartScanBtn.disabled = true;
       setSmartStatus(t("smartScanning", "Scanning for suggestions (this one takes a minute or two)..."));
+      showSkeletonRows(elements.smartList, 3);
       const tabId = await injectEngineRun(
         {
           runKind: "smartScan",
@@ -2527,7 +3112,10 @@ document.addEventListener("DOMContentLoaded", () => {
     // existing gate; everything else is a free cleanup run.
     if (rule.runKind === "unsubscribe") {
       if (!state.subs.licenseActive) {
-        await openProCheckout(elements.smartUpsell, "smart_unsub_locked");
+        openProPanel("smart_unsub_locked", {
+          lead: GCC.popupUi.smartUpsellLine(hiddenSmartCount()),
+          fallbackUpsell: elements.smartUpsell
+        });
         return;
       }
       if (state.subs.running) return;
@@ -2543,7 +3131,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const handleSmartBulkApply = async () => {
     if (!state.subs.licenseActive) {
-      await openProCheckout(elements.smartUpsell, "smart_bulk_locked");
+      openProPanel("smart_bulk_locked", {
+        lead: GCC.popupUi.smartUpsellLine(hiddenSmartCount()),
+        fallbackUpsell: elements.smartUpsell
+      });
       return;
     }
     const emails = getCheckedSmartEmails();
@@ -2647,7 +3238,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!state.subs.licenseActive) {
       elements.autoPilotToggle.checked = false;
       syncSwitchAria(elements.autoPilotToggle);
-      await openProCheckout(elements.autoPilotUpsell, "autopilot_locked");
+      openProPanel("autopilot_locked", {
+        lead: GCC.popupUi.autoPilotUpsellLine(state.smart.visibleCount),
+        fallbackUpsell: elements.autoPilotUpsell
+      });
       return;
     }
     const resp = await GCC.sendMessage({ type: "gmailCleanerSetAutoPilot", enabled: wanted });
@@ -2831,6 +3425,10 @@ document.addEventListener("DOMContentLoaded", () => {
     document.addEventListener("keydown", (e) => {
       // Esc: prefer closing modals before closing the popup.
       if (e.key === "Escape") {
+        if (elements.proPanel && !elements.proPanel.hidden) {
+          closeProPanel();
+          return;
+        }
         if (elements.kbdHelp?.classList.contains("show")) {
           hideKeyboardHelp();
           return;
@@ -2907,6 +3505,11 @@ document.addEventListener("DOMContentLoaded", () => {
           handleSmartProgress(msg);
           return;
         }
+        // 8.0: the mailbox report renders into the Report tab.
+        if (msg.runKind === "reportScan") {
+          handleReportProgress(msg);
+          return;
+        }
         // 7.6: restore runs are started and watched from the recovery
         // log on the Stats page; the popup has no surface for them.
         if (msg.runKind === "restoreRun") return;
@@ -2979,7 +3582,11 @@ document.addEventListener("DOMContentLoaded", () => {
           // same run would come back as a recap on the next open.
           markRecapSeen().catch(() => {});
 
-          showSuccessCtas();
+          showSuccessCtas({
+            dryRun: stats?.mode === "dry",
+            cleaned: count,
+            freedMb
+          });
           maybeShowRatingForRun({
             dryRun: stats?.mode === "dry",
             cleaned: count,
@@ -3125,6 +3732,55 @@ document.addEventListener("DOMContentLoaded", () => {
   const setupEventListeners = () => {
     elements.runBtn.addEventListener("click", runCleanup);
 
+    // 8.0 Mailbox Report.
+    elements.reportScanBtn?.addEventListener("click", () => {
+      handleReportScan().catch((e) => log("error", "report scan failed", e));
+    });
+    elements.reportList?.addEventListener("click", (e) => {
+      const btn = e.target.closest?.("[data-band]");
+      if (!btn) return;
+      handleReportBandClick(btn.getAttribute("data-band")).catch((err) =>
+        log("error", "report band run failed", err));
+    });
+    elements.reportPlanBtn?.addEventListener("click", () => {
+      handleReportPlan().catch((e) => log("error", "report plan failed", e));
+    });
+    elements.reportBuyLink?.addEventListener("click", () => {
+      openProPanel("report_upsell", { lead: GCC.report.upsellLine(state.report.bands) });
+    });
+    elements.reportEnterKey?.addEventListener("click", openProOptions);
+
+    // 8.0 Pro proof panel. The buy button performs the same jump the
+    // gates used to perform directly, with the same attribution label.
+    elements.proPanelBuy?.addEventListener("click", () => {
+      const source = proPanelState.source || "pro_panel";
+      const fallback = proPanelState.fallbackUpsell;
+      closeProPanel();
+      openProCheckout(fallback, source).catch((e) => log("error", "checkout failed", e));
+    });
+    elements.proPanelKey?.addEventListener("click", () => {
+      closeProPanel();
+      openProOptions();
+    });
+    elements.proPanelBack?.addEventListener("click", closeProPanel);
+    elements.proPanelClose?.addEventListener("click", closeProPanel);
+
+    elements.activateHintBtn?.addEventListener("click", openProOptions);
+    elements.activateHintClose?.addEventListener("click", () => {
+      if (elements.activateHint) elements.activateHint.hidden = true;
+      storageSet("local", { [STORAGE_KEYS.ACTIVATE_HINT_DISMISSED]: Date.now() }).catch(() => {});
+    });
+
+    // Remember which tab the user was last on.
+    elements.tabBar?.addEventListener("click", (e) => {
+      const tab = e.target.closest?.('[role="tab"]');
+      if (tab?.id) rememberActiveTab(tab.id);
+    });
+    elements.tabBar?.addEventListener("keyup", () => {
+      const selected = elements.tabBar?.querySelector('[role="tab"][aria-selected="true"]');
+      if (selected?.id) rememberActiveTab(selected.id);
+    });
+
     elements.monthlyCleanBtn?.addEventListener("click", handleMonthlyClean);
     wireTargetPresets();
 
@@ -3139,6 +3795,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     elements.ratingBtn?.addEventListener("click", async () => {
       // Reviews land on the store this browser installed from.
+      await tabsCreate({ url: GCC.storeLinks().reviews, active: true });
+      dismissRatingPrompt();
+      setTimeout(safeClosePopup, 150);
+    });
+
+    // 8.0: #rateBtn was a hardcoded Chrome Web Store anchor with no
+    // handler, and the Firefox build shipped the same literal, so a
+    // Firefox user who had just had a great cleanup was sent to a store
+    // where they cannot review, under a button naming the wrong one.
+    elements.rateBtn?.addEventListener("click", async () => {
       await tabsCreate({ url: GCC.storeLinks().reviews, active: true });
       dismissRatingPrompt();
       setTimeout(safeClosePopup, 150);
@@ -3184,6 +3850,7 @@ document.addEventListener("DOMContentLoaded", () => {
         ?.querySelectorAll("input[type='checkbox']:not(:disabled)")
         .forEach((cb) => { cb.checked = checked; });
       updateSubsCount();
+      persistSubsSelection();
     });
 
     // 7.2 storage X-ray
@@ -3196,10 +3863,6 @@ document.addEventListener("DOMContentLoaded", () => {
         .forEach((cb) => { cb.checked = checked; });
       updateXrayCount();
     });
-    const openProOptions = async () => {
-      await tabsCreate({ url: chrome.runtime.getURL("options.html#pro"), active: true });
-      setTimeout(safeClosePopup, 150);
-    };
     elements.subsEnterKey?.addEventListener("click", openProOptions);
     elements.proPromoKey?.addEventListener("click", openProOptions);
     elements.footerProBtn?.addEventListener("click", openProOptions);
@@ -3224,7 +3887,10 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.autoPilotConfirmBtn?.addEventListener("click", handleAutoPilotConfirm);
     elements.autoPilotToggle?.closest("label")?.addEventListener("click", () => {
       if (state.subs.licenseActive) return;
-      openProCheckout(elements.autoPilotUpsell, "autopilot_toggle_locked").catch(() => {});
+      openProPanel("autopilot_toggle_locked", {
+        lead: GCC.popupUi.autoPilotUpsellLine(state.smart.visibleCount),
+        fallbackUpsell: elements.autoPilotUpsell
+      });
     });
 
     // 7.1 Gmail host access grant (must run inside this click gesture)
@@ -3266,6 +3932,46 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  // 8.0: the tab bar always reset to Clean, so a user working through a
+  // sender list or the report had to navigate back on every open. The
+  // Report tab is the markup default because it is the one surface that
+  // tells a new user something about their own mailbox.
+  const restoreActiveTab = async () => {
+    if (!state.tabs) return;
+    try {
+      const r = await storageGet("local", STORAGE_KEYS.ACTIVE_TAB);
+      const id = r?.[STORAGE_KEYS.ACTIVE_TAB];
+      if (typeof id === "string" && document.getElementById(id)) state.tabs.select(id);
+    } catch {
+      // Falls back to the markup default, which is fine.
+    }
+  };
+
+  const rememberActiveTab = (id) => {
+    if (typeof id !== "string" || !id) return;
+    storageSet("local", { [STORAGE_KEYS.ACTIVE_TAB]: id }).catch(() => {});
+  };
+
+  // Buyers land back from Stripe with a key and no obvious place to put
+  // it: activate.html tells them to right-click the toolbar icon and
+  // find Options. Anyone who has run a cleanup but has no license sees
+  // one line offering the shortcut.
+  const maybeShowActivateHint = async () => {
+    if (!elements.activateHint) return;
+    if (state.subs.licenseActive) return;
+    try {
+      const r = await storageGet("local", [STORAGE_KEYS.RUN_COUNT, STORAGE_KEYS.ACTIVATE_HINT_DISMISSED]);
+      if (r?.[STORAGE_KEYS.ACTIVATE_HINT_DISMISSED]) return;
+      if (!(Number(r?.[STORAGE_KEYS.RUN_COUNT]) > 0)) return;
+      elements.activateHint.hidden = false;
+      // One strip at a time. Someone who already bought does not need
+      // the pitch stacked on top of the place to redeem it.
+      if (elements.proPromo) elements.proPromo.hidden = true;
+    } catch {
+      // Best effort only; the footer Pro button is always there.
+    }
+  };
+
   const init = async () => {
     state.debugMode = await getDebugModeSetting();
     log("info", `init v${POPUP_VERSION}`);
@@ -3278,6 +3984,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 7.3: tab bar (WAI-ARIA tabs semantics live in GCC.tablist).
     state.tabs = GCC.tablist(elements.tabBar);
+    await restoreActiveTab();
 
     setupEventListeners();
 
@@ -3290,10 +3997,11 @@ document.addEventListener("DOMContentLoaded", () => {
     await maybeShowOnboarding();
 
     loadGmailAccounts();
-    loadWhitelistSuggestions();
 
     // 7.0 subscriptions: license badge + last scan (both best-effort).
     refreshLicenseUi().catch((e) => log("warn", "license ui failed", e));
+    // The remembered tick list has to land before the list renders.
+    await loadSubsSelection();
     loadStoredSubscriptions().catch((e) => log("warn", "subs load failed", e));
     // 7.2 storage X-ray: last scan (best-effort).
     loadStoredStorageScan().catch((e) => log("warn", "xray load failed", e));
@@ -3302,6 +4010,9 @@ document.addEventListener("DOMContentLoaded", () => {
     loadStoredSmartScan().catch((e) => log("warn", "smart load failed", e));
     // 7.12 Auto-Pilot: settings snapshot (best-effort).
     loadAutoPilot().catch((e) => log("warn", "autopilot load failed", e));
+    // 8.0 Mailbox Report: last scan (best-effort).
+    loadStoredReport().catch((e) => log("warn", "report load failed", e));
+    maybeShowActivateHint().catch((e) => log("warn", "activate hint failed", e));
 
     log("info", "ready");
   };

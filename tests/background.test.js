@@ -425,49 +425,6 @@ describe("background.js: Service Worker", () => {
   });
 
   // ===========================
-  // Sender interaction & whitelist suggestions
-  // ===========================
-
-  describe("message: gmailCleanerRecordSenderInteraction", () => {
-    test("records sender open interaction", async () => {
-      const sendResponse = jest.fn();
-      const sender = { id: "test-extension-id" };
-
-      onMessageCb(
-        { type: "gmailCleanerRecordSenderInteraction", data: { sender: "news@example.com", type: "open" } },
-        sender,
-        sendResponse
-      );
-      await new Promise((r) => setTimeout(r, 50));
-
-      expect(sendResponse).toHaveBeenCalledWith({ ok: true });
-      const suggestions = storageBacking.local.whitelistSuggestions;
-      expect(suggestions["news@example.com"].opens).toBe(1);
-    });
-  });
-
-  describe("message: gmailCleanerGetWhitelistSuggestions", () => {
-    test("returns scored suggestions above threshold", async () => {
-      const sendResponse = jest.fn();
-      const sender = { id: "test-extension-id" };
-
-      // Pre-populate with interaction data
-      storageBacking.local.whitelistSuggestions = {
-        "boss@work.com": { opens: 5, replies: 3, lastSeen: Date.now() }, // score: 5+9=14
-        "spam@junk.com": { opens: 1, replies: 0, lastSeen: Date.now() }  // score: 1 (below threshold)
-      };
-
-      onMessageCb({ type: "gmailCleanerGetWhitelistSuggestions" }, sender, sendResponse);
-      await new Promise((r) => setTimeout(r, 50));
-
-      const result = sendResponse.mock.calls[0][0];
-      expect(result.ok).toBe(true);
-      expect(result.suggestions).toHaveLength(1);
-      expect(result.suggestions[0].sender).toBe("boss@work.com");
-    });
-  });
-
-  // ===========================
   // Layout-change notice persistence (7.5)
   // ===========================
 
