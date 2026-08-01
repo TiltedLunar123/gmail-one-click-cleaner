@@ -29,8 +29,8 @@
 
   "tabsLabel": { "message": "Cleaner-Bereiche" },
   "tabClean": { "message": "Reinigen" },
-  "tabUnsubscribe": { "message": "Abbestellen" },
-  "tabStorage": { "message": "Speicher" },
+  "tabUnsubscribe": { "message": "Listen" },
+  "tabStorage": { "message": "Platz" },
 
   "smartSummary": { "message": "Vorschläge · was sich lohnt" },
   "smartHint": { "message": "Ein Lese-Scan findet die Absender, die sich lohnen, und nennt den Grund. Markierte Mails, Whitelist-Absender und echte Kontakte werden nie vorgeschlagen." },
@@ -493,5 +493,7 @@
   "runToastForced": { "message": "Durchlauf gelöscht, der Abbruch ging zuerst raus" },
   "runToastStillRunning": { "message": "abgebrochen, aber noch nicht gestoppt, gib ihm einen Moment" },
   "runToastReloaded": { "message": "Gmail-Tab neu geladen, um einen übrig gebliebenen Cleaner zu stoppen" },
-  "runToastTabRefused": { "message": "Gmail-Tab nicht erreichbar, lade ihn neu und versuche es erneut" }
+  "runToastTabRefused": { "message": "Gmail-Tab nicht erreichbar, lade ihn neu und versuche es erneut" },
+  "guardNoteText": { "message": "$1 weitere alte E-Mails sind durch deine Filter geschuetzt ($2), werden oben also nicht mitgezaehlt und von einem Durchlauf nicht angefasst." },
+  "guardNoteBtn": { "message": "Filter zeigen" }
 }

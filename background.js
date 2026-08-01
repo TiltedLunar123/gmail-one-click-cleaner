@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "8.4.0";
+  const SW_VERSION = "8.5.0";
 
   // =========================
   // Storage Keys
@@ -1397,6 +1397,10 @@
           bands: clean,
           cleanableCount: clampReportNumber(msg?.cleanableCount),
           largeMb: clampReportNumber(msg?.largeMb),
+          // 8.5: old mail the guards held back, so a report that reads
+          // near zero can say why instead of looking like a dead
+          // feature. Clamped like every other number here.
+          guardedOutCount: clampReportNumber(msg?.guardedOutCount),
           topSenders
         }
       });

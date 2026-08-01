@@ -1097,7 +1097,7 @@ const GCC = (() => {
     // One headline query plus one per band, with headroom. The engine
     // asserts against this so a future band cannot quietly turn a fast
     // scan into a minutes-long one (smartScan already spends up to 63).
-    MAX_QUERIES: 14,
+    MAX_QUERIES: 15,
     MAX_PLAN_RULES: 10,
     // Senders are attributed for the two biggest bands only; the sample
     // is what Gmail already rendered on screen.

@@ -29,7 +29,7 @@
 
   "tabsLabel": { "message": "Sections du nettoyeur" },
   "tabClean": { "message": "Nettoyer" },
-  "tabUnsubscribe": { "message": "Se désabonner" },
+  "tabUnsubscribe": { "message": "Listes" },
   "tabStorage": { "message": "Espace" },
 
   "smartSummary": { "message": "Suggestions · quoi nettoyer" },
@@ -493,5 +493,7 @@
   "runToastForced": { "message": "nettoyage effacé, l'annulation a été envoyée d'abord" },
   "runToastStillRunning": { "message": "annulé, mais il ne s'est pas encore arrêté, laissez-lui un instant" },
   "runToastReloaded": { "message": "onglet Gmail rechargé pour arrêter un nettoyeur resté en place" },
-  "runToastTabRefused": { "message": "impossible d'atteindre l'onglet Gmail, rechargez-le et réessayez" }
+  "runToastTabRefused": { "message": "impossible d'atteindre l'onglet Gmail, rechargez-le et réessayez" },
+  "guardNoteText": { "message": "$1 autres anciens e-mails sont proteges par vos filtres ($2), donc ils ne sont pas comptes ci-dessus et un nettoyage ne les touchera pas." },
+  "guardNoteBtn": { "message": "Voir les filtres" }
 }
