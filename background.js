@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "8.6.0";
+  const SW_VERSION = "8.7.0";
 
   // =========================
   // Storage Keys
@@ -351,12 +351,46 @@
     try {
       const resp = await chrome.tabs.sendMessage(tabId, { type: "gmailCleanerPing" });
       if (!resp?.ok) return { reachable: false, running: false };
-      return { reachable: true, running: resp.phase === "running", version: resp.version };
+      return {
+        reachable: true,
+        running: resp.phase === "running",
+        version: resp.version,
+        runId: typeof resp.runId === "string" ? resp.runId : "",
+        runKind: typeof resp.runKind === "string" ? resp.runKind : ""
+      };
     } catch {
       // No receiving end: the tab reloaded, the extension was updated,
       // or the engine never attached. Either way nothing is running.
       return { reachable: false, running: false };
     }
+  }
+
+  // 8.7: did the injection we just made actually produce OUR engine?
+  //
+  // Both unattended callers check `isEngineAttached` and then inject.
+  // Anything that attaches in that window -- a scan the user starts from
+  // the popup, which never claims ACTIVE_RUN -- makes the content
+  // script's duplicate guard swallow the injection. The caller had no
+  // way to see that, so it went on to hold a run claim for the full two
+  // hours against a run that never started, advance the schedule's
+  // lastRun as though the sweep had happened, and (for Auto-Pilot) leave
+  // a pending stage that the user's OWN next Smart scan in that tab
+  // would then satisfy, launching a live unattended archive sweep.
+  //
+  // The engine now answers its ping with the run id it was given, so the
+  // question has an exact answer. An unreachable tab is also a failure:
+  // the engine either never booted or is already gone.
+  async function confirmInjection(tabId, expectedRunId) {
+    // The engine registers its message listener as it boots, so a tab
+    // that cannot answer yet gets a couple more chances. Answering at
+    // all settles it either way: the id is the whole answer.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 300));
+      const probe = await probeEngine(tabId);
+      if (!probe.reachable) continue;
+      return probe.runId === expectedRunId;
+    }
+    return false;
   }
 
   // How long a forced reset waits for a cancelled engine to actually
@@ -699,6 +733,20 @@
           target: { tabId: gmailTab.id },
           files: ["contentScript.js"]
         });
+
+        // 8.7: executeScript resolving only means the file ran, not that
+        // an engine started. If something attached between the check
+        // above and here, the duplicate guard swallowed this injection
+        // and there is no run: do not advance lastRun (the sweep did not
+        // happen, and this schedule should fire again), and let the
+        // claim release below so the next manual run is not refused for
+        // two hours.
+        if (!(await confirmInjection(gmailTab.id, runId))) {
+          console.warn(`[GCC SW] Schedule ${scheduleId}: injection was swallowed, no engine started`);
+          await releaseRunClaim(runId);
+          claimedRunId = null;
+          return;
+        }
         injected = true;
 
         // Update last run timestamp (quota-safe write).
@@ -1058,9 +1106,34 @@
   // Whitelist mutation (used by stats top-senders Protect button)
   // =========================
 
+  // Same shape the Options page enforces and the engine re-checks. Kept
+  // here as its own copy because the worker is self-contained; the
+  // whitelist suite pins the three against each other.
+  const WL_EMAIL = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
+  const WL_WILDCARD_EMAIL = /^\*@([a-z0-9.-]+\.[a-z]{2,})$/i;
+  const WL_DOMAIN = /^([a-z0-9-]+\.)+[a-z]{2,}$/i;
+  function isValidWhitelistEntry(s) {
+    if (typeof s !== "string") return false;
+    const trimmed = s.trim();
+    if (!trimmed || /\s/.test(trimmed)) return false;
+    return WL_EMAIL.test(trimmed) || WL_WILDCARD_EMAIL.test(trimmed) || WL_DOMAIN.test(trimmed);
+  }
+
+  // 8.7: validate before storing. The top-sender rows this is called
+  // from are keyed `email || displayName` (contentScript sampleListRows),
+  // so a sender Gmail rendered without an address arrives here as
+  // "acme newsletters". That went into sync unchecked, replicated to the
+  // Google account, and showed up in the Options whitelist -- while
+  // sanitizeConfig dropped it at run time for having a space in it. The
+  // user clicked Protect, was told the sender was protected, and it was
+  // not. Refusing loudly is the only honest outcome: a safety control
+  // that silently does nothing is worse than one that says no.
   async function addToWhitelist(sender) {
     const s = String(sender || "").trim();
     if (!s) throw new Error("empty sender");
+    if (!isValidWhitelistEntry(s)) {
+      throw new Error("not an address or domain");
+    }
     const r = await chrome.storage.sync.get(STORAGE_KEYS.WHITELIST);
     const wl = Array.isArray(r?.[STORAGE_KEYS.WHITELIST]) ? r[STORAGE_KEYS.WHITELIST] : [];
     if (wl.includes(s)) return false;
@@ -1402,6 +1475,26 @@
           // near zero can say why instead of looking like a dead
           // feature. Clamped like every other number here.
           guardedOutCount: clampReportNumber(msg?.guardedOutCount),
+          // 8.7: how much of the scan actually completed. Without this
+          // the incompleteness warning lived only in the transient done
+          // message, so reopening the popup showed the same zeroes with
+          // nothing to say they were never measured.
+          failedQueries: clampReportNumber(msg?.failedQueries),
+          totalQueries: clampReportNumber(msg?.totalQueries),
+          // 8.7: the guard settings the counts were measured through, so
+          // the popup can tell whether they still describe what a Run
+          // would do. Booleans only; nothing here is a query or an
+          // address, and the whole object is local like the rest.
+          guards: {
+            safeMode: Boolean(msg?.guards?.safeMode),
+            minAge: typeof msg?.guards?.minAge === "string" && /^\d+[dwmy]$/i.test(msg.guards.minAge)
+              ? msg.guards.minAge
+              : null,
+            guardSkipStarred: Boolean(msg?.guards?.guardSkipStarred),
+            guardSkipImportant: Boolean(msg?.guards?.guardSkipImportant),
+            guardSkipUnread: Boolean(msg?.guards?.guardSkipUnread),
+            guardSkipUserLabels: Boolean(msg?.guards?.guardSkipUserLabels)
+          },
           topSenders
         }
       });
@@ -1675,21 +1768,30 @@
   // 8.6: sync first, local second, same as the pages. The worker gates
   // Auto-Pilot on this, so reading one area meant a sync hiccup could
   // quietly switch off a paid feature on a schedule nobody was watching.
+  // 8.7: stop at the first key that VERIFIES, not the first that is a
+  // non-empty string. The pages have worked this way since 8.6 and this
+  // copy did not, so a stale or truncated value in sync shadowed a good
+  // key in local: the popup showed Pro active while Auto-Pilot, whose
+  // gate this is, quietly declined every weekly sweep on a schedule
+  // nobody was watching. Reading BOTH areas is the whole point of
+  // storing in both.
   async function hasProLicense() {
     try {
-      let key = "";
+      const candidates = [];
       try {
         const s = await chrome.storage.sync.get(LICENSE_STORAGE_KEY);
-        if (typeof s?.[LICENSE_STORAGE_KEY] === "string") key = s[LICENSE_STORAGE_KEY];
+        const v = s?.[LICENSE_STORAGE_KEY];
+        if (typeof v === "string" && v) candidates.push(v);
       } catch {}
-      if (!key) {
-        try {
-          const l = await chrome.storage.local.get(LICENSE_STORAGE_KEY);
-          if (typeof l?.[LICENSE_STORAGE_KEY] === "string") key = l[LICENSE_STORAGE_KEY];
-        } catch {}
+      try {
+        const l = await chrome.storage.local.get(LICENSE_STORAGE_KEY);
+        const v = l?.[LICENSE_STORAGE_KEY];
+        if (typeof v === "string" && v && !candidates.includes(v)) candidates.push(v);
+      } catch {}
+      for (const key of candidates) {
+        if (await verifyProLicenseKey(key)) return true;
       }
-      if (!key) return false;
-      return await verifyProLicenseKey(key);
+      return false;
     } catch {
       return false;
     }
@@ -1969,12 +2071,21 @@
       // a Smart Suggestions scan the user started themselves could hand
       // Auto-Pilot its "scan done" and launch a live, unattended archive
       // sweep over up to 25 senders that the user never asked for.
+      //
+      // 8.7: the tab was not enough. A tab id is stable across
+      // navigation, so an Auto-Pilot scan whose engine died when the tab
+      // moved (or was swallowed at injection) left the stage armed for
+      // its full two-hour TTL, and the user's OWN next Smart scan in
+      // that same tab satisfied it. The scan now carries a run id and
+      // the stage only advances on a scan that reports that id back.
+      const scanRunId = `ap_scan_${Date.now()}`;
       await setAutoPilotState({
-        pending: { stage: "scan", startedAt: Date.now(), tabId: gmailTab.id }
+        pending: { stage: "scan", startedAt: Date.now(), tabId: gmailTab.id, runId: scanRunId }
       });
 
       const scanConfig = {
         runKind: "smartScan",
+        runId: scanRunId,
         whitelist,
         protectKeywords,
         smartKnownSenders: [...known.values()],
@@ -1991,6 +2102,16 @@
         target: { tabId: gmailTab.id },
         files: ["contentScript.js"]
       });
+
+      // Same swallow check the scheduled path makes. A pending stage
+      // armed against an engine that never started is the state the run
+      // id above exists to make harmless, but clearing it now means the
+      // next sweep can try again instead of waiting out the TTL.
+      if (!(await confirmInjection(gmailTab.id, scanRunId))) {
+        console.warn("[GCC SW] Auto-Pilot: injection was swallowed, no scan started");
+        await setAutoPilotState({ pending: null });
+        return;
+      }
 
       console.log("[GCC SW] Auto-Pilot: scan stage started");
     } catch (e) {
@@ -2131,6 +2252,17 @@
         files: ["contentScript.js"]
       });
 
+      // Same swallow check the other two injection sites make. An apply
+      // that never started must not hold the claim or leave the stage
+      // machine waiting on a done message nothing will send.
+      if (!(await confirmInjection(gmailTab.id, runId))) {
+        console.warn("[GCC SW] Auto-Pilot: apply injection was swallowed, no engine started");
+        await setAutoPilotState({ pending: null });
+        await releaseRunClaim(runId);
+        claimedRunId = null;
+        return;
+      }
+
       console.log(`[GCC SW] Auto-Pilot: ${dryRun ? "preview (dry run)" : "live"} apply started over ${senders.length} sender(s)`);
     } catch (e) {
       console.error("[GCC SW] startAutoPilotApply failed:", e);
@@ -2171,6 +2303,15 @@
       if (!terminal) return;
 
       if (pending.stage === "scan" && msg.runKind === "smartScan") {
+        // 8.7: identity, not just locality. A pending scan armed since
+        // 8.7 carries the run id it injected, and only that scan may
+        // advance the stage; anything else in the tab is somebody
+        // else's and is ignored rather than clearing pending, so the
+        // real scan can still report in. Pending state written before
+        // 8.7 has no runId and keeps the tab-only behaviour.
+        if (pending.runId && String(msg.runId || "") !== String(pending.runId)) {
+          return;
+        }
         if (msg.phase === "done") {
           // Serialize behind the store writes the scan just queued so
           // the apply reads the union-merged sender list.
@@ -2362,6 +2503,7 @@
       // Run history (keep last 50)
       stats.history.unshift({
         timestamp: Date.now(),
+        action: data.action === "archive" ? "archive" : "delete",
         deleted: data.deleted || 0,
         archived: data.archived || 0,
         freedMb: data.freedMb || 0,

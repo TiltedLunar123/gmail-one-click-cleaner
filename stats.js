@@ -103,6 +103,15 @@ function renderTopSenders(senders) {
         GCC.showToast("Added to whitelist", "success");
         whitelistBtn.disabled = true;
         whitelistBtn.textContent = "Protected";
+      } else if (resp?.error === "not an address or domain") {
+        // Gmail did not render an address for this row, so the only key
+        // we have is the display name, and a whitelist entry has to be
+        // an address or a domain to protect anything. Saying so beats a
+        // "Protected" badge over an entry the engine will ignore.
+        GCC.showToast(
+          "Gmail only gave a display name for this sender, not an address. Open Options and add their address or domain to the whitelist.",
+          "error"
+        );
       } else {
         GCC.showToast(resp?.error || "Could not add to whitelist", "error");
       }
@@ -224,9 +233,17 @@ function renderHistory(history) {
   for (const run of history.slice(0, 25)) {
     const count = (run.deleted || 0) + (run.archived || 0);
 
+    // 8.7: read the recorded mode. `run.archived` is a COUNT, and using
+    // it as a flag filed every archive run that moved zero messages
+    // under "delete". Entries written before 8.7 carry no action field,
+    // so they keep the old inference rather than all turning red.
+    const recordedAction = run.action === "archive" || run.action === "delete"
+      ? run.action
+      : (run.archived ? "archive" : "delete");
+
     let tagClass, tagText;
     if (run.dryRun) { tagClass = "tag tag-info"; tagText = "dry run"; }
-    else if (run.archived) { tagClass = "tag tag-success"; tagText = "archive"; }
+    else if (recordedAction === "archive") { tagClass = "tag tag-success"; tagText = "archive"; }
     else { tagClass = "tag tag-danger"; tagText = "delete"; }
 
     const row = GCC.createEl("tr", {}, [

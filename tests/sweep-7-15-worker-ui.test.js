@@ -100,7 +100,17 @@ describe("7.15: Auto-Pilot only advances on its own scan", () => {
   );
 
   test("the pending scan records the tab it is waiting on", () => {
-    expect(background).toMatch(/pending:\s*\{\s*stage:\s*"scan",\s*startedAt:\s*Date\.now\(\),\s*tabId:\s*gmailTab\.id\s*\}/);
+    expect(background).toMatch(/pending:\s*\{\s*stage:\s*"scan",\s*startedAt:\s*Date\.now\(\),\s*tabId:\s*gmailTab\.id/);
+  });
+
+  test("and, since 8.7, the run id it injected", () => {
+    // A tab id survives navigation, so an Auto-Pilot scan whose engine
+    // died when the tab moved left the stage armed for its whole TTL,
+    // and the user's own next Smart scan in that tab satisfied it: a
+    // live unattended archive sweep over up to 25 senders, unasked.
+    expect(background).toMatch(/tabId:\s*gmailTab\.id,\s*runId:\s*scanRunId/);
+    expect(background).toContain("runId: scanRunId");
+    expect(background).toContain('if (pending.runId && String(msg.runId || "") !== String(pending.runId))');
   });
 
   test("a terminal message from another tab is ignored, not consumed", () => {

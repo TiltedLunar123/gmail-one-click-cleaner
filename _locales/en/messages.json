@@ -373,7 +373,7 @@
   "dismiss": { "message": "Dismiss" },
   "notNow": { "message": "Not now" },
   "pasteKey": { "message": "Paste my key" },
-  "runAssuranceSafety": { "message": "Labelled first, Trash by default, recoverable for 30 days. Starred and Important are skipped, and unread mail is never touched." },
+  "runAssuranceSafety": { "message": "Labelled first, Trash by default, recoverable for 30 days. While the safety switches are on, Starred, Important and unread mail are all skipped." },
   "runAssurancePrivacy": { "message": "No Google sign-in, no account, no tracking. This extension has no network code, so nothing can leave your browser." },
   "activateHintLabel": { "message": "Activate Pro" },
   "activateHintBody": { "message": "Bought Pro? Paste your key to unlock it here." },
@@ -505,5 +505,15 @@
   "smartGuardNoteMany": { "message": "$1 more senders were found, but your guards ($2) hold back all $3 of their emails, so they are not suggested." },
 
   "privacyPolicyLink": { "message": "Privacy policy" },
-  "privacyPolicyAria": { "message": "Read the full privacy policy (opens in a new tab)" }
+  "privacyPolicyAria": { "message": "Read the full privacy policy (opens in a new tab)" },
+
+  "bulkOneGroup": { "message": "Running the $1 suggestions. Check the rest and apply again." },
+  "planArchiveFirst": { "message": "Archiving those steps first. Run again for the rest." },
+  "planDeleteFirst": { "message": "Clearing those steps first. Run again for the rest." },
+  "planSubArchive": { "message": "Tagged first, then archived - undo applies" },
+  "reportPartialNote": { "message": "$1 of $2 searches timed out, so some steps below may be counted low or missing. Scan again for a complete picture." },
+  "reportGuardsChangedNote": { "message": "Your safety switches have changed since this scan, so these counts no longer match what a run would do. Scan again." },
+  "reportSafeModeNote": { "message": "Safe Mode skips the Updates and Forums steps, so those rows will not run while it is on." },
+  "safeModeBlocksStep": { "message": "Safe Mode skips this step; turn it off on the Clean tab" },
+  "xrayAgeNoteText": { "message": "The sizes above count large mail of any age. This purge only takes mail older than $1, so it will clear less than the totals shown." }
 }

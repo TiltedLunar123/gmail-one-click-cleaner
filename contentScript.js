@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "8.6.0";
+  const GCC_CONTENT_VERSION = "8.7.0";
 
   // =========================
   // Timing & behavior constants
@@ -300,6 +300,15 @@
       phase: "boot",
       status: "Already attached",
       detail: "Duplicate inject ignored.",
+      // 8.7: a machine-readable marker, not just prose. This message is
+      // the only evidence that an injection produced no engine, and the
+      // unattended callers need it: they check for an attached engine
+      // and then inject, so anything that attaches in between leaves
+      // them holding a run claim for two hours against a run that never
+      // started, and leaves Auto-Pilot waiting on a scan that will never
+      // report. The English detail string above was never something to
+      // branch on.
+      duplicate: true,
       percent: 0
     });
     return;
@@ -931,7 +940,15 @@
           sendResponse({
             ok: true,
             phase: RUNNING ? "running" : "idle",
-            version: GCC_CONTENT_VERSION
+            version: GCC_CONTENT_VERSION,
+            // 8.7: which run this engine is. The unattended callers
+            // check for an attached engine and then inject, so anything
+            // that attaches in between swallows their injection and they
+            // have no way to notice. An id that comes back different
+            // from the one they just sent is proof the engine in this
+            // tab belongs to somebody else.
+            runId: CONFIG.runId || "",
+            runKind: CONFIG.runKind || ""
           });
           break;
 
@@ -1978,6 +1995,29 @@
       "has:newsletter older_than:3m",
       "\"unsubscribe\" older_than:6m",
       "from:(no-reply@ OR donotreply@ OR \"do-not-reply\") older_than:3m"
+    ]),
+    // 8.7: this table is the fallback for a mailbox whose `rules` key has
+    // never been written, which is every install where the user has not
+    // opened and saved the Options page. Maximum shipped in 8.1 with an
+    // entry in options.js and none here, so `allRules.maximum` was
+    // undefined and the lookup fell through to `allRules.normal`: picking
+    // the most aggressive preset, arming its two-click guard and watching
+    // the progress page announce "Level: maximum" ran the Normal rules.
+    // Must stay byte-identical to options.js DEFAULT_RULES.maximum; the
+    // maximum-intensity suite pins the two tables against each other.
+    maximum: Object.freeze([
+      "larger:10M",
+      "has:attachment larger:5M older_than:3m",
+      "has:attachment larger:1M older_than:1y",
+      "category:promotions older_than:1m",
+      "category:social older_than:1m",
+      "category:updates older_than:2m",
+      "category:forums older_than:2m",
+      "has:newsletter older_than:1m",
+      "\"unsubscribe\" older_than:3m",
+      "from:(no-reply@ OR donotreply@ OR \"do-not-reply\" OR noreply@) older_than:1m",
+      "from:(newsletter@ OR marketing@ OR news@ OR alerts@ OR notifications@) older_than:3m",
+      "\"view in browser\" older_than:3m"
     ])
   });
 
@@ -3509,7 +3549,18 @@
 
           if (CONFIG.dryRun) {
             const durationMs = Date.now() - start;
-            const count = result.count || estimateTotalResults() || 0;
+            // 8.7: the larger of the two, not the first truthy one. A dry
+            // run acts on exactly one page and returns, while a live run
+            // loops passes until the rule is empty, so quoting the page
+            // is quoting the wrong thing. `result.count` is the page
+            // whenever the select-all-matching link was not found, which
+            // is the documented "delete the visible page per pass" case,
+            // and being truthy it stopped the fallback from ever running:
+            // the preview read "would affect 50" for a rule Gmail's own
+            // toolbar reported as 1-50 of 3,000.
+            const pageCount = Number(result.count) || 0;
+            const matchTotal = Number(estimateTotalResults()) || 0;
+            const count = Math.max(pageCount, matchTotal);
 
             stats.totalWouldDelete += count;
 
@@ -3930,7 +3981,15 @@
       if (typeof raw !== "string") continue;
       const email = raw.trim().toLowerCase();
       if (email.length > 320) continue;
-      if (!/^[a-z0-9!#$%&'*+/=?^_`{|}~.-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(email)) continue;
+      // 8.7: the first character may not be `-`. 7.15 closed this on the
+      // storage and smart copies of the matcher and missed this one, and
+      // this is the copy fed by the least trustworthy source: a sender
+      // controls its own From, and inside `from:(...)` a leading dash is
+      // Gmail's NEGATION operator. `from:(-news@attacker.example)` returns
+      // every OTHER conversation, and the unsubscribe engine then opens
+      // the first hit and drives Gmail's Unsubscribe control on somebody
+      // else's mailing list.
+      if (!/^[a-z0-9!#$%&'*+/=?^_`{|}~.][a-z0-9!#$%&'*+/=?^_`{|}~.-]*@[a-z0-9.-]+\.[a-z]{2,}$/.test(email)) continue;
       if (seen.has(email)) continue;
       seen.add(email);
       out.push(email);
@@ -4637,6 +4696,15 @@
       const counts = Object.create(null);
       let cleanableCount = 0;
       let unguardedCount = 0;
+      // 8.7: subscriptionScan and storageScan have counted their timed-out
+      // searches since they shipped; the report, which is the landing tab
+      // and the one screen sold as a measurement of the mailbox, did not.
+      // A band whose search timed out was stored as a confident 0, and a
+      // timed-out headline printed "Nothing older than 6 months turned
+      // up" over a mailbox with 40,000 old messages in it.
+      let failedQueries = 0;
+      let headlineMeasured = false;
+      let unguardedMeasured = false;
 
       for (let i = 0; i < steps.length; i++) {
         if (CANCELLED) throw new CancellationError("Scan cancelled by user");
@@ -4660,14 +4728,17 @@
           // One failed band must not lose the whole report. Mirrors the
           // per-tier catch in storageScan.
           debugLog("Report band query failed, continuing", { query: searchQuery, error: e?.message });
+          failedQueries++;
           continue;
         }
 
         const count = countCurrentResults();
         if (steps[i].id === "__headlineRaw") {
           unguardedCount = count;
+          unguardedMeasured = true;
         } else if (steps[i].id === "__headline") {
           cleanableCount = count;
+          headlineMeasured = true;
         } else {
           counts[steps[i].id] = count;
         }
@@ -4676,8 +4747,13 @@
       // What the guards are holding back. Never negative: the guarded
       // query is a strict subset of the raw one, but a failed search on
       // either side leaves a zero behind and the subtraction would
-      // otherwise invent a nonsense figure.
-      const guardedOutCount = Math.max(0, unguardedCount - cleanableCount);
+      // otherwise invent a nonsense figure. 8.7: both sides must have
+      // been measured at all, or a failed raw headline reports the guards
+      // as holding back nothing and a failed guarded one reports them as
+      // holding back the entire mailbox.
+      const guardedOutCount = (headlineMeasured && unguardedMeasured)
+        ? Math.max(0, unguardedCount - cleanableCount)
+        : 0;
 
       const bands = REPORT_BANDS.map((band) => {
         const count = Math.max(0, Math.floor(Number(counts[band.id]) || 0));
@@ -4740,7 +4816,23 @@
             cleanableCount,
             largeMb,
             topSenders,
-            guardedOutCount
+            guardedOutCount,
+            failedQueries,
+            totalQueries: steps.length,
+            // 8.7: the settings these numbers were measured through.
+            // Every band is counted with applyGlobalGuards, so changing
+            // a guard after the scan silently invalidates the whole
+            // report -- and turning one OFF invalidates it in the
+            // dangerous direction, because the Run buttons then reach
+            // MORE mail than the counts beside them.
+            guards: {
+              safeMode: Boolean(CONFIG.safeMode),
+              minAge: CONFIG.minAge || null,
+              guardSkipStarred: Boolean(CONFIG.guardSkipStarred),
+              guardSkipImportant: Boolean(CONFIG.guardSkipImportant),
+              guardSkipUnread: Boolean(CONFIG.guardSkipUnread),
+              guardSkipUserLabels: Boolean(CONFIG.guardSkipUserLabels)
+            }
           });
         }
       } catch (e) {
@@ -4749,21 +4841,34 @@
 
       const bandedTotal = bands.reduce((sum, b) => sum + b.count, 0);
 
+      const partialNote = failedQueries
+        ? ` ${failedQueries} of ${steps.length} searches timed out, so this report is incomplete.`
+        : "";
+
       safeSendImmediate({
         runKind: "reportScan",
         phase: "done",
-        status: cleanableCount
-          ? `${cleanableCount.toLocaleString()} emails are older than 6 months.`
-          : "Nothing older than 6 months turned up.",
-        detail: bandedTotal
-          ? `Plan ready: ${bands.filter((b) => b.count > 0).length} steps, at least ${largeMb.toLocaleString()} MB in large mail.`
-          : "Your mailbox is already clean.",
+        status: headlineMeasured
+          ? (cleanableCount
+            ? `${cleanableCount.toLocaleString()} emails are older than 6 months.`
+            : "Nothing older than 6 months turned up.")
+          // Not measured is not zero. Claiming an empty mailbox because
+          // the one search that would have proved otherwise timed out is
+          // the worst reading of silence available.
+          : "Could not read your mailbox.",
+        detail: headlineMeasured
+          ? (bandedTotal
+            ? `Plan ready: ${bands.filter((b) => b.count > 0).length} steps, at least ${largeMb.toLocaleString()} MB in large mail.${partialNote}`
+            : `Your mailbox is already clean.${partialNote}`)
+          : "Reload the Gmail tab and scan again.",
         percent: 100,
         done: true,
         bands,
         cleanableCount,
         largeMb,
-        topSenders
+        topSenders,
+        failedQueries,
+        totalQueries: steps.length
       });
     } catch (e) {
       if (e instanceof CancellationError) {
@@ -5190,6 +5295,11 @@
       safeSendImmediate({
         runKind: "smartScan",
         phase: "done",
+        // 8.7: Auto-Pilot's stage machine only advances on the scan it
+        // actually started. Matching on the tab alone let a Smart scan
+        // the user ran themselves hand Auto-Pilot a "scan done" it never
+        // asked for, and the next stage is a live unattended sweep.
+        runId: CONFIG.runId,
         status: senders.length
           ? `Found ${senders.length} suggestion${senders.length === 1 ? "" : "s"}.`
           : "No suggestions this time.",
@@ -5211,6 +5321,7 @@
         safeSendImmediate({
           runKind: "smartScan",
           phase: "cancelled",
+          runId: CONFIG.runId,
           status: "Scan cancelled.",
           detail: "Stopped by user.",
           done: true,
@@ -5221,6 +5332,7 @@
         safeSendImmediate({
           runKind: "smartScan",
           phase: "error",
+          runId: CONFIG.runId,
           status: "Scan failed.",
           detail: e instanceof Error ? e.message : String(e),
           done: true,
@@ -5409,9 +5521,17 @@
 
     await sleep(TIMING.CHECKBOX_SETTLE_DELAY);
 
+    // 8.7: "link-consumed" belongs here for the same reason the cleanup
+    // path added it in 7.15 -- the select-all-matching link disappearing
+    // after the click is the only proof of a whole-match-set selection
+    // that survives a non-English Gmail. Without it a German restore of a
+    // 4,200-thread run moved all 4,200 and booked the viewport, so the
+    // log and the status line both claimed 50.
     const selectAllResult = await clickSelectAllConversations();
     const bulkAllSelected = selectAllResult.success &&
-      (selectAllResult.reason === "all-selected-indicator" || findAllConversationsSelectedIndicator());
+      (selectAllResult.reason === "link-consumed" ||
+        selectAllResult.reason === "all-selected-indicator" ||
+        findAllConversationsSelectedIndicator());
 
     const selectedCount = extractSelectedCount();
     const rowsBefore = getGridRowCount();
@@ -5792,6 +5912,12 @@
           chrome.runtime.sendMessage({
             type: "gmailCleanerRecordStats",
             data: {
+              // 8.7: the mode travels as its own field. The run history
+              // used to infer it from `archived` being non-zero, so an
+              // archive run that moved nothing (guards held it all back,
+              // or the rule was already empty) was filed under a red
+              // "delete" tag forever.
+              action: CONFIG.archiveInsteadOfDelete ? "archive" : "delete",
               deleted: CONFIG.archiveInsteadOfDelete ? 0 : stats.totalDeleted,
               archived: CONFIG.archiveInsteadOfDelete ? stats.totalDeleted : 0,
               freedMb: stats.totalFreedMb,

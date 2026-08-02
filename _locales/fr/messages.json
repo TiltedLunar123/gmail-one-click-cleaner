@@ -373,7 +373,7 @@
   "dismiss": { "message": "Ignorer" },
   "notNow": { "message": "Pas maintenant" },
   "pasteKey": { "message": "Coller ma clé" },
-  "runAssuranceSafety": { "message": "Libellé d'abord, Corbeille par défaut, récupérable pendant 30 jours. Les messages suivis et importants sont ignorés, et le courrier non lu n'est jamais touché." },
+  "runAssuranceSafety": { "message": "Libellé d'abord, Corbeille par défaut, récupérable pendant 30 jours. Tant que les interrupteurs de sécurité sont actifs, les messages suivis, importants et non lus sont ignorés." },
   "runAssurancePrivacy": { "message": "Pas de connexion Google, pas de compte, pas de suivi. Cette extension n'a aucun code réseau, donc rien ne peut sortir de votre navigateur." },
   "activateHintLabel": { "message": "Activer Pro" },
   "activateHintBody": { "message": "Vous avez acheté Pro ? Collez votre clé ici pour le débloquer." },
@@ -505,5 +505,15 @@
   "smartGuardNoteMany": { "message": "$1 autres expéditeurs ont été trouvés, mais vos filtres ($2) retiennent leurs $3 e-mails, ils ne sont donc pas proposés." },
 
   "privacyPolicyLink": { "message": "Politique de confidentialité" },
-  "privacyPolicyAria": { "message": "Lire la politique de confidentialité complète (s’ouvre dans un nouvel onglet)" }
+  "privacyPolicyAria": { "message": "Lire la politique de confidentialité complète (s’ouvre dans un nouvel onglet)" },
+
+  "bulkOneGroup": { "message": "Les suggestions $1 sont lancées. Cochez les autres et appliquez de nouveau." },
+  "planArchiveFirst": { "message": "Ces étapes sont archivées d'abord. Relancez pour le reste." },
+  "planDeleteFirst": { "message": "Ces étapes sont vidées d'abord. Relancez pour le reste." },
+  "planSubArchive": { "message": "Libellé d'abord, puis archivé - annulable" },
+  "reportPartialNote": { "message": "$1 recherches sur $2 ont expiré, donc certaines étapes ci-dessous peuvent être sous-comptées ou absentes. Relancez l'analyse pour une vue complète." },
+  "reportGuardsChangedNote": { "message": "Vos interrupteurs de sécurité ont changé depuis cette analyse, donc ces chiffres ne correspondent plus à ce qu'un nettoyage ferait. Relancez l'analyse." },
+  "reportSafeModeNote": { "message": "Le mode sûr ignore les étapes Mises à jour et Forums, ces lignes ne s'exécuteront donc pas tant qu'il est actif." },
+  "safeModeBlocksStep": { "message": "Le mode sûr ignore cette étape ; désactivez-le dans l'onglet Nettoyer" },
+  "xrayAgeNoteText": { "message": "Les tailles ci-dessus comptent le courrier volumineux de tout âge. Ce nettoyage ne prend que le courrier de plus de $1, il videra donc moins que les totaux affichés." }
 }

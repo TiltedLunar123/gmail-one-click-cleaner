@@ -18,7 +18,7 @@ One read-only pass counts what is actually in your mailbox and turns it into a r
 - **The biggest step is free to run**, so you see the mechanism work on your own mail before deciding anything.
 - **Honest numbers** - storage figures are floors built from Gmail's size tiers, so the report says "at least N MB" and means it. Nothing is reconciled against Google's 15 GB bar, which is shared with Drive and Photos.
 - **Every step is an ordinary cleanup run** - tagged first, dry-run honoured, whitelist and protected keywords applied, and it shows up in the Recovery Log with one-click Restore.
-- **Pro** - every other step, and **Run the whole plan** in a single pass.
+- **Pro** - every other step, and **Run the whole plan**, which clears the remaining steps of one kind per pass (a run either deletes or archives, never both, so the steps that archive go in their own pass).
 
 ### In your language
 The popup is available in English, Portuguese (Brazil), Spanish, French, German, Russian and Japanese, following your browser's UI language automatically. The cleaning engine itself adapts to the language your Gmail runs in (17 locales) independently of the popup language.
@@ -31,7 +31,7 @@ The extension recommends what to clean instead of making you configure it. One f
 - **Hard vetoes first** - a sender is never suggested when they match your whitelist or protected keywords, when any of their mail is starred, or when your Sent folder shows you write to them.
 - **One-click apply** - each suggestion runs as an ordinary cleanup (tag first, dry-run honored, undo log, stats), so nothing new can touch mail. Dismissed suggestions stay silent for 90 days.
 - **The right action per sender** - storage hogs lead with a purge, stopped floods with a delete, and a sender who still emails weekly while you never open them leads with Unsubscribe (Pro), because deleting would not stop the next batch.
-- **Pro** - the full ranked list (top 3 stay free) and bulk apply of checked suggestions in one run.
+- **Pro** - the full ranked list (top 3 stay free) and bulk apply of checked suggestions, each run honouring the action its own card leads with.
 
 ### Auto-Pilot (Pro)
 The same Smart Suggestions sweep, on a weekly schedule, so the inbox stays clean without you opening the popup.
