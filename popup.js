@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "8.6.0";
+  const POPUP_VERSION = "8.7.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -173,6 +173,13 @@ document.addEventListener("DOMContentLoaded", () => {
       largeMb: 0,
       topSenders: [],
       updatedAt: 0,
+      // 8.7: searches that timed out during the scan, and how many were
+      // attempted. A band whose search failed is stored as 0, which is
+      // indistinguishable from an empty band until these say otherwise.
+      failedQueries: 0,
+      totalQueries: 0,
+      // 8.7: the guard settings the counts were measured through.
+      guards: null,
       running: null
     },
 
@@ -441,6 +448,7 @@ document.addEventListener("DOMContentLoaded", () => {
     xrayList: $("xrayList"),
     xrayAgeRow: $("xrayAgeRow"),
     xrayAge: $("xrayAge"),
+    xrayAgeNote: $("xrayAgeNote"),
     xrayPurgeBtn: $("xrayPurgeBtn"),
     xrayPurgeBtnSub: $("xrayPurgeBtnSub"),
     xrayUpsell: $("xrayUpsell"),
@@ -2040,6 +2048,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Progress messages from the subscriptions engine carry runKind; the
   // main cleanup listener routes them here and returns early.
+  // A finished scan's status and its detail are one sentence pair: the
+  // status is the number, the detail is the caveat on it.
+  const doneLine = (status, detail) => [status, detail].filter(Boolean).join(" ");
+
   const handleSubsProgress = (msg) => {
     const { runKind, phase, status, detail, done } = msg;
 
@@ -2071,7 +2083,12 @@ document.addEventListener("DOMContentLoaded", () => {
       // short beat; render the fresh list immediately for responsiveness.
       state.subs.senders = msg.scanSenders;
       renderSubsList();
-      setSubsStatus(status || t("scanComplete", "Scan complete."));
+      // 8.7: the engine puts its incompleteness warning in `detail`
+      // ("3 of 3 searches timed out, so this list is incomplete"), and
+      // every done handler rendered `status` alone, so the one sentence
+      // that said the number was not the whole picture never reached
+      // anybody. The running branch above has always joined the two.
+      setSubsStatus(doneLine(status, detail) || t("scanComplete", "Scan complete."));
       setTimeout(() => { loadStoredSubscriptions().catch(() => {}); }, 400);
       showToast(t("subsScanCompleteToast", "subscription scan complete"), "success");
     } else if (runKind === "unsubscribe" && Array.isArray(msg.unsubResults)) {
@@ -2081,7 +2098,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (byEmail[sender.email]) sender.status = byEmail[sender.email];
       }
       renderSubsList();
-      setSubsStatus(status || t("unsubRunComplete", "Unsubscribe run complete."));
+      setSubsStatus(doneLine(status, detail) || t("unsubRunComplete", "Unsubscribe run complete."));
       const okCount = msg.unsubResults.filter((r) => r.status === "unsubscribed").length;
       showToast(
         okCount === 1
@@ -2150,34 +2167,109 @@ document.addEventListener("DOMContentLoaded", () => {
   // concludes the product is broken. This is the other half: the exact
   // number of older messages the guards are holding back, and the way
   // to reach them.
+  // The guard settings a Run would apply right now, in the same shape
+  // the scan reports back the ones it measured through.
+  const liveReportGuards = () => ({
+    safeMode: Boolean(elements.safeModeEl?.checked),
+    minAge: elements.minAgeEl?.value || null,
+    guardSkipStarred: elements.skipStarredEl?.checked ?? true,
+    guardSkipImportant: elements.skipImportantEl?.checked ?? true,
+    guardSkipUnread: elements.skipUnreadEl?.checked ?? true,
+    guardSkipUserLabels: elements.skipLabeledEl?.checked ?? true
+  });
+
+  const REPORT_GUARD_FIELDS = [
+    "safeMode", "minAge", "guardSkipStarred", "guardSkipImportant",
+    "guardSkipUnread", "guardSkipUserLabels"
+  ];
+
+  // Safe Mode drops these two categories from any rule set before it
+  // runs (getRules -> stripRisky), including a report step handed over
+  // as a rulesOverride. The report counts them anyway, because the
+  // count query never sees that filter.
+  const SAFE_MODE_BLOCKED_BANDS = ["updates", "forums"];
+
   const renderGuardNote = () => {
     const note = elements.reportGuardNote;
     if (!note) return;
+    if (!state.report.updatedAt) {
+      note.hidden = true;
+      return;
+    }
+
+    // Every reason the numbers above might not be what a Run does. One
+    // note, in the order that matters: what the report failed to
+    // measure, then what no longer applies, then what is being held
+    // back on purpose.
+    const lines = [];
+
+    const failed = Number(state.report.failedQueries || 0);
+    const attempted = Number(state.report.totalQueries || 0);
+    if (failed > 0 && attempted > 0) {
+      // 8.7: a band whose search timed out is stored as zero, which
+      // reads exactly like an empty band. Say which it was.
+      lines.push(t(
+        "reportPartialNote",
+        `${failed} of ${attempted} searches timed out, so some steps below may be counted low or missing. Scan again for a complete picture.`,
+        [String(failed), String(attempted)]
+      ));
+    }
+
+    // 8.7: the counts were measured through the guards that were set at
+    // scan time. Changing one since then makes every number stale, and
+    // turning one OFF makes it stale in the direction that matters: the
+    // Run buttons would reach mail the counts never included.
+    const measured = state.report.guards;
+    if (measured) {
+      const live = liveReportGuards();
+      const changed = REPORT_GUARD_FIELDS.some((k) => (measured[k] ?? null) !== (live[k] ?? null));
+      if (changed) {
+        lines.push(t(
+          "reportGuardsChangedNote",
+          "Your safety switches have changed since this scan, so these counts no longer match what a run would do. Scan again."
+        ));
+      }
+    }
+
+    // 8.7: Safe Mode refuses the updates and forums rules at the engine
+    // boundary, so their Run buttons could only ever produce "No rules
+    // to run" while the rows kept showing a count.
+    if (elements.safeModeEl?.checked) {
+      const blocked = GCC.report.rankBands(state.report.bands)
+        .filter((b) => b.count > 0 && !b.cleanedAt && SAFE_MODE_BLOCKED_BANDS.includes(b.id));
+      if (blocked.length) {
+        lines.push(t(
+          "reportSafeModeNote",
+          "Safe Mode skips the Updates and Forums steps, so those rows will not run while it is on."
+        ));
+      }
+    }
+
     const held = Number(state.report.guardedOutCount || 0);
-    // Nothing scanned yet, or the guards are not costing anything worth
-    // interrupting the page for.
-    if (!state.report.updatedAt || held < 1) {
+    if (held >= 1) {
+      const which = [];
+      if (elements.skipUnreadEl?.checked ?? true) which.push(t("skipUnread", "Skip Unread"));
+      if (elements.skipLabeledEl?.checked ?? true) which.push(t("skipLabeled", "Skip Labeled"));
+      if (elements.skipStarredEl?.checked ?? true) which.push(t("skipStarred", "Skip Starred"));
+      if (elements.skipImportantEl?.checked ?? true) which.push(t("skipImportant", "Skip Important"));
+      // The guards are all off and something still differs. Nothing to
+      // point the user at, so say nothing rather than guess.
+      if (which.length) {
+        const n = held.toLocaleString();
+        lines.push(t(
+          "guardNoteText",
+          `${n} more old emails are protected by your guards (${which.join(", ")}), so they are not counted above and a run will not touch them.`,
+          [n, which.join(", ")]
+        ));
+      }
+    }
+
+    if (!lines.length) {
       note.hidden = true;
       return;
     }
-    const which = [];
-    if (elements.skipUnreadEl?.checked ?? true) which.push(t("skipUnread", "Skip Unread"));
-    if (elements.skipLabeledEl?.checked ?? true) which.push(t("skipLabeled", "Skip Labeled"));
-    if (elements.skipStarredEl?.checked ?? true) which.push(t("skipStarred", "Skip Starred"));
-    if (elements.skipImportantEl?.checked ?? true) which.push(t("skipImportant", "Skip Important"));
-    // The guards are all off and something still differs. Nothing to
-    // point the user at, so say nothing rather than guess.
-    if (!which.length) {
-      note.hidden = true;
-      return;
-    }
-    const n = held.toLocaleString();
     if (elements.reportGuardNoteText) {
-      elements.reportGuardNoteText.textContent = t(
-        "guardNoteText",
-        `${n} more old emails are protected by your guards (${which.join(", ")}), so they are not counted above and a run will not touch them.`,
-        [n, which.join(", ")]
-      );
+      elements.reportGuardNoteText.textContent = lines.join(" ");
     }
     note.hidden = false;
   };
@@ -2340,9 +2432,15 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.reportPlanBtn) elements.reportPlanBtn.hidden = ranked.length < 2;
     if (elements.reportPlanBtn) elements.reportPlanBtn.classList.toggle("locked", !active);
     if (elements.reportPlanBtnSub) {
-      elements.reportPlanBtnSub.textContent = active
-        ? t("smartBulkSub", "Tagged first, then Trash - undo applies")
-        : t("proPriceSub", "Pro · $19.99 lifetime");
+      // 8.7: describe the run this click will start, not a generic
+      // promise. The old subtitle said "then Trash" for every plan,
+      // including the ones that only archive.
+      const planGroup = GCC.report.planGroup(state.report.bands);
+      elements.reportPlanBtnSub.textContent = !active
+        ? t("proPriceSub", "Pro · $19.99 lifetime")
+        : (planGroup.action === "archive"
+          ? t("planSubArchive", "Tagged first, then archived - undo applies")
+          : t("smartBulkSub", "Tagged first, then Trash - undo applies"));
     }
     if (elements.reportUpsell) elements.reportUpsell.hidden = active;
     if (elements.reportUpsellText && !active) {
@@ -2361,6 +2459,9 @@ document.addEventListener("DOMContentLoaded", () => {
       state.report.largeMb = Number(stored.largeMb) || 0;
       state.report.topSenders = Array.isArray(stored.topSenders) ? stored.topSenders : [];
       state.report.updatedAt = Number(stored.updatedAt) || 0;
+      state.report.failedQueries = Number(stored.failedQueries) || 0;
+      state.report.totalQueries = Number(stored.totalQueries) || 0;
+      state.report.guards = stored.guards || null;
     } catch {
       // A missing report is the normal first-run state.
     }
@@ -2402,8 +2503,14 @@ document.addEventListener("DOMContentLoaded", () => {
       state.report.largeMb = Number(msg.largeMb) || 0;
       state.report.topSenders = Array.isArray(msg.topSenders) ? msg.topSenders : [];
       state.report.updatedAt = Date.now();
+      // 8.7: how much of the scan completed, so a report full of zeroes
+      // can say whether that is a clean mailbox or a set of searches
+      // that never ran.
+      state.report.failedQueries = Number(msg.failedQueries) || 0;
+      state.report.totalQueries = Number(msg.totalQueries) || 0;
+      state.report.guards = msg.guards || null;
       renderReport();
-      setReportStatus(status || t("scanComplete", "Scan complete."));
+      setReportStatus(doneLine(status, detail) || t("scanComplete", "Scan complete."));
       // The worker persists the same payload; re-read it shortly after
       // so the stored cleanedAt marks come back in.
       setTimeout(() => { loadStoredReport().catch(() => {}); }, 400);
@@ -2544,6 +2651,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const handleReportBandClick = async (bandId) => {
     const active = state.subs.licenseActive;
+    // 8.7: Safe Mode drops the Updates and Forums rules at the engine
+    // boundary, so this click could only ever end at "No rules to run"
+    // on the progress page while the row went on showing its count.
+    // Refuse here and name the switch instead.
+    if (elements.safeModeEl?.checked && SAFE_MODE_BLOCKED_BANDS.includes(bandId)) {
+      showToast(t("safeModeBlocksStep", "Safe Mode skips this step; turn it off on the Clean tab"), "warning");
+      return;
+    }
     if (!GCC.report.isBandUnlocked(bandId, state.report.bands, active)) {
       openProPanel("report_band_locked", {
         lead: GCC.report.upsellLine(state.report.bands),
@@ -2562,10 +2677,32 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       return;
     }
-    const ids = GCC.report.rankBands(state.report.bands)
-      .filter((b) => b.count > 0 && !b.cleanedAt)
-      .map((b) => b.id);
-    await startReportRun(ids, { source: "plan" });
+    // 8.7: one action group per run. Mixing them made the run archive
+    // the large-attachment steps, which frees nothing, under a button
+    // that said Trash.
+    const group = GCC.report.planGroup(state.report.bands);
+    // Same Safe Mode carve-out as the single-step button: a rule the
+    // engine will refuse must not be counted as part of the plan.
+    if (elements.safeModeEl?.checked) {
+      const kept = group.ids.filter((id) => !SAFE_MODE_BLOCKED_BANDS.includes(id));
+      if (kept.length !== group.ids.length) {
+        showToast(t("safeModeBlocksStep", "Safe Mode skips this step; turn it off on the Clean tab"), "warning");
+      }
+      group.ids = kept;
+    }
+    if (!group.ids.length) {
+      showToast(t("reportNoSteps", "no steps selected"), "warning");
+      return;
+    }
+    if (group.deferred > 0) {
+      showToast(
+        group.action === "archive"
+          ? t("planArchiveFirst", "Archiving those steps first. Run again for the rest.")
+          : t("planDeleteFirst", "Clearing those steps first. Run again for the rest."),
+        "info"
+      );
+    }
+    await startReportRun(group.ids, { source: "plan" });
   };
 
   // =========================
@@ -2627,6 +2764,30 @@ document.addEventListener("DOMContentLoaded", () => {
       GCC.popupUi.xrayUpsellLine(senders.length, mbSum);
   };
 
+  // 8.7: the size tiers the scan searches carry no age term, so every
+  // row's MB and count are "large mail of any age". The purge control
+  // right underneath defaults to six months. Same invariant as the
+  // report's guard note: when the number beside a button was measured
+  // through a different filter than the button applies, say so.
+  const renderXrayAgeNote = () => {
+    const note = elements.xrayAgeNote;
+    if (!note) return;
+    const age = elements.xrayAge?.value || "";
+    const show = Boolean(age) && state.xray.senders.length > 0 && state.subs.licenseActive;
+    if (!show) {
+      note.hidden = true;
+      note.textContent = "";
+      return;
+    }
+    const label = elements.xrayAge?.selectedOptions?.[0]?.textContent?.trim() || age;
+    note.textContent = t(
+      "xrayAgeNoteText",
+      `The sizes above count large mail of any age. This purge only takes mail older than ${label}, so it will clear less than the totals shown.`,
+      [label]
+    );
+    note.hidden = false;
+  };
+
   const renderXrayList = () => {
     if (!elements.xrayList) return;
     updateXrayUpsellCopy();
@@ -2639,6 +2800,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.xrayToolbar) elements.xrayToolbar.hidden = !hasSenders || !active;
     if (elements.xrayPurgeBtn) elements.xrayPurgeBtn.hidden = !hasSenders;
     if (elements.xrayAgeRow) elements.xrayAgeRow.classList.toggle("show", hasSenders && active);
+    renderXrayAgeNote();
     if (elements.xrayUpsell && hasSenders && !active) elements.xrayUpsell.hidden = false;
     if (!hasSenders) {
       updateXrayCount();
@@ -2790,7 +2952,12 @@ document.addEventListener("DOMContentLoaded", () => {
       state.xray.totalMb = Number(msg.totalMb) || 0;
       state.xray.totalCount = Number(msg.totalCount) || 0;
       renderXrayList();
-      setXrayStatus(status || t("scanComplete", "Scan complete."));
+      // 8.7: the engine puts its incompleteness warning in `detail`
+      // ("3 of 3 searches timed out, so this list is incomplete"), and
+      // every done handler rendered `status` alone, so the one sentence
+      // that said the number was not the whole picture never reached
+      // anybody. The running branch above has always joined the two.
+      setXrayStatus(doneLine(status, detail) || t("scanComplete", "Scan complete."));
       setTimeout(() => { loadStoredStorageScan().catch(() => {}); }, 400);
       showToast(t("xrayScanCompleteToast", "storage scan complete"), "success");
     }
@@ -2941,6 +3108,17 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.smartStatus) elements.smartStatus.textContent = text || "";
   };
 
+  // One place the action names are localized, so a card button and the
+  // bulk toast that refers to it can never disagree.
+  const SMART_ACTION_KEY = {
+    deleteOld: "actionDeleteOld",
+    archiveAll: "actionArchiveAll",
+    purgeLarge: "actionPurgeLarge",
+    unsubscribe: "actionUnsubscribe"
+  };
+  const smartActionLabel = (action) =>
+    t(SMART_ACTION_KEY[action] || "actionCleanUp", GCC.smart.ACTION_LABELS[action] || "Clean up");
+
   const getCheckedSmartEmails = () =>
     (elements.smartList
       ? Array.from(elements.smartList.querySelectorAll("input[type='checkbox']:checked"))
@@ -3006,11 +3184,10 @@ document.addEventListener("DOMContentLoaded", () => {
     // choosing a different one here would put an honest number next to
     // the wrong button.
     const action = GCC.smart.resolvedAction(sender);
-    const ACTION_KEY = { deleteOld: "actionDeleteOld", archiveAll: "actionArchiveAll", purgeLarge: "actionPurgeLarge", unsubscribe: "actionUnsubscribe" };
     const applyBtn = document.createElement("button");
     applyBtn.type = "button";
     applyBtn.className = "smart-apply-btn";
-    applyBtn.textContent = t(ACTION_KEY[action] || "actionCleanUp", GCC.smart.ACTION_LABELS[action] || "Clean up");
+    applyBtn.textContent = smartActionLabel(action);
     applyBtn.addEventListener("click", () => handleSmartApply(sender, action));
     actions.appendChild(applyBtn);
 
@@ -3234,7 +3411,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (Array.isArray(msg.scanSenders)) {
-      setSmartStatus(status || t("scanComplete", "Scan complete."));
+      // 8.7: the engine puts its incompleteness warning in `detail`
+      // ("3 of 3 searches timed out, so this list is incomplete"), and
+      // every done handler rendered `status` alone, so the one sentence
+      // that said the number was not the whole picture never reached
+      // anybody. The running branch above has always joined the two.
+      setSmartStatus(doneLine(status, detail) || t("scanComplete", "Scan complete."));
       // The worker union-merges rescans; read the authoritative list
       // back after it lands.
       setTimeout(() => { loadStoredSmartScan().catch(() => {}); }, 400);
@@ -3367,10 +3549,25 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
       if (state.subs.running) return;
+      // 8.7: the two sibling handlers wrap this in try/catch and this
+      // one did not. injectSubscriptionRun reaches
+      // chrome.scripting.executeScript, which rejects on a tab that
+      // closed or a permission that was revoked, and the flag it set
+      // then stayed set for the life of the popup: every later scan,
+      // unsubscribe and smart apply returned at the guard above, in
+      // silence, under a status line still reading "Unsubscribing...".
       state.subs.running = "unsubscribe";
       setSmartStatus(t("unsubbingFrom", `Unsubscribing from ${sender.email}...`, [sender.email]));
-      const tabId = await injectSubscriptionRun("unsubscribe", rule.senders);
-      if (tabId === null) state.subs.running = null;
+      try {
+        const tabId = await injectSubscriptionRun("unsubscribe", rule.senders);
+        if (tabId === null) state.subs.running = null;
+      } catch (err) {
+        const m = err?.message || "unknown error";
+        log("error", "smart unsubscribe start failed", err);
+        state.subs.running = null;
+        setSmartStatus(t("failedToStart", `Failed to start: ${m}`, [m]));
+        showToast(t("unsubRunFailed", "unsubscribe run failed"), "error");
+      }
       return;
     }
 
@@ -3390,24 +3587,37 @@ document.addEventListener("DOMContentLoaded", () => {
       showToast(t("pickOneSuggestion", "pick at least one suggestion first"), "warning");
       return;
     }
-    // 8.6: buildBulkRule silently drops everything past the per-run
-    // cap. Checking 30 senders therefore produced a query carrying 25,
-    // a status line reading "Cleaning up 30 senders" and an applied
-    // marker claiming all 30, with nothing said about the other five.
-    // Cap here instead and let the one list drive all three; the
-    // unsubscribe button has warned about exactly this for releases.
-    const capped = emails.slice(0, GCC.smart.LIMITS.MAX_BULK_PER_RUN);
-    if (emails.length > capped.length) {
-      showToast(t("firstTwentyFive", "running the first 25; re-run for the rest"), "info");
-    }
-    const query = GCC.smart.buildBulkRule(capped);
-    if (!query) {
+    // 8.7: plan against the SENDERS, not a list of addresses. Every card
+    // leads with the action the scan measured for it and prints the
+    // count that action will reach; collapsing them into one deleteOld
+    // query sent archive cards to Trash and widened purge cards from
+    // their own larger:5M to everything older than six months. The plan
+    // runs one action group and reports the rest.
+    //
+    // 8.6, still true: the cap has to be applied HERE, not inside the
+    // rule builder, or the status line and the applied marker claim
+    // senders the query never carried.
+    const byEmail = new Map(state.smart.senders.map((s) => [s.email, s]));
+    const chosenSenders = emails.map((e) => byEmail.get(e)).filter(Boolean);
+    const plan = GCC.smart.bulkPlan(chosenSenders);
+    if (!plan.rules.length) {
       showToast(t("noValidSenders", "no valid senders selected"), "warning");
       return;
     }
+    if (plan.deferred > 0) {
+      const label = smartActionLabel(plan.action);
+      showToast(
+        t(
+          "bulkOneGroup",
+          `Running the ${label} suggestions. Check the rest and apply again.`,
+          [label]
+        ),
+        "info"
+      );
+    }
     // Marker list = the sanitized set the query actually targets.
-    const targeted = GCC.storageXray.sanitizeEmails(capped);
-    await startSmartApplyRun(targeted, [query], false);
+    const targeted = GCC.storageXray.sanitizeEmails(plan.emails);
+    await startSmartApplyRun(targeted, plan.rules, plan.archive);
   };
 
   const handleSmartDismiss = (email) => {
@@ -4143,6 +4353,12 @@ document.addEventListener("DOMContentLoaded", () => {
         if (el === elements.intensityEl) clearTargetPreset();
         // Any config change invalidates an armed deep-clean confirm.
         disarmDeepConfirm();
+        // 8.7: and it may invalidate the report. Every band count was
+        // measured through the guards as they stood at scan time, so a
+        // switch flipped afterwards makes the numbers describe a run
+        // that is no longer the one the buttons would start. Re-render
+        // so the note can say so before anything is clicked.
+        if (state.report.updatedAt) renderReport();
         scheduleAutosave();
       });
     });
@@ -4373,6 +4589,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // 7.2 storage X-ray
     elements.xrayScanBtn?.addEventListener("click", handleScanStorage);
     elements.xrayPurgeBtn?.addEventListener("click", handleXrayPurge);
+    // The caveat depends on the age that is selected right now, so it
+    // has to follow the select rather than only the last render.
+    elements.xrayAge?.addEventListener("change", renderXrayAgeNote);
     elements.xraySelectAll?.addEventListener("change", () => {
       const checked = !!elements.xraySelectAll.checked;
       elements.xrayList

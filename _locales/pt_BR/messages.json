@@ -373,7 +373,7 @@
   "dismiss": { "message": "Dispensar" },
   "notNow": { "message": "Agora não" },
   "pasteKey": { "message": "Colar minha chave" },
-  "runAssuranceSafety": { "message": "Marcado primeiro, Lixeira por padrão, recuperável por 30 dias. E-mails com estrela e importantes são pulados, e e-mails não lidos nunca são tocados." },
+  "runAssuranceSafety": { "message": "Marcado primeiro, Lixeira por padrão, recuperável por 30 dias. Enquanto as chaves de segurança estiverem ligadas, e-mails com estrela, importantes e não lidos são todos pulados." },
   "runAssurancePrivacy": { "message": "Sem login do Google, sem conta, sem rastreamento. Esta extensão não tem código de rede, então nada pode sair do seu navegador." },
   "activateHintLabel": { "message": "Ativar o Pro" },
   "activateHintBody": { "message": "Comprou o Pro? Cole sua chave aqui para liberar." },
@@ -505,5 +505,15 @@
   "smartGuardNoteMany": { "message": "Mais $1 remetentes foram encontrados, mas seus filtros ($2) seguram todos os $3 e-mails deles, então eles não são sugeridos." },
 
   "privacyPolicyLink": { "message": "Política de privacidade" },
-  "privacyPolicyAria": { "message": "Leia a política de privacidade completa (abre em uma nova aba)" }
+  "privacyPolicyAria": { "message": "Leia a política de privacidade completa (abre em uma nova aba)" },
+
+  "bulkOneGroup": { "message": "Executando as sugestões de $1. Marque as demais e aplique de novo." },
+  "planArchiveFirst": { "message": "Esses passos são arquivados primeiro. Execute de novo para o resto." },
+  "planDeleteFirst": { "message": "Esses passos são limpos primeiro. Execute de novo para o resto." },
+  "planSubArchive": { "message": "Marcado primeiro, depois arquivado - dá para desfazer" },
+  "reportPartialNote": { "message": "$1 de $2 buscas expiraram, então alguns passos abaixo podem estar contados a menos ou faltando. Escaneie de novo para ver o quadro completo." },
+  "reportGuardsChangedNote": { "message": "Suas chaves de segurança mudaram desde este scan, então estes números não correspondem mais ao que uma limpeza faria. Escaneie de novo." },
+  "reportSafeModeNote": { "message": "O modo seguro pula os passos Atualizações e Fóruns, então essas linhas não rodam enquanto ele estiver ligado." },
+  "safeModeBlocksStep": { "message": "O modo seguro pula este passo; desligue ele na aba Limpar" },
+  "xrayAgeNoteText": { "message": "Os tamanhos acima contam e-mails grandes de qualquer idade. Esta limpeza só pega e-mails com mais de $1, então vai liberar menos que os totais mostrados." }
 }

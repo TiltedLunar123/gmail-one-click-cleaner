@@ -40,6 +40,25 @@ let onMessageCb;
 let onAlarmCb;
 let storageBacking;
 let INTERNALS;
+// 8.7: the worker confirms every injection by asking the engine which
+// run it is, so the mock models a booting engine that answers with the
+// run id it was just handed. `swallowedBy` stands in for the case the
+// confirmation exists to catch: something else was already attached, so
+// the injection produced no engine of ours.
+let lastInjectedRunId = "";
+let swallowedBy = null;
+
+// One factory for the executeScript mock. A test that needs the attach
+// probe to answer "attached" swaps in another of these rather than
+// hand-rolling one: the run-id capture below is what the injection
+// confirmation reads, and a hand-rolled copy that omitted it made every
+// later test in the file look like a swallowed injection.
+const makeExecuteScript = (attached) => jest.fn(async (details) => {
+  if (details.func && !details.args && !details.files) return [{ result: attached }];
+  if (details.args?.[0]?.runId) lastInjectedRunId = details.args[0].runId;
+  executed.push(details);
+  return [{ result: null }];
+});
 
 function resetStorage() {
   storageBacking = { local: {}, sync: {}, session: {} };
@@ -92,17 +111,22 @@ beforeAll(() => {
     tabs: {
       query: jest.fn(async () => [{ id: 7, active: true, url: "https://mail.google.com/mail/u/0/" }]),
       get: jest.fn(async (id) => ({ id })),
+      sendMessage: jest.fn(async (_tabId, msg) => {
+        if (msg?.type !== "gmailCleanerPing") return { ok: true };
+        return {
+          ok: true,
+          phase: "running",
+          version: "test",
+          runId: swallowedBy !== null ? swallowedBy : lastInjectedRunId
+        };
+      }),
       onRemoved: { addListener: jest.fn() }
     },
     scripting: {
       // The attach probe is the only call that passes a bare func with
       // no args and no files. It is a read, not an injection, so it
       // answers "nothing attached" and stays out of the injection log.
-      executeScript: jest.fn(async (details) => {
-        if (details.func && !details.args && !details.files) return [{ result: false }];
-        executed.push(details);
-        return [{ result: null }];
-      })
+      executeScript: makeExecuteScript(false)
     },
     notifications: { create: jest.fn((id, opts, cb) => cb && cb()) }
   };
@@ -121,6 +145,8 @@ afterAll(() => {
 beforeEach(() => {
   resetStorage();
   executed.length = 0;
+  lastInjectedRunId = "";
+  swallowedBy = null;
   chrome.storage.local = makeStorageArea("local");
   chrome.storage.sync = makeStorageArea("sync");
   chrome.storage.session = makeStorageArea("session");
@@ -132,6 +158,20 @@ beforeEach(() => {
 });
 
 const settle = () => new Promise((r) => setTimeout(r, 60));
+
+// 8.7: the engine echoes the run id it was given on a smartScan's
+// terminal messages, and Auto-Pilot's stage machine now requires it, so
+// a test that stands in for that engine has to send it too. Reading it
+// back out of the pending state is exactly what the real engine does
+// with the config it was injected with.
+const scanDone = async (extra = {}) => dispatch({
+  type: "gmailCleanerProgress",
+  runKind: "smartScan",
+  phase: "done",
+  done: true,
+  runId: storageBacking.local.autoPilotState?.pending?.runId,
+  ...extra
+});
 
 const dispatch = async (msg) => {
   const sendResponse = jest.fn();
@@ -339,22 +379,14 @@ describe("the sweep stage machine", () => {
     // by the content script's duplicate guard and leave the sweep
     // pending, with the apply stage's claim stranded for its full TTL.
     await enableWithSuggestions();
-    chrome.scripting.executeScript = jest.fn(async (details) => {
-      if (details.func && !details.args && !details.files) return [{ result: true }];
-      executed.push(details);
-      return [{ result: null }];
-    });
+    chrome.scripting.executeScript = makeExecuteScript(true);
 
     await fireAlarm();
 
     expect(executed.length).toBe(0);
     expect(storageBacking.local.autoPilotState?.pending ?? null).toBeNull();
 
-    chrome.scripting.executeScript = jest.fn(async (details) => {
-      if (details.func && !details.args && !details.files) return [{ result: false }];
-      executed.push(details);
-      return [{ result: null }];
-    });
+    chrome.scripting.executeScript = makeExecuteScript(false);
   });
 
   test("scan done leads to a dry-run, archive-only apply while unconfirmed", async () => {
@@ -362,7 +394,7 @@ describe("the sweep stage machine", () => {
     await fireAlarm();
     executed.length = 0;
 
-    await dispatch({ type: "gmailCleanerProgress", runKind: "smartScan", phase: "done", done: true, scanSenders: [] });
+    await scanDone({ scanSenders: [] });
 
     expect(executed.length).toBe(2);
     const cfg = executed[0].args[0];
@@ -384,7 +416,7 @@ describe("the sweep stage machine", () => {
   test("the preview's would-have count lands in state and waits for the confirm", async () => {
     await enableWithSuggestions({ confirmed: false });
     await fireAlarm();
-    await dispatch({ type: "gmailCleanerProgress", runKind: "smartScan", phase: "done", done: true });
+    await scanDone();
     const runId = storageBacking.local.autoPilotState.pending.runId;
 
     // The engine reports the dry-run tally in the done stats, then
@@ -409,7 +441,7 @@ describe("the sweep stage machine", () => {
     await enableWithSuggestions({ confirmed: true });
     await fireAlarm();
     executed.length = 0;
-    await dispatch({ type: "gmailCleanerProgress", runKind: "smartScan", phase: "done", done: true });
+    await scanDone();
 
     const cfg = executed[0].args[0];
     expect(cfg.dryRun).toBe(false);
@@ -442,7 +474,7 @@ describe("the sweep stage machine", () => {
     storageBacking.local.smartScan = { updatedAt: 1, senders: [] };
     await fireAlarm();
     executed.length = 0;
-    await dispatch({ type: "gmailCleanerProgress", runKind: "smartScan", phase: "done", done: true });
+    await scanDone();
     expect(executed.length).toBe(0);
     expect(storageBacking.local.autoPilotState.lastRun).toMatchObject({ count: 0 });
     expect(storageBacking.local.autoPilotState.pending).toBeNull();
@@ -477,7 +509,10 @@ describe("the sweep stage machine", () => {
   test("a failed scan clears the pending marker", async () => {
     await enableWithSuggestions();
     await fireAlarm();
-    await dispatch({ type: "gmailCleanerProgress", runKind: "smartScan", phase: "error", done: true, detail: "boom" });
+    // The engine stamps its run id on the error branch too, and the
+    // stage machine requires it: an error from a scan the user started
+    // must not clear a pending sweep that is still out there.
+    await scanDone({ phase: "error", detail: "boom" });
     expect(storageBacking.local.autoPilotState.pending).toBeNull();
   });
 
@@ -492,13 +527,9 @@ describe("the sweep stage machine", () => {
       if (details.func && !details.args && !details.files) return [{ result: false }];
       throw new Error("tab gone");
     });
-    await dispatch({ type: "gmailCleanerProgress", runKind: "smartScan", phase: "done", done: true });
+    await scanDone();
     expect(storageBacking.local.autoPilotState.pending).toBeNull();
     expect(storageBacking.local.activeRun ?? null).toBeNull();
-    chrome.scripting.executeScript = jest.fn(async (details) => {
-      if (details.func && !details.args && !details.files) return [{ result: false }];
-      executed.push(details);
-      return [{ result: null }];
-    });
+    chrome.scripting.executeScript = makeExecuteScript(false);
   });
 });

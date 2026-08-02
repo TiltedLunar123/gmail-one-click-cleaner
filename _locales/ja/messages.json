@@ -373,7 +373,7 @@
   "dismiss": { "message": "非表示" },
   "notNow": { "message": "あとで" },
   "pasteKey": { "message": "キーを貼り付け" },
-  "runAssuranceSafety": { "message": "先にラベル付け、既定ではゴミ箱、30日間は復元できます。スター付きと重要なメールはスキップされ、未読メールには一切触れません。" },
+  "runAssuranceSafety": { "message": "先にラベル付け、既定ではゴミ箱、30日間は復元できます。安全スイッチがオンの間は、スター付き、重要、未読のメールをすべてスキップします。" },
   "runAssurancePrivacy": { "message": "Googleへのログインなし、アカウントなし、追跡なし。この拡張機能にはネットワーク通信のコードが一切ないため、ブラウザの外に何も出ません。" },
   "activateHintLabel": { "message": "Proを有効化" },
   "activateHintBody": { "message": "Proを購入済みですか？ここにキーを貼り付けると有効になります。" },
@@ -505,5 +505,15 @@
   "smartGuardNoteMany": { "message": "他に $1 件の送信者が見つかりましたが、保護設定（$2）がそのメール $3 件すべてを守るため、候補には出ません。" },
 
   "privacyPolicyLink": { "message": "プライバシーポリシー" },
-  "privacyPolicyAria": { "message": "プライバシーポリシー全文を読む（新しいタブで開きます）" }
+  "privacyPolicyAria": { "message": "プライバシーポリシー全文を読む（新しいタブで開きます）" },
+
+  "bulkOneGroup": { "message": "$1 の提案を実行します。残りはチェックしてもう一度適用してください。" },
+  "planArchiveFirst": { "message": "まずそれらのステップをアーカイブします。残りはもう一度実行してください。" },
+  "planDeleteFirst": { "message": "まずそれらのステップを片付けます。残りはもう一度実行してください。" },
+  "planSubArchive": { "message": "先にラベル付け、その後アーカイブ - 取り消し可能" },
+  "reportPartialNote": { "message": "$2 件中 $1 件の検索がタイムアウトしたため、下のステップは少なく数えられているか抜けている可能性があります。もう一度スキャンしてください。" },
+  "reportGuardsChangedNote": { "message": "このスキャン以降に安全スイッチが変更されたため、これらの件数は実行時の動作と一致しません。もう一度スキャンしてください。" },
+  "reportSafeModeNote": { "message": "セーフモードは「更新」と「フォーラム」のステップをスキップするため、オンの間これらの行は実行されません。" },
+  "safeModeBlocksStep": { "message": "セーフモードはこのステップをスキップします。クリーンタブでオフにしてください" },
+  "xrayAgeNoteText": { "message": "上のサイズはすべての期間の大きなメールを数えています。この削除は $1 より古いメールだけを対象にするため、表示された合計より少なくなります。" }
 }

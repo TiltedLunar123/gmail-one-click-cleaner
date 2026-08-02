@@ -40,6 +40,7 @@ const engineSrc = read("contentScript.js");
 const popupSrc = read("popup.js");
 const bgSrc = read("background.js");
 const popupHtml = read("popup.html");
+const sharedSrc = read("shared.js");
 
 /** The body of a named function in the engine, up to the next one. */
 const fnBody = (src, startMarker, endMarker) => {
@@ -100,7 +101,6 @@ describe("the subscription scan is deliberately NOT guarded", () => {
 
 describe("Smart Suggestions count what their own button acts on (8.6)", () => {
   const scan = fnBody(engineSrc, "async function smartScan(", "async function driveMoveBackControl(");
-  const sharedSrc = read("shared.js");
 
   test("each surviving sender is measured through applyGlobalGuards", () => {
     // The defect: the card read "402 emails, 100% unread, mostly older
@@ -168,15 +168,20 @@ describe("Smart Suggestions count what their own button acts on (8.6)", () => {
     expect(bgSrc).toContain('.filter((s) => typeof s.reachable !== "number" || s.reachable > 0)');
   });
 
-  test("bulk apply caps once, and the query, the status and the marker agree", () => {
-    // buildBulkRule drops everything past MAX_BULK_PER_RUN, so checking
-    // 30 senders produced a query carrying 25, a status line reading
-    // "Cleaning up 30 senders" and an applied marker claiming all 30.
-    const bulk = fnBody(popupSrc, "const capped = emails.slice(0, GCC.smart.LIMITS.MAX_BULK_PER_RUN);", "const handleSmartDismiss");
-    expect(bulk).toContain("if (emails.length > capped.length) {");
-    expect(bulk).toContain("GCC.smart.buildBulkRule(capped)");
-    expect(bulk).toContain("GCC.storageXray.sanitizeEmails(capped)");
-    expect(bulk).not.toContain("buildBulkRule(emails)");
+  test("bulk apply runs one plan, and the query, the status and the marker agree", () => {
+    // 8.6: the cap has to be applied once, where the marker and the
+    // status line can read the same list; buildBulkRule silently
+    // dropping everything past it made a 30-sender selection run 25 and
+    // claim all 30. 8.7: the plan does the capping, and it plans against
+    // the SENDERS so each card's own action survives.
+    const bulk = fnBody(popupSrc, "const handleSmartBulkApply = async () => {", "const handleSmartDismiss");
+    expect(bulk).toContain("GCC.smart.bulkPlan(chosenSenders)");
+    expect(bulk).toContain("GCC.storageXray.sanitizeEmails(plan.emails)");
+    expect(bulk).toContain("startSmartApplyRun(targeted, plan.rules, plan.archive)");
+    // The two ways it used to go wrong: one deleteOld query for every
+    // card, and a hardcoded delete for a list that may be archive cards.
+    expect(bulk).not.toContain("buildBulkRule");
+    expect(bulk).not.toMatch(/startSmartApplyRun\([^)]*,\s*false\)/);
   });
 });
 
@@ -238,8 +243,17 @@ describe("an honest report still explains itself", () => {
   });
 
   test("the gap is reported, and cannot go negative", () => {
-    expect(scan).toContain("const guardedOutCount = Math.max(0, unguardedCount - cleanableCount);");
+    expect(scan).toContain("Math.max(0, unguardedCount - cleanableCount)");
     expect(scan).toContain("guardedOutCount");
+  });
+
+  test("the gap is not computed from a search that never ran", () => {
+    // 8.7: a subtraction between two numbers is only meaningful when
+    // both were measured. A timed-out raw headline left unguardedCount
+    // at 0 and reported the guards as holding nothing back; a timed-out
+    // guarded one left cleanableCount at 0 and reported them as holding
+    // back the entire mailbox. Both readings are inventions.
+    expect(scan).toContain("headlineMeasured && unguardedMeasured");
   });
 
   test("the extra search is inside the query budget", () => {
@@ -268,9 +282,62 @@ describe("an honest report still explains itself", () => {
 
   test("it stays hidden when there is nothing to explain", () => {
     const note = fnBody(popupSrc, "const renderGuardNote = () => {", "const renderReport = () => {");
-    // No scan yet, nothing held back, or every guard already off.
-    expect(note).toContain("!state.report.updatedAt || held < 1");
-    expect(note).toContain("if (!which.length)");
+    // No scan yet, or none of the caveats apply.
+    expect(note).toContain("if (!state.report.updatedAt) {");
+    expect(note).toContain("if (!lines.length) {");
+    // Nothing held back, or every guard already off, still says nothing
+    // rather than guessing at which guard did it.
+    expect(note).toContain("if (held >= 1)");
+    expect(note).toContain("if (which.length)");
+  });
+
+  test("it says when the numbers were never measured", () => {
+    // 8.7: a band whose search timed out is stored as 0, which reads
+    // exactly like an empty band.
+    const note = fnBody(popupSrc, "const renderGuardNote = () => {", "const renderReport = () => {");
+    expect(note).toContain("reportPartialNote");
+    expect(note).toContain("state.report.failedQueries");
+  });
+
+  test("it says when the guards have moved since the scan", () => {
+    // Every band was counted through applyGlobalGuards with the guards
+    // as they stood at scan time. Turning one OFF afterwards leaves the
+    // counts describing LESS than the Run buttons would now take, which
+    // is the dangerous direction for a stale number.
+    const note = fnBody(popupSrc, "const renderGuardNote = () => {", "const renderReport = () => {");
+    expect(note).toContain("reportGuardsChangedNote");
+    expect(note).toContain("REPORT_GUARD_FIELDS.some");
+    // The scan has to report what it measured through, or there is
+    // nothing to compare against.
+    expect(engineSrc).toContain("guardSkipUnread: Boolean(CONFIG.guardSkipUnread)");
+  });
+
+  test("Safe Mode's refusal is surfaced instead of ending at an empty run", () => {
+    // getRules -> stripRisky drops category:updates and category:forums
+    // from any rule set, including a report step handed over as a
+    // rulesOverride, while the report counts them anyway.
+    expect(popupSrc).toContain('const SAFE_MODE_BLOCKED_BANDS = ["updates", "forums"];');
+    expect(popupSrc).toContain("reportSafeModeNote");
+    expect(popupSrc).toContain("safeModeBlocksStep");
+    expect(engineSrc).toContain('const riskyCategories = ["category:updates", "category:forums"];');
+  });
+});
+
+describe("the whole-plan button runs what its subtitle promises", () => {
+  test("one action group per run, never a mixed one", () => {
+    // A run carries ONE archiveInsteadOfDelete for all of its rules, so
+    // a plan containing both kinds archived the large-attachment steps.
+    // Archiving a 25 MB message frees no storage, and the hero line
+    // right above sells the plan in MB.
+    expect(sharedSrc).toContain("const reportPlanGroup = (bands) => {");
+    expect(sharedSrc).toContain("planGroup: reportPlanGroup");
+    expect(popupSrc).toContain("GCC.report.planGroup(state.report.bands)");
+    expect(popupSrc).not.toMatch(/const anyArchive = chosen\.some\(\(b\) => b\.action === "archive"\);[\s\S]{0,400}rankBands\(state\.report\.bands\)\s*\r?\n\s*\.filter\(\(b\) => b\.count > 0 && !b\.cleanedAt\)/);
+  });
+
+  test("the subtitle is derived from the group, not hardcoded to Trash", () => {
+    expect(popupSrc).toContain("planSubArchive");
+    expect(popupSrc).toContain('planGroup.action === "archive"');
   });
 });
 

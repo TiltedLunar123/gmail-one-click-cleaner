@@ -373,7 +373,7 @@
   "dismiss": { "message": "Descartar" },
   "notNow": { "message": "Ahora no" },
   "pasteKey": { "message": "Pegar mi clave" },
-  "runAssuranceSafety": { "message": "Primero se etiqueta, Papelera por defecto, recuperable durante 30 días. Los destacados y los importantes se omiten, y el correo sin leer nunca se toca." },
+  "runAssuranceSafety": { "message": "Primero se etiqueta, Papelera por defecto, recuperable durante 30 días. Mientras los interruptores de seguridad estén activados, se omiten los destacados, los importantes y el correo sin leer." },
   "runAssurancePrivacy": { "message": "Sin iniciar sesión en Google, sin cuenta, sin rastreo. Esta extensión no tiene código de red, así que nada puede salir de tu navegador." },
   "activateHintLabel": { "message": "Activar Pro" },
   "activateHintBody": { "message": "¿Compraste Pro? Pega aquí tu clave para desbloquearlo." },
@@ -505,5 +505,15 @@
   "smartGuardNoteMany": { "message": "Se encontraron $1 remitentes más, pero tus filtros ($2) retienen sus $3 correos, así que no se sugieren." },
 
   "privacyPolicyLink": { "message": "Política de privacidad" },
-  "privacyPolicyAria": { "message": "Lee la política de privacidad completa (se abre en una pestaña nueva)" }
+  "privacyPolicyAria": { "message": "Lee la política de privacidad completa (se abre en una pestaña nueva)" },
+
+  "bulkOneGroup": { "message": "Se ejecutan las sugerencias de $1. Marca el resto y vuelve a aplicar." },
+  "planArchiveFirst": { "message": "Primero se archivan esos pasos. Vuelve a ejecutar para el resto." },
+  "planDeleteFirst": { "message": "Primero se limpian esos pasos. Vuelve a ejecutar para el resto." },
+  "planSubArchive": { "message": "Primero se etiqueta, luego se archiva - se puede deshacer" },
+  "reportPartialNote": { "message": "$1 de $2 búsquedas caducaron, así que algunos pasos de abajo pueden estar contados por debajo o faltar. Vuelve a escanear para verlo completo." },
+  "reportGuardsChangedNote": { "message": "Tus interruptores de seguridad han cambiado desde este escaneo, así que estas cifras ya no coinciden con lo que haría una limpieza. Vuelve a escanear." },
+  "reportSafeModeNote": { "message": "El modo seguro omite los pasos de Novedades y Foros, así que esas filas no se ejecutan mientras esté activado." },
+  "safeModeBlocksStep": { "message": "El modo seguro omite este paso; desactívalo en la pestaña Limpiar" },
+  "xrayAgeNoteText": { "message": "Los tamaños de arriba cuentan correo grande de cualquier antigüedad. Esta limpieza solo toma correo de más de $1, así que borrará menos que los totales mostrados." }
 }

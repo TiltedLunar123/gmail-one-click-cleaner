@@ -32,6 +32,9 @@ let attachedAnswer;   // what the attach probe reports
 let probeThrows;      // probe cannot reach the tab at all
 let injectionThrows;  // executeScript fails for real injections
 let syncSetThrows;    // the lastRun write fails once, after injection
+let lastInjectedRunId; // the run id the last real injection carried
+let pingUnreachable;  // the tab never answers the confirmation ping
+let swallowedBy;      // a foreign run id the engine reports instead
 
 function makeStorageArea(area) {
   return {
@@ -91,6 +94,21 @@ beforeAll(() => {
     tabs: {
       query: jest.fn(async () => [{ id: 7, active: true, url: "https://mail.google.com/mail/u/0/" }]),
       get: jest.fn(async (id) => ({ id })),
+      // 8.7: the worker confirms an injection by asking the engine which
+      // run it is, so the mock has to model a booting engine. A healthy
+      // inject answers with the run id it was just handed; a swallowed
+      // one answers with whatever was already attached, which is what
+      // `swallowedBy` stands in for.
+      sendMessage: jest.fn(async (_tabId, msg) => {
+        if (msg?.type !== "gmailCleanerPing") return { ok: true };
+        if (pingUnreachable) throw new Error("no listener");
+        return {
+          ok: true,
+          phase: "running",
+          version: "test",
+          runId: swallowedBy !== null ? swallowedBy : lastInjectedRunId
+        };
+      }),
       onRemoved: { addListener: jest.fn() }
     },
     scripting: {
@@ -103,6 +121,7 @@ beforeAll(() => {
           return [{ result: attachedAnswer }];
         }
         if (injectionThrows) throw new Error("tab gone");
+        if (details.args?.[0]?.runId) lastInjectedRunId = details.args[0].runId;
         executed.push(details);
         return [{ result: null }];
       })
@@ -127,6 +146,9 @@ beforeEach(() => {
   attachedAnswer = false;
   probeThrows = false;
   injectionThrows = false;
+  lastInjectedRunId = "";
+  pingUnreachable = false;
+  swallowedBy = null;
   syncSetThrows = false;
 });
 

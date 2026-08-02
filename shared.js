@@ -1320,6 +1320,35 @@ const GCC = (() => {
     return out;
   };
 
+  // Which steps "Run the whole plan" actually runs, 8.7.
+  //
+  // A run carries ONE archiveInsteadOfDelete for all of its rules, and
+  // the plan used to pass every remaining step into a single run with
+  // `archive = bands.some(archive)`. The two inbox bands archive, and a
+  // mailbox with old Inbox mail is the mailbox this report is for, so in
+  // practice the flag was almost always true: the large-attachment steps
+  // sold as "at least N MB" were ARCHIVED, which frees no storage at
+  // all, under a button whose own subtitle said "then Trash".
+  //
+  // Deleting the archive steps instead is not an option: those bands
+  // exist because Inbox mail should be filed, not thrown away. So the
+  // plan runs one action group, the one the top-ranked remaining step
+  // belongs to, and the caller reports the rest. Running the delete
+  // group first is not hardcoded; ranking already puts the MB steps on
+  // top when there are any.
+  const reportPlanGroup = (bands) => {
+    const remaining = rankReportBands(bands).filter((b) => b.count > 0 && !b.cleanedAt);
+    if (!remaining.length) return { ids: [], action: "", deferred: 0 };
+    const action = remaining[0].action === "archive" ? "archive" : "delete";
+    const ids = [];
+    let deferred = 0;
+    for (const band of remaining) {
+      if (band.action === action) ids.push(band.id);
+      else deferred++;
+    }
+    return { ids, action, deferred };
+  };
+
   // Free users get the report in full and one working purge. Pro unlocks
   // the rest and the whole-plan run.
   const isBandUnlocked = (bandId, bands, licenseActive) => {
@@ -1364,6 +1393,7 @@ const GCC = (() => {
     freeBandId: freeReportBandId,
     totals: reportTotals,
     bandPurgeRules,
+    planGroup: reportPlanGroup,
     isBandUnlocked,
     upsellLine: reportUpsellLine
   });
@@ -1833,9 +1863,87 @@ const GCC = (() => {
     return { runKind: "cleanup", query: `from:(${email}) older_than:6m`, archive: false };
   };
 
+  // Bulk apply (Pro), 8.7.
+  //
+  // The old bulk path collapsed every checked card into ONE deleteOld
+  // query and ran it with archive:false. Each card, though, leads with
+  // the action the scan measured for that sender and states the count
+  // that action will reach, so the button under them did something
+  // different from what they promised, twice over:
+  //
+  //   - an archiveAll card reading "Archives 200 now" had its mail sent
+  //     to Trash, which is the destructive direction and the one
+  //     mistake this product cannot make;
+  //   - a purgeLarge card reading "Deletes 40 large emails now" ran the
+  //     generic older_than:6m instead of its own larger:5M, so it took
+  //     every old message from that sender rather than the big ones.
+  //
+  // A run carries one archiveInsteadOfDelete for all of its rules, so
+  // one click cannot honour both groups. This plans the group the
+  // top-most checked card belongs to and reports the rest as deferred;
+  // the caller says so and the user clicks again. Doing less than was
+  // asked is the safe direction, and it is the same idiom the 25-per-run
+  // cap has used for releases.
+  //
+  // Senders whose action is `unsubscribe` are not cleanup at all (they
+  // ride the unsubscribe engine) and are never planned here.
+  const smartBulkPlan = (senders) => {
+    const empty = { rules: [], emails: [], archive: false, action: "", deferred: 0 };
+    if (!Array.isArray(senders) || !senders.length) return empty;
+
+    const valid = [];
+    for (const sender of senders) {
+      const email = String(sender?.email || "").trim().toLowerCase();
+      if (!STORAGE_EMAIL_RE.test(email) || email.length > 320) continue;
+      const action = smartResolvedAction(sender);
+      if (action === "unsubscribe") continue;
+      valid.push({ email, action });
+    }
+    if (!valid.length) return empty;
+
+    // Order is the ranked order the cards were rendered in, so "the
+    // group the first checked card is in" is the group at the top of
+    // what the user was looking at.
+    const lead = valid[0].action;
+    const chosen = [];
+    const seen = new Set();
+    let deferred = 0;
+    for (const item of valid) {
+      if (item.action !== lead) { deferred++; continue; }
+      if (seen.has(item.email)) continue;
+      if (chosen.length >= SMART_LIMITS.MAX_BULK_PER_RUN) { deferred++; continue; }
+      seen.add(item.email);
+      chosen.push(item.email);
+    }
+    if (!chosen.length) return empty;
+
+    // One rule for the group: every member shares the action, so they
+    // share the query shape, and an OR group is one search instead of
+    // twenty-five. The shapes are the same ones buildActionRule emits
+    // for a single card, which is what makes the counts on the cards
+    // the counts this run will honour.
+    const group = `from:(${chosen.join(" OR ")})`;
+    let rule;
+    if (lead === "purgeLarge") rule = `${group} larger:5M older_than:6m`;
+    else if (lead === "archiveAll") rule = group;
+    else rule = `${group} older_than:6m`;
+
+    return {
+      rules: [rule],
+      emails: chosen,
+      archive: lead === "archiveAll",
+      action: lead,
+      deferred
+    };
+  };
+
   // Bulk apply (Pro): one cleanup run over every checked sender, the
   // same conservative shape as deleteOld. "" when nothing valid
   // survives; callers must treat that as a no-op.
+  //
+  // 8.7: kept for the callers that genuinely mean "one deleteOld query
+  // over these addresses" and for the tests that pin its shape. The
+  // suggestion list uses smartBulkPlan above.
   const smartBuildBulkRule = (emails) => {
     if (!Array.isArray(emails)) return "";
     const clean = [];
@@ -1938,6 +2046,7 @@ const GCC = (() => {
     recommend: smartRecommend,
     buildActionRule: smartBuildActionRule,
     buildBulkRule: smartBuildBulkRule,
+    bulkPlan: smartBulkPlan,
     primaryAction: smartPrimaryAction,
     resolvedAction: smartResolvedAction,
     reasonText: smartReasonText,

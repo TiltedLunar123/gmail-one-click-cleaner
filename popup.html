@@ -2716,7 +2716,10 @@
            where the decision is made. -->
       <p class="run-assurance">
         <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 5.6v5.2c0 4.2 2.9 7 7 8.4 4.1-1.4 7-4.2 7-8.4V5.6L12 3Z"/><path d="M9 12l2 2 4-4.2"/></svg>
-        <span data-i18n="runAssuranceSafety">Labelled first, Trash by default, recoverable for 30 days. Starred and Important are skipped, and unread mail is never touched.</span>
+        <!-- 8.7: "never touched" was an absolute claim about three
+             switches the user can turn off two panels down, so it was
+             false for anyone who did. -->
+        <span data-i18n="runAssuranceSafety">Labelled first, Trash by default, recoverable for 30 days. While the safety switches are on, Starred, Important and unread mail are all skipped.</span>
       </p>
       <p class="run-assurance run-assurance--privacy">
         <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2.2"/><path d="M7.5 10.5V7a4.5 4.5 0 0 1 9 0v3.5"/></svg>
@@ -3089,6 +3092,16 @@
           </select>
         </div>
 
+        <!-- 8.7: the scan measures the size tiers with no age filter at
+             all, so the MB and the count on every row describe large
+             mail of ANY age, while this control narrows what the purge
+             takes. With the default of six months a sender whose big
+             mail is all recent reads "at least 400 MB" over a button
+             that clears none of it. The scan is not re-run per age (that
+             would cost a search per sender), so the row says what it
+             measured and this says what the button will honour. -->
+        <p class="subs-hint" id="xrayAgeNote" hidden></p>
+
         <button id="xrayPurgeBtn" class="subs-unsub-btn" type="button" hidden>
           <span class="label-main" data-i18n="purgeMain">Purge selected</span>
           <span class="label-sub" id="xrayPurgeBtnSub" data-i18n="proPriceSub">Pro · $19.99 lifetime</span>
@@ -3121,7 +3134,7 @@
         </nav>
 
         <div class="footer-right">
-          <span class="badge" id="versionBadge" aria-label="Version 8.6.0">v8.6.0</span>
+          <span class="badge" id="versionBadge" aria-label="Version 8.7.0">v8.7.0</span>
           <button id="kbdHelpBtn" class="linkish" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" data-i18n-label="kbdTitle" data-i18n-title="kbdBtnTitle">
             <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/></svg>
           </button>
