@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "8.7.0";
+  const SW_VERSION = "8.8.0";
 
   // =========================
   // Storage Keys
@@ -1947,8 +1947,22 @@
       .map((s) => s.email);
   }
 
-  function autoPilotBuildRule(emails) {
-    if (!Array.isArray(emails)) return "";
+  // 8.8: the worker's own copy of the 512-character ceiling shared.js
+  // enforces in validateGmailQuery. The worker is self-contained by
+  // design, so this is duplicated rather than imported, and
+  // tests/background-autopilot.test.js pins it equal to the shared one.
+  const AUTOPILOT_MAX_QUERY_CHARS = 512;
+  const AUTOPILOT_RULE_SUFFIX = ") older_than:6m";
+
+  // Returns a LIST of queries. This packed all twenty-five addresses
+  // into one from:() group until 8.8, which came to roughly 870
+  // characters of realistic newsletter addresses against a 512-character
+  // ceiling that nothing on the rulesOverride path ever checked. The
+  // storage x-ray hit exactly this in 8.0 and chunks; Auto-Pilot runs
+  // unattended and weekly, so it was the one place nobody would see it
+  // happen. The cleanup path already accepts several rules.
+  function autoPilotBuildRules(emails) {
+    if (!Array.isArray(emails)) return [];
     const clean = [];
     const seen = new Set();
     for (const raw of emails) {
@@ -1959,8 +1973,25 @@
       clean.push(email);
       if (clean.length >= AUTOPILOT_MAX_PER_RUN) break;
     }
-    if (!clean.length) return "";
-    return `from:(${clean.join(" OR ")}) older_than:6m`;
+    if (!clean.length) return [];
+
+    const budget = AUTOPILOT_MAX_QUERY_CHARS - "from:(".length - AUTOPILOT_RULE_SUFFIX.length;
+    const out = [];
+    let group = [];
+    let groupLen = 0;
+    for (const email of clean) {
+      const cost = email.length + (group.length ? 4 : 0);
+      if (group.length && groupLen + cost > budget) {
+        out.push(`from:(${group.join(" OR ")}${AUTOPILOT_RULE_SUFFIX}`);
+        group = [];
+        groupLen = 0;
+      }
+      if (email.length > budget) continue;
+      group.push(email);
+      groupLen += group.length === 1 ? email.length : cost;
+    }
+    if (group.length) out.push(`from:(${group.join(" OR ")}${AUTOPILOT_RULE_SUFFIX}`);
+    return out;
   }
 
   // ---- run stages ----
@@ -2163,9 +2194,9 @@
         whitelist,
         protectKeywords
       );
-      const rule = autoPilotBuildRule(senders);
+      const rules = autoPilotBuildRules(senders);
 
-      if (!rule) {
+      if (!rules.length) {
         // Nothing safe to sweep: record the visit so the popup can say
         // so, and anchor the next weekly fire.
         const now = Date.now();
@@ -2220,7 +2251,7 @@
         // Archive only in v1: never delete, whatever the per-sender
         // recommendation would have led with.
         archiveInsteadOfDelete: true,
-        rulesOverride: [rule],
+        rulesOverride: rules,
         // The rule carries its own older_than:6m; a global minimum age
         // would stack a second, stricter filter on top.
         minAge: null,
@@ -2815,7 +2846,7 @@
       autoPilotIsDismissed,
       autoPilotDomainBoost,
       autoPilotPickSenders,
-      autoPilotBuildRule,
+      autoPilotBuildRules,
       runAutoPilot,
       runScheduledCleanup,
       isEngineAttached,

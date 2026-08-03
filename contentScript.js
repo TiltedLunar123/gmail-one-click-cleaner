@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "8.7.0";
+  const GCC_CONTENT_VERSION = "8.8.0";
 
   // =========================
   // Timing & behavior constants
@@ -84,7 +84,16 @@
     "in:sent",
     "in:drafts",
     "in:chat",
-    "in:scheduled"
+    "in:scheduled",
+    // 8.8: a rule scoped to Trash or Spam puts Gmail in the one view
+    // where the toolbar's delete control is "Delete forever". The engine
+    // clicks it, and the mail is gone with no Trash to recover it from
+    // and nothing for tag-before-delete or one-click Restore to find:
+    // Restore searches `in:trash label:"..."`, which is exactly the mail
+    // such a rule destroys. Everything else on this list is recoverable
+    // by comparison, so refusing these two is the floor, not an extra.
+    "in:trash",
+    "in:spam"
   ];
 
   function queryHasDangerousToken(rawQuery) {
@@ -925,7 +934,32 @@
   // =========================
 
   if (hasChromeRuntime() && chrome.runtime?.onMessage) {
-    chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    // 8.8: every injection added a listener and nothing ever removed
+    // one. GCC_ATTACHED is cleared when a run ends, so the next
+    // injection boots a second engine into the same document while the
+    // finished run's listener is still registered. Chrome offers a
+    // message to listeners in registration order and keeps the first
+    // sendResponse, so gmailCleanerPing was answered by the OLDEST
+    // engine, carrying the PREVIOUS run's id out of its own closure.
+    // confirmInjection compares that id against the one it just
+    // injected, so on any Gmail tab that had already finished one run
+    // every unattended run -- scheduled cleanup, the Auto-Pilot scan and
+    // the Auto-Pilot apply -- was misread as a swallowed injection and
+    // abandoned. The listeners also accumulated for the life of the tab.
+    //
+    // Only a non-duplicate injection reaches this line, because the
+    // attach guard returns above while an engine is live, so the
+    // listener being replaced always belongs to a run that is over.
+    const previousListener = window.GCC_MSG_LISTENER;
+    if (previousListener) {
+      try {
+        chrome.runtime.onMessage.removeListener(previousListener);
+      } catch (e) {
+        logError(e, "removeStaleMessageListener");
+      }
+    }
+
+    const onRuntimeMessage = (msg, _sender, sendResponse) => {
       if (!msg?.type) return;
 
       switch (msg.type) {
@@ -996,7 +1030,10 @@
           sendResponse({ ok: false, error: "Unknown message type" });
           break;
       }
-    });
+    };
+
+    chrome.runtime.onMessage.addListener(onRuntimeMessage);
+    window.GCC_MSG_LISTENER = onRuntimeMessage;
   }
 
   // =========================
@@ -2083,8 +2120,16 @@
         // unfiltered. applyGlobalGuards then skipped adding -is:starred
         // because the token was already in the query, and a year of
         // starred mail went to Trash with both protections down.
+        // 8.8: the fallback chain reached the STORED normal list before
+        // the engine's own table, so an install that saved Options
+        // before 8.1 added Maximum has a `rules` object with no
+        // `maximum` key and quietly ran its Normal rules while the
+        // progress page announced "Level: maximum". 8.7 added maximum to
+        // DEFAULT_RULES, which only covers the install that never saved
+        // at all. Ask the engine's table for the intensity that was
+        // actually requested before falling back to a different one.
         const set = refuseDangerousRules(
-          [...(allRules[intensity] ?? allRules.normal ?? DEFAULT_RULES.normal)],
+          [...(allRules[intensity] ?? DEFAULT_RULES[intensity] ?? allRules.normal ?? DEFAULT_RULES.normal)],
           "rule"
         );
 
@@ -2257,7 +2302,19 @@
       if (trimmed) {
         // Sanitize: reject entries containing Gmail search operators that could
         // break query intent (e.g. "user@test.com OR attacker@evil.com")
-        if (/\s|\bOR\b|\bAND\b|[{}()]/i.test(trimmed)) {
+        //
+        // 8.8: the OR/AND alternatives used word boundaries, and "." and
+        // "-" are not word characters, so ordinary addresses like
+        // sales.and.marketing@company.com or news-or-offers@shop.com
+        // matched and were dropped in silence. The user protects a
+        // sender in the Global Whitelist, the guard is never appended,
+        // and the next run deletes that sender's mail; the only trace is
+        // a debugLog nobody has switched on. An operator needs
+        // whitespace to separate it, and the \s test already refuses
+        // every entry that has any, so matching those words inside one
+        // contiguous token rejected safe addresses without blocking
+        // anything: `-from:a@b.comORc@d.com` is one inert term to Gmail.
+        if (/\s|[{}()]/.test(trimmed)) {
           debugLog("Skipping suspicious whitelist entry", { entry: trimmed });
           continue;
         }
@@ -3747,24 +3804,34 @@
         }
       }
 
-      // The pass cap is the only way out of the loop that records
-      // nothing: every other exit returns after recordQueryStats. A rule
-      // with more mail than 150 passes can clear therefore vanished from
-      // the run summary entirely, and the user was never told the rule
-      // had stopped short rather than finished.
-      safeSend({
-        phase: "warning",
-        status: `${label} stopped at the pass limit`,
-        detail: `Cleared ${queryDeletedCount.toLocaleString()} so far; run the cleaner again to continue this rule.`
-      });
-      recordQueryStats({
-        query,
-        label,
-        count: queryDeletedCount,
-        mode: CONFIG.dryRun ? "dry" : "live",
-        durationMs: Date.now() - start
-      });
     }
+
+    // The pass cap is the only way out of the loop that records
+    // nothing: every other exit returns after recordQueryStats. A rule
+    // with more mail than 150 passes can clear therefore vanished from
+    // the run summary entirely, and the user was never told the rule
+    // had stopped short rather than finished.
+    //
+    // 8.8: this ran one nesting level too deep, inside the pass loop
+    // rather than after it, so it fired at the end of EVERY pass. Any
+    // rule that needed a second pass told the user it had "stopped at
+    // the pass limit" while it was still working, and recorded an extra
+    // perQuery entry per pass carrying the running cumulative total, so
+    // a three-pass rule that cleared 150 booked 50 + 100 + 150 = 300
+    // into the progress table, the run receipt and the persisted
+    // categoryBreakdown the Stats page reads.
+    safeSend({
+      phase: "warning",
+      status: `${label} stopped at the pass limit`,
+      detail: `Cleared ${queryDeletedCount.toLocaleString()} so far; run the cleaner again to continue this rule.`
+    });
+    recordQueryStats({
+      query,
+      label,
+      count: queryDeletedCount,
+      mode: CONFIG.dryRun ? "dry" : "live",
+      durationMs: Date.now() - start
+    });
     } catch (e) {
       // Record partial stats even on failure
       if (!(e instanceof CancellationError)) {

@@ -158,9 +158,14 @@ describe("bulk apply honours each card's own action", () => {
       sharedSrc.indexOf("const smartBulkPlan = (senders) => {"),
       sharedSrc.indexOf("// Bulk apply (Pro): one cleanup run")
     );
-    expect(fn).toContain('if (lead === "purgeLarge") rule = `${group} larger:5M older_than:6m`;');
-    expect(fn).toContain('else if (lead === "archiveAll") rule = group;');
-    expect(fn).toContain("else rule = `${group} older_than:6m`;");
+    // 8.8 packs each group into as many length-bounded queries as the
+    // 512-character ceiling needs, so the shapes now live in a suffix
+    // the packer appends rather than in one whole-string template. The
+    // rule being pinned is unchanged: three actions, three shapes.
+    expect(fn).toContain('if (lead === "purgeLarge") suffix = ") larger:5M older_than:6m";');
+    expect(fn).toContain('else if (lead === "archiveAll") suffix = ")";');
+    expect(fn).toContain('else suffix = ") older_than:6m";');
+    expect(fn).toContain("rules: packSenderGroups(chosen, suffix)");
     expect(fn).toContain('archive: lead === "archiveAll"');
   });
 
