@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "8.7.0";
+  const POPUP_VERSION = "8.8.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -3024,6 +3024,17 @@ document.addEventListener("DOMContentLoaded", () => {
       const config = await buildConfig();
       config.runId = claim.claim.runId;
       config.rulesOverride = purgeQueries;
+      // 8.8: buildConfig reads the Clean tab's Action dropdown, which is
+      // persisted and restored on every popup open, so a user who had
+      // ever set it to Archive got an X-ray "purge" that archived. The
+      // button says "Tagged first, then Trash", the summary claims MB
+      // freed, and the rows are stamped Purged so a rescan stops
+      // offering them, while the mail sits in All Mail and the Google
+      // quota this feature exists to reclaim does not move at all.
+      // Archiving is not a purge; the two sibling specialised runs
+      // (startReportRun, startSmartApplyRun) already set their own
+      // action rather than inheriting this one.
+      config.archiveInsteadOfDelete = false;
       // 7.15: the global Minimum Age stays. Nulling it here predated the
       // engine learning to compare ages: applyGlobalGuards now appends the
       // floor only when it is STRICTER than the age the rule already
@@ -3125,7 +3136,26 @@ document.addEventListener("DOMContentLoaded", () => {
       : []
     ).map((cb) => cb.getAttribute("data-email")).filter(Boolean);
 
+  // 8.8: the bulk button's subtitle was written once in popup.html and
+  // never touched again, so it promised "then Trash" for every plan.
+  // bulkPlan leads with archiveAll whenever the top checked card is an
+  // archive card, which is the common case for a sender the user still
+  // reads, and startSmartApplyRun honours that: the button said the mail
+  // was going to Trash while the run archived it. The report's whole-run
+  // control learned to say which one in 8.7; this is its sibling, and it
+  // reuses the same catalogue string.
+  const updateSmartBulkSub = () => {
+    if (!elements.smartBulkBtnSub) return;
+    const byEmail = new Map(state.smart.senders.map((s) => [s.email, s]));
+    const chosen = getCheckedSmartEmails().map((e) => byEmail.get(e)).filter(Boolean);
+    const archive = chosen.length > 0 && GCC.smart.bulkPlan(chosen).archive;
+    elements.smartBulkBtnSub.textContent = archive
+      ? t("planSubArchive", "Tagged first, then archived - undo applies")
+      : t("smartBulkSub", "Tagged first, then Trash - undo applies");
+  };
+
   const updateSmartCount = () => {
+    updateSmartBulkSub();
     if (!elements.smartCount) return;
     const total = state.smart.visibleCount;
     const checked = getCheckedSmartEmails().length;

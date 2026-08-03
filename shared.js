@@ -550,7 +550,14 @@ const GCC = (() => {
     "in:sent",
     "in:drafts",
     "in:chat",
-    "in:scheduled"
+    "in:scheduled",
+    // 8.8: Trash and Spam are the views where Gmail's delete control
+    // means "Delete forever". A rule scoped to either destroys mail
+    // permanently, and Restore cannot help because it looks for exactly
+    // the `in:trash` mail such a rule removes. Kept in lockstep with the
+    // engine's own copy in contentScript.js.
+    "in:trash",
+    "in:spam"
   ];
 
   // Operators that target the entire mailbox without an age filter make
@@ -1887,6 +1894,36 @@ const GCC = (() => {
   //
   // Senders whose action is `unsubscribe` are not cleanup at all (they
   // ride the unsubscribe engine) and are never planned here.
+  // Pack addresses into as many `from:( ... )<suffix>` groups as the
+  // 512-character ceiling allows. Identical reasoning to the storage
+  // x-ray's purgeQueryChunks, which learned it first: an over-length
+  // query is not a smaller version of the query, it is a different one,
+  // and the caller has already told the user what the full list will do.
+  // `suffix` starts with the closing paren so callers own their own
+  // trailing operators.
+  const packSenderGroups = (emails, suffix) => {
+    const budget = MAX_QUERY_CHARS - "from:(".length - suffix.length;
+    const out = [];
+    let group = [];
+    let groupLen = 0;
+    for (const email of emails) {
+      // " OR " only costs anything from the second address onward.
+      const cost = email.length + (group.length ? 4 : 0);
+      if (group.length && groupLen + cost > budget) {
+        out.push(`from:(${group.join(" OR ")}${suffix}`);
+        group = [];
+        groupLen = 0;
+      }
+      // An address longer than the whole budget cannot be packed at all;
+      // dropping it misses one sender, which is the safe failure.
+      if (email.length > budget) continue;
+      group.push(email);
+      groupLen += group.length === 1 ? email.length : cost;
+    }
+    if (group.length) out.push(`from:(${group.join(" OR ")}${suffix}`);
+    return out;
+  };
+
   const smartBulkPlan = (senders) => {
     const empty = { rules: [], emails: [], archive: false, action: "", deferred: 0 };
     if (!Array.isArray(senders) || !senders.length) return empty;
@@ -1917,19 +1954,26 @@ const GCC = (() => {
     }
     if (!chosen.length) return empty;
 
-    // One rule for the group: every member shares the action, so they
-    // share the query shape, and an OR group is one search instead of
-    // twenty-five. The shapes are the same ones buildActionRule emits
-    // for a single card, which is what makes the counts on the cards
-    // the counts this run will honour.
-    const group = `from:(${chosen.join(" OR ")})`;
-    let rule;
-    if (lead === "purgeLarge") rule = `${group} larger:5M older_than:6m`;
-    else if (lead === "archiveAll") rule = group;
-    else rule = `${group} older_than:6m`;
+    // Every member shares the action, so they share the query shape, and
+    // an OR group is one search instead of twenty-five. The shapes are
+    // the same ones buildActionRule emits for a single card, which is
+    // what makes the counts on the cards the counts this run will
+    // honour.
+    //
+    // 8.8: this packed all twenty-five into ONE from:() group. Twenty-
+    // five realistic newsletter addresses come to around 870 characters
+    // against the 512 the project enforces in validateGmailQuery, and
+    // nothing on the rulesOverride path calls that validator, so the
+    // over-length string went to Gmail exactly as the storage x-ray's
+    // did before 8.0 chunked it. Same fix, same reason: the run takes
+    // the whole set as separate rules, which the engine already does.
+    let suffix;
+    if (lead === "purgeLarge") suffix = ") larger:5M older_than:6m";
+    else if (lead === "archiveAll") suffix = ")";
+    else suffix = ") older_than:6m";
 
     return {
-      rules: [rule],
+      rules: packSenderGroups(chosen, suffix),
       emails: chosen,
       archive: lead === "archiveAll",
       action: lead,
@@ -1938,14 +1982,14 @@ const GCC = (() => {
   };
 
   // Bulk apply (Pro): one cleanup run over every checked sender, the
-  // same conservative shape as deleteOld. "" when nothing valid
-  // survives; callers must treat that as a no-op.
+  // same conservative shape as deleteOld. An empty list when nothing
+  // valid survives; callers must treat that as a no-op.
   //
   // 8.7: kept for the callers that genuinely mean "one deleteOld query
   // over these addresses" and for the tests that pin its shape. The
   // suggestion list uses smartBulkPlan above.
-  const smartBuildBulkRule = (emails) => {
-    if (!Array.isArray(emails)) return "";
+  const smartBuildBulkRules = (emails) => {
+    if (!Array.isArray(emails)) return [];
     const clean = [];
     const seen = new Set();
     for (const raw of emails) {
@@ -1956,8 +2000,17 @@ const GCC = (() => {
       clean.push(email);
       if (clean.length >= SMART_LIMITS.MAX_BULK_PER_RUN) break;
     }
-    if (!clean.length) return "";
-    return `from:(${clean.join(" OR ")}) older_than:6m`;
+    if (!clean.length) return [];
+    return packSenderGroups(clean, ") older_than:6m");
+  };
+
+  // 8.8: the singular form keeps its shape for existing callers and
+  // tests, and returns the FIRST chunk when the list overflows, so no
+  // path can quietly emit an over-length query again. Same contract the
+  // storage x-ray's buildPurgeQuery has had since 8.0.
+  const smartBuildBulkRule = (emails) => {
+    const chunks = smartBuildBulkRules(emails);
+    return chunks.length ? chunks[0] : "";
   };
 
   // Which action a card leads with. Storage hogs get the purge. An
@@ -2046,6 +2099,7 @@ const GCC = (() => {
     recommend: smartRecommend,
     buildActionRule: smartBuildActionRule,
     buildBulkRule: smartBuildBulkRule,
+    buildBulkRules: smartBuildBulkRules,
     bulkPlan: smartBulkPlan,
     primaryAction: smartPrimaryAction,
     resolvedAction: smartResolvedAction,

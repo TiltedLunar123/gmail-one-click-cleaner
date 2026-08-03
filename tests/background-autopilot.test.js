@@ -291,11 +291,26 @@ describe("pin: recommendation selection matches GCC.smart", () => {
     expect(INTERNALS.autoPilotPickSenders(many, {}, [], []).length).toBe(25);
   });
 
-  test("the bulk rule equals GCC.smart.buildBulkRule", () => {
+  // 8.8: both sides return a LIST now. One from:() group could not hold
+  // twenty-five realistic addresses inside the 512-character ceiling,
+  // and Auto-Pilot is the copy nobody watches run.
+  test("the bulk rules equal GCC.smart.buildBulkRules", () => {
     const emails = ["a@x.com", "B@Y.com", "junk )", "a@x.com", "c@z.com"];
-    expect(INTERNALS.autoPilotBuildRule(emails)).toBe(GCC.smart.buildBulkRule(emails));
-    expect(INTERNALS.autoPilotBuildRule([])).toBe("");
-    expect(INTERNALS.autoPilotBuildRule(["not-an-email"])).toBe("");
+    expect(INTERNALS.autoPilotBuildRules(emails)).toEqual(GCC.smart.buildBulkRules(emails));
+    expect(INTERNALS.autoPilotBuildRules([])).toEqual([]);
+    expect(INTERNALS.autoPilotBuildRules(["not-an-email"])).toEqual([]);
+  });
+
+  test("a full sweep stays inside the query ceiling the shared copy enforces", () => {
+    const long = Array.from({ length: 25 }, (_, i) =>
+      `no-reply.marketing.department-${String(i).padStart(2, "0")}@news.long-company-domain-example.com`);
+    const rules = INTERNALS.autoPilotBuildRules(long);
+    expect(rules.length).toBeGreaterThan(1);
+    for (const rule of rules) expect(rule.length).toBeLessThanOrEqual(GCC.MAX_QUERY_CHARS);
+    // Nobody is dropped on the way: the sweep still covers all 25.
+    const packed = rules.join(" ");
+    for (const email of long) expect(packed).toContain(email);
+    expect(INTERNALS.autoPilotBuildRules(long)).toEqual(GCC.smart.buildBulkRules(long));
   });
 });
 

@@ -3,6 +3,59 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.8.0 - Unattended runs work again
+
+### Fixed
+- **Scheduled cleanups and Auto-Pilot stopped running on any tab that
+  had already run once.** After a run finished, the old run's messaging
+  hook stayed live in the Gmail tab and answered on behalf of the next
+  one. The extension checks that the run it just started is really the
+  run that answered, got the previous run's name back, decided its own
+  injection had been swallowed, and gave up. The first sweep in a fresh
+  tab worked and every one after it silently did nothing.
+
+- **Purge selected on the Storage tab could archive instead of delete.**
+  It borrowed the Delete or Archive setting from the Clean tab, so if
+  that had ever been switched to Archive, the purge moved your biggest
+  mail to All Mail. The button said Trash, the summary said megabytes
+  freed, and the senders were marked Purged so a rescan stopped
+  offering them, while the storage that feature exists to reclaim never
+  moved. It now always deletes, whatever the Clean tab says.
+
+- **A rule that needed more than one pass claimed it had given up.** Any
+  rule with more mail than one pass clears announced "stopped at the
+  pass limit" while it was still working, and filed a duplicate entry
+  each time. A rule that cleared 150 messages over three passes was
+  recorded as 300, in the progress table, the run receipt and the
+  category totals on the Stats page.
+
+- **Applying many suggestions at once could search for fewer senders
+  than you picked.** Twenty-five addresses do not fit in one Gmail
+  search, so the search was cut short while the status line and the run
+  history still claimed all of them. Both the bulk button and Auto-Pilot
+  now split the work into as many searches as it takes.
+
+- **Rules aimed at Trash or Spam could destroy mail permanently.** Those
+  are the two places where Gmail's delete button means delete forever,
+  so a custom rule pointed at either one skipped the Trash entirely and
+  left nothing for Undo or Restore to find. They are now refused, the
+  same way rules aimed at starred or sent mail already were.
+
+- **Some whitelisted senders were never actually protected.** An address
+  with a standalone "and" or "or" in it, like
+  sales.and.marketing@company.com, was dropped from the Global Whitelist
+  without a word, and the next run treated that sender as fair game.
+
+- **Picking Maximum still ran Normal for some people.** 8.7 fixed this
+  for anyone who had never saved Settings. Anyone who had saved before
+  Maximum existed still got the Normal rules under a progress page
+  announcing Maximum.
+
+- **The Apply checked button always said Trash.** When the suggestions
+  it was about to run were archive suggestions, it archived them, which
+  is what the individual cards said all along. Now the button says so
+  too.
+
 ## 8.7.0 - Bulk actions do what the card says
 
 ### Fixed
