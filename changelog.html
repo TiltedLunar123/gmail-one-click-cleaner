@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gmail One-Click Cleaner - What's new</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Release notes for Gmail One-Click Cleaner: what changed in each version, newest first." />
+  <meta name="theme-color" content="#06090f" />
+  <meta name="color-scheme" content="dark light" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'" />
+  <link rel="stylesheet" href="shared.css" />
+
+  <style>
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background-color: var(--bg-deep);
+      background-image:
+        radial-gradient(at 0% 0%, rgba(34, 211, 238, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.15) 0px, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    .wrap {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: var(--space-8) var(--space-5) 64px;
+    }
+
+    .page-header { margin-bottom: var(--space-6); }
+    .title-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+      margin-bottom: var(--space-2);
+    }
+    h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+    h1:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 4px; }
+    .page-description { color: var(--text-muted); margin: 0; max-width: 62ch; }
+
+    /* Jump list. Cheap way to reach an older release without scrolling
+       through four thousand words of prose to find it. */
+    .index {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+      margin: var(--space-5) 0 var(--space-6);
+      padding: var(--space-3) var(--space-4);
+      background: var(--bg-surface-2);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+    }
+    .index-label {
+      color: var(--text-dim);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      align-self: center;
+      margin-right: var(--space-1);
+    }
+    .index a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 12.5px;
+      font-variant-numeric: tabular-nums;
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-surface);
+    }
+    .index a:hover { color: var(--primary); border-color: var(--border-medium); }
+    .index a.is-current {
+      color: var(--on-primary);
+      background: var(--primary);
+      border-color: transparent;
+      font-weight: 700;
+    }
+
+    .release {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: var(--space-5) var(--space-6);
+      margin-bottom: var(--space-4);
+      box-shadow: var(--shadow-md);
+      scroll-margin-top: var(--space-4);
+    }
+    .release.is-current { border-color: var(--border-focus); }
+
+    .release-head {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+      margin-bottom: var(--space-1);
+    }
+    .release h2 {
+      font-size: 17px;
+      margin: 0;
+      letter-spacing: -0.01em;
+    }
+    .release h2 .num {
+      color: var(--primary);
+      font-variant-numeric: tabular-nums;
+      margin-right: var(--space-2);
+    }
+    .release h3 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-dim);
+      margin: var(--space-5) 0 var(--space-2);
+      font-weight: 700;
+    }
+    .release h3:first-of-type { margin-top: var(--space-4); }
+
+    .release p { color: var(--text-secondary); margin: 0 0 var(--space-3); }
+    .release ul { margin: 0; padding-left: var(--space-5); }
+    .release li {
+      color: var(--text-secondary);
+      margin-bottom: var(--space-3);
+    }
+    .release li:last-child { margin-bottom: 0; }
+    .release li ul { margin-top: var(--space-2); }
+    .release li li { margin-bottom: var(--space-2); }
+    .release strong { color: var(--text-main); font-weight: 650; }
+    .release code {
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xs);
+      padding: 1px 5px;
+      color: var(--primary-strong);
+      word-break: break-word;
+    }
+    /* --primary-strong is tuned to glow on ink and only reaches 3.5:1 on
+       the light card, which is under AA for body-size text. The darker
+       brand step clears it comfortably. */
+    [data-theme="light"] .release code { color: var(--primary-hover); }
+
+    .older {
+      margin-top: var(--space-6);
+      padding: var(--space-4) var(--space-5);
+      border: 1px dashed var(--border-medium);
+      border-radius: var(--radius-md);
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    .older a { color: var(--primary); }
+
+    .actions { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-5); }
+
+    .empty {
+      padding: var(--space-6);
+      text-align: center;
+      color: var(--text-muted);
+      border: 1px dashed var(--border-medium);
+      border-radius: var(--radius-md);
+    }
+
+    @media (max-width: 560px) {
+      .wrap { padding: var(--space-5) var(--space-4) 48px; }
+      .release { padding: var(--space-4); }
+    }
+
+    @media print {
+      body { background: none; }
+      .index, .theme-switcher, .skip-link, .actions { display: none !important; }
+    }
+  </style>
+</head>
+
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <noscript>
+    <div class="noscript-warning">
+      <strong>JavaScript required</strong><br />
+      The release notes are rendered on this page. The same log is on
+      GitHub if you would rather read it there.
+    </div>
+  </noscript>
+
+  <div class="wrap">
+    <header class="page-header">
+      <div class="title-row">
+        <h1 id="main-content" tabindex="-1">What's new</h1>
+        <span class="badge" id="versionBadge" aria-label="Version 8.9.0">v8.9.0</span>
+        <div class="theme-switcher" id="themeSwitcher" role="group" aria-label="Color theme" style="margin-left:auto;">
+          <button type="button" data-theme-value="system" aria-pressed="true">Auto</button>
+          <button type="button" data-theme-value="light" aria-pressed="false">Light</button>
+          <button type="button" data-theme-value="dark" aria-pressed="false">Dark</button>
+        </div>
+      </div>
+
+      <p class="page-description">
+        Every release and what changed in it, newest first. Written for
+        people who use the extension, not for people who read the code.
+      </p>
+    </header>
+
+    <nav class="index" id="releaseIndex" aria-label="Jump to a release" hidden>
+      <span class="index-label" aria-hidden="true">Jump to</span>
+    </nav>
+
+    <main id="releaseList" aria-live="polite"></main>
+
+    <p class="older" id="olderNote" hidden></p>
+
+    <div class="actions">
+      <a class="btn btn-sm"
+         href="https://github.com/TiltedLunar123/gmail-one-click-cleaner/blob/main/CHANGELOG.md"
+         target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">Full history on GitHub</a>
+      <a class="btn btn-sm"
+         href="https://github.com/TiltedLunar123/gmail-one-click-cleaner/issues"
+         target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">Report a bug</a>
+    </div>
+  </div>
+
+  <script src="browser-polyfill.js" defer></script>
+  <script src="shared.js" defer></script>
+  <script src="changelog-data.js" defer></script>
+  <script src="changelog.js" defer></script>
+</body>
+</html>

@@ -36,7 +36,13 @@ const FILES = [
   "diagnostics.html",
   "diagnostics.js",
   "stats.html",
-  "stats.js"
+  "stats.js",
+  "changelog.html",
+  "changelog.js",
+  // Generated from CHANGELOG.md by tools/build-changelog.mjs. Baked in
+  // rather than fetched: a request for a packaged file is still a
+  // request, and the extension makes none.
+  "changelog-data.js"
 ];
 
 const DIRS = ["icons", "_locales"];

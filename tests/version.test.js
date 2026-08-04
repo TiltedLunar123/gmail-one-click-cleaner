@@ -20,7 +20,8 @@ const SCRIPT_VERSIONS = [
   ["popup.js", "POPUP_VERSION"],
   ["options.js", "OPTIONS_VERSION"],
   ["progress.js", "PROGRESS_VERSION"],
-  ["diagnostics.js", "DIAGNOSTICS_VERSION"]
+  ["diagnostics.js", "DIAGNOSTICS_VERSION"],
+  ["changelog.js", "CHANGELOG_VERSION"]
 ];
 
 const HTML_BADGES = [
@@ -29,7 +30,10 @@ const HTML_BADGES = [
   // The popup badge is synced from the manifest at runtime, but the
   // static fallback drifted once (stuck at 6.0.0 through two releases)
   // so it gets pinned here too.
-  ["popup.html", /id="versionBadge"[^>]*>v([0-9.]+)</]
+  ["popup.html", /id="versionBadge"[^>]*>v([0-9.]+)</],
+  // 8.9: the What's new page. Its badge is filled from the manifest at
+  // runtime like the popup's, so this pins the static fallback.
+  ["changelog.html", /id="versionBadge"[^>]*>v([0-9.]+)</]
 ];
 
 describe("version consistency", () => {

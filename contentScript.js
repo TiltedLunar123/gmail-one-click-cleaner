@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "8.8.0";
+  const GCC_CONTENT_VERSION = "8.9.0";
 
   // =========================
   // Timing & behavior constants
@@ -264,6 +264,23 @@
     };
   };
 
+  // 8.9: every progress message names its run. `gmailCleanerDone` has
+  // carried a runId since 8.7, but progress did not, so Auto-Pilot's
+  // apply stage could only match on the tab: any cleanup terminal
+  // message from that tab advanced or cleared its state machine, which
+  // is exactly the identity hole 7.15 closed for the SCAN stage.
+  //
+  // Read from window rather than CONFIG because the duplicate-inject
+  // boot message below fires long before sanitizeConfig has run.
+  const RUN_ID = (() => {
+    try {
+      const raw = window.GMAIL_CLEANER_CONFIG?.runId;
+      return typeof raw === "string" ? raw.slice(0, 120) : "";
+    } catch {
+      return "";
+    }
+  })();
+
   const _debouncedSend = debounce((msg) => {
     try {
       if (hasChromeRuntime()) {
@@ -271,6 +288,7 @@
           type: "gmailCleanerProgress",
           timestamp: Date.now(),
           version: GCC_CONTENT_VERSION,
+          runId: RUN_ID,
           ...msg
         });
       }
@@ -295,6 +313,7 @@
           type: "gmailCleanerProgress",
           timestamp: Date.now(),
           version: GCC_CONTENT_VERSION,
+          runId: RUN_ID,
           ...msg
         });
       }
@@ -1609,6 +1628,28 @@
   // =========================
 
   /**
+   * Does this text read as Gmail OFFERING to select the whole match set,
+   * as opposed to any other control that shares the banner?
+   *
+   * 8.9: extracted so the strict test and the fallback sweep cannot
+   * drift apart. The distinction matters after the click, not before:
+   * the banner swaps the offer for a clear-selection control, and a
+   * finder that accepts either can never tell the two states apart.
+   *
+   * @param {string} text
+   * @returns {boolean}
+   */
+  function looksLikeSelectAllOffer(text) {
+    const value = String(text || "");
+    if (!value) return false;
+    if (SELECT_ALL_CONVERSATIONS_PATTERNS.some((pattern) => pattern.test(value))) return true;
+    const lower = value.toLowerCase();
+    const hasSelectAll = SELECT_ALL_TOKENS.some((token) => lower.includes(token.toLowerCase()));
+    const hasConversations = /conversation|message|correo|nachricht|messag/i.test(lower);
+    return hasSelectAll && hasConversations;
+  }
+
+  /**
    * Find the "Select all conversations that match this search" link.
    * @returns {Element | null}
    */
@@ -1638,18 +1679,11 @@
         const text = getTextContent(el);
         const lowerText = text.toLowerCase();
 
-        // Check against patterns
-        const matchesPattern = SELECT_ALL_CONVERSATIONS_PATTERNS.some(pattern =>
-          pattern.test(text)
-        );
-
-        // Also check for simple "Select all" + "conversations" combo
         const hasSelectAll = SELECT_ALL_TOKENS.some(token =>
           lowerText.includes(token.toLowerCase())
         );
-        const hasConversations = /conversation|message|correo|nachricht|messag/i.test(lowerText);
 
-        if (matchesPattern || (hasSelectAll && hasConversations)) {
+        if (looksLikeSelectAllOffer(text)) {
           // Verify it's actually clickable
           const role = getAttr(el, "role");
           const isLink = role === "link" || el.tagName === "A";
@@ -1670,12 +1704,24 @@
       }
     }
 
-    // Fallback: look for any link with role="link" in banner selectors
+    // Fallback: any role="link" in the banner that still READS like the
+    // select-all-matching offer.
+    //
+    // 8.9: this used to accept `/select|conversation|all/i`, which the
+    // control Gmail puts in the same banner AFTER a successful bulk
+    // selection also satisfies in several languages: Dutch "Selectie
+    // wissen" contains "select", Swedish "Avmarkera alla" contains
+    // "all". The clear-selection control is the opposite of a select-all
+    // offer, and matching it defeated the one language-independent proof
+    // that the click worked (see clickSelectAllConversations). Missing a
+    // genuine offer only costs a per-page pass, which is the documented
+    // safe failure; returning the clear control cost an order of
+    // magnitude in every number the run reports.
     for (const selector of SELECTORS.selectAllBanner) {
       const links = qsa(selector, mainRoot);
       for (const link of links) {
         const text = getTextContent(link);
-        if (/select|conversation|all/i.test(text)) {
+        if (looksLikeSelectAllOffer(text)) {
           debugLog("Found fallback select all link", { text: text.substring(0, 100) });
           return link;
         }
@@ -1726,7 +1772,21 @@
       // and silently reported "page only" on every other locale, which
       // sized the soft cap and the huge-run confirm against ~50 rows
       // while Gmail deleted the entire result set.
-      const linkConsumed = !findSelectAllConversationsLink();
+      //
+      // 8.9: "gone" now means the offer is gone, not merely that the
+      // finder returned nothing. Gmail re-renders the banner, so the
+      // same offer can come back as a different node; and the finder
+      // used to accept the clear-selection control that replaces it,
+      // which made this check answer "still offered" on every locale
+      // where that control contains "select" or "all". Compare identity
+      // first, then what the replacement actually says.
+      const stillOffered = (() => {
+        const now = findSelectAllConversationsLink();
+        if (!now) return false;
+        if (now === link) return true;
+        return looksLikeSelectAllOffer(getTextContent(now));
+      })();
+      const linkConsumed = !stillOffered;
       if (linkConsumed) {
         safeSend({
           phase: "debug",
@@ -2246,7 +2306,12 @@
     // Only a positive age describes what the rule keeps. A negated
     // `-older_than:6m` means "newer than 6m", so counting it as the rule's
     // own floor would suppress a stricter global floor that belongs there.
-    const re = /(?:^|[\s(])older_than:(\d+\s*[dwmy])/gi;
+    //
+    // 8.9: `{` opens Gmail's OR group, so it separates operators exactly
+    // as a space or `(` does. The dangerous-token scanner learned that
+    // in 7.15 and this twin was missed, which is the third time a
+    // duplicated matcher has been fixed in one place only.
+    const re = /(?:^|[\s({])older_than:(\d+\s*[dwmy])/gi;
     let strictest = null;
     let match;
     while ((match = re.exec(String(query || ""))) !== null) {
@@ -3645,7 +3710,19 @@
           const affectedThisPass = result.count || 0;
           queryDeletedCount += affectedThisPass;
           stats.totalDeleted += affectedThisPass;
-          stats.totalFreedMb += (affectedThisPass * mbPerEmail);
+          // 8.9: archiving moves mail to All Mail. It stays in the
+          // account and it stays against the quota, so an archive run
+          // frees nothing and must not book megabytes. The end-of-run
+          // sentence has always known this and said "conversations
+          // archived" with no figure, but the number itself was recorded
+          // either way, and it reached the progress card, the receipt,
+          // the popup result, the recap, the lifetime total on Stats and
+          // the "worth a review" threshold. Same shape as the 8.7 whole
+          // plan fix, which is the ninth time a number beside an action
+          // was measured through a different filter than the action.
+          if (!CONFIG.archiveInsteadOfDelete) {
+            stats.totalFreedMb += (affectedThisPass * mbPerEmail);
+          }
           pass++;
 
           // Report per-pass progress
@@ -4822,13 +4899,22 @@
         ? Math.max(0, unguardedCount - cleanableCount)
         : 0;
 
+      // 8.9: a band whose search timed out never had a count, and
+      // `Number(undefined) || 0` turned that into a confident zero: the
+      // step vanished from the plan and the mailbox looked clean where
+      // it had simply not been measured. The report already counted
+      // failed searches for its own partial-scan note, but the numbers
+      // did not carry the distinction. `measured: false` does, and the
+      // popup renders those bands as unmeasured rather than empty.
       const bands = REPORT_BANDS.map((band) => {
-        const count = Math.max(0, Math.floor(Number(counts[band.id]) || 0));
+        const measured = Object.prototype.hasOwnProperty.call(counts, band.id);
+        const count = measured ? Math.max(0, Math.floor(Number(counts[band.id]) || 0)) : 0;
         return {
           id: band.id,
           kind: band.kind,
           action: band.action,
           count,
+          measured,
           estMb: band.mbFloor ? count * band.mbFloor : 0
         };
       });
@@ -5674,6 +5760,12 @@
         detail: `The remaining mail stays in ${place}. Run Restore again in a few minutes to pick up where it left off.`
       };
     }
+    if (reason === "pass-cap") {
+      return {
+        status: "Restore hit this run's page limit.",
+        detail: `Everything it reached is back in your Inbox. The rest stays in ${place}: run Restore again to continue from where it stopped.`
+      };
+    }
     return {
       status: "Restore stopped early.",
       detail: `Selection failed (${reason}). The remaining mail stays in ${place}.`
@@ -5782,6 +5874,15 @@
           });
           await backoff(isRL ? "rate-limited" : "timeout", e?.message || String(e));
         }
+      }
+
+      // 8.9: falling out of the loop having used every pass is not a
+      // failure to select anything, but with stopReason still null that
+      // is exactly what the message said ("Selection failed (unknown)"),
+      // and a user who reads that retries for the wrong reason. Running
+      // Restore again is the right move here and the copy now says so.
+      if (!completedClean && !stopReason && pass >= TIMING.PASS_CAP) {
+        stopReason = "pass-cap";
       }
 
       // Only a clean completion (the search came back empty) marks the
@@ -6122,6 +6223,12 @@
       findMoreOptionsButton,
       findLabelMenuItemIn,
       findAllConversationsSelectedIndicator,
+      // 8.9: the select-all-matching test, so a fixture can prove the
+      // clear-selection control no longer passes for the offer.
+      looksLikeSelectAllOffer,
+      findSelectAllConversationsLink,
+      strictestOlderThanDays,
+      ageTokenToDays,
       // 7.4 layout-change detection + locale-audit fixtures
       GmailLayoutError,
       clickMasterCheckbox,

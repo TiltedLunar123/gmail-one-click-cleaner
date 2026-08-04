@@ -78,6 +78,11 @@ When Google says your storage is full, the question is *what exactly is eating i
 - Activity log with copy/clear controls
 - Recovery tools: Reconnect, Re-inject, Cancel
 
+### What's new
+- The version number in the popup footer opens the release notes for the last twelve versions, written for people who use the extension rather than people who read the code. Also linked from Settings.
+- A dot sits on the version after an update until the notes have been opened once.
+- The notes are compiled from `CHANGELOG.md` into the package at build time, so opening them makes no network request.
+
 ### Rule Sets
 - **Light** - Older mail and large attachments only
 - **Normal** - Balanced cleanup (recommended)
@@ -94,7 +99,7 @@ has:attachment larger:10M older_than:6m
 
 ## Pro
 
-Pro is a **one-time $19.99 purchase** (no subscription) that unlocks five things: the whole Mailbox Report plan, bulk unsubscribe, the full Storage X-ray with one-click purge, the full Smart Suggestions list with bulk apply, and Auto-Pilot, which keeps your inbox clean every week, automatically. Everything that is free today stays free forever. Compare (prices checked 2026-08-01): Clean Email is $29.99 a year for one account, Trimbox is $39.99 a year, Mailstrom is $59.95 a year, and Google One storage starts at about $20 a year, forever.
+Pro is a **one-time $9.99 purchase** (no subscription) that unlocks five things: the whole Mailbox Report plan, bulk unsubscribe, the full Storage X-ray with one-click purge, the full Smart Suggestions list with bulk apply, and Auto-Pilot, which keeps your inbox clean every week, automatically. Everything that is free today stays free forever. Compare (prices checked 2026-08-01): Clean Email is $29.99 a year for one account, Trimbox is $39.99 a year, Mailstrom is $59.95 a year, and Google One storage starts at about $20 a year, forever.
 
 - Your license key is verified **entirely on your device** with a built-in public key. The extension never contacts a server, not even to check the license.
 - The key is a signed token with no personal data. Stored in Chrome sync, so Pro follows you to your other signed-in browsers.
@@ -142,6 +147,8 @@ gmail-one-click-cleaner/
 ├── options.html/js       # Rules & settings page
 ├── diagnostics.html/js   # Troubleshooting tools
 ├── stats.html/js         # Statistics dashboard
+├── changelog.html/js     # In-extension release notes
+├── changelog-data.js     # Generated from CHANGELOG.md by tools/build-changelog.mjs
 ├── browser-polyfill.js   # Cross-browser compatibility shim
 ├── build.js              # Build script (copy, minify, zip; --target=firefox)
 ├── jest.config.js        # Test configuration
@@ -164,6 +171,7 @@ gmail-one-click-cleaner/
 - **No data collection** - No analytics, no tracking, no email content, subjects, or credentials leave your device.
 - **One exception worth naming, because it is visible in the source** - each "Get Pro" link carries a fixed label saying which feature it came from (`?client_reference_id=gcc_autopilot`, for example). It travels only if *you* click through to Stripe, it is recorded only if you actually buy, it contains no user or device data, and it exists so the project can tell which feature was worth paying for. Nothing is sent for anyone who does not buy, and the extension itself still transmits nothing.
 - **License stays offline** - Pro keys are verified on-device with a built-in public key. The extension never phones home, not even to check the license. The only network calls are ones you start: opening the Stripe checkout page and its post-purchase activation page (part of the purchase flow, not the extension). No Gmail data is involved in either.
+- **One page opens when you uninstall** - removing the extension opens a fixed goodbye page on the project's own site, using the browser's `setUninstallURL`. It mostly exists to tell Pro buyers their lifetime key still works and where to have it reissued. The address carries no identifier, no version and nothing from your mailbox. The release notes in the extension are compiled into the package, so reading those costs no request at all.
 - **Minimal permissions** - `activeTab`, `scripting`, `tabs`, `storage`, `alarms`, `notifications` + Gmail host access. No new permissions were added for Pro.
 - **30-day safety net** - Gmail keeps Trash for ~30 days, and every run is labeled before it moves. The Recovery Log's one-click Restore puts a run back in your Inbox; archived runs can come back any time, deleted runs within the 30-day window.
 

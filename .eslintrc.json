@@ -36,8 +36,24 @@
   },
   "globals": {
     "GCC": "readonly",
-    "chrome": "readonly"
+    "chrome": "readonly",
+    "GCC_CHANGELOG": "readonly"
   },
+  "overrides": [
+    {
+      "files": [
+        "changelog-data.js"
+      ],
+      "env": {
+        "commonjs": true
+      },
+      "rules": {
+        "no-var": "off",
+        "no-implicit-globals": "off",
+        "no-undef": "off"
+      }
+    }
+  ],
   "ignorePatterns": [
     "build.js",
     "browser-polyfill.js",

@@ -250,7 +250,12 @@ function renderHistory(history) {
       GCC.createEl("td", { textContent: GCC.formatDate(run.timestamp) }),
       GCC.createEl("td", { textContent: run.intensity || "normal" }),
       GCC.createEl("td", { textContent: GCC.formatNumber(count) }),
-      GCC.createEl("td", { textContent: GCC.formatMb(run.freedMb) }),
+      // 8.9: an archive run frees nothing (the mail sits in All Mail and
+      // still counts against the quota). The engine stopped recording a
+      // figure for those, but rows written before 8.9 already carry one.
+      GCC.createEl("td", {
+        textContent: recordedAction === "archive" ? GCC.formatMb(0) : GCC.formatMb(run.freedMb)
+      }),
       GCC.createEl("td", { textContent: GCC.formatDuration(run.duration) }),
       GCC.createEl("td", {}, [GCC.createEl("span", { className: tagClass, textContent: tagText })])
     ]);

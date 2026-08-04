@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "8.8.0";
+  const SW_VERSION = "8.9.0";
 
   // =========================
   // Storage Keys
@@ -33,7 +33,12 @@
     // mailbox (counts and sender addresses), and sync replicates to the
     // Google or Mozilla account. Same reasoning as 7.15's query strip.
     REPORT: "mailboxReport",
-    REPORT_PENDING: "reportPendingPurge"
+    REPORT_PENDING: "reportPendingPurge",
+
+    // 8.9: the version whose release notes were last opened in THIS
+    // browser. Local, not sync: reading the notes on one machine should
+    // not silence the update dot on another.
+    CHANGELOG_SEEN: "changelogSeenVersion"
   });
 
   // =========================
@@ -91,6 +96,43 @@
 
   // Cache for the popup and diagnostics pages (they read the same key
   // via GCC.installSource when the live API is unavailable).
+  // =========================
+  // Uninstall page (8.9)
+  // =========================
+  // The browser opens this after the extension is removed. Two things
+  // it is for, in order of how often they matter: telling Pro buyers
+  // their lifetime key survives the uninstall and where to get it
+  // reissued, and answering the four things people actually leave over
+  // (Gmail changed its layout, the guards spared more than expected,
+  // something went to Trash, the popup felt busy).
+  //
+  // The URL carries NO parameters. No id, no version, no install
+  // source, nothing derived from the mailbox. The browser navigating to
+  // a fixed address is the entire mechanism, and adding a query string
+  // is how that would quietly turn into telemetry.
+  const UNINSTALL_URL = "https://gmail-cleaner-pro.netlify.app/uninstall.html";
+
+  function setUninstallPage() {
+    try {
+      chrome.runtime.setUninstallURL?.(UNINSTALL_URL, () => {
+        // Reading lastError keeps Chrome from logging an unchecked one.
+        void chrome.runtime.lastError;
+      });
+    } catch (e) {
+      console.warn("[GCC SW] uninstall page not set:", e?.message || e);
+    }
+  }
+
+  // 8.9: see STORAGE_KEYS.CHANGELOG_SEEN.
+  async function markChangelogSeen() {
+    try {
+      const version = chrome.runtime.getManifest?.()?.version || SW_VERSION;
+      await chrome.storage.local.set({ [STORAGE_KEYS.CHANGELOG_SEEN]: version });
+    } catch (e) {
+      console.warn("[GCC SW] changelog marker write failed:", e?.message || e);
+    }
+  }
+
   async function refreshInstallSource() {
     const installType = await getInstallType();
     try {
@@ -161,6 +203,13 @@
     chrome.alarms.create(STATS_CLEANUP_ALARM, { periodInMinutes: 1440 });
 
     await refreshInstallSource();
+    setUninstallPage();
+
+    // A brand new install has nothing to catch up on, so the release
+    // notes count as read. On an UPDATE the marker is deliberately left
+    // alone: an absent or older one is what puts the dot on the popup's
+    // version button.
+    if (details.reason === "install") await markChangelogSeen();
 
     // Restore saved schedules
     await restoreScheduledAlarms();
@@ -170,6 +219,7 @@
   chrome.runtime.onStartup.addListener(async () => {
     console.log("[GCC SW] Browser startup");
     await refreshInstallSource();
+    setUninstallPage();
     await restoreScheduledAlarms();
     await restoreAutoPilotAlarm();
   });
@@ -186,8 +236,12 @@
       const run = sess?.[STORAGE_KEYS.ACTIVE_RUN] || local?.[STORAGE_KEYS.ACTIVE_RUN];
       if (run && run.gmailTabId === tabId) {
         console.log("[GCC SW] Gmail tab closed, clearing ACTIVE_RUN");
-        await chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: null });
-        await chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_RUN]: null });
+        // 8.9: compare-and-release rather than a blind clear. Between
+        // the read above and the write, another run can take the claim,
+        // and wiping that one lets a second unattended run start while
+        // the first engine is still working. Both helpers re-read.
+        if (run.runId) await releaseRunClaim(run.runId);
+        else await releaseRunClaimForTab(tabId);
       }
     } catch (e) {
       console.error("[GCC SW] tabs.onRemoved cleanup failed:", e);
@@ -278,9 +332,15 @@
       const run = sess?.[STORAGE_KEYS.ACTIVE_RUN] || local?.[STORAGE_KEYS.ACTIVE_RUN] || null;
       if (!run || typeof run !== "object" || !run.gmailTabId || !run.startedAt) return null;
       // TTL guard: 2h, same as popup. Stale entries are cleared.
+      //
+      // 8.9: through releaseRunClaim, so the claim that gets dropped is
+      // the one that was actually observed as expired. Reading, then
+      // clearing unconditionally, wiped whatever claim happened to be
+      // there by the time the write landed, and a fresh claim written in
+      // that window is precisely the thing this must not touch.
       if (Date.now() - run.startedAt > 1000 * 60 * 60 * 2) {
-        await chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_RUN]: null });
-        await chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: null });
+        if (run.runId) await releaseRunClaim(run.runId);
+        else await releaseRunClaimForTab(run.gmailTabId);
         return null;
       }
       return run;
@@ -305,6 +365,33 @@
     } catch {
       return true;
     }
+  }
+
+  // Take the run marker, then check it is still ours.
+  //
+  // 8.9: the worker used to write the claim and carry on. The popup has
+  // verified since 8.4, and the worker needs it more, not less: both
+  // unattended paths check hasActiveRun early, then await tab lookup,
+  // license verification and an attach probe before writing, and two
+  // writers landing in that window leaves the loser convinced it holds
+  // a claim it does not. Its own release then no-ops (the ids differ)
+  // and a failed injection on the winner's side clears the marker while
+  // the loser's engine is still cleaning, which is how two unattended
+  // sweeps end up on one mailbox.
+  async function claimRun(claim) {
+    if (!claim?.runId) return false;
+    if (await hasActiveRun()) return false;
+    try {
+      await chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: claim });
+    } catch {
+      // session is best effort; local below is the one that must land.
+    }
+    await chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_RUN]: claim });
+    // Same settle window the popup uses. Long enough for a competing
+    // write to land, short enough to cost an unattended run nothing.
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    const held = await hasActiveRun();
+    return held?.runId === claim.runId;
   }
 
   // Drop the run marker, but only when it is still the one we wrote.
@@ -693,12 +780,15 @@
         // Claim ACTIVE_RUN so any concurrently-opened popup sees the
         // schedule in flight and refuses to start. Issue #6.
         const runId = `sched_${scheduleId}_${Date.now()}`;
-        claimedRunId = runId;
         const claim = { gmailTabId: gmailTab.id, runId, startedAt: Date.now(), source: "schedule" };
-        try {
-          await chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: claim });
-        } catch {}
-        await chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_RUN]: claim });
+        // 8.9: verified. claimedRunId is only set once the marker is
+        // confirmed ours, so a lost race cannot later release someone
+        // else's claim on the way out of this function.
+        if (!(await claimRun(claim))) {
+          console.log(`[GCC SW] Another run claimed the marker first, skipping schedule ${scheduleId}`);
+          return;
+        }
+        claimedRunId = runId;
 
         const config = {
           intensity: schedule.intensity || "light",
@@ -750,8 +840,17 @@
         injected = true;
 
         // Update last run timestamp (quota-safe write).
-        schedule.lastRun = Date.now();
-        await safeSyncSet({ [STORAGE_KEYS.SCHEDULES]: schedules }, "schedules");
+        //
+        // 8.9: re-read first and patch only this row. `schedules` is the
+        // array captured at the top of this attempt, and injecting plus
+        // confirming takes seconds, so writing it back whole undid
+        // anything the Options page did in that window: a schedule
+        // deleted mid-run came back, an intensity edit reverted, and
+        // another schedule's fresh lastRun was rolled back, which
+        // re-armed its alarm about a minute out and ran that cleanup a
+        // second time unattended. saveSchedule learned this in 7.15;
+        // this is its twin and it was missed.
+        await markScheduleRan(scheduleId);
 
         console.log(`[GCC SW] Scheduled cleanup started: ${scheduleId}`);
         return; // Success, exit retry loop
@@ -1432,6 +1531,10 @@
           action: raw?.action === "archive" ? "archive" : "delete",
           count: clampReportNumber(raw?.count),
           estMb: clampReportNumber(raw?.estMb),
+          // 8.9: false only when the engine says so. Reports stored by
+          // an older version carry no flag at all, and every band in
+          // those WAS measured, so absent has to mean true.
+          measured: raw?.measured !== false,
           cleanedAt: 0
         });
       }
@@ -2222,12 +2325,15 @@
       const runId = `autopilot_${Date.now()}`;
 
       // Claim the run marker so a popup opened mid-sweep refuses to
-      // start a second run, exactly like scheduled cleanups do.
+      // start a second run, exactly like scheduled cleanups do. 8.9:
+      // verified, see claimRun. A schedule and this sweep can both be
+      // due in the same minute.
       const claim = { gmailTabId: gmailTab.id, runId, startedAt: Date.now(), source: "autopilot" };
-      try {
-        await chrome.storage.session?.set?.({ [STORAGE_KEYS.ACTIVE_RUN]: claim });
-      } catch {}
-      await chrome.storage.local.set({ [STORAGE_KEYS.ACTIVE_RUN]: claim });
+      if (!(await claimRun(claim))) {
+        console.log("[GCC SW] Another run claimed the marker first, skipping Auto-Pilot apply");
+        await setAutoPilotState({ pending: null });
+        return;
+      }
       claimedRunId = runId;
 
       // Live sweeps register the pending-apply marker so confirmed
@@ -2355,6 +2461,16 @@
       }
 
       if (pending.stage === "apply" && !msg.runKind) {
+        // 8.9: the same identity rule as the scan stage above, which the
+        // apply stage never got. Cleanup progress deliberately omits
+        // runKind, so `!msg.runKind` means "some cleanup", and on the
+        // error branch that cleared this sweep's pending state for a run
+        // that had nothing to do with it. The engine stamps runId on
+        // every progress message from 8.9; older engines send none and
+        // keep the tab-only behaviour.
+        if (pending.runId && msg.runId && String(msg.runId) !== String(pending.runId)) {
+          return;
+        }
         if (msg.phase === "done" && msg.stats) {
           const modeMatches = (msg.stats.mode === "dry") === Boolean(pending.dryRun);
           if (modeMatches) {
@@ -2744,6 +2860,28 @@
       console.error("[GCC SW] getSchedules failed:", e);
       return [];
     }
+  }
+
+  // Stamp one schedule's lastRun without touching any other row. Serialized
+  // against the other sync read-modify-writes for the same reason
+  // recordStats is: two of these interleaved lose one of the updates.
+  async function markScheduleRan(scheduleId) {
+    return withStorageLock(async () => {
+      try {
+        const result = await chrome.storage.sync.get(STORAGE_KEYS.SCHEDULES);
+        const schedules = result?.[STORAGE_KEYS.SCHEDULES] || [];
+        const idx = schedules.findIndex((s) => s?.id === scheduleId);
+        // Deleted while the run was in flight. Nothing to stamp, and
+        // re-adding it would resurrect a schedule the user removed.
+        if (idx < 0) return false;
+        schedules[idx] = { ...schedules[idx], lastRun: Date.now() };
+        await safeSyncSet({ [STORAGE_KEYS.SCHEDULES]: schedules }, "schedules");
+        return true;
+      } catch (e) {
+        console.warn("[GCC SW] Could not stamp schedule lastRun:", e?.message || e);
+        return false;
+      }
+    });
   }
 
   async function saveSchedule(schedule) {
