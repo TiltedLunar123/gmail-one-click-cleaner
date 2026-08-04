@@ -59,6 +59,16 @@ describe("the generated data is in step with CHANGELOG.md", () => {
     });
   });
 
+  test("the check ignores line endings", () => {
+    // core.autocrlf stores LF and checks out CRLF on Windows, LF on the
+    // Linux CI runner. A generator that hardcoded one of them passed
+    // locally and failed CI, which is a whole cycle spent on a fact
+    // about git rather than about the data.
+    const src = read("tools/build-changelog.mjs");
+    expect(src).toContain('const EOL = process.platform === "win32" ? "\\r\\n" : "\\n";');
+    expect(src).toContain("if (!sameContent(current, output)) {");
+  });
+
   test("the newest entry is the version being shipped", () => {
     expect(data.entries[0].version).toBe(manifest.version);
   });

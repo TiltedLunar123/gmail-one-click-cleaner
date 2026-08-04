@@ -157,7 +157,15 @@ beforeEach(() => {
   INTERNALS.setTestLicenseJwk(null);
 });
 
-const settle = () => new Promise((r) => setTimeout(r, 60));
+// 8.9: was 60ms, which stopped being enough margin. startAutoPilotApply
+// runs fire-and-forget through withStorageLock, and claimRun now waits
+// 40ms mid-chain to re-read the run marker and confirm it is still ours.
+// Add a licence verification (real WebCrypto) and a tab probe on either
+// side of that and 60ms is most of the budget, so under parallel jest
+// workers this file failed roughly one run in five, in whichever test
+// read pending.runId first. The window is a production requirement, so
+// the harness is what gives.
+const settle = () => new Promise((r) => setTimeout(r, 200));
 
 // 8.7: the engine echoes the run id it was given on a smartScan's
 // terminal messages, and Auto-Pilot's stage machine now requires it, so

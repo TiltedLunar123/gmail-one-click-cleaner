@@ -192,12 +192,17 @@ function tidy(entry) {
 
 const tidyItem = (it) => (it.sub.length ? { text: it.text, sub: it.sub } : { text: it.text });
 
+// The working tree is CRLF on Windows and LF on the Linux CI runner,
+// because core.autocrlf stores LF and checks out per platform. So the
+// writer follows the host and --check compares content with the line
+// endings normalised away: whether the data matches CHANGELOG.md is the
+// property worth testing, and which bytes end a line is git's business.
+const EOL = process.platform === "win32" ? "\r\n" : "\n";
+const sameContent = (a, b) => a.replace(/\r\n/g, "\n") === b.replace(/\r\n/g, "\n");
+
 function render(entries, total) {
   const payload = { total, entries };
-  // The repo is CRLF throughout and git is configured for it, so the
-  // JSON body has to be too. Without this the file round-trips to CRLF
-  // on checkout and --check reports drift against its own output.
-  const body = JSON.stringify(payload, null, 2).replace(/\r?\n/g, "\r\n");
+  const body = JSON.stringify(payload, null, 2).replace(/\r?\n/g, EOL);
   return [
     "// GENERATED FILE - do not edit by hand.",
     "// Source: CHANGELOG.md. Regenerate with: npm run changelog",
@@ -230,7 +235,7 @@ function main() {
 
   if (process.argv.includes("--check")) {
     const current = fs.existsSync(OUTPUT) ? fs.readFileSync(OUTPUT, "utf-8") : "";
-    if (current !== output) {
+    if (!sameContent(current, output)) {
       console.error("changelog-data.js is out of date. Run: npm run changelog");
       process.exit(1);
     }
