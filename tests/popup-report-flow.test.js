@@ -25,6 +25,11 @@ const path = require("path");
 const ROOT = path.join(__dirname, "..");
 const read = (f) => fs.readFileSync(path.join(ROOT, f), "utf-8");
 
+// The live price, read from shared.js. The upsell test below checks that
+// the line quotes the real one; pinning the literal made every price
+// move look like a copy regression.
+const PRICE_LABEL = read("shared.js").match(/PRICE_LABEL:\s*"([^"]+)"/)[1];
+
 const REPORT = {
   updatedAt: 1750000000000,
   cleanableCount: 18432,
@@ -330,7 +335,11 @@ describe("a locked step", () => {
     await settle(20);
     const lead = document.getElementById("proPanelLead").textContent;
     expect(lead).toMatch(/\d/);
-    expect(lead).toMatch(/19\.99/);
+    // Read the price from shared.js rather than pinning the literal. The
+    // property under test is "this line quotes the real price", and a
+    // hardcoded number turns every price move into a failure that says
+    // nothing about the copy.
+    expect(lead).toContain(PRICE_LABEL.replace(" lifetime", ""));
   });
 
   test("its Get Pro button carries the surface's attribution label", async () => {

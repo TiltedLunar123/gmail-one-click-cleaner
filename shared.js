@@ -626,6 +626,36 @@ const GCC = (() => {
   // addresses against it, and a second hardcoded 512 would drift.
   const MAX_QUERY_CHARS = 512;
 
+  // Gmail age tokens ("6m", "1y") in days. The engine has its own copy
+  // because a content script cannot reach GCC; a test pins the two
+  // together over the whole token set, the same arrangement as
+  // scoreSmartSignals.
+  //
+  // 8.9: added because the popup has to compare two ages that come from
+  // two different controls. The Storage X-ray has its own age select,
+  // and the run ALSO carries the Clean tab's Minimum Age, which
+  // applyGlobalGuards appends whenever it is stricter. Whichever wins is
+  // what the purge really does, and the caveat under the numbers has to
+  // name that one.
+  const AGE_TOKEN_DAYS = Object.freeze({ d: 1, w: 7, m: 30, y: 365 });
+
+  const ageTokenDays = (token) => {
+    const parsed = /^(\d+)\s*([dwmy])$/i.exec(String(token || "").trim());
+    if (!parsed) return null;
+    const n = parseInt(parsed[1], 10);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return n * AGE_TOKEN_DAYS[parsed[2].toLowerCase()];
+  };
+
+  // The stricter (older) of two age tokens, or null when neither is set.
+  const strictestAgeToken = (a, b) => {
+    const days = [a, b]
+      .map((token) => ({ token, days: ageTokenDays(token) }))
+      .filter((entry) => entry.days !== null);
+    if (!days.length) return null;
+    return days.reduce((max, entry) => (entry.days > max.days ? entry : max)).token;
+  };
+
   const validateGmailQuery = (rawQuery) => {
     const errors = [];
     const warnings = [];
@@ -770,8 +800,8 @@ const GCC = (() => {
   // exact payload bytes.
 
   const PRO = Object.freeze({
-    PRICE_LABEL: "$19.99 lifetime",
-    BUY_URL: "https://buy.stripe.com/4gMaEY6wb7Jwezufg7dUY05",
+    PRICE_LABEL: "$9.99 lifetime",
+    BUY_URL: "https://buy.stripe.com/7sY4gA07N9RE1MIc3VdUY04",
     SUPPORT_URL: "https://github.com/TiltedLunar123/gmail-one-click-cleaner#pro",
     // Self-serve key recovery: re-issues the key to the address that
     // paid, for buyers who no longer have the post-checkout link.
@@ -1367,7 +1397,7 @@ const GCC = (() => {
     const ranked = rankReportBands(bands);
     const locked = ranked.filter((b) => b.count > 0).slice(1);
     if (locked.length === 0) {
-      return t("reportUpsellNone", "Pro is $19.99 once: it unlocks every step of the plan and one-click Run the whole plan.");
+      return t("reportUpsellNone", "Pro is $9.99 once: it unlocks every step of the plan and one-click Run the whole plan.");
     }
     // One band's own count is exact, so a single locked step can state
     // it. More than one CANNOT be summed: the bands overlap by design
@@ -1380,12 +1410,12 @@ const GCC = (() => {
     // what gets shown.
     if (locked.length === 1) {
       const only = locked[0].count.toLocaleString();
-      return t("reportUpsellOne", `1 more step is holding ${only} emails. Pro clears it for $19.99.`, [only]);
+      return t("reportUpsellOne", `1 more step is holding ${only} emails. Pro clears it for $9.99.`, [only]);
     }
     const biggest = locked.reduce((max, b) => Math.max(max, b.count), 0).toLocaleString();
     return t(
       "reportUpsellMany",
-      `${locked.length} more steps are locked, the largest holding ${biggest} emails. Pro clears them for $19.99.`,
+      `${locked.length} more steps are locked, the largest holding ${biggest} emails. Pro clears them for $9.99.`,
       [String(locked.length), biggest]
     );
   };
@@ -1557,18 +1587,18 @@ const GCC = (() => {
   // senders, and storage figures are floor estimates.
   const subsUpsellLine = (senderCount) => {
     const n = Math.max(0, Math.floor(Number(senderCount) || 0));
-    if (!n) return t("subsUpsellNone", "One $19.99 payment unlocks bulk unsubscribe forever.");
-    if (n === 1) return t("subsUpsellOne", "Found 1 mailing list emailing you. Pro unsubscribes from the ones you pick for $19.99.");
-    return t("subsUpsellMany", `Found ${n} mailing lists emailing you. Pro unsubscribes from the ones you pick for $19.99.`, [String(n)]);
+    if (!n) return t("subsUpsellNone", "One $9.99 payment unlocks bulk unsubscribe forever.");
+    if (n === 1) return t("subsUpsellOne", "Found 1 mailing list emailing you. Pro unsubscribes from the ones you pick for $9.99.");
+    return t("subsUpsellMany", `Found ${n} mailing lists emailing you. Pro unsubscribes from the ones you pick for $9.99.`, [String(n)]);
   };
 
   const xrayUpsellLine = (senderCount, totalMb) => {
     const n = Math.max(0, Math.floor(Number(senderCount) || 0));
     const mb = Math.max(0, Number(totalMb) || 0);
-    if (!n || !mb) return t("xrayUpsellNone", "Pro is $19.99 once: it unlocks the full ranked list and one-click purge.");
+    if (!n || !mb) return t("xrayUpsellNone", "Pro is $9.99 once: it unlocks the full ranked list and one-click purge.");
     const mbText = formatMb(mb);
-    if (n === 1) return t("xrayUpsellOne", `1 sender is holding at least ${mbText}. Pro purges the ones you pick for $19.99.`, [mbText]);
-    return t("xrayUpsellMany", `${n} senders are holding at least ${mbText}. Pro purges the ones you pick for $19.99.`, [String(n), mbText]);
+    if (n === 1) return t("xrayUpsellOne", `1 sender is holding at least ${mbText}. Pro purges the ones you pick for $9.99.`, [mbText]);
+    return t("xrayUpsellMany", `${n} senders are holding at least ${mbText}. Pro purges the ones you pick for $9.99.`, [String(n), mbText]);
   };
 
   // 7.4: post-run recap. The popup closes itself when a run starts, so
@@ -1616,9 +1646,9 @@ const GCC = (() => {
   // any, falls back to the static pitch.
   const smartUpsellLine = (hiddenCount) => {
     const n = Math.max(0, Math.floor(Number(hiddenCount) || 0));
-    if (!n) return t("smartUpsellNone", "Pro is $19.99 once: it unlocks the full suggestion list and bulk apply.");
-    if (n === 1) return t("smartUpsellOne", "1 more suggestion ready. Pro unlocks the full list and applies them in bulk for $19.99.");
-    return t("smartUpsellMany", `${n} more suggestions ready. Pro unlocks the full list and applies them in bulk for $19.99.`, [String(n)]);
+    if (!n) return t("smartUpsellNone", "Pro is $9.99 once: it unlocks the full suggestion list and bulk apply.");
+    if (n === 1) return t("smartUpsellOne", "1 more suggestion ready. Pro unlocks the full list and applies them in bulk for $9.99.");
+    return t("smartUpsellMany", `${n} more suggestions ready. Pro unlocks the full list and applies them in bulk for $9.99.`, [String(n)]);
   };
 
   // 7.12: first line of the locked Auto-Pilot row. Leads with how many
@@ -1626,9 +1656,9 @@ const GCC = (() => {
   // any, falls back to the static pitch.
   const autoPilotUpsellLine = (suggestionCount) => {
     const n = Math.max(0, Math.floor(Number(suggestionCount) || 0));
-    if (!n) return t("apUpsellNone", "Pro is $19.99 once: Auto-Pilot keeps your inbox clean every week, automatically.");
-    if (n === 1) return t("apUpsellOne", "1 suggestion is sitting here right now. Auto-Pilot sweeps them for you every week on Pro ($19.99 once).");
-    return t("apUpsellMany", `${n} suggestions are sitting here right now. Auto-Pilot sweeps them for you every week on Pro ($19.99 once).`, [String(n)]);
+    if (!n) return t("apUpsellNone", "Pro is $9.99 once: Auto-Pilot keeps your inbox clean every week, automatically.");
+    if (n === 1) return t("apUpsellOne", "1 suggestion is sitting here right now. Auto-Pilot sweeps them for you every week on Pro ($9.99 once).");
+    return t("apUpsellMany", `${n} suggestions are sitting here right now. Auto-Pilot sweeps them for you every week on Pro ($9.99 once).`, [String(n)]);
   };
 
   const popupUi = Object.freeze({
@@ -2223,6 +2253,8 @@ const GCC = (() => {
     SYNC_LIMIT_ITEM,
     SYNC_LIMIT_TOTAL,
     validateGmailQuery,
+    ageTokenDays,
+    strictestAgeToken,
     MAX_QUERY_CHARS,
     sanitizeProtectKeywords,
     buildSubjectExclusion,

@@ -3,6 +3,117 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.9.0 - Release notes, a proper goodbye, and honest storage numbers
+
+### Added
+- **A What's new page inside the extension.** The version number in the
+  popup footer is now a button: press it and you get the release notes
+  for this version and the eleven before it, written for people who use
+  the extension rather than people who read the code. There is also a
+  link on the Settings page. A small dot sits on the version after an
+  update until you have read them once. The notes ship inside the
+  package, so opening them makes no network request, same as everything
+  else here.
+
+- **An uninstall page.** Removing the extension now opens a short page
+  that covers the four things people actually leave over, and tells
+  anyone who bought Pro that their lifetime key survived the uninstall
+  and where to have it reissued. The address it opens carries no
+  identifier, no version and nothing from your mailbox.
+
+### Changed
+- **Pro is $9.99 again, down from $19.99.** Existing keys are unaffected:
+  a lifetime licence does not re-price, and nothing about it is checked
+  against a server. Anyone who bought at $19.99 keeps exactly what they
+  paid for. The older checkout links stay open for activation and key
+  recovery, so no past purchase can be stranded by the change.
+
+### Fixed
+- **Archive runs claimed to have freed storage.** Archiving moves mail
+  to All Mail, where it still belongs to your account and still counts
+  against your Google storage. Every run that archived anything reported
+  megabytes freed anyway, on the progress card, the run receipt, the
+  popup summary, the recap and the lifetime total on the Stats page.
+  Only the one line at the end of the run had it right. Archive runs no
+  longer report a storage figure at all, and old archive runs already in
+  your history stop showing one too.
+
+- **On some languages a bulk delete of thousands was recorded as about
+  fifty.** When a rule matches more mail than one page, the extension
+  asks Gmail to select the whole match set, and it proves the click
+  worked by checking that Gmail withdrew the offer. Gmail replaces that
+  offer with a Clear selection control, and in Dutch, Swedish and
+  several other languages that control was mistaken for the offer still
+  being there. The run went ahead and deleted everything, but the
+  receipt, the Stats row, the undo entry and the safety limit that stops
+  runaway runs were all sized against one page. The check now looks at
+  what the control says, not merely whether one is present.
+
+- **A step the report could not measure looked like an empty one.** If a
+  search timed out while the mailbox report was running, that step was
+  filed as zero, disappeared from the plan and read as "nothing here" for
+  a part of your mailbox that was never actually looked at. Those steps
+  now say "not measured".
+
+- **A cleanup started from the popup could overwrite the scope of a
+  different run.** If a narrow run was already working in that Gmail tab
+  (a storage purge, a suggestion, a report step) and you pressed Run
+  Cleaner, the second run was correctly refused, but it had already
+  recorded itself as the run to resume. Reconnecting from the progress
+  page then restarted the full cleanup instead of the narrow one.
+
+- **A finished scheduled cleanup could undo edits made while it ran.**
+  Stamping the schedule as done wrote back every schedule as they had
+  been when the run started, so a schedule deleted or edited in the
+  meantime reverted, and another schedule that had just finished could
+  be re-armed and run a second time.
+
+- **Two unattended runs could both believe they had the mailbox.** A
+  scheduled cleanup and an Auto-Pilot sweep due in the same minute could
+  each claim the run marker, and the one that lost the race carried on
+  as though it had won. Both now check that the claim they wrote is
+  still theirs.
+
+- **Auto-Pilot could be knocked off course by an unrelated run.** Its
+  scan stage has checked since 8.7 that the run reporting in is the one
+  it started; its apply stage only checked which tab the message came
+  from, so any cleanup finishing in that tab could clear its state.
+
+- **Applying a suggestion said it was applied before anything had
+  moved.** The confirmation appeared the instant the run was handed to
+  Gmail, then the popup closed on it, so a run that was cancelled or
+  matched nothing still ended on a success message. It now says the run
+  started, which is what every other button here already said.
+
+- **Settings saved rules the cleaner would refuse.** Typing a rule
+  aimed at starred, sent, trashed or spam mail into one of the intensity
+  boxes showed a warning and then saved anyway under "Settings saved
+  successfully", and the next run skipped that intensity without
+  explaining why. Those rules now block the save and say which one is
+  the problem.
+
+- **The Storage purge could apply a stricter age than its own note
+  promised.** The Minimum Age set on the Clean tab also applies to a
+  purge, so with Minimum Age at 1 year and the purge set to 6 months,
+  the note under the sizes named the wrong filter. It now names whichever
+  one the run will really use.
+
+- **Safe Mode's refusal only arrived after the click.** Safe Mode skips
+  Updates and Forums, and for a free user whose one unlocked report step
+  was one of those, pressing Run did nothing but raise a toast. The row
+  now says so up front.
+
+- **Restore blamed the wrong thing when it ran out of passes.** A very
+  large restore that reached its page limit reported "Selection failed",
+  which sends you looking for a problem that is not there. It now says it
+  hit the limit and that running Restore again continues from where it
+  stopped.
+
+- **An age limit written inside Gmail's curly-brace groups was not
+  seen.** A custom rule like `{older_than:2y category:promotions}` did
+  not register as carrying its own age floor, so a redundant one could be
+  added on top.
+
 ## 8.8.0 - Unattended runs work again
 
 ### Fixed

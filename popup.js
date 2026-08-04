@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "8.8.0";
+  const POPUP_VERSION = "8.9.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -67,6 +67,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     SNOOZE_UNTIL: "snoozeUntil",
     NOTIFY_ENABLED: "notifyOnComplete",
+
+    // 8.9: the version the release notes were last read at, in this
+    // browser. Missing means "updated into a version whose notes have
+    // not been opened", which is exactly the case the dot is for; the
+    // worker stamps it on a fresh install so a first run has no dot.
+    CHANGELOG_SEEN: "changelogSeenVersion",
 
     ACTIVE_RUN: "activeRun" // { gmailTabId, runId, startedAt }
   });
@@ -374,6 +380,7 @@ document.addEventListener("DOMContentLoaded", () => {
     resultSummary: $("resultSummary"),
     resultCount: $("resultCount"),
     resultSize: $("resultSize"),
+    resultFreedClause: $("resultFreedClause"),
     successCtas: $("successCtas"),
 
     // 7.4 post-run recap
@@ -410,6 +417,7 @@ document.addEventListener("DOMContentLoaded", () => {
     installSourceBanner: $("installSourceBanner"),
     installSourceStoreBtn: $("installSourceStoreBtn"),
     kbdHelpBtn: $("kbdHelpBtn"),
+    versionBadge: $("versionBadge"),
     kbdHelp: $("keyboardHelp"),
     kbdHelpClose: $("kbdHelpClose"),
     onboardingBackdrop: $("onboardingBackdrop"),
@@ -661,7 +669,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const showResultSummary = ({ count = 0, freedBytes = 0, action = "trash" } = {}) => {
     if (!elements.resultSummary) return;
     if (elements.resultCount) elements.resultCount.textContent = String(Math.max(0, Number(count || 0)));
-    if (elements.resultSize) elements.resultSize.textContent = GCC.formatBytes(freedBytes);
+    // 8.9: archiving moves mail to All Mail, where it still counts
+    // against the quota. There is no storage figure to report, so the
+    // clause goes rather than reading "Freed ~0 MB". Every caller of
+    // this function is covered, the recap included.
+    const archived = action === "archive";
+    if (elements.resultSize) {
+      elements.resultSize.textContent = GCC.formatBytes(archived ? 0 : freedBytes);
+    }
+    if (elements.resultFreedClause) elements.resultFreedClause.hidden = archived;
     const note = elements.resultSummary.querySelector("span[style]");
     if (note) {
       note.textContent = action === "archive"
@@ -1540,7 +1556,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const config = await buildConfig();
       config.runId = claimedRunId;
-      await persistLastConfig(config);
 
       setRunButtonState({
         disabled: true,
@@ -1575,6 +1590,16 @@ document.addEventListener("DOMContentLoaded", () => {
         state.isRunning = false;
         return;
       }
+
+      // 8.9: persisted only once this run is really going to start.
+      // lastConfig is what the progress page replays on a re-inject, and
+      // buildConfig describes the full Clean tab, so writing it before
+      // the refuse above overwrote the narrow scope of whatever run was
+      // actually attached: a purge of four senders came back as a sweep
+      // of the whole mailbox. The scoped starters learned this in 7.15
+      // and 8.8; this is the path they were modelled on and it kept the
+      // original ordering.
+      await persistLastConfig(config);
 
       // Progress page opens before the injection because this popup
       // usually closes as soon as that tab takes focus.
@@ -1691,7 +1716,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.unsubBtnSub) {
       elements.unsubBtnSub.textContent = active
         ? t("unsubActiveSub", "Uses Gmail's own Unsubscribe control")
-        : t("proPriceSub", "Pro · $19.99 lifetime");
+        : t("proPriceSub", "Pro · $9.99 lifetime");
     }
     if (elements.unsubBtn) elements.unsubBtn.classList.toggle("locked", !active);
     if (elements.subsBuyLink) elements.subsBuyLink.href = GCC.license.buyUrl("unsubscribe");
@@ -1704,7 +1729,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.xrayPurgeBtnSub) {
       elements.xrayPurgeBtnSub.textContent = active
         ? t("smartBulkSub", "Tagged first, then Trash - undo applies")
-        : t("xrayProSub", "Pro · $19.99 once (Google One is $20 every year)");
+        : t("xrayProSub", "Pro · $9.99 once (Google One is $20 every year)");
     }
     renderXrayList();
 
@@ -2383,9 +2408,16 @@ document.addEventListener("DOMContentLoaded", () => {
       figures.className = "report-row-figures";
       const count = document.createElement("span");
       count.className = "report-row-count";
-      count.textContent = band.count.toLocaleString();
+      // 8.9: a band whose search timed out has no number, and printing
+      // the zero it used to fall back to told the user this part of
+      // their mailbox was clean when it had never been looked at.
+      const measured = band.measured !== false;
+      count.textContent = measured
+        ? band.count.toLocaleString()
+        : t("reportBandUnmeasured", "not measured");
+      if (!measured) count.classList.add("report-row-count--unmeasured");
       figures.appendChild(count);
-      if (band.estMb) {
+      if (measured && band.estMb) {
         const mb = document.createElement("span");
         mb.className = "report-row-mb";
         mb.textContent = t("reportAtLeastMb", `at least ${band.estMb.toLocaleString()} MB`, [band.estMb.toLocaleString()]);
@@ -2411,6 +2443,19 @@ document.addEventListener("DOMContentLoaded", () => {
             "aria-label",
             t("reportRunStepAria", `Run this step: ${reportBandTitle(band.id)}`, [reportBandTitle(band.id)])
           );
+          // 8.9: Safe Mode refuses Updates and Forums, and the refusal
+          // only arrived as a toast AFTER the click. For a free user
+          // whose one unlocked step is one of those, that made the
+          // single piece of free proof look broken. Say it on the row,
+          // where the decision is being made.
+          if (elements.safeModeEl?.checked && SAFE_MODE_BLOCKED_BANDS.includes(band.id)) {
+            btn.classList.add("is-blocked");
+            btn.title = t("safeModeBlocksStep", "Safe Mode skips this step; turn it off on the Clean tab");
+            const blocked = document.createElement("div");
+            blocked.className = "report-row-blocked";
+            blocked.textContent = t("reportSafeModeSkips", "Safe Mode skips this step");
+            main.appendChild(blocked);
+          }
         } else {
           btn.classList.add("is-locked");
           btn.innerHTML =
@@ -2437,7 +2482,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // including the ones that only archive.
       const planGroup = GCC.report.planGroup(state.report.bands);
       elements.reportPlanBtnSub.textContent = !active
-        ? t("proPriceSub", "Pro · $19.99 lifetime")
+        ? t("proPriceSub", "Pro · $9.99 lifetime")
         : (planGroup.action === "archive"
           ? t("planSubArchive", "Tagged first, then archived - undo applies")
           : t("smartBulkSub", "Tagged first, then Trash - undo applies"));
@@ -2769,17 +2814,42 @@ document.addEventListener("DOMContentLoaded", () => {
   // right underneath defaults to six months. Same invariant as the
   // report's guard note: when the number beside a button was measured
   // through a different filter than the button applies, say so.
+  //
+  // 8.9: and the age the purge applies is not always the one in the
+  // X-ray select. 7.15 stopped scoped runs from forcing minAge to null,
+  // so the Clean tab's Minimum Age now rides along and applyGlobalGuards
+  // appends it whenever it is stricter. With Minimum Age at 1 year and
+  // the X-ray select left at 6 months, the note promised six months
+  // while the run demanded a year, which is the same defect one level
+  // down. It now names whichever filter actually wins, and it appears
+  // even when the X-ray select says "any age" but the floor does not.
+  const effectiveXrayAge = () =>
+    GCC.strictestAgeToken(elements.xrayAge?.value || "", elements.minAgeEl?.value || "");
+
+  const AGE_TOKEN_LABELS = Object.freeze({
+    "3m": ["age3mShort", "3 months"],
+    "6m": ["age6mShort", "6 months"],
+    "1y": ["age1yShort", "1 year"],
+    "2y": ["age2yShort", "2 years"]
+  });
+
   const renderXrayAgeNote = () => {
     const note = elements.xrayAgeNote;
     if (!note) return;
-    const age = elements.xrayAge?.value || "";
+    const age = effectiveXrayAge();
     const show = Boolean(age) && state.xray.senders.length > 0 && state.subs.licenseActive;
     if (!show) {
       note.hidden = true;
       note.textContent = "";
       return;
     }
-    const label = elements.xrayAge?.selectedOptions?.[0]?.textContent?.trim() || age;
+    // Prefer the select's own wording when it is the one that won, so
+    // the note reads back the control the user just changed.
+    const fromSelect = (elements.xrayAge?.value || "") === age
+      ? elements.xrayAge?.selectedOptions?.[0]?.textContent?.trim()
+      : "";
+    const fallback = AGE_TOKEN_LABELS[age];
+    const label = fromSelect || (fallback ? t(fallback[0], fallback[1]) : age);
     note.textContent = t(
       "xrayAgeNoteText",
       `The sizes above count large mail of any age. This purge only takes mail older than ${label}, so it will clear less than the totals shown.`,
@@ -3548,7 +3618,17 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       await bumpRunCount();
-      showToast(config.dryRun ? t("smartDryStarted", "suggestion dry run started") : t("smartApplied", "suggestion applied"), "success");
+      // 8.9: "started", not "applied". Nothing has moved at this point:
+      // the engine was only just injected, and the run can still be
+      // cancelled, error out or match nothing. Every sibling start path
+      // (cleanup, purge, plan) already says started; this one claimed
+      // the work was done and then closed the popup on that claim.
+      showToast(
+        config.dryRun
+          ? t("smartDryStarted", "suggestion dry run started")
+          : t("smartApplyStarted", "suggestion started"),
+        "success"
+      );
       setTimeout(safeClosePopup, 200);
     } catch (err) {
       const msg = err?.message || String(err);
@@ -4066,7 +4146,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
           const action = stats?.action === "archive" ? "archive" : "trash";
           const count = Number(stats?.runCount ?? stats?.totalDeleted ?? 0);
-          const freedMb = Number(stats?.totalFreedMb || 0);
+          // 8.9: archiving frees nothing, so an archive run has no
+          // megabytes to show. See freedMbOf in progress.js.
+          const freedMb = action === "archive" ? 0 : Number(stats?.totalFreedMb || 0);
           const freedBytes = freedMb * 1024 * 1024;
 
           // The result view replaces the Clean form; jump there so the
@@ -4518,6 +4600,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     elements.pinHintClose?.addEventListener("click", dismissPinHint);
     elements.kbdHelpBtn?.addEventListener("click", showKeyboardHelp);
+    elements.versionBadge?.addEventListener("click", openChangelog);
     elements.kbdHelpClose?.addEventListener("click", hideKeyboardHelp);
     elements.kbdHelp?.addEventListener("click", (e) => {
       if (e.target === elements.kbdHelp) hideKeyboardHelp();
@@ -4622,6 +4705,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // The caveat depends on the age that is selected right now, so it
     // has to follow the select rather than only the last render.
     elements.xrayAge?.addEventListener("change", renderXrayAgeNote);
+    // 8.9: the Clean tab's Minimum Age can be the filter the purge
+    // actually applies, so the caveat has to follow it too.
+    elements.minAgeEl?.addEventListener("change", renderXrayAgeNote);
     elements.xraySelectAll?.addEventListener("change", () => {
       const checked = !!elements.xraySelectAll.checked;
       elements.xrayList
@@ -4684,17 +4770,53 @@ document.addEventListener("DOMContentLoaded", () => {
     wireAutosave();
   };
 
-  const syncVersionBadge = () => {
-    const badge = $("versionBadge");
-    if (!badge) return;
+  // 8.9: the badge doubles as the way into the release notes. The page
+  // is packaged, so this is an extension URL, not a website.
+  const openChangelog = async () => {
+    let url = "changelog.html";
     try {
-      const version = chrome?.runtime?.getManifest?.()?.version;
+      if (chrome?.runtime?.getURL) url = chrome.runtime.getURL("changelog.html");
+    } catch {
+      // Falls through to the relative path, which resolves inside the
+      // extension anyway when the popup is the opener.
+    }
+    const tab = await tabsCreate({ url, active: true });
+    if (!tab) {
+      showToast(t("changelogOpenFailed", "Could not open the release notes."), "warning");
+      return;
+    }
+    setTimeout(safeClosePopup, 150);
+  };
+
+  const syncVersionBadge = async () => {
+    const badge = elements.versionBadge;
+    if (!badge) return;
+    let version;
+    try {
+      version = chrome?.runtime?.getManifest?.()?.version;
       if (!version) return;
-      const text = `v${version}`;
-      badge.textContent = text;
-      badge.setAttribute("aria-label", t("versionAria", `Version ${version}`, [version]));
+      badge.textContent = `v${version}`;
+      // 8.9: the badge is a button now, so its accessible name has to
+      // say what pressing it does. The title attribute is not enough:
+      // screen readers announce the label, not the tooltip.
+      badge.setAttribute(
+        "aria-label",
+        t("versionBadgeAria", `Version ${version}, see what's new`, [version])
+      );
     } catch (e) {
       log("warn", "syncVersionBadge failed", e);
+      return;
+    }
+
+    // The dot marks an update whose notes have not been opened. A read
+    // that fails leaves it off: a missing dot is invisible, a dot that
+    // will not clear is an itch nobody can scratch.
+    try {
+      const stored = await storageGet("local", STORAGE_KEYS.CHANGELOG_SEEN);
+      if (!stored || typeof stored !== "object") return;
+      badge.classList.toggle("has-update", stored[STORAGE_KEYS.CHANGELOG_SEEN] !== version);
+    } catch (e) {
+      log("warn", "changelog seen marker unreadable", e);
     }
   };
 
@@ -4746,7 +4868,10 @@ document.addEventListener("DOMContentLoaded", () => {
     await GCC.theme.init();
     await wireThemeSwitcher();
 
-    syncVersionBadge();
+    // Not awaited: the badge text is set synchronously inside, and only
+    // the update dot waits on storage. Blocking the whole popup on that
+    // would be a poor trade.
+    syncVersionBadge().catch((e) => log("warn", "version badge failed", e));
 
     // 7.3: tab bar (WAI-ARIA tabs semantics live in GCC.tablist).
     state.tabs = GCC.tablist(elements.tabBar);

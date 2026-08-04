@@ -1539,6 +1539,15 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    /* 8.9: Safe Mode refuses this step. Said on the row rather than in a
+       toast after the click. */
+    .report-row-blocked {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--warning, #fbbf24);
+      margin-top: 2px;
+    }
+    .report-row-btn.is-blocked { opacity: 0.6; }
     .report-row-figures {
       flex: 0 0 auto;
       display: flex;
@@ -1557,6 +1566,14 @@
       color: var(--text);
       font-variant-numeric: tabular-nums;
       flex: 0 0 auto;
+    }
+    /* 8.9: a band whose search timed out. Reads as absent information
+       rather than as a figure, because that is what it is. */
+    .report-row-count--unmeasured {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--dim);
+      font-style: italic;
     }
     .report-row-btn {
       flex: 0 0 auto;
@@ -1937,13 +1954,37 @@
     .footer-right { display: flex; gap: 3px; align-items: center; flex: 0 0 auto; }
 
     /* In the footer the version reads as plain quiet text; the boxed
-       badge chrome would not fit the 380px row next to the nav. */
+       badge chrome would not fit the 380px row next to the nav. It is a
+       button (8.9: it opens the release notes) but must not look like
+       one, so the button reset lives here rather than a new class. */
     .footer .badge {
       background: transparent;
       border: none;
       padding: 2px 1px;
       color: var(--dim);
+      font: inherit;
+      font-size: 10px;
+      cursor: pointer;
+      position: relative;
+      touch-action: manipulation;
     }
+    .footer .badge:hover { color: var(--text); text-decoration: underline; }
+
+    /* One dot, only after an update the user has not read the notes for.
+       A pseudo-element rather than markup: the version test pins the
+       badge's text to the manifest, and an inserted span would sit
+       between the tag and that text. */
+    .footer .badge.has-update::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      right: -4px;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--primary-strong, #7bf1fd);
+    }
+    .footer .badge.has-update { color: var(--text); }
 
     .linkish {
       background: rgba(255, 255, 255, 0.03);
@@ -2555,13 +2596,13 @@
 
         <button id="reportPlanBtn" class="subs-unsub-btn" type="button" hidden>
           <span class="label-main" data-i18n="reportPlanMain">Run the whole plan</span>
-          <span class="label-sub" id="reportPlanBtnSub" data-i18n="proPriceSub">Pro · $19.99 lifetime</span>
+          <span class="label-sub" id="reportPlanBtnSub" data-i18n="proPriceSub">Pro · $9.99 lifetime</span>
         </button>
 
         <p class="subs-upsell" id="reportUpsell" hidden>
-          <span id="reportUpsellText" data-i18n="reportUpsellNone">Pro is $19.99 once: it unlocks every step of the plan and one-click Run the whole plan.</span>
+          <span id="reportUpsellText" data-i18n="reportUpsellNone">Pro is $9.99 once: it unlocks every step of the plan and one-click Run the whole plan.</span>
           <span class="subs-upsell-links">
-            <button type="button" class="linkish linkish--pro" id="reportBuyLink" data-i18n="getProLifetime">Get Pro - $19.99 lifetime</button>
+            <button type="button" class="linkish linkish--pro" id="reportBuyLink" data-i18n="getProLifetime">Get Pro - $9.99 lifetime</button>
             <button type="button" class="linkish" id="reportEnterKey" data-i18n="haveKey">I have a key</button>
           </span>
         </p>
@@ -2636,10 +2677,10 @@
           </button>
 
           <p class="subs-upsell" id="smartUpsell" hidden>
-            <span id="smartUpsellText" data-i18n="smartUpsellNone">Pro is $19.99 once: it unlocks the full suggestion list and bulk apply.</span>
+            <span id="smartUpsellText" data-i18n="smartUpsellNone">Pro is $9.99 once: it unlocks the full suggestion list and bulk apply.</span>
             <span data-i18n="smartUpsellTail">The top picks above stay free forever.</span>
             <span class="subs-upsell-links">
-              <a href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" id="smartBuyLink" data-i18n="getProLifetime">Get Pro - $19.99 lifetime</a>
+              <a href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" id="smartBuyLink" data-i18n="getProLifetime">Get Pro - $9.99 lifetime</a>
               <button type="button" class="linkish" id="smartEnterKey" data-i18n="haveKey">I have a key</button>
             </span>
           </p>
@@ -2781,9 +2822,9 @@
         </div>
 
         <p class="subs-upsell" id="autoPilotUpsell" hidden>
-          <span id="autoPilotUpsellText" data-i18n="apUpsellNone">Pro is $19.99 once: Auto-Pilot keeps your inbox clean every week, automatically.</span>
+          <span id="autoPilotUpsellText" data-i18n="apUpsellNone">Pro is $9.99 once: Auto-Pilot keeps your inbox clean every week, automatically.</span>
           <span class="subs-upsell-links">
-            <a href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" id="autoPilotBuyLink" data-i18n="getProLifetime">Get Pro - $19.99 lifetime</a>
+            <a href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" id="autoPilotBuyLink" data-i18n="getProLifetime">Get Pro - $9.99 lifetime</a>
           </span>
         </p>
       </div>
@@ -2928,7 +2969,11 @@
              cleanup on popup open instead of a run that just finished. -->
         <div class="recap-note" id="recapNote" hidden data-i18n="recapStatic">Recap: your last cleanup finished while the popup was closed.</div>
         <div class="result-summary-stats">
-          <span data-i18n="resultLead">Cleaned</span> <strong id="resultCount">0</strong> <span data-i18n="resultMid">emails · Freed ~</span><strong id="resultSize">0 MB</strong> <span data-i18n="resultTail">(est.)</span>
+          <!-- 8.9: the freed-storage clause is its own element because an
+               archive run frees nothing. It moves mail to All Mail, where
+               it still counts against the quota, so the clause is removed
+               rather than shown as "Freed ~0 MB". -->
+          <span data-i18n="resultLead">Cleaned</span> <strong id="resultCount">0</strong> <span data-i18n="resultUnit">emails</span><span id="resultFreedClause"><span data-i18n="resultMid"> · Freed ~</span><strong id="resultSize">0 MB</strong> <span data-i18n="resultTail">(est.)</span></span>
           <br><span style="opacity: 0.8" data-i18n="resultTrashNote">(all moved to Trash)</span>
         </div>
         <div class="result-summary-note">
@@ -3032,14 +3077,14 @@
 
         <button id="unsubBtn" class="subs-unsub-btn" type="button" hidden>
           <span class="label-main" data-i18n="unsubMain">Unsubscribe selected</span>
-          <span class="label-sub" id="unsubBtnSub" data-i18n="proPriceSub">Pro · $19.99 lifetime</span>
+          <span class="label-sub" id="unsubBtnSub" data-i18n="proPriceSub">Pro · $9.99 lifetime</span>
         </button>
 
         <p class="subs-upsell" id="subsUpsell" hidden>
-          <span id="subsUpsellText" data-i18n="subsUpsellNone">One $19.99 payment unlocks bulk unsubscribe forever.</span>
+          <span id="subsUpsellText" data-i18n="subsUpsellNone">One $9.99 payment unlocks bulk unsubscribe forever.</span>
           <span data-i18n="subsUpsellTail">No subscription, no account, and the key is verified on your device.</span>
           <span class="subs-upsell-links">
-            <a href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" id="subsBuyLink" data-i18n="getProLifetime">Get Pro - $19.99 lifetime</a>
+            <a href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" id="subsBuyLink" data-i18n="getProLifetime">Get Pro - $9.99 lifetime</a>
             <button type="button" class="linkish" id="subsEnterKey" data-i18n="haveKey">I have a key</button>
           </span>
         </p>
@@ -3104,14 +3149,14 @@
 
         <button id="xrayPurgeBtn" class="subs-unsub-btn" type="button" hidden>
           <span class="label-main" data-i18n="purgeMain">Purge selected</span>
-          <span class="label-sub" id="xrayPurgeBtnSub" data-i18n="proPriceSub">Pro · $19.99 lifetime</span>
+          <span class="label-sub" id="xrayPurgeBtnSub" data-i18n="proPriceSub">Pro · $9.99 lifetime</span>
         </button>
 
         <p class="subs-upsell" id="xrayUpsell" hidden>
-          <span id="xrayUpsellText" data-i18n="xrayUpsellNone">Pro is $19.99 once: it unlocks the full ranked list and one-click purge.</span>
+          <span id="xrayUpsellText" data-i18n="xrayUpsellNone">Pro is $9.99 once: it unlocks the full ranked list and one-click purge.</span>
           <span data-i18n="xrayUpsellTail">Google One wants $20 every year for more storage.</span>
           <span class="subs-upsell-links">
-            <a href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" id="xrayBuyLink" data-i18n="getProLifetime">Get Pro - $19.99 lifetime</a>
+            <a href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" id="xrayBuyLink" data-i18n="getProLifetime">Get Pro - $9.99 lifetime</a>
             <button type="button" class="linkish" id="xrayEnterKey" data-i18n="haveKey">I have a key</button>
           </span>
         </p>
@@ -3134,7 +3179,14 @@
         </nav>
 
         <div class="footer-right">
-          <span class="badge" id="versionBadge" aria-label="Version 8.8.0">v8.8.0</span>
+          <button
+            class="badge"
+            id="versionBadge"
+            type="button"
+            aria-label="Version 8.9.0, see what's new"
+            title="What's new in this version"
+            data-i18n-title="whatsNewTitle"
+          >v8.9.0</button>
           <button id="kbdHelpBtn" class="linkish" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" data-i18n-label="kbdTitle" data-i18n-title="kbdBtnTitle">
             <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/></svg>
           </button>
@@ -3154,7 +3206,7 @@
       <!-- Pro promo (hidden once a license is active) -->
       <aside class="pro-promo" id="proPromo" aria-label="Pro upgrade" hidden data-i18n-label="proPromoLabel">
         <p class="pro-promo-body">
-          <strong data-i18n="proPromoLead">Pro, $19.99 once:</strong> <span data-i18n="proPromoBody">the full report plan, bulk
+          <strong data-i18n="proPromoLead">Pro, $9.99 once:</strong> <span data-i18n="proPromoBody">the full report plan, bulk
           unsubscribe, storage purge, suggestions and Auto-Pilot. Everything free stays free.</span>
         </p>
         <div class="pro-promo-actions">
@@ -3213,7 +3265,7 @@
         <ul class="pro-panel-facts">
           <li>
             <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-            <span data-i18n="proFactOnce">One payment of $19.99. Not a subscription, and never will be.</span>
+            <span data-i18n="proFactOnce">One payment of $9.99. Not a subscription, and never will be.</span>
           </li>
           <li>
             <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
@@ -3226,7 +3278,7 @@
         </ul>
 
         <div class="pro-panel-actions">
-          <button type="button" class="pro-panel-buy" id="proPanelBuy" data-i18n="proPanelBuy">Get Pro - $19.99 once</button>
+          <button type="button" class="pro-panel-buy" id="proPanelBuy" data-i18n="proPanelBuy">Get Pro - $9.99 once</button>
           <div class="pro-panel-alt">
             <button type="button" class="linkish" id="proPanelKey" data-i18n="haveKey">I have a key</button>
             <button type="button" class="linkish" id="proPanelBack" data-i18n="notNow">Not now</button>

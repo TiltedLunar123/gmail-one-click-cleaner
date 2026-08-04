@@ -239,10 +239,10 @@ describe("popup.html: nodes landed in the right containers", () => {
     expect(byId("xrayUpsell").firstElementChild.id).toBe("xrayUpsellText");
     expect(byId("smartUpsell").firstElementChild.id).toBe("smartUpsellText");
     expect(byId("autoPilotUpsell").firstElementChild.id).toBe("autoPilotUpsellText");
-    expect(byId("subsUpsellText").textContent).toContain("$19.99");
-    expect(byId("xrayUpsellText").textContent).toContain("$19.99");
-    expect(byId("smartUpsellText").textContent).toContain("$19.99");
-    expect(byId("autoPilotUpsellText").textContent).toContain("$19.99");
+    expect(byId("subsUpsellText").textContent).toContain("$9.99");
+    expect(byId("xrayUpsellText").textContent).toContain("$9.99");
+    expect(byId("smartUpsellText").textContent).toContain("$9.99");
+    expect(byId("autoPilotUpsellText").textContent).toContain("$9.99");
   });
 
   test("the version badge sits in the footer, not the header (7.12)", () => {

@@ -111,8 +111,11 @@ describe("an injection that produced no engine is noticed", () => {
     expect(at).toBeGreaterThan(-1);
     const block = bgSrc.slice(at, at + 500);
     expect(block).toContain("await releaseRunClaim(runId);");
-    // lastRun is written after the guard, never before it.
-    expect(bgSrc.indexOf("schedule.lastRun = Date.now();")).toBeGreaterThan(at);
+    // lastRun is written after the guard, never before it. 8.9 moved the
+    // write itself into markScheduleRan, which re-reads the array so a
+    // schedule edited or deleted during the run is not rolled back.
+    expect(bgSrc.indexOf("await markScheduleRan(scheduleId);")).toBeGreaterThan(at);
+    expect(bgSrc).not.toContain("schedule.lastRun = Date.now();");
   });
 
   test("all three injection sites confirm", () => {

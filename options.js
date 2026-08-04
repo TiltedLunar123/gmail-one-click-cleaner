@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const OPTIONS_VERSION = "8.8.0";
+  const OPTIONS_VERSION = "8.9.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -453,10 +453,18 @@
    */
   const validateData = (data) => {
     const errors = [];
+    // 8.9: errors the ENGINE will act on, as opposed to ones this page
+    // can absorb. A malformed whitelist line is dropped by
+    // normalizeWhitelist and costs nothing; a rule the engine refuses is
+    // different, because saving it produced a page that said "Settings
+    // saved successfully!" over an intensity that then cleaned nothing
+    // and never explained why. Those block the save.
+    const blocking = [];
 
     // Keep Normal non-empty.
     if (!data?.rules?.normal || data.rules.normal.length === 0) {
       errors.push("Normal rules cannot be empty");
+      blocking.push("Normal rules cannot be empty");
     }
 
     // 7.15: the intensity boxes are free text and were the ONE rule
@@ -471,6 +479,7 @@
         const check = GCC.validateGmailQuery(query);
         if (!check.valid) {
           errors.push(`${key}: ${check.errors[0]}`);
+          blocking.push(`${key}: ${check.errors[0]}`);
         }
       });
     });
@@ -482,7 +491,7 @@
       }
     });
 
-    return { valid: errors.length === 0, errors };
+    return { valid: errors.length === 0, errors, blocking };
   };
 
   /**
@@ -503,10 +512,22 @@
       const data = collectAllData();
       const validation = validateData(data);
 
+      // 8.9: a rule the engine refuses no longer saves. This used to
+      // warn and write anyway, so the page ended on "Settings saved
+      // successfully!" and the next run quietly skipped the intensity
+      // the user had just edited, with the refusal buried in a toast
+      // that had already gone.
+      if (validation.blocking.length) {
+        GCC.showToast(`Not saved. ${validation.blocking[0]}`, "error");
+        console.warn("[Gmail Cleaner] Save refused:", validation.blocking);
+        srStatus(`Settings not saved. ${validation.blocking[0]}`);
+        return;
+      }
+
       if (!validation.valid) {
         GCC.showToast(validation.errors[0], "warning");
         console.warn("[Gmail Cleaner] Validation errors:", validation.errors);
-        // still allow save, but warn
+        // Non-blocking: the normalizers drop these on the way to storage.
       }
 
       if (!GCC.hasChromeStorage("sync")) throw new Error("Chrome sync storage is not available");

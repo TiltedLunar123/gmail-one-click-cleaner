@@ -182,9 +182,27 @@ External network activity happens only when **you** initiate it:
   browser history or referrer; nothing is stored on the server, which
   has no database.
 - Store / share links you choose to open.
+- **The uninstall page (8.9).** When you remove the extension, the
+  browser opens
+  `https://gmail-cleaner-pro.netlify.app/uninstall.html`. This is the
+  browser's own `runtime.setUninstallURL` mechanism: the extension is
+  already gone by then and sends nothing. The address is fixed and
+  carries no query string, no identifier, no version and nothing derived
+  from your mailbox, so the site learns only what any web request tells
+  a server: that someone with your IP loaded a page at that moment. It
+  exists to tell Pro buyers their lifetime key survived the uninstall,
+  and is pinned in `tests/uninstall-page.test.js` so a parameter cannot
+  be added to it quietly later.
 
 These are normal browser navigations or purchase-flow calls initiated by
 you. Your Gmail content is never part of any of them.
+
+The release notes inside the extension (**What's new**, 8.9) are not an
+exception: `CHANGELOG.md` is compiled into `changelog-data.js` at build
+time and ships inside the package, precisely so that reading them costs
+no request. Even fetching a file from inside the extension would have
+been a `fetch()`, and `tests/privacy-link.test.js` fails the build on
+one.
 
 ### The one label that rides along
 

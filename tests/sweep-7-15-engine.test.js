@@ -161,7 +161,14 @@ describe("7.15: bulk-all selection is detected structurally, not in English", ()
   const click = grab(/async\s+function\s+clickSelectAllConversations\(\)[\s\S]*?\n\s\s\}/);
 
   test("a consumed select-all-matching link counts as bulk-all", () => {
-    expect(click).toMatch(/const\s+linkConsumed\s*=\s*!findSelectAllConversationsLink\(\);/);
+    // 8.9 rewrote this check. It used to be a bare
+    // `!findSelectAllConversationsLink()`, which answered "still
+    // offered" whenever the finder returned anything at all, including
+    // the clear-selection control that replaces the offer. What has to
+    // hold is that the OFFER is gone, so the pin follows the meaning
+    // rather than the old expression.
+    expect(click).toMatch(/const\s+linkConsumed\s*=\s*!stillOffered;/);
+    expect(click).toMatch(/looksLikeSelectAllOffer\(getTextContent\(now\)\)/);
     expect(click).toMatch(/reason:\s*"link-consumed"/);
   });
 

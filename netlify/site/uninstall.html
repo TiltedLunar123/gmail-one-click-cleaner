@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sorry to see you go - Gmail One-Click Cleaner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Gmail One-Click Cleaner has been removed. Fixes for the usual reasons people leave, how to get your mail back, and how to reinstall." />
+  <meta name="robots" content="noindex" />
+  <meta name="color-scheme" content="dark" />
+  <link rel="icon" type="image/png" sizes="128x128" href="./icon128.png" />
+  <style>
+    :root {
+      --bg: #06090f;
+      --surface: rgba(17, 26, 36, 0.75);
+      --border: rgba(148, 163, 184, 0.2);
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #22d3ee;
+      --ok: #6ee7b7;
+      --gold: #fbbf24;
+    }
+    * { box-sizing: border-box; }
+    html { scrollbar-gutter: stable both-edges; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background-color: var(--bg);
+      background-image:
+        radial-gradient(at 0% 0%, rgba(34, 211, 238, 0.14) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.12) 0px, transparent 50%);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      line-height: 1.6;
+      padding: 40px 20px 60px;
+    }
+    main { max-width: 640px; margin: 0 auto; }
+    h1 { font-size: 28px; line-height: 1.25; margin: 0 0 10px; }
+    h2 { font-size: 16px; margin: 34px 0 12px; }
+    .lede { color: var(--muted); font-size: 16px; margin: 0 0 8px; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin: 0 0 12px;
+    }
+    .card h3 {
+      font-size: 14.5px;
+      margin: 0 0 6px;
+      color: var(--text);
+    }
+    .card p { margin: 0; color: var(--muted); font-size: 14px; }
+    .card p + p { margin-top: 8px; }
+    .card strong { color: var(--text); font-weight: 600; }
+    .pro-card { border-color: rgba(34, 211, 238, 0.35); }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0 0; }
+    .btn {
+      display: inline-block;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 15px;
+      padding: 12px 22px;
+      border-radius: 11px;
+      border: 1px solid var(--border);
+      color: var(--text);
+      background: rgba(148, 163, 184, 0.08);
+    }
+    .btn:hover { background: rgba(148, 163, 184, 0.16); }
+    .btn.primary {
+      background: linear-gradient(135deg, #7bf1fd, #22d3ee);
+      color: #04181d;
+      border-color: transparent;
+      box-shadow: 0 18px 40px -20px rgba(34, 211, 238, 0.8);
+    }
+    .btn.primary:hover { filter: brightness(1.05); }
+    .btn .sub { display: block; font-weight: 500; font-size: 12px; opacity: 0.8; }
+    .quiet { color: var(--muted); font-size: 13.5px; }
+    .fineprint {
+      margin: 34px 0 0;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+      font-size: 12.5px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+    a { color: var(--accent); }
+    ul { color: var(--muted); font-size: 14px; padding-left: 20px; margin: 8px 0 0; }
+    li { margin-bottom: 4px; }
+    li strong { color: var(--text); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Sorry to see you go</h1>
+    <p class="lede">
+      Gmail One-Click Cleaner has been removed, and everything it kept on
+      this device went with it. No account to close, nothing left behind.
+    </p>
+    <p class="quiet">
+      One thing before you close this tab. Most people who uninstall hit one
+      of four things, and three of them have a fix that takes under a minute.
+    </p>
+
+    <h2>The usual reasons, and what to do about them</h2>
+
+    <div class="card">
+      <h3>It selected mail but never deleted any</h3>
+      <p>
+        This is the most common one and it is almost never your setup. The
+        extension drives the real Gmail page, and Google reshuffles that
+        page's HTML without warning, which breaks the selection and delete
+        controls until the extension is taught the new layout.
+      </p>
+      <p>
+        Newer versions notice this themselves and say so instead of failing
+        quietly. If you were on an older build, updating is the whole fix.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3>It cleaned far less than you expected</h3>
+      <p>
+        Four guards are on by default and they skip anything
+        <strong>starred, marked important, unread, or already labelled</strong>.
+        On a mailbox that stars a lot of newsletters, that alone can take a
+        3,000 email sweep down to a few hundred.
+      </p>
+      <p>
+        They live in <strong>Advanced</strong> in the popup and in Options.
+        Turning off "skip unread" plus setting intensity to
+        <strong>Maximum</strong> is usually the difference people are looking
+        for.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3>It deleted something you wanted to keep</h3>
+      <p>
+        Nothing is destroyed. Every cleanup moves mail to <strong>Trash</strong>,
+        where Gmail keeps it for 30 days, and every run labels what it touched
+        before it moves anything.
+      </p>
+      <p>
+        Search Gmail for <strong>in:trash</strong> plus that label, select all,
+        and move it back to the inbox. If you reinstall, the Stats page has a
+        Restore button that does the same thing in one click for the last 20
+        runs.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3>Too many buttons</h3>
+      <p>
+        Fair. The short version is that you can ignore all of it: open the
+        popup, press <strong>Monthly</strong>, press <strong>Run Cleaner</strong>.
+        That is the whole product. Everything else exists for people who asked
+        for it and stays folded away until you go looking.
+      </p>
+    </div>
+
+    <h2 id="pro">If you bought Pro</h2>
+    <div class="card pro-card">
+      <p>
+        <strong>Your key is still yours.</strong> It is a lifetime license tied
+        to your purchase, not to this installation, so uninstalling did not
+        consume it, expire it, or refund it. Install the extension on any
+        browser, on any machine, paste the same key, and Pro is back.
+      </p>
+      <p>
+        Lost the key? <a href="./recover.html">Get it reissued free</a> using
+        the email address you paid with.
+      </p>
+    </div>
+
+    <h2>If you want it back</h2>
+    <p class="quiet" id="reinstallNote">
+      Reinstalling restores the extension. Your old settings are gone, so the
+      first run starts from the safe defaults.
+    </p>
+    <div class="row">
+      <a class="btn primary" id="chromeBtn"
+         href="https://chromewebstore.google.com/detail/bmcfpljakkpcbinhgiahncpcbhmihgpc">
+        Reinstall for Chrome
+        <span class="sub">Also Edge, Brave, Opera, Arc</span>
+      </a>
+      <a class="btn" id="firefoxBtn"
+         href="https://addons.mozilla.org/firefox/addon/gmail-one-click-cleaner@gmail-cleaner-pro.netlify.app/">
+        Reinstall for Firefox
+      </a>
+    </div>
+
+    <h2>Or tell me what actually went wrong</h2>
+    <p class="quiet">
+      This is a one person project, and uninstalls are the only honest
+      feedback there is. If something was broken, confusing, or just not what
+      you wanted, a one line email genuinely does change what gets built next.
+    </p>
+    <div class="row">
+      <a class="btn" href="mailto:hilgendorfjude@gmail.com?subject=Why%20I%20uninstalled%20Gmail%20One-Click%20Cleaner&amp;body=What%20made%20me%20uninstall%3A%0A%0A">
+        Send that email
+      </a>
+      <a class="btn" href="https://github.com/TiltedLunar123/gmail-one-click-cleaner/issues">
+        Report a bug on GitHub
+      </a>
+    </div>
+
+    <p class="fineprint">
+      <strong>Why you are seeing this page.</strong> Your browser was told to
+      open it when the extension was removed. That is all it does. The address
+      carries no identifier, no account, and nothing from your mailbox, and the
+      extension never made a network request while it was installed.
+      Uninstalling already deleted its settings, rules, whitelist, statistics
+      and license key from this device; anything that was synced clears from
+      your browser account when it next syncs.
+      <a href="https://secplusmastery.com/extensions#gmail-one-click-cleaner-privacy">Privacy policy</a>
+    </p>
+  </main>
+
+  <script>
+    (function () {
+      // Lead with the store the visitor can actually install from. Both
+      // links stay visible either way: people switch browsers, and someone
+      // reading this in Firefox may be reinstalling on their work Chrome.
+      var ua = navigator.userAgent || "";
+      if (/\bFirefox\//.test(ua)) {
+        var chromeBtn = document.getElementById("chromeBtn");
+        var firefoxBtn = document.getElementById("firefoxBtn");
+        chromeBtn.className = "btn";
+        firefoxBtn.className = "btn primary";
+        firefoxBtn.parentNode.insertBefore(firefoxBtn, chromeBtn);
+      }
+    })();
+  </script>
+</body>
+</html>

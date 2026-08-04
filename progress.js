@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const PROGRESS_VERSION = "8.8.0";
+  const PROGRESS_VERSION = "8.9.0";
 
   const CONFIG = Object.freeze({
     MAX_LOG_ENTRIES: 300,
@@ -542,6 +542,11 @@
     : (Number(stats?.totalDeleted) || 0) + (Number(stats?.totalArchived) || 0));
 
   const freedMbOf = (stats) => {
+    // 8.9: archived mail is still in the account and still against the
+    // quota, so an archive run frees nothing. The engine stopped
+    // recording it, but runs finished by an older version are already in
+    // the history this page replays, so the check lives here too.
+    if (stats?.action === "archive") return 0;
     const mb = Number(stats?.totalFreedMb ?? stats?.freedMb);
     return Number.isFinite(mb) && mb > 0 ? mb : 0;
   };
@@ -670,7 +675,7 @@
       if (licenseState.active) return;
       ui.doneProText.textContent = t(
         "progDoneProNoise",
-        `${noiseText} of what this run cleaned was promotional or list mail, and the same senders refill it next month. Pro unsubscribes from them in bulk: $19.99 once, no subscription.`,
+        `${noiseText} of what this run cleaned was promotional or list mail, and the same senders refill it next month. Pro unsubscribes from them in bulk: $9.99 once, no subscription.`,
         [noiseText]
       );
       ui.doneProBuy.href = GCC.license.buyUrl("progress_done");
