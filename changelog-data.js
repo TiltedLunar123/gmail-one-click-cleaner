@@ -6,13 +6,36 @@
 // even of a file inside the package, would end the extension's
 // no-network-calls promise.
 //
-// Carries the newest 12 of 63 releases; the page says so
+// Carries the newest 12 of 64 releases; the page says so
 // and links the full log on GitHub.
 
 // eslint-disable-next-line no-unused-vars
 var GCC_CHANGELOG = {
-  "total": 63,
+  "total": 64,
   "entries": [
+    {
+      "version": "8.9.1",
+      "title": "Store listing wording",
+      "sections": [
+        {
+          "name": "Changed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "The store listing no longer names languages one by one."
+                ],
+                [
+                  "",
+                  " The description used to spell out which languages the cleaner can drive Gmail in, twice over, in all seven listing languages. The Chrome Web Store read that list as keyword spam and turned the update down, so the listing now makes the same point without the roll call. The extension itself is unchanged: this release exists to carry the corrected listing."
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "8.9.0",
       "title": "Release notes, a proper goodbye, and honest storage numbers",
@@ -1440,133 +1463,6 @@ var GCC_CHANGELOG = {
           "items": [
             {
               "text": "The last-run summary is synced so you see it on your other browsers, and it carried the literal Gmail searches that ran. For a Storage X-ray or Smart Suggestions run those searches contain sender addresses read from your mailbox. The searches are now removed before that summary is synced; the counts and labels it displays are unchanged. SECURITY.md has also been corrected: it said no message IDs were stored, when the recovery log keeps a sample of Gmail thread IDs on your device so you can find cleaned mail again."
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "version": "7.14.2",
-      "title": "Safety and reliability fixes",
-      "sections": [
-        {
-          "name": "Fixed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "Minimum Age now actually applies."
-                ],
-                [
-                  "",
-                  " The setting promises to leave anything newer than your cutoff alone, but it was skipped whenever a rule already mentioned an age of its own, and every built-in rule does. In practice that meant choosing \"older than 1 year\" while running the normal preset still cleaned promotions from three months ago. The cutoff is now applied whenever it is stricter than the rule, and ignored when the rule is already stricter, so it can only ever narrow what a run touches."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The big-run confirmations no longer miss the biggest runs."
-                ],
-                [
-                  "",
-                  " When Gmail confirms that every conversation matching a search is selected, it acts on all of them at once. The cleaner was still measuring only the page on screen, so a sweep of tens of thousands sailed past both the 10,000 warning and the large-run confirmation, and was then recorded as a few dozen. Both now use the real match total, and run totals stop under-reporting."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Cancel is honoured right up to the moment mail moves."
-                ],
-                [
-                  "",
-                  " Cancelling during tagging, a confirmation prompt or one of the short waits before a batch was actioned used to let that batch go through anyway. A cancelled run now also ends as cancelled rather than reporting itself finished."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Dry Run previews the real number."
-                ],
-                [
-                  "",
-                  " On a confirmed \"all N conversations\" selection it quoted the page on screen, so the preview for a 12,000 conversation sweep read as a few dozen."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Custom rules can no longer smuggle starred or sent mail past the guards."
-                ],
-                [
-                  "",
-                  " A rule written as "
-                ],
-                [
-                  "c",
-                  "(is:starred)"
-                ],
-                [
-                  "",
-                  " slipped through the refusal because of the bracket, and the same bracket stopped the automatic \"skip starred\" protection from being added."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Scheduled and unattended runs stop locking the cleaner out."
-                ],
-                [
-                  "",
-                  " A few paths could leave a run marker behind after nothing had actually started, and every manual run was then refused for up to two hours. A finishing run could also clear a marker belonging to a newer run."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Archive runs are labelled as archive runs."
-                ],
-                [
-                  "",
-                  " The Diagnostics page reported every archive run as a deletion, red tag included."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The progress tab recovers properly."
-                ],
-                [
-                  "",
-                  " Reconnecting to a run that had already finished left it retrying in a loop for the life of the tab, and a reconnect during a Storage X-ray purge or a Smart suggestion could restart the previous full cleanup instead of the run you asked for."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Smaller UI fixes."
-                ],
-                [
-                  "",
-                  " The Save button on Options no longer ends up permanently reading \"Saving...\", and the Diagnostics \"Test inject\" button no longer sticks disabled after a scan that finds no Gmail tab."
-                ]
-              ]
             }
           ]
         }

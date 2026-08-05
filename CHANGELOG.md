@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.9.1 - Store listing wording
+
+### Changed
+- **The store listing no longer names languages one by one.** The
+  description used to spell out which languages the cleaner can drive
+  Gmail in, twice over, in all seven listing languages. The Chrome Web
+  Store read that list as keyword spam and turned the update down, so
+  the listing now makes the same point without the roll call. The
+  extension itself is unchanged: this release exists to carry the
+  corrected listing.
+
 ## 8.9.0 - Release notes, a proper goodbye, and honest storage numbers
 
 ### Added
