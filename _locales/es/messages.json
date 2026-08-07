@@ -325,6 +325,8 @@
   "apSweepRunning": { "message": "Hay un barrido en marcha ahora mismo." },
   "apLastSweepDry": { "message": "El último barrido habría archivado $1 correos, $2." },
   "apLastSweepLive": { "message": "El último barrido archivó $1 correos, $2." },
+  "apDeferredOne": { "message": "1 sugerencia necesita otra acción, así que te espera en la pestaña Limpiar." },
+  "apDeferredMany": { "message": "$1 sugerencias necesitan otra acción, así que te esperan en la pestaña Limpiar." },
   "apFirstSweepSoon": { "message": "El primer barrido llegará pronto como vista previa. No se archiva nada hasta que confirmes abajo." },
   "apPreviewConfirm": { "message": "Vista previa de Auto-Pilot: habría archivado $1 correos. ¿Activar de verdad?" },
   "apOnToast": { "message": "Auto-Pilot activado - el primer barrido es una vista previa" },
@@ -372,6 +374,7 @@
   "notifTitleMany": { "message": "Gmail Cleaner - $1 correos $2" },
   "notifDryBody": { "message": "Simulación terminada. No se tocó ningún correo." },
   "notifLiveBody": { "message": "Se liberaron ~$1 MB (estimado). Abre Estadísticas para más detalles." },
+  "notifArchiveBody": { "message": "Movido a Todos, así que tu almacenamiento no cambia. Abre Estadísticas para más detalles." },
 
   "__comment_8_0": { "message": "Informe del buzón, panel Pro y textos de garantía (8.0)" },
   "tabReport": { "message": "Informe" },

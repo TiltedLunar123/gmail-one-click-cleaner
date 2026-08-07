@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "8.9.1";
+  const POPUP_VERSION = "8.10.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -1335,7 +1335,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const showRecapForEntry = (entry) => {
     const cleaned = GCC.popupUi.recapCleanedCount(entry);
-    const freedMb = Number(entry.freedMb) || 0;
+    // 8.10: gated the way the live done path at showRunDone gates it.
+    // showResultSummary drops the freed clause for archive runs on its
+    // own, but the rating ask reads this number too, and history rows
+    // written before 8.9 still carry a figure for archive runs. An
+    // archive sweep should not be what trips "worth a review, they freed
+    // 200 MB".
+    const freedMb = GCC.popupUi.recapAction(entry) === "archive"
+      ? 0
+      : Number(entry.freedMb) || 0;
 
     showResultState();
     showResultSummary({
@@ -1374,7 +1382,11 @@ document.addEventListener("DOMContentLoaded", () => {
     await maybeShowRatingForRun({
       dryRun: Boolean(entry.dryRun),
       cleaned: GCC.popupUi.recapCleanedCount(entry),
-      freedMb: Number(entry.freedMb) || 0
+      // Same archive gate showRecapForEntry applies: an archive run
+      // frees nothing, so it must not clear the MB half of the ask.
+      freedMb: GCC.popupUi.recapAction(entry) === "archive"
+        ? 0
+        : Number(entry.freedMb) || 0
     });
   };
 
@@ -2302,7 +2314,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const renderReport = () => {
     if (!elements.reportList) return;
     const active = state.subs.licenseActive;
-    const ranked = GCC.report.rankBands(state.report.bands).filter((b) => b.count > 0);
+    // A band with no number is either empty or never looked at, and the
+    // two must not render the same way. Zero-count rows still go (an
+    // empty band is noise), but an UNMEASURED one stays: hiding it is
+    // exactly the "this part of your mailbox is clean" claim 8.9 set out
+    // to stop making.
+    const ranked = GCC.report
+      .rankBands(state.report.bands)
+      .filter((b) => b.count > 0 || b.measured === false);
     const freeId = GCC.report.freeBandId(state.report.bands);
     const totals = GCC.report.totals(state.report.bands);
 
@@ -2474,7 +2493,11 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.reportList.appendChild(row);
     }
 
-    if (elements.reportPlanBtn) elements.reportPlanBtn.hidden = ranked.length < 2;
+    // The whole-plan run only ever includes bands with a count
+    // (reportPlanGroup filters on it), so unmeasured rows must not be
+    // what makes the button appear.
+    const runnable = ranked.filter((b) => b.count > 0).length;
+    if (elements.reportPlanBtn) elements.reportPlanBtn.hidden = runnable < 2;
     if (elements.reportPlanBtn) elements.reportPlanBtn.classList.toggle("locked", !active);
     if (elements.reportPlanBtnSub) {
       // 8.7: describe the run this click will start, not a generic
@@ -3787,6 +3810,18 @@ document.addEventListener("DOMContentLoaded", () => {
         statusText = ap.lastRun.dryRun
           ? t("apLastSweepDry", `Last sweep would have archived ${nText} emails, ${when}.`, [nText, when])
           : t("apLastSweepLive", `Last sweep archived ${nText} emails, ${when}.`, [nText, when]);
+        // 8.10: the sweep archives `from:(sender) older_than:6m`, so it
+        // may only take suggestions whose count was measured through
+        // that same shape. Large-attachment and unsubscribe cards are
+        // left for the user to run themselves, and saying so is the
+        // difference between "Auto-Pilot handled it" and the truth.
+        const deferred = Math.max(0, Number(ap.lastRun.deferred) || 0);
+        if (deferred > 0) {
+          const dText = GCC.formatNumber(deferred);
+          statusText += " " + (deferred === 1
+            ? t("apDeferredOne", "1 suggestion needs a different action, so it is waiting on the Clean tab.")
+            : t("apDeferredMany", `${dText} suggestions need a different action, so they are waiting on the Clean tab.`, [dText]));
+        }
       } else {
         statusText = t("apFirstSweepSoon", "First sweep runs soon as a preview. Nothing is archived until you confirm below.");
       }

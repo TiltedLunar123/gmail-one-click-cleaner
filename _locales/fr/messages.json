@@ -325,6 +325,8 @@
   "apSweepRunning": { "message": "Un balayage tourne en ce moment." },
   "apLastSweepDry": { "message": "Le dernier balayage aurait archivé $1 e-mails, $2." },
   "apLastSweepLive": { "message": "Le dernier balayage a archivé $1 e-mails, $2." },
+  "apDeferredOne": { "message": "1 suggestion demande une autre action, elle vous attend dans l'onglet Nettoyer." },
+  "apDeferredMany": { "message": "$1 suggestions demandent une autre action, elles vous attendent dans l'onglet Nettoyer." },
   "apFirstSweepSoon": { "message": "Le premier balayage arrive bientôt en aperçu. Rien n'est archivé avant votre confirmation ci-dessous." },
   "apPreviewConfirm": { "message": "Aperçu Auto-Pilot : aurait archivé $1 e-mails. Activer pour de vrai ?" },
   "apOnToast": { "message": "Auto-Pilot activé - le premier balayage est un aperçu" },
@@ -372,6 +374,7 @@
   "notifTitleMany": { "message": "Gmail Cleaner - $1 e-mails $2" },
   "notifDryBody": { "message": "Simulation terminée. Aucun courrier touché." },
   "notifLiveBody": { "message": "Environ ~$1 Mo libérés (estimation). Ouvrez Stats pour les détails." },
+  "notifArchiveBody": { "message": "Déplacés dans Tous les messages, votre stockage ne change donc pas. Ouvrez Stats pour les détails." },
 
   "__comment_8_0": { "message": "Rapport de boîte mail, panneau Pro et textes de garantie (8.0)" },
   "tabReport": { "message": "Rapport" },

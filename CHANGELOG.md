@@ -3,6 +3,75 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.10.0 - What the numbers promise, the runs deliver
+
+### Fixed
+- **Auto-Pilot swept senders it had never measured that way.** Every
+  suggestion card picks its own action and counts the mail that action
+  would actually move: "40 large emails" is counted with the large-file
+  filter applied, and an Unsubscribe card moves no mail at all. The
+  weekly sweep read those counts and then archived six months of
+  everything from the same sender, because the one rule it builds drops
+  the filter the number was measured through. A card promising 40 could
+  quietly archive thousands. The sweep now only takes suggestions its
+  own rule genuinely fits, says on the Clean tab how many it left for
+  you, and leaves the rest to be run by hand where you can see them.
+
+- **Steps in the Mailbox Report that were never searched looked empty.**
+  When one of the report's searches times out, the report is meant to
+  say "not measured" rather than print a confident zero. It has said so
+  in the code since 8.9 and never once on screen: the step was dropped
+  from the list before it could be drawn, so a report missing a whole
+  section read as a mailbox with nothing in it. Unsearched steps now
+  appear, and say what they are.
+
+- **A custom rule could reach your Google Chat history.** The rule
+  checker refuses queries that point at Sent, Drafts, Trash, Spam and
+  anything starred or important, because a bulk delete there is not
+  something Restore can undo. It has been refusing `in:chat` since the
+  check was written, and Gmail's operator is `in:chats`, so the one
+  spelling anybody would type went straight through. Both are refused
+  now. Excluding chat with a leading minus still works.
+
+- **Archive sweeps announced storage they had not freed.** Archiving
+  moves mail to All Mail, where it still counts against your Google
+  storage. 8.9 took the storage figure off every screen that showed one,
+  and missed the desktop notification, which kept telling anyone who had
+  turned notifications on that an archive run had freed about 0 MB. That
+  is the only report an unattended sweep ever gives you. It now says
+  where the mail went and makes no storage claim.
+
+- **Changing a setting could make a finished cleanup run again.** A
+  scheduled cleanup writes down when it last ran, and the alarm for the
+  next one is anchored to that. Editing any schedule at the same moment
+  could write an older copy of that record back over it, leaving the
+  cleanup that had just finished looking overdue, so it ran a second
+  time about a minute later with nobody watching. The same race could
+  lose an Auto-Pilot confirmation and put it silently back into preview.
+  Every one of these writes now takes its turn instead of racing.
+
+- **Protect could quietly stop protecting.** The Protect button on the
+  Stats page accepted twice as many senders as the Settings page keeps.
+  Going past that limit and then opening Settings and pressing Save,
+  without touching the whitelist at all, wrote the shorter list back and
+  unprotected the extra senders. Both pages use one limit now, and a
+  full list says so rather than dropping the oldest entry.
+
+- **Dry Run counted the same mail more than once.** The preview totals
+  each rule separately, and the rule sets overlap on purpose: mail older
+  than a year is also older than three months. A real run clears the
+  first rule before the second one looks, so it never double counts, but
+  the preview moves nothing and counted every overlap again. The summary
+  said "conversations", which made a sum of overlapping rules look like
+  a headcount. It now reports matches across rules and says plainly that
+  mail matching two rules is counted twice.
+
+- **The per-rule storage column always read zero.** The progress page
+  has a Freed MB column beside each rule, and the run never sent it a
+  figure, so every row of every run showed zero while the total at the
+  end was correct. Each rule now reports its own share, and archive runs
+  and dry runs correctly report none.
+
 ## 8.9.1 - Store listing wording
 
 ### Changed

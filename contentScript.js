@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "8.9.1";
+  const GCC_CONTENT_VERSION = "8.10.0";
 
   // =========================
   // Timing & behavior constants
@@ -83,7 +83,12 @@
     "label:imap_starred",
     "in:sent",
     "in:drafts",
+    // 8.10: kept in lockstep with shared.js. `in:chats` is Gmail's
+    // documented spelling and the \b anchor made the singular entry miss
+    // it entirely, so a custom rule could reach Chat history that
+    // tag-before-delete and Restore cannot help with.
     "in:chat",
+    "in:chats",
     "in:scheduled",
     // 8.8: a rule scoped to Trash or Spam puts Gmail in the one view
     // where the toolbar's delete control is "Delete forever". The engine
@@ -3534,8 +3539,20 @@
     return REVIEW_SIGNAL;
   }
 
-  function recordQueryStats({ query, label, count, mode, durationMs }) {
+  // 8.10: `freedMb` is new here. The progress page has rendered a "Freed
+  // MB" column since the table existed, reading `message.freedMb` off
+  // this very message -- and this message has never carried the field,
+  // so every row of every run showed 0 while the run summary reported
+  // the real total. The figure is per-rule and derived exactly the way
+  // the running total is (`count * mbPerEmail`), including the 8.9 gate:
+  // a dry run moves nothing and an archive run leaves the mail in the
+  // account, so neither frees a byte and neither books one.
+  function recordQueryStats({ query, label, count, mode, durationMs, mbPerEmail = 0 }) {
     const queryStats = { query, label, count, mode, durationMs };
+    if (mode === "live" && !CONFIG.archiveInsteadOfDelete) {
+      const mb = (Number(count) || 0) * (Number(mbPerEmail) || 0);
+      if (mb > 0) queryStats.freedMb = Math.round(mb * 10) / 10;
+    }
     stats.perQuery.push(queryStats);
 
     safeSend({
@@ -3565,6 +3582,10 @@
     lastMasterCheckboxClickTime = 0;
 
     const mbPerEmail = estimateMbPerEmail(guardedQuery);
+    // Every exit from this function reports through here, so the size
+    // estimate reaches the per-rule row without ten call sites having to
+    // remember to pass it.
+    const recordQuery = (entry) => recordQueryStats({ ...entry, mbPerEmail });
 
     debugLog("Processing query", {
       rawQuery: query,
@@ -3609,7 +3630,7 @@
 
             safeSend({ detail: `No results for: ${guardedQuery}` });
 
-            recordQueryStats({
+            recordQuery({
               query,
               label,
               count: CONFIG.dryRun ? 0 : queryDeletedCount,
@@ -3644,7 +3665,7 @@
 
             if (signal === "skip") {
               debugLog("User skipped query via Review Mode", { label });
-              recordQueryStats({
+              recordQuery({
                 query,
                 label,
                 count: queryDeletedCount,
@@ -3688,7 +3709,7 @@
 
             safeSend({ detail: `Dry-Run: would affect ${count} for: ${guardedQuery}` });
 
-            recordQueryStats({ query, label, count, mode: "dry", durationMs });
+            recordQuery({ query, label, count, mode: "dry", durationMs });
             return;
           }
 
@@ -3697,7 +3718,7 @@
 
             safeSend({ detail: `Nothing to act on for: ${guardedQuery} (${result.reason})` });
 
-            recordQueryStats({
+            recordQuery({
               query,
               label,
               count: queryDeletedCount,
@@ -3788,7 +3809,7 @@
             await openSearch(guardedQuery);
             if (hasNoResults()) {
               const durationMs = Date.now() - start;
-              recordQueryStats({
+              recordQuery({
                 query,
                 label,
                 count: queryDeletedCount,
@@ -3804,7 +3825,7 @@
           if (hasNoResults()) {
             const durationMs = Date.now() - start;
 
-            recordQueryStats({
+            recordQuery({
               query,
               label,
               count: queryDeletedCount,
@@ -3832,7 +3853,7 @@
               status: `Skipping ${label} after ${Math.round(elapsedMs / 1000)}s`,
               detail: `Repeated ${isRL ? "rate-limit" : "timeout"} signals; moving to next rule. Last error: ${errMsg}`
             });
-            recordQueryStats({
+            recordQuery({
               query,
               label,
               count: queryDeletedCount,
@@ -3866,7 +3887,7 @@
               status: `Skipping ${label} after ${retries} retries`,
               detail: `Last error: ${errMsg}. Run continues with the next rule.`
             });
-            recordQueryStats({
+            recordQuery({
               query,
               label,
               count: queryDeletedCount,
@@ -3884,7 +3905,7 @@
     }
 
     // The pass cap is the only way out of the loop that records
-    // nothing: every other exit returns after recordQueryStats. A rule
+    // nothing: every other exit returns after recordQuery. A rule
     // with more mail than 150 passes can clear therefore vanished from
     // the run summary entirely, and the user was never told the rule
     // had stopped short rather than finished.
@@ -3902,7 +3923,7 @@
       status: `${label} stopped at the pass limit`,
       detail: `Cleared ${queryDeletedCount.toLocaleString()} so far; run the cleaner again to continue this rule.`
     });
-    recordQueryStats({
+    recordQuery({
       query,
       label,
       count: queryDeletedCount,
@@ -3912,7 +3933,7 @@
     } catch (e) {
       // Record partial stats even on failure
       if (!(e instanceof CancellationError)) {
-        recordQueryStats({
+        recordQuery({
           query,
           label,
           count: queryDeletedCount,
@@ -4040,7 +4061,18 @@
     }
 
     if (mode === "dry") {
-      return `Dry run finished: would affect about ${runCount.toLocaleString()} conversations across ${totalQueries} queries.`;
+      // 8.10: this is a SUM of per-rule totals, and the rule tables nest
+      // on purpose -- Normal runs `category:promotions older_than:3m`
+      // and `category:promotions older_than:1y`, and everything the
+      // second matches the first matched too. A live run never
+      // double-counts, because the first rule empties the set before the
+      // second looks; a dry run moves nothing, so every overlap is
+      // counted once per rule that matches it. Calling that total
+      // "conversations" overstated the preview by up to 2x on each
+      // nested pair. Same lesson as the 8.6 report upsell, which summed
+      // overlapping bands into the sentence people read before paying.
+      return `Dry run finished: about ${runCount.toLocaleString()} matches across ${totalQueries} rules. ` +
+        `Rules overlap, so mail matching more than one is counted more than once.`;
     }
 
     if (CONFIG.archiveInsteadOfDelete) {
@@ -6285,7 +6317,11 @@
       // 8.0 mailbox report fixtures
       REPORT,
       REPORT_BANDS,
-      reportScan
+      reportScan,
+      // 8.10: the per-rule row the progress table reads, and the dry-run
+      // sentence, so both can be driven rather than pinned as source.
+      recordQueryStats,
+      buildHumanSummary
     };
   }
 

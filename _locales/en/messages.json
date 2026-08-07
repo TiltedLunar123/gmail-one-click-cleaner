@@ -325,6 +325,8 @@
   "apSweepRunning": { "message": "A sweep is running right now." },
   "apLastSweepDry": { "message": "Last sweep would have archived $1 emails, $2." },
   "apLastSweepLive": { "message": "Last sweep archived $1 emails, $2." },
+  "apDeferredOne": { "message": "1 suggestion needs a different action, so it is waiting on the Clean tab." },
+  "apDeferredMany": { "message": "$1 suggestions need a different action, so they are waiting on the Clean tab." },
   "apFirstSweepSoon": { "message": "First sweep runs soon as a preview. Nothing is archived until you confirm below." },
   "apPreviewConfirm": { "message": "Auto-Pilot preview: would have archived $1 emails. Turn on for real?" },
   "apOnToast": { "message": "Auto-Pilot on - the first sweep is a preview" },
@@ -372,6 +374,7 @@
   "notifTitleMany": { "message": "Gmail Cleaner - $1 emails $2" },
   "notifDryBody": { "message": "Dry run finished. No mail was touched." },
   "notifLiveBody": { "message": "Estimated ~$1 MB freed. Open Stats for details." },
+  "notifArchiveBody": { "message": "Moved to All Mail, so your storage is unchanged. Open Stats for details." },
 
   "__comment_8_0": { "message": "Mailbox Report, Pro panel and assurance copy (8.0)" },
   "tabReport": { "message": "Report" },

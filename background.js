@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "8.9.1";
+  const SW_VERSION = "8.10.0";
 
   // =========================
   // Storage Keys
@@ -1227,19 +1227,33 @@
   // user clicked Protect, was told the sender was protected, and it was
   // not. Refusing loudly is the only honest outcome: a safety control
   // that silently does nothing is worse than one that says no.
+  // 8.10: 100, matching options.js MAX_WHITELIST_ENTRIES. This copy
+  // allowed 200 and dropped the OLDEST entry to make room, while the
+  // Options page normalizes to 100 on LOAD -- so protecting a 101st
+  // sender here, then opening Options and pressing Save without touching
+  // the whitelist, wrote back only the first 100 and quietly unprotected
+  // the rest. The same lesson as 8.7's validate-before-storing fix: a
+  // safety control that silently does nothing is worse than one that
+  // says no, so a full list refuses instead of evicting.
+  const WL_MAX_ENTRIES = 100;
+
   async function addToWhitelist(sender) {
     const s = String(sender || "").trim();
     if (!s) throw new Error("empty sender");
     if (!isValidWhitelistEntry(s)) {
       throw new Error("not an address or domain");
     }
-    const r = await chrome.storage.sync.get(STORAGE_KEYS.WHITELIST);
-    const wl = Array.isArray(r?.[STORAGE_KEYS.WHITELIST]) ? r[STORAGE_KEYS.WHITELIST] : [];
-    if (wl.includes(s)) return false;
-    wl.push(s);
-    if (wl.length > 200) wl.shift();
-    await safeSyncSet({ [STORAGE_KEYS.WHITELIST]: wl }, "whitelist");
-    return true;
+    return withStorageLock(async () => {
+      const r = await chrome.storage.sync.get(STORAGE_KEYS.WHITELIST);
+      const wl = Array.isArray(r?.[STORAGE_KEYS.WHITELIST]) ? r[STORAGE_KEYS.WHITELIST] : [];
+      if (wl.includes(s)) return false;
+      if (wl.length >= WL_MAX_ENTRIES) {
+        throw new Error(`whitelist is full (${WL_MAX_ENTRIES} max), remove one in Options first`);
+      }
+      wl.push(s);
+      await safeSyncSet({ [STORAGE_KEYS.WHITELIST]: wl }, "whitelist");
+      return true;
+    });
   }
 
   // =========================
@@ -2029,7 +2043,37 @@
     return 0;
   }
 
-  function autoPilotPickSenders(senders, feedback, whitelist, protectKeywords, now = Date.now()) {
+  // 8.10: Auto-Pilot applies ONE rule shape to every sender it sweeps,
+  // `from:(...) older_than:6m` with archive forced on. The scan, since
+  // 8.6, picks a per-sender action and measures THAT action's guarded
+  // query -- recordSmartScan above says so in as many words, and stores
+  // the action next to the count it belongs to. This filter is the half
+  // that was missing: the sweep may only take senders whose stored
+  // action the sweep's own rule actually honours.
+  //
+  //   deleteOld   measured on `from:(x) older_than:6m`  -> identical scope
+  //   archiveAll  measured on `from:(x)`                -> strict superset
+  //   purgeLarge  measured on `from:(x) larger:5M ...`  -> DEFER
+  //   unsubscribe moves no mail at all                  -> DEFER
+  //
+  // Without it, a card reading "40 large emails" handed Auto-Pilot a
+  // sweep of every message that sender had ever sent in six months,
+  // because the rule drops the `larger:5M` the 40 was counted through.
+  // That is the 8.7 bulk-apply bug on the one path nobody watches run.
+  // An entry with NO action predates 8.6 and keeps the old behaviour;
+  // the sweep rescans before every apply, so those are stale rows only.
+  const AUTOPILOT_SWEEPABLE_ACTIONS = ["deleteOld", "archiveAll"];
+
+  function autoPilotActionSweepable(sender) {
+    const action = sender?.action;
+    if (typeof action !== "string" || !action) return true;
+    return AUTOPILOT_SWEEPABLE_ACTIONS.includes(action);
+  }
+
+  // Everything that survives the vetoes, ranked, before the action split.
+  // Kept separate so the caller can report what it deferred instead of
+  // dropping those senders silently.
+  function autoPilotEligible(senders, feedback, whitelist, protectKeywords, now = Date.now()) {
     if (!Array.isArray(senders)) return [];
     return senders
       .filter((s) => s && typeof s.email === "string")
@@ -2042,12 +2086,26 @@
       .filter((s) => typeof s.reachable !== "number" || s.reachable > 0)
       .map((s) => ({
         email: s.email.trim().toLowerCase(),
+        action: typeof s.action === "string" ? s.action : "",
         score: Math.min(100, Math.max(0, Number(s.score) || 0) + autoPilotDomainBoost(feedback, s.email)),
         estCount: Math.max(0, Math.min(999999, Number(s.estCount) || 0))
       }))
-      .sort((a, b) => b.score - a.score || b.estCount - a.estCount)
+      .sort((a, b) => b.score - a.score || b.estCount - a.estCount);
+  }
+
+  function autoPilotPickSenders(senders, feedback, whitelist, protectKeywords, now = Date.now()) {
+    return autoPilotEligible(senders, feedback, whitelist, protectKeywords, now)
+      .filter(autoPilotActionSweepable)
       .slice(0, AUTOPILOT_MAX_PER_RUN)
       .map((s) => s.email);
+  }
+
+  // How many eligible senders this sweep had to leave alone because the
+  // sweep's rule is not the one their number was measured through.
+  function autoPilotDeferredCount(senders, feedback, whitelist, protectKeywords, now = Date.now()) {
+    return autoPilotEligible(senders, feedback, whitelist, protectKeywords, now)
+      .filter((s) => !autoPilotActionSweepable(s))
+      .length;
   }
 
   // 8.8: the worker's own copy of the 512-character ceiling shared.js
@@ -2291,12 +2349,14 @@
       const protectKeywords = Array.isArray(syncData?.[STORAGE_KEYS.PROTECT_KEYWORDS])
         ? syncData[STORAGE_KEYS.PROTECT_KEYWORDS]
         : [];
-      const senders = autoPilotPickSenders(
-        localData?.[STORAGE_KEYS.SMART_SCAN]?.senders,
-        localData?.[STORAGE_KEYS.SMART_FEEDBACK],
-        whitelist,
-        protectKeywords
-      );
+      const scanned = localData?.[STORAGE_KEYS.SMART_SCAN]?.senders;
+      const feedback = localData?.[STORAGE_KEYS.SMART_FEEDBACK];
+      const senders = autoPilotPickSenders(scanned, feedback, whitelist, protectKeywords);
+      // 8.7's rule for a mixed plan, applied here: run one action group
+      // and SAY what was left out. Silently dropping them would read as
+      // "Auto-Pilot handled everything" on a sweep that skipped the
+      // large-attachment and unsubscribe suggestions on purpose.
+      const deferred = autoPilotDeferredCount(scanned, feedback, whitelist, protectKeywords);
       const rules = autoPilotBuildRules(senders);
 
       if (!rules.length) {
@@ -2305,7 +2365,7 @@
         const now = Date.now();
         await setAutoPilotState({
           pending: null,
-          lastRun: { at: now, count: 0, dryRun: !cfg.confirmed }
+          lastRun: { at: now, count: 0, dryRun: !cfg.confirmed, deferred }
         });
         await safeSyncSet(
           { [STORAGE_KEYS.AUTOPILOT]: { ...cfg, lastRunAt: now } },
@@ -2348,6 +2408,10 @@
           runId,
           dryRun,
           senderCount: senders.length,
+          // Rides along so resolveAutoPilotDone can put it on lastRun
+          // without re-reading a scan store the finished run may have
+          // rewritten underneath it.
+          deferred,
           startedAt: Date.now(),
           tabId: gmailTab.id
         }
@@ -2503,7 +2567,12 @@
         : Math.max(0, Number(summary?.count) || 0);
       const patch = {
         pending: null,
-        lastRun: { at: now, count, dryRun: Boolean(pending.dryRun) }
+        lastRun: {
+          at: now,
+          count,
+          dryRun: Boolean(pending.dryRun),
+          deferred: Math.max(0, Number(pending.deferred) || 0)
+        }
       };
       if (pending.dryRun) {
         // The anti-1-star mechanism: the first sweep's would-have tally
@@ -2541,8 +2610,12 @@
     if (enabled && !(await hasProLicense())) {
       return { ok: false, error: "pro_required" };
     }
+    // Under the lock like resolveAutoPilotDone, which writes lastRunAt
+    // to this same key: a toggle racing a finishing sweep otherwise
+    // reverts one of the two, and losing lastRunAt re-arms the weekly
+    // alarm about a minute out.
     const next = { ...cfg, enabled: Boolean(enabled) };
-    await safeSyncSet({ [STORAGE_KEYS.AUTOPILOT]: next }, "autoPilot");
+    await withStorageLock(() => safeSyncSet({ [STORAGE_KEYS.AUTOPILOT]: next }, "autoPilot"));
     if (!enabled) {
       await setAutoPilotState({ pending: null });
     }
@@ -2555,9 +2628,11 @@
     if (!(await hasProLicense())) {
       return { ok: false, error: "pro_required" };
     }
-    await safeSyncSet(
-      { [STORAGE_KEYS.AUTOPILOT]: { ...cfg, confirmed: true } },
-      "autoPilot"
+    // Same lock, same key. Losing this write is the worst of the three:
+    // the user's explicit "turn on for real" silently reverts to preview
+    // mode and Auto-Pilot never archives anything.
+    await withStorageLock(() =>
+      safeSyncSet({ [STORAGE_KEYS.AUTOPILOT]: { ...cfg, confirmed: true } }, "autoPilot")
     );
     await setAutoPilotState({ preview: null });
     return { ok: true, autoPilot: await getAutoPilotForPopup() };
@@ -2580,9 +2655,25 @@
         ? bgT("notifTitleOne", `Gmail Cleaner - 1 email ${action}`, [action])
         : bgT("notifTitleMany", `Gmail Cleaner - ${count} emails ${action}`, [String(count), action]);
       const freedText = String(summary?.freedMb || 0);
-      const msg = summary?.dryRun
-        ? bgT("notifDryBody", "Dry run finished. No mail was touched.")
-        : bgT("notifLiveBody", `Estimated ~${freedText} MB freed. Open Stats for details.`, [freedText]);
+      // 8.10: archiving moves mail to All Mail, where it still counts
+      // against the quota, so there is no storage figure to report. The
+      // engine stopped recording one in 8.9 and every other surface
+      // learned to drop the clause rather than print zero (progress.js
+      // freedMbOf, the popup's #resultFreedClause, the Stats history
+      // column). This notification kept the delete wording for both, so
+      // an unattended archive sweep announced "Estimated ~0 MB freed" --
+      // and the notification is the ONLY surface an unattended run has.
+      let msg;
+      if (summary?.dryRun) {
+        msg = bgT("notifDryBody", "Dry run finished. No mail was touched.");
+      } else if (summary?.action === "archive") {
+        msg = bgT(
+          "notifArchiveBody",
+          "Moved to All Mail, so your storage is unchanged. Open Stats for details."
+        );
+      } else {
+        msg = bgT("notifLiveBody", `Estimated ~${freedText} MB freed. Open Stats for details.`, [freedText]);
+      }
       // Keep to the four properties every browser accepts: Firefox
       // rejects notification options it does not implement (priority,
       // buttons, requireInteraction) with a type error.
@@ -2884,8 +2975,17 @@
     });
   }
 
+  // 8.10: takes the same lock markScheduleRan does. That function's own
+  // comment says it is "serialized against the other sync
+  // read-modify-writes" -- but it was the only one of them holding the
+  // lock, and a queue one participant joins is not a queue. The race it
+  // loses is the 7.15 bug verbatim: a cleanup finishes and stamps
+  // lastRun, an Options toggle that read the array a moment earlier
+  // writes the whole thing back, the fresh lastRun disappears,
+  // restoreScheduledAlarms re-anchors about a minute out, and the run
+  // that just finished runs again unattended.
   async function saveSchedule(schedule) {
-    try {
+    return withStorageLock(async () => {
       const result = await chrome.storage.sync.get(STORAGE_KEYS.SCHEDULES);
       const schedules = result?.[STORAGE_KEYS.SCHEDULES] || [];
 
@@ -2909,31 +3009,36 @@
       }
 
       // Issue #10: validate quota before writing so users get a clear
-      // error rather than silent truncation.
+      // error rather than silent truncation. The caller needs the throw:
+      // the Options page turns it into a visible error.
       try {
         await safeSyncSet({ [STORAGE_KEYS.SCHEDULES]: schedules }, "schedules");
       } catch (e) {
-        // Surface the failure to whoever called us via the throw chain.
+        console.error("[GCC SW] saveSchedule failed:", e);
         throw e;
       }
-    } catch (e) {
-      console.error("[GCC SW] saveSchedule failed:", e);
-      throw e;
-    }
+    });
   }
 
+  // Same lock, same reason: this rewrites the WHOLE array, so a delete
+  // racing a lastRun stamp rolls back every other schedule's anchor.
   async function deleteSchedule(scheduleId) {
-    try {
-      const result = await chrome.storage.sync.get(STORAGE_KEYS.SCHEDULES);
-      let schedules = result?.[STORAGE_KEYS.SCHEDULES] || [];
-      schedules = schedules.filter(s => s.id !== scheduleId);
-      await chrome.storage.sync.set({ [STORAGE_KEYS.SCHEDULES]: schedules });
+    return withStorageLock(async () => {
+      try {
+        const result = await chrome.storage.sync.get(STORAGE_KEYS.SCHEDULES);
+        let schedules = result?.[STORAGE_KEYS.SCHEDULES] || [];
+        schedules = schedules.filter(s => s.id !== scheduleId);
+        // safeSyncSet, not a bare set: this path wrote past the 8KB
+        // per-item cap without noticing, which is the silent truncation
+        // Issue #10 added the helper to stop.
+        await safeSyncSet({ [STORAGE_KEYS.SCHEDULES]: schedules }, "schedules");
 
-      // Clear alarm
-      await chrome.alarms.clear(ALARM_PREFIX + scheduleId);
-    } catch (e) {
-      console.error("[GCC SW] deleteSchedule failed:", e);
-    }
+        // Clear alarm
+        await chrome.alarms.clear(ALARM_PREFIX + scheduleId);
+      } catch (e) {
+        console.error("[GCC SW] deleteSchedule failed:", e);
+      }
+    });
   }
 
   // =========================
@@ -2984,6 +3089,9 @@
       autoPilotIsDismissed,
       autoPilotDomainBoost,
       autoPilotPickSenders,
+      autoPilotEligible,
+      autoPilotActionSweepable,
+      autoPilotDeferredCount,
       autoPilotBuildRules,
       runAutoPilot,
       runScheduledCleanup,

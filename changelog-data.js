@@ -6,13 +6,136 @@
 // even of a file inside the package, would end the extension's
 // no-network-calls promise.
 //
-// Carries the newest 12 of 64 releases; the page says so
+// Carries the newest 12 of 65 releases; the page says so
 // and links the full log on GitHub.
 
 // eslint-disable-next-line no-unused-vars
 var GCC_CHANGELOG = {
-  "total": 64,
+  "total": 65,
   "entries": [
+    {
+      "version": "8.10.0",
+      "title": "What the numbers promise, the runs deliver",
+      "sections": [
+        {
+          "name": "Fixed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "Auto-Pilot swept senders it had never measured that way."
+                ],
+                [
+                  "",
+                  " Every suggestion card picks its own action and counts the mail that action would actually move: \"40 large emails\" is counted with the large-file filter applied, and an Unsubscribe card moves no mail at all. The weekly sweep read those counts and then archived six months of everything from the same sender, because the one rule it builds drops the filter the number was measured through. A card promising 40 could quietly archive thousands. The sweep now only takes suggestions its own rule genuinely fits, says on the Clean tab how many it left for you, and leaves the rest to be run by hand where you can see them."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Steps in the Mailbox Report that were never searched looked empty."
+                ],
+                [
+                  "",
+                  " When one of the report's searches times out, the report is meant to say \"not measured\" rather than print a confident zero. It has said so in the code since 8.9 and never once on screen: the step was dropped from the list before it could be drawn, so a report missing a whole section read as a mailbox with nothing in it. Unsearched steps now appear, and say what they are."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "A custom rule could reach your Google Chat history."
+                ],
+                [
+                  "",
+                  " The rule checker refuses queries that point at Sent, Drafts, Trash, Spam and anything starred or important, because a bulk delete there is not something Restore can undo. It has been refusing "
+                ],
+                [
+                  "c",
+                  "in:chat"
+                ],
+                [
+                  "",
+                  " since the check was written, and Gmail's operator is "
+                ],
+                [
+                  "c",
+                  "in:chats"
+                ],
+                [
+                  "",
+                  ", so the one spelling anybody would type went straight through. Both are refused now. Excluding chat with a leading minus still works."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Archive sweeps announced storage they had not freed."
+                ],
+                [
+                  "",
+                  " Archiving moves mail to All Mail, where it still counts against your Google storage. 8.9 took the storage figure off every screen that showed one, and missed the desktop notification, which kept telling anyone who had turned notifications on that an archive run had freed about 0 MB. That is the only report an unattended sweep ever gives you. It now says where the mail went and makes no storage claim."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Changing a setting could make a finished cleanup run again."
+                ],
+                [
+                  "",
+                  " A scheduled cleanup writes down when it last ran, and the alarm for the next one is anchored to that. Editing any schedule at the same moment could write an older copy of that record back over it, leaving the cleanup that had just finished looking overdue, so it ran a second time about a minute later with nobody watching. The same race could lose an Auto-Pilot confirmation and put it silently back into preview. Every one of these writes now takes its turn instead of racing."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Protect could quietly stop protecting."
+                ],
+                [
+                  "",
+                  " The Protect button on the Stats page accepted twice as many senders as the Settings page keeps. Going past that limit and then opening Settings and pressing Save, without touching the whitelist at all, wrote the shorter list back and unprotected the extra senders. Both pages use one limit now, and a full list says so rather than dropping the oldest entry."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Dry Run counted the same mail more than once."
+                ],
+                [
+                  "",
+                  " The preview totals each rule separately, and the rule sets overlap on purpose: mail older than a year is also older than three months. A real run clears the first rule before the second one looks, so it never double counts, but the preview moves nothing and counted every overlap again. The summary said \"conversations\", which made a sum of overlapping rules look like a headcount. It now reports matches across rules and says plainly that mail matching two rules is counted twice."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The per-rule storage column always read zero."
+                ],
+                [
+                  "",
+                  " The progress page has a Freed MB column beside each rule, and the run never sent it a figure, so every row of every run showed zero while the total at the end was correct. Each rule now reports its own share, and archive runs and dry runs correctly report none."
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "8.9.1",
       "title": "Store listing wording",
@@ -1282,187 +1405,6 @@ var GCC_CHANGELOG = {
                   " described the run counter as synced when it has always been device-local, and the README compared Pro against a monthly price when the competitors' annual plans are the honest comparison."
                 ]
               ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "version": "7.15.0",
-      "title": "Safety, locale and scheduling fixes",
-      "intro": [
-        "A second sweep, in the same spirit as 7.14.2 and reaching the places that one did not: the paths that only run when nobody is watching, and the ones that only misbehave when Gmail is not in English."
-      ],
-      "sections": [
-        {
-          "name": "Fixed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "Scheduled cleanups now honour your Global Whitelist."
-                ],
-                [
-                  "",
-                  " They never did. The list you fill in under \"Never Delete\" was applied to every manual run and to Auto-Pilot, but a scheduled cleanup read a separate, per-schedule list that nothing has ever been able to fill in, so it ran with no whitelist at all. The one kind of run you are not watching was the one that could delete mail from a sender you had protected."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Custom rules now respect their own Action."
-                ],
-                [
-                  "",
-                  " A custom rule saved as \"Archive\" or \"Label only\" was stored, shown with its badge, and then executed with the run's action anyway, so a rule you set to label your invoices was deleting them. Archive rules are now used when you run the cleaner in Archive mode, and Label-only rules are never executed by a cleanup run."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The big-run guardrails work in every language."
-                ],
-                [
-                  "",
-                  " 7.14.2 made them measure the real match total instead of the page on screen, but it found that total by reading Gmail's English \"1-50 of 3,200\" and its English \"all conversations selected\" banner. On a German, French, Japanese or Korean Gmail both reads failed, so the guardrails were back to sizing a 25,000-conversation sweep at about 50. The counter is now read without relying on any particular language, an all-matching selection is detected structurally, and the guardrails always measure what the click can actually touch."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Bulk deletes complete on a non-English Gmail."
-                ],
-                [
-                  "",
-                  " The confirmation dialog Gmail shows for a very large batch was only ever found by English phrases, so on other languages the run waited, timed out and quietly did nothing. It is now found by its buttons, which were already translated."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A whitelist entry like "
-                ],
-                [
-                  "bc",
-                  "*@bank.com"
-                ],
-                [
-                  "b",
-                  " protects that domain."
-                ],
-                [
-                  "",
-                  " The Options page accepts and documents that shape, and Smart Suggestions already treated it as the whole domain, but the cleanup query passed it to Gmail verbatim. Gmail has no wildcard there, so the entry protected nothing."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Rules that target protected mail are refused wherever they come from."
-                ],
-                [
-                  "",
-                  " Custom rules were checked; the Light / Normal / Deep boxes were not, and saving one that targeted starred or sent mail raised no objection at all. Both sides now refuse them, and a Gmail "
-                ],
-                [
-                  "c",
-                  "{a b}"
-                ],
-                [
-                  "",
-                  " group can no longer hide the token from the check."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "\"Restore defaults\" no longer wipes your safety lists."
-                ],
-                [
-                  "",
-                  " It said it would replace your rules. It also silently emptied the Global Whitelist and your Protected Keywords. It now restores rules only."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Auto-Pilot only ever acts on its own scan."
-                ],
-                [
-                  "",
-                  " A Smart Suggestions scan you started yourself could hand a pending sweep its \"scan finished\" and set an unattended archive run going. It also now re-checks vacation mode before it acts, so switching that on while the scan is running stops the sweep."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Two overdue schedules no longer fire in the same instant"
-                ],
-                [
-                  "",
-                  ", which could start one cleanup running the other schedule's settings, and changing a schedule after a run can no longer make that run repeat a minute later."
-                ]
-              ]
-            },
-            {
-              "text": "Cancel is now honoured between selecting mail and moving it during a Restore, and between opening an unsubscribe dialog and confirming it."
-            },
-            {
-              "text": "A restore that moves everything matching now reports how much it actually moved instead of the page count."
-            },
-            {
-              "text": "A rule that stops because it hit the per-run pass limit now says so and appears in the run summary instead of vanishing from it."
-            },
-            {
-              "text": "The large-batch warning can fire again; it was comparing a page of at most 100 rows against a threshold of 2,000."
-            }
-          ]
-        },
-        {
-          "name": "Changed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "Scoped runs keep your Minimum Age."
-                ],
-                [
-                  "",
-                  " A Storage X-ray purge or a Smart Suggestion used to drop it for that run. \"Archive all\" carries no age of its own, so with the floor dropped it could act on mail that arrived today. Your floor is now applied whenever it is stricter than the run's own age, exactly as it is for a normal cleanup."
-                ]
-              ]
-            },
-            {
-              "text": "Editing settings in the popup while a run is in progress no longer rewrites what a reconnect would run, and a run that was refused because another was already going no longer leaves its settings behind."
-            },
-            {
-              "text": "Opening the progress dashboard for a scheduled or Auto-Pilot run now refreshes a leftover tab instead of showing you the previous run's finished screen with Cancel greyed out."
-            }
-          ]
-        },
-        {
-          "name": "Privacy",
-          "items": [
-            {
-              "text": "The last-run summary is synced so you see it on your other browsers, and it carried the literal Gmail searches that ran. For a Storage X-ray or Smart Suggestions run those searches contain sender addresses read from your mailbox. The searches are now removed before that summary is synced; the counts and labels it displays are unchanged. SECURITY.md has also been corrected: it said no message IDs were stored, when the recovery log keeps a sample of Gmail thread IDs on your device so you can find cleaned mail again."
             }
           ]
         }

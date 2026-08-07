@@ -298,6 +298,78 @@ describe("pin: recommendation selection matches GCC.smart", () => {
     const many = Array.from({ length: 40 }, (_, i) => scanSender(`s${i}@bulk.com`, 50 + (i % 30)));
     expect(INTERNALS.autoPilotPickSenders(many, {}, [], []).length).toBe(25);
   });
+});
+
+// 8.10: every assertion below fails against the 8.9.1 source.
+//
+// The sweep applies ONE rule shape, `from:(...) older_than:6m` with
+// archive forced on, to every sender it takes. The scan has picked a
+// per-sender action since 8.6 and measured THAT action's guarded query,
+// and recordSmartScan stores the action beside the count it belongs to.
+// The sweep read the count and ignored the action, so a card measured
+// through `larger:5M` handed Auto-Pilot every message that sender had
+// sent in six months.
+describe("8.10: the sweep only takes senders its own rule can honour", () => {
+  const withAction = (email, action, over = {}) =>
+    scanSender(email, 80, { action, reachable: 40, ...over });
+
+  test("purgeLarge is deferred: its count was measured through larger:5M", () => {
+    const picked = INTERNALS.autoPilotPickSenders(
+      [withAction("big@shop.com", "purgeLarge")], {}, [], []
+    );
+    expect(picked).toEqual([]);
+    // The rule the sweep would have built is not the one the card sold.
+    expect(GCC.smart.buildActionRule({ email: "big@shop.com" }, "purgeLarge").query)
+      .toContain("larger:5M");
+    expect(INTERNALS.autoPilotBuildRules(["big@shop.com"])[0])
+      .not.toContain("larger:5M");
+  });
+
+  test("unsubscribe is deferred: it moves no mail and carries no reachable", () => {
+    // Deliberately no `reachable`, which is how the engine reports an
+    // unsubscribe card. The 8.6 held-back filter reads a MISSING
+    // reachable as "not measured" and lets it through, so the action
+    // check is the only thing standing between an Unsubscribe card and
+    // six months of that sender's mail being archived.
+    const sender = scanSender("flood@list.com", 95, { action: "unsubscribe" });
+    expect(sender.reachable).toBeUndefined();
+    expect(INTERNALS.autoPilotPickSenders([sender], {}, [], [])).toEqual([]);
+  });
+
+  test("deleteOld and archiveAll are swept: the rule matches or narrows", () => {
+    const picked = INTERNALS.autoPilotPickSenders(
+      [withAction("old@x.com", "deleteOld"), withAction("all@y.com", "archiveAll")],
+      {}, [], []
+    );
+    expect(picked).toEqual(["old@x.com", "all@y.com"]);
+  });
+
+  test("an entry with no action predates 8.6 and keeps the old behaviour", () => {
+    const legacy = scanSender("legacy@x.com", 70);
+    expect(legacy.action).toBeUndefined();
+    expect(INTERNALS.autoPilotPickSenders([legacy], {}, [], [])).toEqual(["legacy@x.com"]);
+  });
+
+  test("deferred senders are counted, not silently dropped", () => {
+    const senders = [
+      withAction("old@x.com", "deleteOld"),
+      withAction("big@shop.com", "purgeLarge"),
+      scanSender("flood@list.com", 95, { action: "unsubscribe" })
+    ];
+    expect(INTERNALS.autoPilotPickSenders(senders, {}, [], [])).toEqual(["old@x.com"]);
+    expect(INTERNALS.autoPilotDeferredCount(senders, {}, [], [])).toBe(2);
+  });
+
+  test("a sender vetoed for safety is not counted as deferred", () => {
+    // Whitelisted, dismissed and guard-emptied senders were never
+    // candidates. Reporting them as "waiting for you" would send the
+    // user looking for suggestions that are not there.
+    const senders = [
+      withAction("wl@corp.com", "purgeLarge"),
+      withAction("empty@x.com", "purgeLarge", { reachable: 0 })
+    ];
+    expect(INTERNALS.autoPilotDeferredCount(senders, {}, ["*@corp.com"], [])).toBe(0);
+  });
 
   // 8.8: both sides return a LIST now. One from:() group could not hold
   // twenty-five realistic addresses inside the 512-character ceiling,

@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const PROGRESS_VERSION = "8.9.1";
+  const PROGRESS_VERSION = "8.10.0";
 
   const CONFIG = Object.freeze({
     MAX_LOG_ENTRIES: 300,
@@ -446,10 +446,12 @@
 
     if (typeof stats.totalQueries === "number") chips.push(["Queries", formatNumber(stats.totalQueries)]);
 
-    // Freed storage if provided by content script
-    const freedMb =
-      Number(stats.totalFreedMb ?? stats.freedMb ?? stats.totalFreedMB ?? stats.freedMB);
-    if (Number.isFinite(freedMb) && freedMb > 0) chips.push(["Freed", `${formatMB(freedMb)} MB`]);
+    // Freed storage if provided by content script. Through freedMbOf, so
+    // the archive rule this file already states in one place holds in
+    // both: the KPI chip used to read the raw total and would have shown
+    // "Freed 300 MB" beside a done card that correctly showed none.
+    const freedMb = freedMbOf(stats);
+    if (freedMb > 0) chips.push(["Freed", `${formatMB(freedMb)} MB`]);
 
     const duration = Date.now() - state.startTime;
     if (duration > 1000) chips.push(["Duration", formatDuration(duration)]);
