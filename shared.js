@@ -549,7 +549,15 @@ const GCC = (() => {
     "label:imap_starred",
     "in:sent",
     "in:drafts",
+    // 8.10: `in:chats` is the operator Gmail documents, and the plural
+    // walked straight past the singular entry that had guarded this
+    // since the list was written. The matcher anchors each token with
+    // \b, and the trailing "s" is a word character, so `in:chat\b` never
+    // fired on `in:chats`. This file's own REPORT_HEADLINE_QUERY excludes
+    // `-in:chats`, which is what gave the typo away. Both spellings stay
+    // listed: neither belongs in a bulk-delete rule.
     "in:chat",
+    "in:chats",
     "in:scheduled",
     // 8.8: Trash and Spam are the views where Gmail's delete control
     // means "Delete forever". A rule scoped to either destroys mail
@@ -1305,6 +1313,16 @@ const GCC = (() => {
           // stored report that came back corrupted would otherwise
           // inflate the one number the copy promises is conservative.
           estMb: def.mbFloor ? count * def.mbFloor : 0,
+          // 8.10: carried, not rebuilt. 8.9 taught the engine to mark a
+          // band whose search timed out so the popup could say "not
+          // measured" instead of printing a confident 0, and the worker
+          // persists the flag -- but this function rebuilds every band
+          // from the field list above, and `measured` was not on it. The
+          // popup re-ranks at ingest AND at render, so the flag died
+          // before it ever reached the branch written to read it and the
+          // whole honesty fix has never once appeared on screen. Absent
+          // still means true, the same reading the worker uses.
+          measured: b.measured !== false,
           cleanedAt: Number(b.cleanedAt) || 0
         };
       })

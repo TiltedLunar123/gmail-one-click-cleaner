@@ -237,7 +237,10 @@ describe("7.15: a rule stopped by the pass cap is reported", () => {
   test("records stats and warns when the loop runs out of passes", () => {
     expect(pq).toMatch(/stopped at the pass limit/);
     const warnAt = pq.indexOf("stopped at the pass limit");
-    expect(pq.slice(warnAt)).toMatch(/recordQueryStats\(/);
+    // 8.10: processQuery reports through the local `recordQuery` wrapper
+    // now, which adds the per-rule size estimate before delegating to
+    // recordQueryStats. Same exit, one name in.
+    expect(pq.slice(warnAt)).toMatch(/recordQuery\(/);
   });
 });
 
