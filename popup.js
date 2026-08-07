@@ -2451,6 +2451,20 @@ document.addEventListener("DOMContentLoaded", () => {
         done.className = "report-row-done";
         done.textContent = t("reportDone", "Cleared");
         row.appendChild(done);
+      } else if (band.measured === false) {
+        // 8.10: the row is here to say this step was never searched, and
+        // that is all it may do. Giving it the ordinary control would
+        // put a live purge behind a figure the scan never produced,
+        // which is the one thing this product keeps having to relearn,
+        // and would show a free user a Pro pitch on a row with no number
+        // in it. Rescanning is the only sensible next move, so say so.
+        const note = document.createElement("div");
+        note.className = "report-row-blocked";
+        note.textContent = t(
+          "reportUnmeasuredHint",
+          "This search did not finish. Scan again to include this step."
+        );
+        main.appendChild(note);
       } else {
         const btn = document.createElement("button");
         btn.type = "button";

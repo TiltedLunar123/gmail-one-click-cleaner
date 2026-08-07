@@ -359,6 +359,7 @@
   "changelogOpenFailed": { "message": "Não foi possível abrir as notas da versão." },
   "versionBadgeAria": { "message": "Versão $1, veja as novidades" },
   "reportBandUnmeasured": { "message": "não medido" },
+  "reportUnmeasuredHint": { "message": "Esta busca não terminou. Escaneie de novo para incluir esta etapa." },
   "reportSafeModeSkips": { "message": "O Modo Seguro ignora esta etapa" },
   "smartApplyStarted": { "message": "sugestão iniciada" },
   "accountPill": { "message": "Conta $1" },

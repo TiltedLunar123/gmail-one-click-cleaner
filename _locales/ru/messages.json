@@ -359,6 +359,7 @@
   "changelogOpenFailed": { "message": "Не удалось открыть список изменений." },
   "versionBadgeAria": { "message": "Версия $1, что нового" },
   "reportBandUnmeasured": { "message": "не измерено" },
+  "reportUnmeasuredHint": { "message": "Этот поиск не завершён. Запустите сканирование снова, чтобы включить этот шаг." },
   "reportSafeModeSkips": { "message": "Безопасный режим пропускает этот шаг" },
   "smartApplyStarted": { "message": "выполнение начато" },
   "accountPill": { "message": "Аккаунт $1" },

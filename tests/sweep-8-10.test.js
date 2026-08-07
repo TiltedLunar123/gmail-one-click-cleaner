@@ -151,6 +151,22 @@ describe("8.10: a band whose search timed out survives ranking", () => {
     expect(fn).toMatch(/\.filter\(\(b\) => b\.count > 0 \|\| b\.measured === false\)/);
   });
 
+  test("an unmeasured row gets no action control, only a rescan hint", () => {
+    // Showing the row is the honesty fix. Giving it the ordinary button
+    // would put a live purge behind a number the scan never produced,
+    // and show a free user a Pro pitch on a row reading "not measured".
+    const fn = fnBody(popupSrc, "const renderReport = () => {");
+    expect(fn).toMatch(/} else if \(band\.measured === false\) \{/);
+    expect(fn).toMatch(/reportUnmeasuredHint/);
+    const branchAt = fn.indexOf("band.measured === false");
+    const btnAt = fn.indexOf('btn.setAttribute("data-band"');
+    expect(branchAt).toBeLessThan(btnAt);
+    for (const loc of ["en", "es", "fr", "de", "pt_BR", "ru", "ja"]) {
+      const cat = JSON.parse(read(`_locales/${loc}/messages.json`));
+      expect(typeof cat.reportUnmeasuredHint?.message).toBe("string");
+    }
+  });
+
   test("the whole-plan button still counts only runnable bands", () => {
     // reportPlanGroup filters on count > 0, so an unmeasured row must
     // not be what makes the plan button appear.
@@ -226,14 +242,33 @@ describe("8.10: every sync read-modify-write takes the storage lock", () => {
     expect(fnBody(bgSrc, header)).toMatch(/withStorageLock\(/);
   });
 
-  test("the Auto-Pilot config writers take it too", () => {
-    // resolveAutoPilotDone writes lastRunAt to this same key under the
-    // lock. A toggle or a confirm that races it reverts one of the two,
-    // and losing `confirmed` silently puts the user back in preview mode.
-    expect(fnBody(bgSrc, "async function setAutoPilotEnabled(enabled) {"))
-      .toMatch(/withStorageLock\(\(\) => safeSyncSet/);
-    expect(fnBody(bgSrc, "async function confirmAutoPilot() {"))
-      .toMatch(/withStorageLock\(\(\) =>[\s\S]*safeSyncSet/);
+  // The READ has to be inside the lock, not just the write. A writer
+  // that reads first and locks only its set still merges into a
+  // snapshot taken before the sweep's write, and puts the old lastRunAt
+  // straight back: locking the set alone buys nothing at all.
+  test.each([
+    ["setAutoPilotEnabled", "async function setAutoPilotEnabled(enabled) {"],
+    ["confirmAutoPilot", "async function confirmAutoPilot() {"]
+  ])("%s reads AND writes inside the lock", (_name, header) => {
+    const fn = fnBody(bgSrc, header);
+    const lockAt = fn.indexOf("withStorageLock(");
+    const readAt = fn.indexOf("getAutoPilotConfig()");
+    const writeAt = fn.indexOf("safeSyncSet(");
+    expect(lockAt).toBeGreaterThan(-1);
+    expect(readAt).toBeGreaterThan(lockAt);
+    expect(writeAt).toBeGreaterThan(readAt);
+  });
+
+  test("the licence check stays outside the lock", () => {
+    // It does WebCrypto and touches none of this key. Holding the queue
+    // through it would stall every other storage write in the worker.
+    for (const header of [
+      "async function setAutoPilotEnabled(enabled) {",
+      "async function confirmAutoPilot() {"
+    ]) {
+      const fn = fnBody(bgSrc, header);
+      expect(fn.indexOf("hasProLicense()")).toBeLessThan(fn.indexOf("withStorageLock("));
+    }
   });
 
   test("deleteSchedule writes through the quota check like its siblings", () => {

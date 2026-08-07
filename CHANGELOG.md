@@ -23,7 +23,9 @@ This log tracks user-visible behavior, UI changes, and important internal fixes.
   in the code since 8.9 and never once on screen: the step was dropped
   from the list before it could be drawn, so a report missing a whole
   section read as a mailbox with nothing in it. Unsearched steps now
-  appear, and say what they are.
+  appear, and say what they are. They carry no Run button: there is no
+  figure behind one yet, and this is an extension that does not act on
+  numbers it has not measured. They ask you to scan again instead.
 
 - **A custom rule could reach your Google Chat history.** The rule
   checker refuses queries that point at Sent, Drafts, Trash, Spam and

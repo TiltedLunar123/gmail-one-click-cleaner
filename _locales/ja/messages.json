@@ -359,6 +359,7 @@
   "changelogOpenFailed": { "message": "リリースノートを開けませんでした。" },
   "versionBadgeAria": { "message": "バージョン $1、新機能を見る" },
   "reportBandUnmeasured": { "message": "未計測" },
+  "reportUnmeasuredHint": { "message": "この検索は完了しませんでした。このステップを含めるには再スキャンしてください。" },
   "reportSafeModeSkips": { "message": "セーフモードはこの手順をスキップします" },
   "smartApplyStarted": { "message": "提案を開始しました" },
   "accountPill": { "message": "アカウント $1" },

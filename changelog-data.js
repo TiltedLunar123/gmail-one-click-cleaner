@@ -40,7 +40,7 @@ var GCC_CHANGELOG = {
                 ],
                 [
                   "",
-                  " When one of the report's searches times out, the report is meant to say \"not measured\" rather than print a confident zero. It has said so in the code since 8.9 and never once on screen: the step was dropped from the list before it could be drawn, so a report missing a whole section read as a mailbox with nothing in it. Unsearched steps now appear, and say what they are."
+                  " When one of the report's searches times out, the report is meant to say \"not measured\" rather than print a confident zero. It has said so in the code since 8.9 and never once on screen: the step was dropped from the list before it could be drawn, so a report missing a whole section read as a mailbox with nothing in it. Unsearched steps now appear, and say what they are. They carry no Run button: there is no figure behind one yet, and this is an extension that does not act on numbers it has not measured. They ask you to scan again instead."
                 ]
               ]
             },

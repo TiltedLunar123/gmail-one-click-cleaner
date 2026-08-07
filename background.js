@@ -2605,17 +2605,24 @@
     };
   }
 
+  // The READ has to be inside the lock too, which is the whole point:
+  // resolveAutoPilotDone holds the chain for its entire get-merge-set,
+  // so a writer that reads first and only locks its write still merges
+  // into a snapshot taken before the sweep's write and puts the old
+  // lastRunAt back. Locking the set alone changes nothing. The licence
+  // check stays outside: it does WebCrypto, touches none of this, and
+  // has no business holding the queue while it runs.
   async function setAutoPilotEnabled(enabled) {
-    const cfg = await getAutoPilotConfig();
     if (enabled && !(await hasProLicense())) {
       return { ok: false, error: "pro_required" };
     }
-    // Under the lock like resolveAutoPilotDone, which writes lastRunAt
-    // to this same key: a toggle racing a finishing sweep otherwise
-    // reverts one of the two, and losing lastRunAt re-arms the weekly
-    // alarm about a minute out.
-    const next = { ...cfg, enabled: Boolean(enabled) };
-    await withStorageLock(() => safeSyncSet({ [STORAGE_KEYS.AUTOPILOT]: next }, "autoPilot"));
+    await withStorageLock(async () => {
+      const cfg = await getAutoPilotConfig();
+      await safeSyncSet(
+        { [STORAGE_KEYS.AUTOPILOT]: { ...cfg, enabled: Boolean(enabled) } },
+        "autoPilot"
+      );
+    });
     if (!enabled) {
       await setAutoPilotState({ pending: null });
     }
@@ -2623,17 +2630,20 @@
     return { ok: true, autoPilot: await getAutoPilotForPopup() };
   }
 
+  // Same shape, and losing this write is the worst of the three: the
+  // user's explicit "turn on for real" silently reverts to preview mode
+  // and Auto-Pilot never archives anything again.
   async function confirmAutoPilot() {
-    const cfg = await getAutoPilotConfig();
     if (!(await hasProLicense())) {
       return { ok: false, error: "pro_required" };
     }
-    // Same lock, same key. Losing this write is the worst of the three:
-    // the user's explicit "turn on for real" silently reverts to preview
-    // mode and Auto-Pilot never archives anything.
-    await withStorageLock(() =>
-      safeSyncSet({ [STORAGE_KEYS.AUTOPILOT]: { ...cfg, confirmed: true } }, "autoPilot")
-    );
+    await withStorageLock(async () => {
+      const cfg = await getAutoPilotConfig();
+      await safeSyncSet(
+        { [STORAGE_KEYS.AUTOPILOT]: { ...cfg, confirmed: true } },
+        "autoPilot"
+      );
+    });
     await setAutoPilotState({ preview: null });
     return { ok: true, autoPilot: await getAutoPilotForPopup() };
   }

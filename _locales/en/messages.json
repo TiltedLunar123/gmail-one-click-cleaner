@@ -359,6 +359,7 @@
   "changelogOpenFailed": { "message": "Could not open the release notes." },
   "versionBadgeAria": { "message": "Version $1, see what's new" },
   "reportBandUnmeasured": { "message": "not measured" },
+  "reportUnmeasuredHint": { "message": "This search did not finish. Scan again to include this step." },
   "reportSafeModeSkips": { "message": "Safe Mode skips this step" },
   "smartApplyStarted": { "message": "suggestion started" },
   "accountPill": { "message": "Account $1" },
