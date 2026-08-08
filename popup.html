@@ -2973,11 +2973,15 @@
                archive run frees nothing. It moves mail to All Mail, where
                it still counts against the quota, so the clause is removed
                rather than shown as "Freed ~0 MB". -->
-          <span data-i18n="resultLead">Cleaned</span> <strong id="resultCount">0</strong> <span data-i18n="resultUnit">emails</span><span id="resultFreedClause"><span data-i18n="resultMid"> · Freed ~</span><strong id="resultSize">0 MB</strong> <span data-i18n="resultTail">(est.)</span></span>
-          <br><span style="opacity: 0.8" data-i18n="resultTrashNote">(all moved to Trash)</span>
+          <span id="resultLead" data-i18n="resultLead">Cleaned</span> <strong id="resultCount">0</strong> <span data-i18n="resultUnit">emails</span><span id="resultFreedClause"><span data-i18n="resultMid"> · Freed ~</span><strong id="resultSize">0 MB</strong> <span data-i18n="resultTail">(est.)</span></span>
+          <!-- 8.11: id'd rather than found with querySelector("span[style]"),
+               which is what showResultSummary used to reach it by. Any
+               later inline-styled span added above this one would have
+               been rewritten instead. -->
+          <br><span id="resultActionNote" style="opacity: 0.8" data-i18n="resultTrashNote">(all moved to Trash)</span>
         </div>
         <div class="result-summary-note">
-          <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><path d="M12 3 5 5.6v5.2c0 4.2 2.9 7 7 8.4 4.1-1.4 7-4.2 7-8.4V5.6L12 3Z"/><path d="M9 12l2 2 4-4.2"/></svg><span data-i18n="resultNote">Nothing permanently deleted, Gmail keeps Trash for 30 days. You can restore anytime.</span>
+          <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><path d="M12 3 5 5.6v5.2c0 4.2 2.9 7 7 8.4 4.1-1.4 7-4.2 7-8.4V5.6L12 3Z"/><path d="M9 12l2 2 4-4.2"/></svg><span id="resultSafetyNote" data-i18n="resultNote">Nothing permanently deleted, Gmail keeps Trash for 30 days. You can restore anytime.</span>
         </div>
       </div>
 
@@ -3186,7 +3190,7 @@
             aria-label="Version 8.10.0, see what's new"
             title="What's new in this version"
             data-i18n-title="whatsNewTitle"
-          >v8.10.0</button>
+          >v8.11.0</button>
           <button id="kbdHelpBtn" class="linkish" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" data-i18n-label="kbdTitle" data-i18n-title="kbdBtnTitle">
             <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/></svg>
           </button>

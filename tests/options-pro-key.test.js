@@ -59,6 +59,16 @@ function load({ active, clipboardFails = false } = {}) {
         SUPPORT_EMAIL: "support@example.com",
         STORAGE_KEY: "proLicense"
       },
+      // Mirrors the real shared.js list. PRO_FEATURE_COUNT below is
+      // asserted against shared.js itself, so a pillar added there
+      // without updating this stub fails rather than passing quietly.
+      FEATURES: Object.freeze([
+        "Bulk unsubscribe from every mailing list you tick",
+        "The full Storage X-ray list, and the one-click purge",
+        "The full Smart Suggestions list, and bulk apply",
+        "Every step of the Mailbox Report, and the whole-plan run",
+        "Auto-Pilot, the weekly sweep that archives without being asked"
+      ]),
       buyUrl: (source) => {
         const clean = String(source || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
         return clean ? `${BUY_URL}?client_reference_id=gcc_${clean}` : BUY_URL;

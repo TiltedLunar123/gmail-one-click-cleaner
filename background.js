@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "8.10.0";
+  const SW_VERSION = "8.11.0";
 
   // =========================
   // Storage Keys
@@ -38,7 +38,12 @@
     // 8.9: the version whose release notes were last opened in THIS
     // browser. Local, not sync: reading the notes on one machine should
     // not silence the update dot on another.
-    CHANGELOG_SEEN: "changelogSeenVersion"
+    CHANGELOG_SEEN: "changelogSeenVersion",
+
+    // 8.11: the popup's own switch positions, written by
+    // persistLastConfig. Read here so the Auto-Pilot scan can measure
+    // suggestions through the guards the popup's buttons will apply.
+    LAST_UI: "lastUiSnapshot"
   });
 
   // =========================
@@ -242,6 +247,20 @@
         // the first engine is still working. Both helpers re-read.
         if (run.runId) await releaseRunClaim(run.runId);
         else await releaseRunClaimForTab(tabId);
+      }
+
+      // 8.11: ACTIVE_RUN was the only thing this cleared, and the
+      // Auto-Pilot scan stage never takes an ACTIVE_RUN claim at all.
+      // Close the Gmail tab mid-sweep and the engine dies without ever
+      // sending a terminal message, so `pending` sat armed for its full
+      // two-hour TTL and every weekly alarm in that window logged
+      // "previous sweep still pending, skipping". The Pro feature was
+      // wedged by closing a tab, and the popup meanwhile reported a
+      // sweep that was running right now.
+      const apState = await getAutoPilotState();
+      if (apState?.pending && Number(apState.pending.tabId) === tabId) {
+        console.log("[GCC SW] Gmail tab closed mid Auto-Pilot sweep, clearing pending stage");
+        await setAutoPilotState({ pending: null });
       }
     } catch (e) {
       console.error("[GCC SW] tabs.onRemoved cleanup failed:", e);
@@ -1946,6 +1965,12 @@
   const AUTOPILOT_DOMAIN_BOOST = 6;
   const AUTOPILOT_PENDING_TTL_MS = 1000 * 60 * 60 * 2; // same as run TTL
 
+  // One reading of "is this pending row still worth believing", so a new
+  // reader cannot be added without the TTL again. getAutoPilotForPopup
+  // was exactly that reader.
+  const autoPilotPendingIsFresh = (pending) =>
+    Boolean(pending) && (Date.now() - (Number(pending.startedAt) || 0)) < AUTOPILOT_PENDING_TTL_MS;
+
   async function getAutoPilotConfig() {
     try {
       const r = await chrome.storage.sync.get(STORAGE_KEYS.AUTOPILOT);
@@ -2174,6 +2199,83 @@
     return gmailTab;
   }
 
+  // 8.11: the worker's copy of the popup's buildScanGuards.
+  //
+  // 8.6 taught the popup's smart scan to measure every suggestion
+  // through the guards its own button applies, and said why in a comment
+  // that describes this bug exactly: "sending only whitelist and
+  // keywords left sanitizeConfig to default the four guards to ON, which
+  // would have measured a user who turned them off against guards they
+  // do not have." The Auto-Pilot scan is the fourth scan in the product
+  // and the only one that never got it, and its results are not private
+  // to Auto-Pilot: recordSmartScan writes them into the same smartScan
+  // store the popup's cards read, overwriting whatever the user's own
+  // scan measured. So a Pro user who turned Skip Unread off saw
+  // "Deletes 200 now" on a card measured with `-is:unread` still
+  // attached, and the button under it, which sends their real switches,
+  // reached every unread message too.
+  //
+  // The switches live in the snapshot the popup persists on every run.
+  // A missing snapshot reads as all guards ON, which is both the engine's
+  // default and the conservative answer.
+  async function readUserScanGuards() {
+    let ui = null;
+    try {
+      const stored = await chrome.storage.local.get(STORAGE_KEYS.LAST_UI);
+      ui = stored?.[STORAGE_KEYS.LAST_UI] || null;
+    } catch {
+      ui = null;
+    }
+    // `!== false` mirrors restoreLastConfig, which reads a missing switch
+    // as on. Boolean() here would silently turn every guard off for
+    // anyone whose snapshot predates the key.
+    return {
+      safeMode: Boolean(ui?.safeMode),
+      minAge: typeof ui?.minAge === "string" && ui.minAge ? ui.minAge : null,
+      guardSkipStarred: ui?.guardSkipStarred !== false,
+      guardSkipImportant: ui?.guardSkipImportant !== false,
+      guardSkipUnread: ui?.guardSkipUnread !== false,
+      guardSkipUserLabels: ui?.guardSkipUserLabels !== false
+    };
+  }
+
+  // Which signed-in account a Gmail URL is showing. Gmail carries it in
+  // the path as /mail/u/<n>/, and the default (no segment) is "u/0" in
+  // practice, so an absent segment reads as "0" rather than as unknown.
+  // Only the index is kept: it is what distinguishes two open mailboxes
+  // and it is not an address.
+  function gmailAccountOf(url) {
+    const match = /^https:\/\/mail\.google\.com\/mail\/u\/(\d+)/.exec(String(url || ""));
+    return match ? match[1] : "0";
+  }
+
+  // 8.11: the tab the scan actually measured, or null. Deliberately not
+  // a fallback to "some other Gmail tab": retargeting is the defect this
+  // exists to stop, and a sweep that does not run is a sweep that runs
+  // correctly next week.
+  async function getAutoPilotMeasuredTab(pending) {
+    const tabId = Number(pending?.tabId) || 0;
+    if (!tabId) return null;
+    let tab;
+    try {
+      tab = await chrome.tabs.get(tabId);
+    } catch {
+      return null;
+    }
+    // `/mail/`, not just the host. mail.google.com also serves Chat at
+    // /chat/, which chrome.tabs.query's "https://mail.google.com/*"
+    // matches and which gmailAccountOf cannot read an account out of, so
+    // without this a scan pinned to account 0 would accept a Chat tab as
+    // the mailbox it measured.
+    if (!tab || !/^https:\/\/mail\.google\.com\/mail\//.test(String(tab.url || ""))) return null;
+    // A tab id survives the user switching accounts inside that same
+    // tab, which would put the sweep on a mailbox nothing measured.
+    // Pre-8.11 pendings carry no `acct`; treat those as matching so an
+    // upgrade mid-sweep does not strand one.
+    if (pending?.acct !== undefined && gmailAccountOf(tab.url) !== pending.acct) return null;
+    return tab;
+  }
+
   async function runAutoPilot() {
     try {
       const cfg = await getAutoPilotConfig();
@@ -2204,8 +2306,7 @@
       }
 
       const state = await getAutoPilotState();
-      const pending = state.pending;
-      if (pending && Date.now() - (Number(pending.startedAt) || 0) < AUTOPILOT_PENDING_TTL_MS) {
+      if (autoPilotPendingIsFresh(state.pending)) {
         console.log("[GCC SW] Auto-Pilot: previous sweep still pending, skipping");
         return;
       }
@@ -2270,14 +2371,35 @@
       // its full two-hour TTL, and the user's OWN next Smart scan in
       // that same tab satisfied it. The scan now carries a run id and
       // the stage only advances on a scan that reports that id back.
+      //
+      // 8.11: the tab id and the run id together still did not say WHICH
+      // MAILBOX was measured. Gmail puts the account in the path, so a
+      // second signed-in account is `/mail/u/1/`, and the apply stage
+      // picked its tab afresh by "whichever Gmail tab is active". See
+      // startAutoPilotApply: the account is now pinned here and checked
+      // there.
       const scanRunId = `ap_scan_${Date.now()}`;
       await setAutoPilotState({
-        pending: { stage: "scan", startedAt: Date.now(), tabId: gmailTab.id, runId: scanRunId }
+        pending: {
+          stage: "scan",
+          startedAt: Date.now(),
+          tabId: gmailTab.id,
+          acct: gmailAccountOf(gmailTab.url),
+          runId: scanRunId
+        }
       });
 
       const scanConfig = {
         runKind: "smartScan",
         runId: scanRunId,
+        // 8.11: see readUserScanGuards. These are the popup's switches,
+        // not this sweep's, because the numbers this scan produces are
+        // read by the popup's suggestion cards, and a card's promise has
+        // to match the button beneath it. The sweep's own apply below
+        // keeps its hardcoded all-guards-on config, which is stricter
+        // than anything measured here, so it can still only take less
+        // than the scan counted.
+        ...(await readUserScanGuards()),
         whitelist,
         protectKeywords,
         smartKnownSenders: [...known.values()],
@@ -2317,6 +2439,10 @@
   async function startAutoPilotApply() {
     let claimedRunId = "";
     try {
+      // The scan stage's pending row: it carries the tab and the account
+      // the suggestions were measured against, and the apply has to land
+      // on that same mailbox or not at all.
+      const pending = (await getAutoPilotState())?.pending || null;
       const cfg = await getAutoPilotConfig();
       if (!cfg.enabled || !(await hasProLicense())) {
         await setAutoPilotState({ pending: null });
@@ -2375,7 +2501,14 @@
         return;
       }
 
-      const gmailTab = await findGmailTabForAutoPilot();
+      // 8.11: this called findGmailTabForAutoPilot() again, which prefers
+      // whichever Gmail tab is ACTIVE right now. The scan stage runs for
+      // minutes with the browser fully usable, so a user signed in to two
+      // accounts only had to look at the other one for the sweep to
+      // archive mailbox B against suggestions measured in mailbox A -
+      // unattended, up to 25 senders, `from:(sender) older_than:6m`.
+      // The pinned tab from the scan is the only correct target.
+      const gmailTab = await getAutoPilotMeasuredTab(pending);
       if (!gmailTab || (await hasActiveRun()) || (await isEngineAttached(gmailTab.id))) {
         await setAutoPilotState({ pending: null });
         return;
@@ -2601,7 +2734,13 @@
       confirmed: cfg.confirmed,
       lastRun: state.lastRun || null,
       preview: state.preview || null,
-      pendingStage: state.pending?.stage || null
+      // 8.11: every other reader of `pending` applies the TTL before
+      // trusting it; this one did not, so a sweep whose engine died
+      // without a terminal message left the popup saying "A sweep is
+      // running right now." indefinitely, while runAutoPilot itself had
+      // long since aged the same row out and moved on. The popup was the
+      // one surface still believing it.
+      pendingStage: autoPilotPendingIsFresh(state.pending) ? state.pending.stage : null
     };
   }
 
@@ -2622,10 +2761,18 @@
         { [STORAGE_KEYS.AUTOPILOT]: { ...cfg, enabled: Boolean(enabled) } },
         "autoPilot"
       );
+      // 8.11: this sat OUTSIDE the lock, and setAutoPilotState is itself
+      // an unlocked get-merge-set. resolveAutoPilotDone holds the lock
+      // for its whole get-merge-set of the same key, so a toggle landing
+      // beside a finishing sweep merged into a pre-resolve snapshot and
+      // put the stale lastRun and preview back. Exactly the half-fix
+      // 8.10 found on the sync half of this pair; the local half kept it.
+      // setAutoPilotState does not take the lock itself, so calling it
+      // from in here cannot deadlock the queue.
+      if (!enabled) {
+        await setAutoPilotState({ pending: null });
+      }
     });
-    if (!enabled) {
-      await setAutoPilotState({ pending: null });
-    }
     await restoreAutoPilotAlarm();
     return { ok: true, autoPilot: await getAutoPilotForPopup() };
   }
@@ -2643,8 +2790,11 @@
         { [STORAGE_KEYS.AUTOPILOT]: { ...cfg, confirmed: true } },
         "autoPilot"
       );
+      // Inside the lock for the reason given in setAutoPilotEnabled. The
+      // race here loses the preview a finishing dry sweep just wrote, so
+      // the confirm button comes back asking about a tally that is gone.
+      await setAutoPilotState({ preview: null });
     });
-    await setAutoPilotState({ preview: null });
     return { ok: true, autoPilot: await getAutoPilotForPopup() };
   }
 
@@ -2721,32 +2871,54 @@
       stats.categoryBreakdown = stats.categoryBreakdown || {};
       stats.dailyStats = stats.dailyStats || {};
 
-      stats.totalRuns++;
-      stats.totalDeleted += data.deleted || 0;
-      stats.totalArchived += data.archived || 0;
-      stats.totalFreedMb += data.freedMb || 0;
+      // 8.11: a dry run moves nothing, and every aggregate below was
+      // counting it anyway. The engine sends `dryRun` on this very
+      // message and nothing here had ever read it.
+      //
+      // deleted/archived/freedMb happened to survive because the engine
+      // sends 0 for those on a preview, but perQuery[].count carries the
+      // PROJECTION, so `categoryBreakdown[cat].count += q.count` filed
+      // "what a run would have taken" into the lifetime chart the Stats
+      // page draws as mail that was cleaned. Preview 5,000 old
+      // promotions to check the rule is safe, which is exactly the
+      // workflow Dry Run exists for, and the chart claimed 5,000
+      // promotions cleaned, permanently. totalRuns and the daily run
+      // counter had the same problem in miniature.
+      //
+      // The history entry below is deliberately still written: it
+      // carries `dryRun` and stats.js already renders it with a "dry
+      // run" tag, so it is the one surface that tells the truth about a
+      // preview rather than hiding it.
+      const isDryRun = Boolean(data.dryRun);
 
-      // Category breakdown
-      if (data.perQuery) {
-        for (const q of data.perQuery) {
-          const cat = q.label || "Other";
-          if (!stats.categoryBreakdown[cat]) {
-            stats.categoryBreakdown[cat] = { count: 0, runs: 0 };
+      if (!isDryRun) {
+        stats.totalRuns++;
+        stats.totalDeleted += data.deleted || 0;
+        stats.totalArchived += data.archived || 0;
+        stats.totalFreedMb += data.freedMb || 0;
+
+        // Category breakdown
+        if (data.perQuery) {
+          for (const q of data.perQuery) {
+            const cat = q.label || "Other";
+            if (!stats.categoryBreakdown[cat]) {
+              stats.categoryBreakdown[cat] = { count: 0, runs: 0 };
+            }
+            stats.categoryBreakdown[cat].count += q.count || 0;
+            stats.categoryBreakdown[cat].runs++;
           }
-          stats.categoryBreakdown[cat].count += q.count || 0;
-          stats.categoryBreakdown[cat].runs++;
         }
-      }
 
-      // Daily stats
-      const today = new Date().toISOString().slice(0, 10);
-      if (!stats.dailyStats[today]) {
-        stats.dailyStats[today] = { deleted: 0, archived: 0, freedMb: 0, runs: 0 };
+        // Daily stats
+        const today = new Date().toISOString().slice(0, 10);
+        if (!stats.dailyStats[today]) {
+          stats.dailyStats[today] = { deleted: 0, archived: 0, freedMb: 0, runs: 0 };
+        }
+        stats.dailyStats[today].deleted += data.deleted || 0;
+        stats.dailyStats[today].archived += data.archived || 0;
+        stats.dailyStats[today].freedMb += data.freedMb || 0;
+        stats.dailyStats[today].runs++;
       }
-      stats.dailyStats[today].deleted += data.deleted || 0;
-      stats.dailyStats[today].archived += data.archived || 0;
-      stats.dailyStats[today].freedMb += data.freedMb || 0;
-      stats.dailyStats[today].runs++;
 
       // Run history (keep last 50)
       stats.history.unshift({

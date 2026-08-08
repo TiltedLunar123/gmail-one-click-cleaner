@@ -108,7 +108,11 @@ describe("7.15: Auto-Pilot only advances on its own scan", () => {
     // died when the tab moved left the stage armed for its whole TTL,
     // and the user's own next Smart scan in that tab satisfied it: a
     // live unattended archive sweep over up to 25 senders, unasked.
-    expect(background).toMatch(/tabId:\s*gmailTab\.id,\s*runId:\s*scanRunId/);
+    // 8.11 put `acct` between the two, so this pins that one pending row
+    // carries the tab AND the run id rather than pinning them adjacent.
+    expect(background).toMatch(
+      /pending:\s*\{[^}]*tabId:\s*gmailTab\.id[^}]*runId:\s*scanRunId[^}]*\}/
+    );
     expect(background).toContain("runId: scanRunId");
     expect(background).toContain('if (pending.runId && String(msg.runId || "") !== String(pending.runId))');
   });

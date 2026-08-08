@@ -527,5 +527,16 @@
   "reportGuardsChangedNote": { "message": "Suas chaves de segurança mudaram desde este scan, então estes números não correspondem mais ao que uma limpeza faria. Escaneie de novo." },
   "reportSafeModeNote": { "message": "O modo seguro pula os passos Atualizações e Fóruns, então essas linhas não rodam enquanto ele estiver ligado." },
   "safeModeBlocksStep": { "message": "O modo seguro pula este passo; desligue ele na aba Limpar" },
-  "xrayAgeNoteText": { "message": "Os tamanhos acima contam e-mails grandes de qualquer idade. Esta limpeza só pega e-mails com mais de $1, então vai liberar menos que os totais mostrados." }
+  "xrayAgeNoteText": { "message": "Os tamanhos acima contam e-mails grandes de qualquer idade. Esta limpeza só pega e-mails com mais de $1, então vai liberar menos que os totais mostrados." },
+  "resultTitleDry": { "message": "Simulação concluída" },
+  "resultLeadDry": { "message": "Correspondências" },
+  "resultDryNote": { "message": "(nada foi movido)" },
+  "resultNoteDry": { "message": "Isto foi uma prévia. Nenhum e-mail foi movido, excluído ou marcado." },
+  "resultNoteArchive": { "message": "Nada foi excluído. Os e-mails arquivados ficam em Todos os e-mails, e você pode restaurá-los em Estatísticas quando quiser." },
+  "bulkUnsubOnly": { "message": "As sugestões de cancelamento são executadas uma por vez. Use o botão Cancelar inscrição em cada cartão." },
+  "bulkSkippedUnsub": { "message": "As sugestões de cancelamento foram ignoradas. Use o botão Cancelar inscrição em cada cartão." },
+  "smartUnsubNoBulk": { "message": "O cancelamento processa um remetente por vez; use o botão deste cartão." },
+  "xrayPurgeCapped": { "message": "Limpando os primeiros $1 de $2 selecionados. Execute novamente para o restante." },
+  "dryRunCompleteStatus": { "message": "simulação concluída" },
+  "dryRunCompleteToast": { "message": "Simulação concluída. Nada foi movido." }
 }

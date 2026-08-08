@@ -153,7 +153,10 @@ describe("bulk apply honours each card's own action", () => {
   test("the planner groups by the resolved action", () => {
     expect(sharedSrc).toContain("const smartBulkPlan = (senders) => {");
     expect(sharedSrc).toContain("const action = smartResolvedAction(sender);");
-    expect(sharedSrc).toContain('if (action === "unsubscribe") continue;');
+    // 8.11: unsubscribe senders are still never planned into a cleanup
+    // group. They are counted on the way past now instead of vanishing,
+    // which is what lets the caller say so; see sweep-8-11.
+    expect(sharedSrc).toContain('if (action === "unsubscribe") { deferredUnsub++; continue; }');
   });
 
   test("each group gets the query shape its own cards promised", () => {

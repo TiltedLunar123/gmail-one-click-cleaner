@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const OPTIONS_VERSION = "8.10.0";
+  const OPTIONS_VERSION = "8.11.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -484,8 +484,22 @@
       });
     });
 
-    // Validate whitelist entries
-    (data?.whitelist || []).forEach((entry, index) => {
+    // Validate whitelist entries.
+    //
+    // 8.11: this used to walk `data.whitelist`, which collectAllData has
+    // already put through normalizeWhitelist, and normalizeWhitelist
+    // drops exactly the entries this loop looks for. The branch could
+    // never run. So pasting `Mom <mom@gmail.com>` into Never Delete, or
+    // an address with an apostrophe, produced "Settings saved
+    // successfully!" over a list that did not contain it, with the line
+    // still sitting in the textarea and the line counter still counting
+    // it. The user believed a sender was protected; the next cleanup,
+    // including the unattended ones, deleted their mail.
+    //
+    // Read the raw lines instead. Warn rather than block: the rest of
+    // the save is still what the user asked for, and refusing it would
+    // strand the valid entries too.
+    readLines("whitelist").forEach((entry, index) => {
       if (!isValidWhitelistEntry(entry)) {
         errors.push(`Invalid whitelist entry at line ${index + 1}: "${entry}"`);
       }
@@ -1353,6 +1367,7 @@
     const buyLink = GCC.$("proBuyLink");
     const recoverLink = GCC.$("proRecoverLink");
     const supportLink = GCC.$("proSupportLink");
+    const unlockedEl = GCC.$("proUnlocked");
     if (!keyInput || !activateBtn || !statusEl) return;
 
     if (buyLink) buyLink.href = GCC.license.buyUrl("options");
@@ -1380,12 +1395,27 @@
       if (showBtn) showBtn.textContent = "Show key";
     };
 
+    // The paid features, listed. Built from the shared list so this page
+    // cannot drift away from what a licence actually unlocks again.
+    const renderUnlockedList = (active) => {
+      if (!unlockedEl) return;
+      unlockedEl.textContent = "";
+      unlockedEl.hidden = !active;
+      if (!active) return;
+      for (const feature of GCC.license.FEATURES) {
+        const li = document.createElement("li");
+        li.textContent = feature;
+        unlockedEl.appendChild(li);
+      }
+    };
+
     const renderState = async () => {
       const licenseState = await GCC.license.getState();
       activeKey = licenseState.active ? licenseState.key : "";
       hideReveal();
+      renderUnlockedList(licenseState.active);
       if (licenseState.active) {
-        statusEl.textContent = `Pro is active on this browser (key ${maskKey(licenseState.key)}). Bulk unsubscribe is unlocked.`;
+        statusEl.textContent = `Pro is active on this browser (key ${maskKey(licenseState.key)}). All ${GCC.license.FEATURES.length} paid features are unlocked:`;
         statusEl.style.color = "var(--success, #34d399)";
         keyInput.style.display = "none";
         activateBtn.style.display = "none";
@@ -1459,7 +1489,7 @@
         // failures to lose, not one.
         await GCC.license.save(raw);
         keyInput.value = "";
-        GCC.showToast("Pro activated. Enjoy bulk unsubscribe!", "success");
+        GCC.showToast(`Pro activated. All ${GCC.license.FEATURES.length} paid features are unlocked.`, "success");
         await renderState();
       } catch (err) {
         GCC.showToast(`Activation failed: ${err?.message || "unknown error"}`, "error");

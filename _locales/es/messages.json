@@ -527,5 +527,16 @@
   "reportGuardsChangedNote": { "message": "Tus interruptores de seguridad han cambiado desde este escaneo, así que estas cifras ya no coinciden con lo que haría una limpieza. Vuelve a escanear." },
   "reportSafeModeNote": { "message": "El modo seguro omite los pasos de Novedades y Foros, así que esas filas no se ejecutan mientras esté activado." },
   "safeModeBlocksStep": { "message": "El modo seguro omite este paso; desactívalo en la pestaña Limpiar" },
-  "xrayAgeNoteText": { "message": "Los tamaños de arriba cuentan correo grande de cualquier antigüedad. Esta limpieza solo toma correo de más de $1, así que borrará menos que los totales mostrados." }
+  "xrayAgeNoteText": { "message": "Los tamaños de arriba cuentan correo grande de cualquier antigüedad. Esta limpieza solo toma correo de más de $1, así que borrará menos que los totales mostrados." },
+  "resultTitleDry": { "message": "Simulación finalizada" },
+  "resultLeadDry": { "message": "Coincidencias" },
+  "resultDryNote": { "message": "(no se movió nada)" },
+  "resultNoteDry": { "message": "Esto fue una vista previa. No se movió, eliminó ni etiquetó ningún correo." },
+  "resultNoteArchive": { "message": "No se eliminó nada. El correo archivado permanece en Todos, y puedes restaurarlo desde Estadísticas cuando quieras." },
+  "bulkUnsubOnly": { "message": "Las sugerencias de baja se ejecutan de una en una. Usa el botón Darse de baja de cada tarjeta." },
+  "bulkSkippedUnsub": { "message": "Se omitieron las sugerencias de baja. Usa el botón Darse de baja de cada tarjeta." },
+  "smartUnsubNoBulk": { "message": "La baja se ejecuta de un remitente a la vez; usa el botón de esta tarjeta." },
+  "xrayPurgeCapped": { "message": "Purgando los primeros $1 de $2 seleccionados. Vuelve a ejecutarlo para el resto." },
+  "dryRunCompleteStatus": { "message": "simulación finalizada" },
+  "dryRunCompleteToast": { "message": "Simulación finalizada. No se movió nada." }
 }

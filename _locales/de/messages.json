@@ -527,5 +527,16 @@
   "reportGuardsChangedNote": { "message": "Deine Sicherheitsschalter haben sich seit diesem Scan geändert, daher passen diese Zahlen nicht mehr zu dem, was ein Durchlauf tun würde. Scanne erneut." },
   "reportSafeModeNote": { "message": "Der sichere Modus überspringt die Schritte Updates und Foren, diese Zeilen laufen also nicht, solange er aktiv ist." },
   "safeModeBlocksStep": { "message": "Der sichere Modus überspringt diesen Schritt; schalte ihn im Tab Aufräumen aus" },
-  "xrayAgeNoteText": { "message": "Die Größen oben zählen große Mails jeden Alters. Diese Bereinigung nimmt nur Mails, die älter sind als $1, räumt also weniger als die angezeigten Summen." }
+  "xrayAgeNoteText": { "message": "Die Größen oben zählen große Mails jeden Alters. Diese Bereinigung nimmt nur Mails, die älter sind als $1, räumt also weniger als die angezeigten Summen." },
+  "resultTitleDry": { "message": "Testlauf beendet" },
+  "resultLeadDry": { "message": "Treffer" },
+  "resultDryNote": { "message": "(nichts wurde verschoben)" },
+  "resultNoteDry": { "message": "Das war eine Vorschau. Es wurden keine E-Mails verschoben, gelöscht oder mit Labels versehen." },
+  "resultNoteArchive": { "message": "Nichts wurde gelöscht. Archivierte E-Mails bleiben in Alle Nachrichten, und Sie können sie jederzeit über Statistiken wiederherstellen." },
+  "bulkUnsubOnly": { "message": "Abmelde-Vorschläge laufen einzeln. Verwenden Sie die Schaltfläche Abmelden auf jeder Karte." },
+  "bulkSkippedUnsub": { "message": "Abmelde-Vorschläge wurden übersprungen. Verwenden Sie die Schaltfläche Abmelden auf jeder Karte." },
+  "smartUnsubNoBulk": { "message": "Die Abmeldung verarbeitet einen Absender nach dem anderen; nutzen Sie die Schaltfläche auf dieser Karte." },
+  "xrayPurgeCapped": { "message": "Die ersten $1 von $2 ausgewählten werden bereinigt. Für den Rest erneut ausführen." },
+  "dryRunCompleteStatus": { "message": "Testlauf beendet" },
+  "dryRunCompleteToast": { "message": "Testlauf beendet. Es wurde nichts verschoben." }
 }

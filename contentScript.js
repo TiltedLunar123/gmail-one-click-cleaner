@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "8.10.0";
+  const GCC_CONTENT_VERSION = "8.11.0";
 
   // =========================
   // Timing & behavior constants
@@ -2331,7 +2331,20 @@
     if (!parts[0]) return "";
 
     // v3.4: Safe Mode subject protection (always on when safeMode is enabled)
-    if (CONFIG.safeMode && !/-subject:\(/i.test(parts[0])) {
+    //
+    // 8.11: the skip condition used to be `!/-subject:\(/i`, i.e. any
+    // subject exclusion anywhere in the rule cancelled the whole Safe
+    // Mode shield. A rule as ordinary as
+    // `category:promotions -subject:(unsubscribe) older_than:3m`
+    // matched it, so Safe Mode went on reading ON in the popup while
+    // the receipt, invoice, order, shipping, tracking and refund
+    // exclusions were silently absent from the query that ran.
+    // Gmail ANDs repeated -subject:() clauses and the protected-keyword
+    // shield below has always relied on exactly that ("both narrow the
+    // match, so the two coexisting is correct"). The same is true here,
+    // so the guard is appended unless this rule already carries this
+    // guard verbatim.
+    if (CONFIG.safeMode && !parts[0].includes(SAFE_MODE_SUBJECT_GUARD)) {
       parts.push(SAFE_MODE_SUBJECT_GUARD);
     }
 

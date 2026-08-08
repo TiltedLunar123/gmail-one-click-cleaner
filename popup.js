@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "8.10.0";
+  const POPUP_VERSION = "8.11.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -56,6 +56,16 @@ document.addEventListener("DOMContentLoaded", () => {
     // the popup, so the people who lost their triage were exactly the
     // people who had just decided to pay.
     SUBS_CHECKED: "subsCheckedEmails",
+
+    // 8.11: the same fix for the other two lists that carry checkboxes.
+    // 8.0 reasoned about the trip to checkout and stopped there, but the
+    // popup closes on EVERY run start, and both of these lists cap what
+    // one run may take (25 senders each) while offering a Select all
+    // over as many as 100 rows. So the ordinary paid workflow is "tick a
+    // batch, run, come back, tick the rest", and coming back showed an
+    // empty selection with no record of which ones had already gone.
+    XRAY_CHECKED: "xrayCheckedEmails",
+    SMART_CHECKED: "smartCheckedEmails",
 
     // 8.0: the "Bought Pro? Paste your key" strip, dismissed.
     ACTIVATE_HINT_DISMISSED: "activateHintDismissed",
@@ -148,7 +158,10 @@ document.addEventListener("DOMContentLoaded", () => {
       senders: [],
       totalMb: 0,
       totalCount: 0,
-      running: null
+      running: null,
+      // 8.11: ticked rows, so a capped purge or a trip to checkout does
+      // not throw the triage away. Mirrors subs.checked.
+      checked: new Set()
     },
 
     // 7.8 Smart Suggestions: stored scan + feedback, plus the config
@@ -165,7 +178,9 @@ document.addEventListener("DOMContentLoaded", () => {
       heldBackSenders: 0,
       heldBackCount: 0,
       scanned: false,
-      running: null
+      running: null,
+      // 8.11: as xray.checked, for the same reason.
+      checked: new Set()
     },
 
     // 8.0 Mailbox Report: the stored band scan and which report run
@@ -381,6 +396,13 @@ document.addEventListener("DOMContentLoaded", () => {
     resultCount: $("resultCount"),
     resultSize: $("resultSize"),
     resultFreedClause: $("resultFreedClause"),
+    // 8.11: the four pieces of copy showResultSummary rewrites for a dry
+    // run or an archive run. The title keeps its hyphenated id because
+    // the region's aria-labelledby points at it.
+    resultTitle: $("result-title"),
+    resultLead: $("resultLead"),
+    resultActionNote: $("resultActionNote"),
+    resultSafetyNote: $("resultSafetyNote"),
     successCtas: $("successCtas"),
 
     // 7.4 post-run recap
@@ -666,7 +688,21 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.quickActions) elements.quickActions.classList.remove("show");
   };
 
-  const showResultSummary = ({ count = 0, freedBytes = 0, action = "trash" } = {}) => {
+  // 8.11: `dryRun` is new, and it is the whole point of the argument
+  // list. A dry run moves nothing, and this view told the user
+  // "Cleanup Complete! / Cleaned 2,400 emails / (all moved to Trash)"
+  // over a safety note promising Gmail's 30-day Trash window. Every
+  // other surface already had it right: progress.js says "emails
+  // matched, nothing was moved" and the engine's own summary calls
+  // them matches. The one screen that lied was the one the preview
+  // exists to produce.
+  //
+  // The archive branch of the safety note is the same shape of miss.
+  // 8.9 split out the freed-MB clause and rewrote the parenthetical
+  // for archive runs, and left the note underneath still describing
+  // Trash: archived mail never goes there, so there is no 30-day
+  // window and restore is by label with no deadline at all.
+  const showResultSummary = ({ count = 0, freedBytes = 0, action = "trash", dryRun = false } = {}) => {
     if (!elements.resultSummary) return;
     if (elements.resultCount) elements.resultCount.textContent = String(Math.max(0, Number(count || 0)));
     // 8.9: archiving moves mail to All Mail, where it still counts
@@ -677,12 +713,33 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.resultSize) {
       elements.resultSize.textContent = GCC.formatBytes(archived ? 0 : freedBytes);
     }
-    if (elements.resultFreedClause) elements.resultFreedClause.hidden = archived;
-    const note = elements.resultSummary.querySelector("span[style]");
-    if (note) {
-      note.textContent = action === "archive"
-        ? t("resultArchiveNote", "(all archived to All Mail)")
-        : t("resultTrashNote", "(all moved to Trash)");
+    // A dry run frees nothing either, for the plainer reason that it
+    // did nothing.
+    if (elements.resultFreedClause) elements.resultFreedClause.hidden = archived || dryRun;
+
+    if (elements.resultTitle) {
+      elements.resultTitle.textContent = dryRun
+        ? t("resultTitleDry", "Dry run finished")
+        : t("resultTitle", "Cleanup Complete!");
+    }
+    if (elements.resultLead) {
+      elements.resultLead.textContent = dryRun
+        ? t("resultLeadDry", "Matched")
+        : t("resultLead", "Cleaned");
+    }
+    if (elements.resultActionNote) {
+      elements.resultActionNote.textContent = dryRun
+        ? t("resultDryNote", "(nothing was moved)")
+        : (archived
+          ? t("resultArchiveNote", "(all archived to All Mail)")
+          : t("resultTrashNote", "(all moved to Trash)"));
+    }
+    if (elements.resultSafetyNote) {
+      elements.resultSafetyNote.textContent = dryRun
+        ? t("resultNoteDry", "This was a preview. No mail was moved, deleted or labelled.")
+        : (archived
+          ? t("resultNoteArchive", "Nothing deleted. Archived mail stays in All Mail, and you can restore it from Stats at any time.")
+          : t("resultNote", "Nothing permanently deleted, Gmail keeps Trash for 30 days. You can restore anytime."));
     }
     elements.resultSummary.classList.add("show");
   };
@@ -1734,6 +1791,14 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.subsBuyLink) elements.subsBuyLink.href = GCC.license.buyUrl("unsubscribe");
     if (elements.proPromoBuy) elements.proPromoBuy.href = GCC.license.buyUrl("popup_promo");
     if (elements.proPromo) elements.proPromo.hidden = active;
+    // 8.11: and the strip that offers somewhere to PASTE a key. init
+    // does not await refreshLicenseUi (it verifies a signature, which is
+    // slower than everything around it), so maybeShowActivateHint read
+    // licenseActive while it was still false and showed a buyer
+    // "Bought Pro? Paste your key to unlock it here." on a browser where
+    // the key was already stored and already verified. Hiding it here
+    // makes the outcome the same whichever of the two finishes last.
+    if (active && elements.activateHint) elements.activateHint.hidden = true;
 
     // 7.2 storage X-ray shares the same license.
     if (elements.xrayBuyLink) elements.xrayBuyLink.href = GCC.license.buyUrl("storage_xray");
@@ -2805,6 +2870,41 @@ document.addEventListener("DOMContentLoaded", () => {
       : []
     ).map((cb) => cb.getAttribute("data-email")).filter(Boolean);
 
+  // 8.11: the Unsubscribe tab's 8.0 pair, for the two paid lists that
+  // never got it. Capped at the list cap, and stored local-only like its
+  // sibling: these are addresses, and storage.sync replicates to the
+  // user's Google account.
+  const persistXraySelection = () => {
+    storageSet("local", {
+      [STORAGE_KEYS.XRAY_CHECKED]: getCheckedXrayEmails().slice(0, GCC.storageXray.LIMITS.MAX_LIST)
+    }).catch(() => {});
+  };
+
+  // Drop the senders a run just took, so "run again for the rest"
+  // means the rest. Writes through the same key the loader reads, and
+  // updates the in-memory set so a still-open popup re-renders honestly.
+  // The live ticks are the checkboxes, not state.xray.checked (which is
+  // only read at render time), so the remaining set is computed from the
+  // DOM rather than from the loaded snapshot.
+  const forgetXrayChecked = (emails) => {
+    const done = new Set(emails || []);
+    const remaining = getCheckedXrayEmails().filter((e) => !done.has(e));
+    state.xray.checked = new Set(remaining);
+    storageSet("local", {
+      [STORAGE_KEYS.XRAY_CHECKED]: remaining.slice(0, GCC.storageXray.LIMITS.MAX_LIST)
+    }).catch(() => {});
+  };
+
+  const loadXraySelection = async () => {
+    try {
+      const r = await storageGet("local", STORAGE_KEYS.XRAY_CHECKED);
+      const list = r?.[STORAGE_KEYS.XRAY_CHECKED];
+      state.xray.checked = new Set(Array.isArray(list) ? list.filter((e) => typeof e === "string") : []);
+    } catch {
+      state.xray.checked = new Set();
+    }
+  };
+
   const updateXrayCount = () => {
     if (!elements.xrayCount) return;
     const total = state.xray.senders.length;
@@ -2908,7 +3008,12 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.xrayPurgeBtn) elements.xrayPurgeBtn.hidden = !hasSenders;
     if (elements.xrayAgeRow) elements.xrayAgeRow.classList.toggle("show", hasSenders && active);
     renderXrayAgeNote();
-    if (elements.xrayUpsell && hasSenders && !active) elements.xrayUpsell.hidden = false;
+    // 8.11: this only ever set hidden = false, so it was a one-way
+    // switch. Activate a key with the Storage tab already showing its
+    // upsell and the pitch stayed on screen for the rest of the session,
+    // under a list that had just unlocked. Its siblings are all written
+    // as `hidden = active`.
+    if (elements.xrayUpsell) elements.xrayUpsell.hidden = !(hasSenders && !active);
     if (!hasSenders) {
       updateXrayCount();
       return;
@@ -2939,7 +3044,11 @@ document.addEventListener("DOMContentLoaded", () => {
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
         checkbox.setAttribute("data-email", sender.email);
-        checkbox.addEventListener("change", updateXrayCount);
+        if (state.xray.checked.has(sender.email)) checkbox.checked = true;
+        checkbox.addEventListener("change", () => {
+          updateXrayCount();
+          persistXraySelection();
+        });
         const label = document.createElement("label");
         label.className = "subs-row-label";
         label.appendChild(checkbox);
@@ -3102,6 +3211,25 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     const targeted = GCC.storageXray.sanitizeEmails(emails);
+    // 8.11: sanitizeEmails stops at MAX_PURGE_PER_RUN (25) and the list
+    // above it holds up to 100 ranked senders behind a Select all. So
+    // ticking everything and pressing Purge quietly acted on the top 25
+    // and abandoned the rest: no toast, nothing on the untouched rows,
+    // and the only hint was a status line counting lower than the
+    // selection. The Unsubscribe tab has said this since 7.0 and this,
+    // the paid button next to it, never did.
+    if (targeted.length < emails.length) {
+      const runningText = GCC.formatNumber(targeted.length);
+      const pickedText = GCC.formatNumber(emails.length);
+      showToast(
+        t(
+          "xrayPurgeCapped",
+          `Purging the first ${runningText} of ${pickedText} selected. Run again for the rest.`,
+          [runningText, pickedText]
+        ),
+        "info"
+      );
+    }
 
     state.isRunning = true;
     let claimedRunId = null;
@@ -3199,6 +3327,15 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       await bumpRunCount();
+      // 8.11: the senders this run took come OFF the remembered
+      // selection. Without this, remembering the ticks and capping the
+      // run at 25 combine into a lie: the toast says "run again for the
+      // rest", the next open restores all forty ticks in the same
+      // estMb order, and the cap takes the same first twenty-five again,
+      // so the rest is never reached. Dropping what just ran is what
+      // makes the second press pick up where the first left off.
+      // A dry run takes nothing, so it keeps the whole selection.
+      if (!config.dryRun) forgetXrayChecked(targeted);
       showToast(config.dryRun ? t("purgeDryStarted", "purge dry run started") : t("purgeStarted", "purge started"), "success");
       setTimeout(safeClosePopup, 200);
     } catch (err) {
@@ -3261,6 +3398,34 @@ document.addEventListener("DOMContentLoaded", () => {
       : t("smartBulkSub", "Tagged first, then Trash - undo applies");
   };
 
+  // The xray pair, for the suggestion list. Same reasoning, same cap
+  // source, same local-only storage.
+  const persistSmartSelection = () => {
+    storageSet("local", {
+      [STORAGE_KEYS.SMART_CHECKED]: getCheckedSmartEmails().slice(0, GCC.smart.LIMITS.MAX_LIST)
+    }).catch(() => {});
+  };
+
+  // The xray helper's twin. See forgetXrayChecked.
+  const forgetSmartChecked = (emails) => {
+    const done = new Set(emails || []);
+    const remaining = getCheckedSmartEmails().filter((e) => !done.has(e));
+    state.smart.checked = new Set(remaining);
+    storageSet("local", {
+      [STORAGE_KEYS.SMART_CHECKED]: remaining.slice(0, GCC.smart.LIMITS.MAX_LIST)
+    }).catch(() => {});
+  };
+
+  const loadSmartSelection = async () => {
+    try {
+      const r = await storageGet("local", STORAGE_KEYS.SMART_CHECKED);
+      const list = r?.[STORAGE_KEYS.SMART_CHECKED];
+      state.smart.checked = new Set(Array.isArray(list) ? list.filter((e) => typeof e === "string") : []);
+    } catch {
+      state.smart.checked = new Set();
+    }
+  };
+
   const updateSmartCount = () => {
     updateSmartBulkSub();
     if (!elements.smartCount) return;
@@ -3294,11 +3459,33 @@ document.addEventListener("DOMContentLoaded", () => {
       text.appendChild(email);
     }
 
+    // 8.6: the action the scan measured, not a fresh decision. The
+    // reachable count below is measured against THIS action's query, so
+    // choosing a different one here would put an honest number next to
+    // the wrong button. The bulk checkbox answers to the same value,
+    // because bulk apply builds a cleanup rule and an unsubscribe card
+    // has no cleanup rule to build.
+    const cardAction = GCC.smart.resolvedAction(sender);
     if (withCheckbox) {
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
       checkbox.setAttribute("data-email", sender.email);
-      checkbox.addEventListener("change", updateSmartCount);
+      // 8.11: an unsubscribe card offered a checkbox that bulk apply
+      // then dropped on the floor. 8.10 settled this shape for the
+      // report ("showing a row is not the same as offering to act on
+      // it"): the card keeps its own working Unsubscribe button, and
+      // Select all skips it because that handler already ignores
+      // disabled boxes.
+      if (cardAction === "unsubscribe") {
+        checkbox.disabled = true;
+        checkbox.title = t("smartUnsubNoBulk", "Unsubscribe runs one sender at a time; use the button on this card.");
+      } else if (state.smart.checked.has(sender.email)) {
+        checkbox.checked = true;
+      }
+      checkbox.addEventListener("change", () => {
+        updateSmartCount();
+        persistSmartSelection();
+      });
       const label = document.createElement("label");
       label.className = "subs-row-label";
       label.appendChild(checkbox);
@@ -3316,16 +3503,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const actions = document.createElement("div");
     actions.className = "smart-card-actions";
-    // 8.6: the action the scan measured, not a fresh decision. The
-    // reachable count below is measured against THIS action's query, so
-    // choosing a different one here would put an honest number next to
-    // the wrong button.
-    const action = GCC.smart.resolvedAction(sender);
     const applyBtn = document.createElement("button");
     applyBtn.type = "button";
     applyBtn.className = "smart-apply-btn";
-    applyBtn.textContent = smartActionLabel(action);
-    applyBtn.addEventListener("click", () => handleSmartApply(sender, action));
+    applyBtn.textContent = smartActionLabel(cardAction);
+    applyBtn.addEventListener("click", () => handleSmartApply(sender, cardAction));
     actions.appendChild(applyBtn);
 
     const dismiss = document.createElement("button");
@@ -3655,6 +3837,12 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       await bumpRunCount();
+      // 8.11: as the x-ray purge does. bulkPlan runs one action group of
+      // at most 25 and tells the user to "check the rest and apply
+      // again"; an applied card is not dismissed and does not leave the
+      // list, so restoring every tick would re-plan the same lead group
+      // forever and the rest would never run.
+      if (!config.dryRun) forgetSmartChecked(emails);
       // 8.9: "started", not "applied". Nothing has moved at this point:
       // the engine was only just injected, and the run can still be
       // cancelled, error out or match nothing. Every sibling start path
@@ -3748,8 +3936,26 @@ document.addEventListener("DOMContentLoaded", () => {
     const chosenSenders = emails.map((e) => byEmail.get(e)).filter(Boolean);
     const plan = GCC.smart.bulkPlan(chosenSenders);
     if (!plan.rules.length) {
-      showToast(t("noValidSenders", "no valid senders selected"), "warning");
+      // 8.11: "no valid senders" was the wrong sentence for a set of
+      // perfectly valid unsubscribe cards. They are valid, they are
+      // simply not cleanup, and the fix is a different button rather
+      // than a different selection.
+      showToast(
+        plan.deferredUnsub > 0
+          ? t("bulkUnsubOnly", "Unsubscribe suggestions run one at a time. Use the Unsubscribe button on each card.")
+          : t("noValidSenders", "no valid senders selected"),
+        "warning"
+      );
       return;
+    }
+    // Announced before the action-group toast: this is the set that this
+    // click cannot ever reach, and the other one is the set the next
+    // click will.
+    if (plan.deferredUnsub > 0) {
+      showToast(
+        t("bulkSkippedUnsub", "Unsubscribe suggestions were skipped. Use the Unsubscribe button on each card."),
+        "info"
+      );
     }
     if (plan.deferred > 0) {
       const label = smartActionLabel(plan.action);
@@ -4205,7 +4411,7 @@ document.addEventListener("DOMContentLoaded", () => {
           state.tabs?.select("tabClean");
           hideRecapNote();
           showResultState();
-          showResultSummary({ count, freedBytes, action });
+          showResultSummary({ count, freedBytes, action, dryRun: stats?.mode === "dry" });
 
           // 7.4: a live result counts as seen; without the marker this
           // same run would come back as a recap on the next open.
@@ -4221,10 +4427,23 @@ document.addEventListener("DOMContentLoaded", () => {
             cleaned: count,
             freedMb
           }).catch(() => {});
-          setStatus(t("cleanupCompleteStatus", "cleanup complete"), STATUS_TYPES.SUCCESS, true);
+          // 8.11: the summary above learned about dry runs and these two
+          // did not, so the screen could read "Dry run finished, nothing
+          // was moved" over a status saying cleanup complete and a toast
+          // offering the recovery log for a run that touched nothing.
+          const wasDry = stats?.mode === "dry";
+          setStatus(
+            wasDry
+              ? t("dryRunCompleteStatus", "dry run finished")
+              : t("cleanupCompleteStatus", "cleanup complete"),
+            STATUS_TYPES.SUCCESS,
+            true
+          );
 
           GCC.showToast(
-            t("cleanupCompleteToast", "Cleanup complete! View recovery log in Stats to undo."),
+            wasDry
+              ? t("dryRunCompleteToast", "Dry run finished. Nothing was moved.")
+              : t("cleanupCompleteToast", "Cleanup complete! View recovery log in Stats to undo."),
             "success",
             8000,
             elements.toastContainer
@@ -4763,6 +4982,7 @@ document.addEventListener("DOMContentLoaded", () => {
         ?.querySelectorAll("input[type='checkbox']:not(:disabled)")
         .forEach((cb) => { cb.checked = checked; });
       updateXrayCount();
+      persistXraySelection();
     });
     elements.subsEnterKey?.addEventListener("click", openProOptions);
     elements.proPromoKey?.addEventListener("click", openProOptions);
@@ -4779,6 +4999,7 @@ document.addEventListener("DOMContentLoaded", () => {
         ?.querySelectorAll("input[type='checkbox']:not(:disabled)")
         .forEach((cb) => { cb.checked = checked; });
       updateSmartCount();
+      persistSmartSelection();
     });
 
     // 7.12 Auto-Pilot. A disabled checkbox fires no change event, so
@@ -4940,8 +5161,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 7.0 subscriptions: license badge + last scan (both best-effort).
     refreshLicenseUi().catch((e) => log("warn", "license ui failed", e));
-    // The remembered tick list has to land before the list renders.
-    await loadSubsSelection();
+    // The remembered tick lists have to land before the lists render.
+    // All three are awaited together: each renderer reads its own set,
+    // and a set that arrives late renders an empty selection once and
+    // then never re-renders on its own.
+    await Promise.all([loadSubsSelection(), loadXraySelection(), loadSmartSelection()]);
     loadStoredSubscriptions().catch((e) => log("warn", "subs load failed", e));
     // 7.2 storage X-ray: last scan (best-effort).
     loadStoredStorageScan().catch((e) => log("warn", "xray load failed", e));

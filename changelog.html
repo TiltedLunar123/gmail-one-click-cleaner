@@ -47,6 +47,12 @@
     h1:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 4px; }
     .page-description { color: var(--text-muted); margin: 0; max-width: 62ch; }
 
+    /* The jump list below is display:flex, which beats the UA [hidden]
+       rule at equal importance, so #releaseIndex rendered as an empty
+       "Jump to" bar before its script ran and again whenever the log is
+       too short to index. Same guard popup.html carries, same reason. */
+    [hidden] { display: none !important; }
+
     /* Jump list. Cheap way to reach an older release without scrolling
        through four thousand words of prose to find it. */
     .index {
@@ -195,7 +201,7 @@
     <header class="page-header">
       <div class="title-row">
         <h1 id="main-content" tabindex="-1">What's new</h1>
-        <span class="badge" id="versionBadge" aria-label="Version 8.10.0">v8.10.0</span>
+        <span class="badge" id="versionBadge" aria-label="Version 8.11.0">v8.11.0</span>
         <div class="theme-switcher" id="themeSwitcher" role="group" aria-label="Color theme" style="margin-left:auto;">
           <button type="button" data-theme-value="system" aria-pressed="true">Auto</button>
           <button type="button" data-theme-value="light" aria-pressed="false">Light</button>

@@ -142,8 +142,11 @@ describe("Smart Suggestions count what their own button acts on (8.6)", () => {
   test("the popup renders the action the scan measured, not a fresh decision", () => {
     // Deciding again in the popup is how the number and the button
     // drift apart the moment the policy or the stored signals move.
-    expect(popupSrc).toContain("const action = GCC.smart.resolvedAction(sender);");
-    expect(popupSrc).not.toContain("const action = GCC.smart.primaryAction(sender);");
+    // 8.11 renamed this to cardAction so the bulk checkbox above it can
+    // read the same value; the point of the pin is unchanged, which is
+    // that the popup takes the scan's action and never re-decides.
+    expect(popupSrc).toContain("const cardAction = GCC.smart.resolvedAction(sender);");
+    expect(popupSrc).not.toContain("GCC.smart.primaryAction(sender)");
     expect(sharedSrc).toContain("const smartResolvedAction = (sender) =>");
   });
 

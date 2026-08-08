@@ -527,5 +527,16 @@
   "reportGuardsChangedNote": { "message": "Your safety switches have changed since this scan, so these counts no longer match what a run would do. Scan again." },
   "reportSafeModeNote": { "message": "Safe Mode skips the Updates and Forums steps, so those rows will not run while it is on." },
   "safeModeBlocksStep": { "message": "Safe Mode skips this step; turn it off on the Clean tab" },
-  "xrayAgeNoteText": { "message": "The sizes above count large mail of any age. This purge only takes mail older than $1, so it will clear less than the totals shown." }
+  "xrayAgeNoteText": { "message": "The sizes above count large mail of any age. This purge only takes mail older than $1, so it will clear less than the totals shown." },
+  "resultTitleDry": { "message": "Dry run finished" },
+  "resultLeadDry": { "message": "Matched" },
+  "resultDryNote": { "message": "(nothing was moved)" },
+  "resultNoteDry": { "message": "This was a preview. No mail was moved, deleted or labelled." },
+  "resultNoteArchive": { "message": "Nothing deleted. Archived mail stays in All Mail, and you can restore it from Stats at any time." },
+  "bulkUnsubOnly": { "message": "Unsubscribe suggestions run one at a time. Use the Unsubscribe button on each card." },
+  "bulkSkippedUnsub": { "message": "Unsubscribe suggestions were skipped. Use the Unsubscribe button on each card." },
+  "smartUnsubNoBulk": { "message": "Unsubscribe runs one sender at a time; use the button on this card." },
+  "xrayPurgeCapped": { "message": "Purging the first $1 of $2 selected. Run again for the rest." },
+  "dryRunCompleteStatus": { "message": "dry run finished" },
+  "dryRunCompleteToast": { "message": "Dry run finished. Nothing was moved." }
 }

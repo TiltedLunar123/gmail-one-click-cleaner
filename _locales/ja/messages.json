@@ -527,5 +527,16 @@
   "reportGuardsChangedNote": { "message": "このスキャン以降に安全スイッチが変更されたため、これらの件数は実行時の動作と一致しません。もう一度スキャンしてください。" },
   "reportSafeModeNote": { "message": "セーフモードは「更新」と「フォーラム」のステップをスキップするため、オンの間これらの行は実行されません。" },
   "safeModeBlocksStep": { "message": "セーフモードはこのステップをスキップします。クリーンタブでオフにしてください" },
-  "xrayAgeNoteText": { "message": "上のサイズはすべての期間の大きなメールを数えています。この削除は $1 より古いメールだけを対象にするため、表示された合計より少なくなります。" }
+  "xrayAgeNoteText": { "message": "上のサイズはすべての期間の大きなメールを数えています。この削除は $1 より古いメールだけを対象にするため、表示された合計より少なくなります。" },
+  "resultTitleDry": { "message": "テスト実行が完了しました" },
+  "resultLeadDry": { "message": "一致" },
+  "resultDryNote": { "message": "（何も移動していません）" },
+  "resultNoteDry": { "message": "これはプレビューです。メールの移動、削除、ラベル付けは行われていません。" },
+  "resultNoteArchive": { "message": "何も削除されていません。アーカイブしたメールは「すべてのメール」に残り、統計からいつでも復元できます。" },
+  "bulkUnsubOnly": { "message": "配信停止の候補は1件ずつ実行します。各カードの配信停止ボタンを使ってください。" },
+  "bulkSkippedUnsub": { "message": "配信停止の候補はスキップされました。各カードの配信停止ボタンを使ってください。" },
+  "smartUnsubNoBulk": { "message": "配信停止は送信者ごとに1件ずつ実行します。このカードのボタンを使ってください。" },
+  "xrayPurgeCapped": { "message": "選択した $2 件のうち最初の $1 件を削除します。残りは再度実行してください。" },
+  "dryRunCompleteStatus": { "message": "テスト実行が完了しました" },
+  "dryRunCompleteToast": { "message": "テスト実行が完了しました。何も移動していません。" }
 }

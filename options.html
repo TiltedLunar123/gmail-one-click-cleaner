@@ -1281,13 +1281,20 @@
       <h2 id="proTitle"><span class="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4.5"/><path d="M11.2 11.8 20.5 2.5M15 8l2.5 2.5M18 5l2.5 2.5"/></svg></span> Pro License</h2>
       <p style="font-size: 13px; color: var(--text-muted); margin: 8px 0 16px;">
         Pro is a <strong>one-time $9.99 purchase</strong> that unlocks bulk unsubscribe, the full
-        Storage X-ray, the full Smart Suggestions list, and weekly Auto-Pilot sweeps in the popup.
+        Storage X-ray, the full Smart Suggestions list, every step of the Mailbox Report, and
+        weekly Auto-Pilot sweeps in the popup.
         Everything that is free today stays free forever. Your key is verified locally on this
         device with a built-in public key; the extension never contacts a server, not even to
         check the license.
       </p>
 
       <div id="proStatus" role="status" aria-live="polite" style="font-size: 13px; margin: 0 0 12px; color: var(--text-muted);"></div>
+
+      <!-- Filled from GCC.license.FEATURES once a key verifies. Outside
+           the aria-live status above on purpose: the status is the one
+           sentence worth announcing, and re-reading five bullets on
+           every render would bury it. -->
+      <ul id="proUnlocked" hidden style="font-size: 12.5px; color: var(--text-muted); margin: 0 0 12px; padding-left: 20px; line-height: 1.7;"></ul>
 
       <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
         <label for="proKeyInput" class="sr-only">License key</label>

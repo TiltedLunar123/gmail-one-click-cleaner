@@ -527,5 +527,16 @@
   "reportGuardsChangedNote": { "message": "Vos interrupteurs de sécurité ont changé depuis cette analyse, donc ces chiffres ne correspondent plus à ce qu'un nettoyage ferait. Relancez l'analyse." },
   "reportSafeModeNote": { "message": "Le mode sûr ignore les étapes Mises à jour et Forums, ces lignes ne s'exécuteront donc pas tant qu'il est actif." },
   "safeModeBlocksStep": { "message": "Le mode sûr ignore cette étape ; désactivez-le dans l'onglet Nettoyer" },
-  "xrayAgeNoteText": { "message": "Les tailles ci-dessus comptent le courrier volumineux de tout âge. Ce nettoyage ne prend que le courrier de plus de $1, il videra donc moins que les totaux affichés." }
+  "xrayAgeNoteText": { "message": "Les tailles ci-dessus comptent le courrier volumineux de tout âge. Ce nettoyage ne prend que le courrier de plus de $1, il videra donc moins que les totaux affichés." },
+  "resultTitleDry": { "message": "Simulation terminée" },
+  "resultLeadDry": { "message": "Correspondances" },
+  "resultDryNote": { "message": "(rien n'a été déplacé)" },
+  "resultNoteDry": { "message": "Ceci était un aperçu. Aucun message n'a été déplacé, supprimé ni libellé." },
+  "resultNoteArchive": { "message": "Rien n'a été supprimé. Les messages archivés restent dans Tous les messages, et vous pouvez les restaurer depuis Statistiques à tout moment." },
+  "bulkUnsubOnly": { "message": "Les suggestions de désabonnement s'exécutent une par une. Utilisez le bouton Se désabonner de chaque carte." },
+  "bulkSkippedUnsub": { "message": "Les suggestions de désabonnement ont été ignorées. Utilisez le bouton Se désabonner de chaque carte." },
+  "smartUnsubNoBulk": { "message": "Le désabonnement traite un expéditeur à la fois ; utilisez le bouton de cette carte." },
+  "xrayPurgeCapped": { "message": "Purge des $1 premiers sur $2 sélectionnés. Relancez pour le reste." },
+  "dryRunCompleteStatus": { "message": "simulation terminée" },
+  "dryRunCompleteToast": { "message": "Simulation terminée. Rien n'a été déplacé." }
 }

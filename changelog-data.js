@@ -6,13 +6,200 @@
 // even of a file inside the package, would end the extension's
 // no-network-calls promise.
 //
-// Carries the newest 12 of 65 releases; the page says so
+// Carries the newest 12 of 66 releases; the page says so
 // and links the full log on GitHub.
 
 // eslint-disable-next-line no-unused-vars
 var GCC_CHANGELOG = {
-  "total": 65,
+  "total": 66,
   "entries": [
+    {
+      "version": "8.11.0",
+      "title": "The paid half, and previews that say they were previews",
+      "intro": [
+        "Most of this release is on the parts of the extension you only see after you have paid for it. Five of the fixes are on Pro controls, three of them are the same problem in three places: a button that quietly did less than you asked it to and never said so."
+      ],
+      "sections": [
+        {
+          "name": "Fixed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "Apply selected threw away your Unsubscribe suggestions."
+                ],
+                [
+                  "",
+                  " Suggestion cards come in two kinds. Most of them build a cleanup rule, and one of them, Unsubscribe, drives Gmail's own unsubscribe control instead. Bulk apply can only run the first kind, and rather than say so it dropped the others on the floor. Tick three Unsubscribe cards and two Archive cards, press Apply selected, and two ran while nothing on screen mentioned the other three. Unsubscribe cards no longer offer a tick box they cannot honour, Select all skips them, and if any do reach the button it now names the one that will actually run them."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The storage purge stopped at 25 senders without a word."
+                ],
+                [
+                  "",
+                  " One purge takes at most 25 senders, and the list above it holds up to 100 with a Select all sitting on top. So the ordinary way to use the feature, tick everything and press Purge, cleaned the biggest 25 and abandoned the rest in silence. It now tells you how many of your selection it is taking and to run it again for the remainder, which is what the Unsubscribe tab has said about its own identical limit since Pro launched."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Auto-Pilot could sweep a different Google account than it measured."
+                ],
+                [
+                  "",
+                  " The weekly scan takes a few minutes and pins the mailbox it is looking at. The sweep that follows went and found a Gmail tab of its own instead, preferring whichever one you happened to be looking at. If you are signed in to two accounts and switched to the other one mid-scan, the sweep archived that mailbox using suggestions measured in the first, unattended. It now runs in the mailbox it measured, or waits for next week."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Auto-Pilot's scan measured your suggestions against settings you had turned off."
+                ],
+                [
+                  "",
+                  " Every suggestion card promises a number, and the promise is only honest if it was counted through the same filters the button applies. The three scans you start yourself send your safety switches along for exactly that reason. The weekly background scan never did, so it counted everything as though Skip Unread, Skip Starred, Skip Important and Skip Labeled were all on, and then wrote those numbers over the ones your own scan had measured. If you had turned Skip Unread off, a card reading \"Deletes 200 now\" sat above a button that would take every unread message too. The background scan now uses your switches. The sweep itself is unchanged and still runs with every guard on, so it can only ever take less than it counted."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Closing the Gmail tab stopped Auto-Pilot for two hours."
+                ],
+                [
+                  "",
+                  " If the tab went away mid-sweep, nothing was left to report that the sweep had ended, so the next weekly run skipped, and the one after that, until the record aged out. The popup meanwhile said a sweep was running right now. Closing the tab now ends the sweep properly, and the popup stops believing in one that died."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Dry runs were counted as cleanups."
+                ],
+                [
+                  "",
+                  " A dry run moves nothing, and it was still adding its projections to the lifetime totals on the Stats page. Preview five thousand old promotions to check a rule before you trust it, which is what the feature is for, and the chart claimed five thousand promotions cleaned, permanently. Previews are kept out of the totals now and still appear in the run history with their dry run tag, which is the one place they belong."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The finish screen described work that had not happened."
+                ],
+                [
+                  "",
+                  " A dry run that ended while the popup was open said \"Cleanup Complete!\", counted the mail as cleaned, said it had gone to Trash, and offered you the recovery log to undo it. It now says a dry run finished and that nothing was moved, which is what the progress page has said all along. Archive runs had a smaller version of the same problem: the note under the result promised Gmail's 30 day Trash window, and archived mail never goes to Trash. It now says where the mail actually is."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Safe Mode's receipt protection could switch itself off."
+                ],
+                [
+                  "",
+                  " Safe Mode keeps receipts, invoices, orders, shipping and refund mail out of a cleanup by excluding those words from the subject. If your own rule already excluded any subject at all, for any reason, the whole protection was skipped while Safe Mode carried on showing as on. Gmail is perfectly happy to apply both exclusions, and the protected keywords feature has relied on that for years. Both apply now."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "A Never Delete entry could be rejected and reported as saved."
+                ],
+                [
+                  "",
+                  " If a line in the Never Delete list was not in a form the extension can use, a name and address pasted together, or an address with an apostrophe in it, it was dropped before it was stored, and Settings still said \"Settings saved successfully!\". You would leave believing a sender was protected. Settings now tells you which line it could not use."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Buying Pro did not stop the extension asking you to buy Pro."
+                ],
+                [
+                  "",
+                  " The strip offering somewhere to paste a key kept appearing for people whose key was already stored and verified, because it was drawn before the check finished. The Storage tab's upgrade pitch had the same problem from the other direction: it could be shown but never hidden again, so it stayed up for the rest of the session after a key was entered. Both are gone the moment a licence verifies."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Settings said Pro unlocked one feature."
+                ],
+                [
+                  "",
+                  " That was true when the only paid feature was bulk unsubscribe. Four more have been added since and the sentence never changed, so anyone opening Settings after paying was told they had bought a fifth of what they had bought. Settings now lists all five."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The What's new page flashed an empty jump bar"
+                ],
+                [
+                  "",
+                  " before its contents loaded."
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Improved",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "The Storage and Suggestions lists remember what you ticked, minus what already ran."
+                ],
+                [
+                  "",
+                  " Both cap one run at 25 senders out of a list that can hold a hundred, and the popup closes when a run starts, so working through a long list means going back and forth. Every trip back used to start from an empty selection with no record of where you had got to. They now come back with your selection intact and the senders that just ran taken off it, so \"run it again for the rest\" reaches the rest instead of the same twenty-five. A dry run keeps the whole selection, because it did not take anything. Nothing about this leaves your browser."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Settings shows what a Pro key unlocks"
+                ],
+                [
+                  "",
+                  ", as a list, in one place, so it stays right the next time something is added to it."
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "8.10.0",
       "title": "What the numbers promise, the runs deliver",
@@ -1204,207 +1391,6 @@ var GCC_CHANGELOG = {
           "items": [
             {
               "text": "Saving on the Options page rebuilt the rule map from a hardcoded list of the three intensities that existed at the time, so any intensity added later was silently dropped on the next save, and its editor was never watched for unsaved changes. Both now derive from the real key list."
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "version": "8.0.0",
-      "title": "Mailbox Report, and a popup that finally explains itself",
-      "intro": [
-        "The biggest release since Pro shipped. It adds the thing the product was missing, which is an answer to \"what is actually in here\", and it rebuilds the two screens where that answer matters: the popup you open, and the dashboard you watch a run finish on."
-      ],
-      "sections": [
-        {
-          "name": "Added",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "Mailbox Report."
-                ],
-                [
-                  "",
-                  " One read-only pass counts what is in your mailbox and turns it into a ranked cleanup plan: old promotions, big attachments, forgotten newsletters, social and forum mail, and inbox mail you never archived. Eleven Gmail searches, no message opened, nothing moved. It is now the tab the popup opens on."
-                ]
-              ],
-              "sub": [
-                [
-                  [
-                    "",
-                    "The "
-                  ],
-                  [
-                    "b",
-                    "whole report is free"
-                  ],
-                  [
-                    "",
-                    ", and so is running its biggest step, so you watch the mechanism work on your own mail before deciding anything. Pro unlocks the remaining steps and "
-                  ],
-                  [
-                    "b",
-                    "Run the whole plan"
-                  ],
-                  [
-                    "",
-                    "."
-                  ]
-                ],
-                "Every step is an ordinary cleanup run. Matches are labelled first, Dry Run is honoured, your whitelist, protected keywords and Minimum Age all apply, and the run lands in the Recovery Log with one-click Restore like any other.",
-                [
-                  [
-                    "",
-                    "Storage figures are "
-                  ],
-                  [
-                    "b",
-                    "floors"
-                  ],
-                  [
-                    "",
-                    ", built from Gmail's own size tiers, so the report says \"at least N MB\". Nothing is compared against Google's 15 GB bar, which is shared with Drive and Photos and which no extension can see."
-                  ]
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A run-completion card on the progress dashboard."
-                ],
-                [
-                  "",
-                  " Watching a run end used to leave you with a disabled button reading \"Run finished\". You now get the number, the labels that were actually applied, what Trash keeps and for how long, a link straight into the Recovery Log, and a copyable receipt."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A Pro screen inside the popup."
-                ],
-                [
-                  "",
-                  " Clicking a locked control used to open a payment form in a new tab, with no explanation, from a developer you have never heard of. It now opens a panel that leads with your own scan numbers, says what the five paid features do, and states the three things people actually want to know: one payment and never a subscription, the key is checked on your device, and every feature added later is included. The buy button does exactly what the old click did."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Two lines under the Run button"
-                ],
-                [
-                  "",
-                  " that say, without a click, what the cleaner protects and what it never sends anywhere."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "\"Bought Pro? Paste your key\""
-                ],
-                [
-                  "",
-                  " appears once you have run a cleanup and have no licence, because the post-purchase page told buyers to right-click the toolbar icon and hunt for Options."
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "name": "Changed",
-          "items": [
-            {
-              "text": "The popup got a real type scale and spacing grid, sentence-case buttons, and a gold accent reserved for Pro. Green used to mean both \"your cleanup worked\" and \"pay us\"."
-            },
-            {
-              "text": "Pro is visible before you scan: the tabs that lead to paid features carry a small padlock, and the Pro badge now says whether it is locked or active instead of appearing only after you buy."
-            },
-            {
-              "text": "The popup remembers which tab you were on, and which senders you had ticked on the Unsubscribe tab, so a trip to checkout no longer throws away your triage."
-            },
-            {
-              "text": "Scans show placeholder rows while they run, and each list explains what the scan will produce before you start it."
-            },
-            {
-              "text": "\"Maybe later\" on the rating ask now lasts 90 days instead of forever."
-            }
-          ]
-        },
-        {
-          "name": "Fixed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "The Recovery Log stopped eating itself."
-                ],
-                [
-                  "",
-                  " An entry was written once per pass and the log kept only 20, so a first sweep on a large mailbox pushed out its own earliest entries before it finished and always destroyed the previous run's. Passes of the same rule in one run are now a single entry, and the log holds 60 of them."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The large-run confirmation appears on the screen you are looking at."
-                ],
-                [
-                  "",
-                  " The 10,000 and 20,000 conversation checks were browser dialogs raised inside the Gmail tab, which every run path had just pushed into the background, and they froze Gmail's page while they waited. They are now asked on the progress dashboard, with stopping as the default, and a run that gets no answer stops rather than proceeding. Declining also stops the whole run now, which is what the button says: it used to end only the current rule and carry on to the next one. Scheduled sweeps are unchanged, they still decline unattended and skip that rule."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A storage purge no longer builds an over-length search."
-                ],
-                [
-                  "",
-                  " Picking 25 senders produced a query far past the length this project's own validator allows. Addresses are now packed into as many searches as the limit permits and run as an ordinary multi-rule cleanup."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Rate this extension"
-                ],
-                [
-                  "",
-                  " sent Firefox users to the Chrome Web Store, under a button that named it. It now resolves to whichever store the copy was installed from, and it only appears after a run big enough to have earned the ask."
-                ]
-              ]
-            },
-            {
-              "text": "Removed a \"protect this sender\" suggestion strip that could never appear: it scored senders by opens and replies, and nothing in the extension has ever recorded either."
-            },
-            {
-              "text": [
-                [
-                  "c",
-                  "SECURITY.md"
-                ],
-                [
-                  "",
-                  " described the run counter as synced when it has always been device-local, and the README compared Pro against a monthly price when the competitors' annual plans are the honest comparison."
-                ]
-              ]
             }
           ]
         }

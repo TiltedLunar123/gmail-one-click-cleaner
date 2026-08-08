@@ -818,6 +818,20 @@ const GCC = (() => {
     STORAGE_KEY: "proLicense"
   });
 
+  // What the one payment actually buys, in the order the popup presents
+  // them. This list exists because there was no single answer: the
+  // Options page told buyers "Bulk unsubscribe is unlocked", which was
+  // the whole truth in 7.0 and has been wrong since 7.2, 7.8, 7.12 and
+  // 8.0 each added a pillar without touching that sentence. Someone who
+  // paid $9.99 read it and was told they had bought one fifth of it.
+  const PRO_FEATURES = Object.freeze([
+    "Bulk unsubscribe from every mailing list you tick",
+    "The full Storage X-ray list, and the one-click purge",
+    "The full Smart Suggestions list, and bulk apply",
+    "Every step of the Mailbox Report, and the whole-plan run",
+    "Auto-Pilot, the weekly sweep that archives without being asked"
+  ]);
+
   const LICENSE_PUBLIC_JWK = Object.freeze({
     kty: "EC",
     crv: "P-256",
@@ -1005,6 +1019,7 @@ const GCC = (() => {
 
   const license = Object.freeze({
     PRO,
+    FEATURES: PRO_FEATURES,
     parse: parseLicenseKey,
     verify: verifyLicense,
     getState: getLicenseState,
@@ -1973,18 +1988,28 @@ const GCC = (() => {
   };
 
   const smartBulkPlan = (senders) => {
-    const empty = { rules: [], emails: [], archive: false, action: "", deferred: 0 };
+    const empty = { rules: [], emails: [], archive: false, action: "", deferred: 0, deferredUnsub: 0 };
     if (!Array.isArray(senders) || !senders.length) return empty;
 
     const valid = [];
+    // 8.11: unsubscribe cards ride the unsubscribe engine, not a cleanup
+    // rule, so they can never be part of this plan. They used to be
+    // dropped by a bare `continue` that touched no counter, which meant
+    // the caller had nothing to report: tick three unsubscribe cards and
+    // two archive cards, press Apply selected, and the run took two
+    // while the popup said nothing about the other three. Counted
+    // separately from `deferred` because the remedy is different -
+    // pressing Apply again will never pick them up, they need their own
+    // button or the Unsubscribe tab.
+    let deferredUnsub = 0;
     for (const sender of senders) {
       const email = String(sender?.email || "").trim().toLowerCase();
       if (!STORAGE_EMAIL_RE.test(email) || email.length > 320) continue;
       const action = smartResolvedAction(sender);
-      if (action === "unsubscribe") continue;
+      if (action === "unsubscribe") { deferredUnsub++; continue; }
       valid.push({ email, action });
     }
-    if (!valid.length) return empty;
+    if (!valid.length) return { ...empty, deferredUnsub };
 
     // Order is the ranked order the cards were rendered in, so "the
     // group the first checked card is in" is the group at the top of
@@ -2000,7 +2025,7 @@ const GCC = (() => {
       seen.add(item.email);
       chosen.push(item.email);
     }
-    if (!chosen.length) return empty;
+    if (!chosen.length) return { ...empty, deferredUnsub };
 
     // Every member shares the action, so they share the query shape, and
     // an OR group is one search instead of twenty-five. The shapes are
@@ -2025,7 +2050,8 @@ const GCC = (() => {
       emails: chosen,
       archive: lead === "archiveAll",
       action: lead,
-      deferred
+      deferred,
+      deferredUnsub
     };
   };
 

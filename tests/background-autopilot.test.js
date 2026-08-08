@@ -85,6 +85,10 @@ function makeStorageArea(area) {
 
 const executed = [];
 
+// tabId -> url, or null to make chrome.tabs.get throw as it does for a
+// closed tab. Empty means "every tab is the account the scan measured".
+let tabUrls = {};
+
 beforeAll(() => {
   resetStorage();
   global.chrome = {
@@ -110,7 +114,19 @@ beforeAll(() => {
     },
     tabs: {
       query: jest.fn(async () => [{ id: 7, active: true, url: "https://mail.google.com/mail/u/0/" }]),
-      get: jest.fn(async (id) => ({ id })),
+      // 8.11: the real chrome.tabs.get returns a url whenever the `tabs`
+      // permission is held, and this returned a bare {id}. The apply
+      // stage now checks that the tab it was handed is still the Gmail
+      // mailbox the scan measured, so a tab with no url is a tab it
+      // (correctly) refuses. tabUrls lets a test move a tab to another
+      // account, which is the case the check exists for.
+      get: jest.fn(async (id) => {
+        if (Object.prototype.hasOwnProperty.call(tabUrls, id)) {
+          if (tabUrls[id] === null) throw new Error("No tab with id: " + id);
+          return { id, url: tabUrls[id] };
+        }
+        return { id, url: "https://mail.google.com/mail/u/0/" };
+      }),
       sendMessage: jest.fn(async (_tabId, msg) => {
         if (msg?.type !== "gmailCleanerPing") return { ok: true };
         return {
@@ -150,8 +166,15 @@ beforeEach(() => {
   chrome.storage.local = makeStorageArea("local");
   chrome.storage.sync = makeStorageArea("sync");
   chrome.storage.session = makeStorageArea("session");
+  tabUrls = {};
   chrome.tabs.query = jest.fn(async () => [{ id: 7, active: true, url: "https://mail.google.com/mail/u/0/" }]);
-  chrome.tabs.get = jest.fn(async (id) => ({ id }));
+  chrome.tabs.get = jest.fn(async (id) => {
+    if (Object.prototype.hasOwnProperty.call(tabUrls, id)) {
+      if (tabUrls[id] === null) throw new Error("No tab with id: " + id);
+      return { id, url: tabUrls[id] };
+    }
+    return { id, url: "https://mail.google.com/mail/u/0/" };
+  });
   chrome.alarms.create.mockClear();
   chrome.alarms.clear.mockClear();
   INTERNALS.setTestLicenseJwk(null);
@@ -466,6 +489,78 @@ describe("the sweep stage machine", () => {
     expect(cfg.runKind).toBe("smartScan");
     expect(executed[1].files).toEqual(["contentScript.js"]);
     expect(storageBacking.local.autoPilotState.pending).toMatchObject({ stage: "scan" });
+  });
+
+  // 8.11. The scan's numbers are not private to Auto-Pilot: recordSmartScan
+  // writes them into the same smartScan store the popup's suggestion cards
+  // read, and overwrites whatever the user's own scan measured. So the scan
+  // has to measure through the guards the popup's BUTTONS apply, which is
+  // what 8.6 taught the popup's own scan and never taught this one. A user
+  // who turned Skip Unread off got "Deletes 200 now" on a card measured with
+  // `-is:unread` still attached, and a button that reached the unread mail
+  // too.
+  test("the scan measures through the user's switches, not the engine defaults", async () => {
+    await enableWithSuggestions();
+    storageBacking.local.lastUiSnapshot = {
+      safeMode: true,
+      minAge: "1y",
+      guardSkipStarred: true,
+      guardSkipImportant: false,
+      guardSkipUnread: false,
+      guardSkipUserLabels: true
+    };
+    await fireAlarm();
+
+    const cfg = executed[0].args[0];
+    expect(cfg.runKind).toBe("smartScan");
+    expect(cfg.guardSkipUnread).toBe(false);
+    expect(cfg.guardSkipImportant).toBe(false);
+    expect(cfg.guardSkipStarred).toBe(true);
+    expect(cfg.guardSkipUserLabels).toBe(true);
+    expect(cfg.safeMode).toBe(true);
+    expect(cfg.minAge).toBe("1y");
+  });
+
+  test("no stored snapshot still means every guard on", async () => {
+    // sanitizeConfig reads a missing guard as ON, so the fix must not be
+    // able to turn one OFF for someone who has never opened the popup.
+    // Boolean() on an absent key would have done exactly that.
+    await enableWithSuggestions();
+    delete storageBacking.local.lastUiSnapshot;
+    await fireAlarm();
+
+    const cfg = executed[0].args[0];
+    expect(cfg.guardSkipStarred).toBe(true);
+    expect(cfg.guardSkipImportant).toBe(true);
+    expect(cfg.guardSkipUnread).toBe(true);
+    expect(cfg.guardSkipUserLabels).toBe(true);
+    expect(cfg.minAge).toBeNull();
+  });
+
+  test("the sweep's own apply stays maximally conservative regardless", async () => {
+    // The scan above may now measure a WIDER set than the sweep will act
+    // on. That direction is safe and deliberate: the apply keeps its
+    // hardcoded guards, so it can only ever take less than was counted.
+    await enableWithSuggestions({ confirmed: true });
+    storageBacking.local.lastUiSnapshot = {
+      guardSkipStarred: false,
+      guardSkipImportant: false,
+      guardSkipUnread: false,
+      guardSkipUserLabels: false
+    };
+    await fireAlarm();
+    // Drop the scan's two executeScript calls so the next pair is the
+    // apply's, the way the sibling tests below read it.
+    executed.length = 0;
+    await scanDone();
+
+    const applyCfg = executed[0].args[0];
+    expect(applyCfg.guardSkipStarred).toBe(true);
+    expect(applyCfg.guardSkipImportant).toBe(true);
+    expect(applyCfg.guardSkipUnread).toBe(true);
+    expect(applyCfg.guardSkipUserLabels).toBe(true);
+    expect(applyCfg.safeMode).toBe(true);
+    expect(applyCfg.archiveInsteadOfDelete).toBe(true);
   });
 
   test("an engine already attached to the tab skips the whole sweep", async () => {
