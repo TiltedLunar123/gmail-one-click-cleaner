@@ -371,6 +371,12 @@
 
   "notifActionArchived": { "message": "arquivados" },
   "notifActionTrashed": { "message": "movidos para a Lixeira" },
+  "notifTitleDeclined": {
+    "message": "Gmail Cleaner - nada foi limpo"
+  },
+  "notifDeclinedBody": {
+    "message": "Algumas regras eram grandes demais para rodar sem confirmação. Abra a extensão e execute você mesmo."
+  },
   "notifTitleOne": { "message": "Gmail Cleaner - 1 e-mail $1" },
   "notifTitleMany": { "message": "Gmail Cleaner - $1 e-mails $2" },
   "notifDryBody": { "message": "Simulação concluída. Nenhum e-mail foi tocado." },
@@ -459,6 +465,12 @@
   "progGuardCountUnit": { "message": "conversas" },
   "progGuardLeadDelete": { "message": "Esta execução excluiria cerca de $1 conversas." },
   "progGuardLeadArchive": { "message": "Esta execução arquivaria cerca de $1 conversas." },
+  "progGuardLeadUnknownArchive": {
+    "message": "O Gmail não informou quantas conversas correspondem. Todas serão arquivadas, e isso pode ser muito mais do que a página que você vê."
+  },
+  "progGuardLeadUnknownDelete": {
+    "message": "O Gmail não informou quantas conversas correspondem. Todas serão excluídas, e isso pode ser muito mais do que a página que você vê."
+  },
   "progGuardLeadHuge": { "message": "Cerca de $1 conversas serão excluídas." },
   "progGuardAlternatives": { "message": "Se isso for mais do que você esperava, pare e tente antes uma simulação, o Modo seguro ou um conjunto menor de regras." },
   "progGuardTrashNote": { "message": "Os e-mails vão para a Lixeira, e o Gmail guarda a Lixeira por cerca de 30 dias." },

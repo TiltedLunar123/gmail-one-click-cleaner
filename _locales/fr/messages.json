@@ -371,6 +371,12 @@
 
   "notifActionArchived": { "message": "archivés" },
   "notifActionTrashed": { "message": "mis à la Corbeille" },
+  "notifTitleDeclined": {
+    "message": "Gmail Cleaner - rien n'a été nettoyé"
+  },
+  "notifDeclinedBody": {
+    "message": "Certaines règles étaient trop volumineuses pour s'exécuter sans confirmation. Ouvrez l'extension et lancez-la vous-même."
+  },
   "notifTitleOne": { "message": "Gmail Cleaner - 1 e-mail $1" },
   "notifTitleMany": { "message": "Gmail Cleaner - $1 e-mails $2" },
   "notifDryBody": { "message": "Simulation terminée. Aucun courrier touché." },
@@ -459,6 +465,12 @@
   "progGuardCountUnit": { "message": "conversations" },
   "progGuardLeadDelete": { "message": "Cette exécution supprimerait environ $1 conversations." },
   "progGuardLeadArchive": { "message": "Cette exécution archiverait environ $1 conversations." },
+  "progGuardLeadUnknownArchive": {
+    "message": "Gmail n'a pas indiqué combien de conversations correspondent. Toutes seront archivées, et cela peut dépasser de loin la page visible."
+  },
+  "progGuardLeadUnknownDelete": {
+    "message": "Gmail n'a pas indiqué combien de conversations correspondent. Toutes seront supprimées, et cela peut dépasser de loin la page visible."
+  },
   "progGuardLeadHuge": { "message": "Environ $1 conversations vont être supprimées." },
   "progGuardAlternatives": { "message": "Si c'est plus que prévu, arrêtez et essayez d'abord une simulation, le Mode sûr, ou un jeu de règles plus restreint." },
   "progGuardTrashNote": { "message": "Le courrier va à la Corbeille, et Gmail garde la Corbeille environ 30 jours." },

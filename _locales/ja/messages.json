@@ -371,6 +371,12 @@
 
   "notifActionArchived": { "message": "アーカイブしました" },
   "notifActionTrashed": { "message": "ゴミ箱へ移動しました" },
+  "notifTitleDeclined": {
+    "message": "Gmail Cleaner - 何も削除されませんでした"
+  },
+  "notifDeclinedBody": {
+    "message": "確認なしで実行するには大きすぎるルールがありました。拡張機能を開いて手動で実行してください。"
+  },
   "notifTitleOne": { "message": "Gmail Cleaner - メール1件を$1" },
   "notifTitleMany": { "message": "Gmail Cleaner - メール$1件を$2" },
   "notifDryBody": { "message": "シミュレーション終了。メールには触れていません。" },
@@ -459,6 +465,12 @@
   "progGuardCountUnit": { "message": "件のスレッド" },
   "progGuardLeadDelete": { "message": "この実行では約$1件のスレッドが削除されます。" },
   "progGuardLeadArchive": { "message": "この実行では約$1件のスレッドがアーカイブされます。" },
+  "progGuardLeadUnknownArchive": {
+    "message": "一致するスレッド数をGmailが返しませんでした。一致するものはすべてアーカイブされ、表示中のページよりはるかに多い可能性があります。"
+  },
+  "progGuardLeadUnknownDelete": {
+    "message": "一致するスレッド数をGmailが返しませんでした。一致するものはすべて削除され、表示中のページよりはるかに多い可能性があります。"
+  },
   "progGuardLeadHuge": { "message": "約$1件のスレッドが削除されます。" },
   "progGuardAlternatives": { "message": "思っていたより多い場合は、いったん中止して、まずシミュレーション、セーフモード、またはより少ないルールで試してください。" },
   "progGuardTrashNote": { "message": "メールはゴミ箱へ移動し、Gmailはゴミ箱を約30日間保持します。" },

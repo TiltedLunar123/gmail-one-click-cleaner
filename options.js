@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const OPTIONS_VERSION = "8.11.0";
+  const OPTIONS_VERSION = "8.12.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -484,6 +484,59 @@
       });
     });
 
+    // 8.12: the two list caps used to be enforced by a silent .slice()
+    // on the way to storage, while the textarea, the line counter and
+    // the success toast all still showed the full list. A user who
+    // pasted 150 addresses into Never Delete was told their settings
+    // were saved, saw 150 lines, and had 100 protected. That is the
+    // failure the worker's addToWhitelist was fixed for in 8.10, in the
+    // words used there: a safety control that silently does nothing is
+    // worse than one that says no. These BLOCK, because truncating a
+    // protection list is not a partial success.
+    //
+    // Counted from the RAW lines: normalizeWhitelist ENDS in the very
+    // .slice() being checked for, so counting its output could never
+    // exceed the cap. Same trap 8.11 hit reading the normalized list.
+    const overCap = (message) => {
+      errors.push(message);
+      blocking.push(message);
+    };
+
+    const validWhitelistCount = uniqTrimmed(readLines("whitelist"))
+      .filter((s) => isValidWhitelistEntry(s)).length;
+    if (validWhitelistCount > CONFIG.MAX_WHITELIST_ENTRIES) {
+      overCap(
+        `Never Delete holds ${validWhitelistCount} addresses and the limit is ` +
+        `${CONFIG.MAX_WHITELIST_ENTRIES}. Remove ${validWhitelistCount - CONFIG.MAX_WHITELIST_ENTRIES} ` +
+        "and save again. Nothing was changed."
+      );
+    }
+
+    RULE_KEYS.forEach((key) => {
+      const count = (data?.rules?.[key] || []).length;
+      if (count > CONFIG.MAX_RULES_PER_CATEGORY) {
+        overCap(
+          `The ${key} rule list holds ${count} rules and the limit is ` +
+          `${CONFIG.MAX_RULES_PER_CATEGORY}. Remove ${count - CONFIG.MAX_RULES_PER_CATEGORY} and save again. ` +
+          "Nothing was changed."
+        );
+      }
+    });
+
+    // The third list on this page, and the twin the two checks above
+    // very nearly shipped without. Protected Keywords shields SUBJECTS
+    // from deletion, it is saved by the same function, and
+    // GCC.sanitizeProtectKeywords ends in the same silent cut at 25.
+    // Counted from the raw lines for the same reason as the whitelist.
+    const rawKeywordCount = readLines("protectKeywords").length;
+    if (rawKeywordCount > GCC.MAX_PROTECT_KEYWORDS) {
+      overCap(
+        `Protected Keywords holds ${rawKeywordCount} entries and the limit is ` +
+        `${GCC.MAX_PROTECT_KEYWORDS}. Remove ${rawKeywordCount - GCC.MAX_PROTECT_KEYWORDS} ` +
+        "and save again. Nothing was changed."
+      );
+    }
+
     // Validate whitelist entries.
     //
     // 8.11: this used to walk `data.whitelist`, which collectAllData has
@@ -505,6 +558,15 @@
       }
     });
 
+    // 8.12: the caps used to be enforced by a silent `.slice()` on the
+    // way to storage, with the textarea, the line counter and the
+    // success toast all still showing the full list. So a user who
+    // pasted 150 addresses into Never Delete was told their settings
+    // were saved, saw 150 lines, and had 100 protected. That is the
+    // failure the worker's addToWhitelist was fixed for in 8.10, in the
+    // exact words used there: a safety control that silently does
+    // nothing is worse than one that says no. These BLOCK, because
+    // truncating a protection list is not a partial success.
     return { valid: errors.length === 0, errors, blocking };
   };
 
@@ -515,7 +577,9 @@
   const saveData = async (evt = null, opts = {}) => {
     evt?.preventDefault?.();
 
-    if (state.saving) return;
+    // A save already in flight is not a save this call completed, so it
+    // reports false like every other non-success path.
+    if (state.saving) return false;
     state.saving = true;
 
     const btn = /** @type {HTMLButtonElement|null} */ (GCC.$("save"));
@@ -535,7 +599,7 @@
         GCC.showToast(`Not saved. ${validation.blocking[0]}`, "error");
         console.warn("[Gmail Cleaner] Save refused:", validation.blocking);
         srStatus(`Settings not saved. ${validation.blocking[0]}`);
-        return;
+        return false;
       }
 
       if (!validation.valid) {
@@ -562,10 +626,12 @@
       }
 
       srStatus("Settings saved.");
+      return true;
     } catch (err) {
       console.error("[Gmail Cleaner] Failed to save:", err);
       GCC.showToast(`Failed to save: ${err?.message || "Unknown error"}`, "error");
       srStatus("Failed to save settings.");
+      return false;
     } finally {
       setButtonLoading(btn, false);
       state.saving = false;
@@ -665,7 +731,19 @@
     });
     markUnsaved();
 
-    await saveData(null, { silent: true });
+    // 8.12: saveData used to swallow every outcome and return undefined,
+    // and this said "Settings restored to defaults" regardless. On a
+    // refusal or a sync failure the red toast was immediately followed
+    // by a green one, the unsaved marker was cleared, and the page then
+    // showed defaults that had never been written, so the next run used
+    // rules the screen was not displaying. It reports its result now.
+    const saved = await saveData(null, { silent: true });
+    if (!saved) {
+      // saveData has already said why. Leave the marker up: the boxes on
+      // screen really are unsaved changes now.
+      srStatus("Defaults were not saved.");
+      return;
+    }
     clearUnsaved();
 
     GCC.showToast("Settings restored to defaults", "success");
@@ -1246,6 +1324,17 @@
     }
   }
 
+  // 8.12: one reading of "the worker refused this schedule write", so a
+  // fourth call site cannot be added without it. sendSwMessage resolves
+  // to { error, code } when the message never lands, and the router
+  // answers { ok: false, error } when saveSchedule throws (the sync
+  // quota ceiling is the realistic one), so both shapes carry a reason
+  // worth showing rather than a generic failure.
+  const scheduleError = (resp, fallback) => {
+    const reason = resp?.error;
+    return reason ? `${fallback}: ${reason}` : fallback;
+  };
+
   // =========================
   // Notifications toggle (5.0)
   // =========================
@@ -1325,7 +1414,19 @@
       }
       toggle.addEventListener("click", async () => {
         schedule.enabled = !schedule.enabled;
-        await sendSwMessage({ type: "gmailCleanerSaveSchedule", schedule });
+        // 8.12: saveSchedule rethrows on purpose (the worker's own
+        // comment says the Options page needs the throw so it can tell
+        // the user), and the router answers { ok: false, error }. All
+        // three call sites threw it away and toasted success, so a
+        // schedule that failed to save read as enabled on screen and
+        // never ran. Put the toggle back and say what happened.
+        const resp = await sendSwMessage({ type: "gmailCleanerSaveSchedule", schedule });
+        if (!resp || resp.ok === false || resp.error) {
+          schedule.enabled = !schedule.enabled;
+          renderSchedules();
+          GCC.showToast(scheduleError(resp, "Could not update the schedule"), "error");
+          return;
+        }
         renderSchedules();
         GCC.showToast(schedule.enabled ? "Schedule enabled" : "Schedule disabled", "info");
       });
@@ -1336,8 +1437,12 @@
       deleteBtn.title = "Remove schedule";
       deleteBtn.style.cssText = "background:none; border:none; color:#ef4444; font-size:18px; cursor:pointer; padding:0 4px; line-height:1;";
       deleteBtn.addEventListener("click", async () => {
-        await sendSwMessage({ type: "gmailCleanerDeleteSchedule", scheduleId: schedule.id });
+        const resp = await sendSwMessage({ type: "gmailCleanerDeleteSchedule", scheduleId: schedule.id });
         renderSchedules();
+        if (!resp || resp.ok === false || resp.error) {
+          GCC.showToast(scheduleError(resp, "Could not remove the schedule"), "error");
+          return;
+        }
         GCC.showToast("Schedule removed", "success");
       });
 
@@ -1491,6 +1596,12 @@
         keyInput.value = "";
         GCC.showToast(`Pro activated. All ${GCC.license.FEATURES.length} paid features are unlocked.`, "success");
         await renderState();
+        // 8.12: and the Pro Settings card below, which is one of the
+        // features that toast just counted. Its own isPro is a closure
+        // boolean captured at page load, so without this a buyer who
+        // activates here scrolls down to the new thing they bought and
+        // finds it greyed out behind a Get Pro link until they reload.
+        await refreshProSettingsCard();
       } catch (err) {
         GCC.showToast(`Activation failed: ${err?.message || "unknown error"}`, "error");
       } finally {
@@ -1516,6 +1627,10 @@
           );
         }
         await renderState();
+        // The other direction: with the key gone, the card has to lock
+        // and show the defaults that are now actually in force, rather
+        // than keep accepting edits nothing will ever apply.
+        await refreshProSettingsCard();
       } catch (err) {
         GCC.showToast(`Failed: ${err?.message || "unknown error"}`, "error");
       }
@@ -1531,6 +1646,158 @@
   };
 
   wireProSection();
+
+  // =========================
+  // Pro settings (8.12)
+  // =========================
+  // Three knobs on machinery Pro already owns. The gate here is honest,
+  // not defensive: GCC.proSettings.effective() hands back defaults for
+  // anyone without an active key, so every consumer stays correct even
+  // if this page is edited in devtools. What this section owns is
+  // telling the truth about which state you are in and never leaving a
+  // value on screen that is not the value in force.
+
+  // Set by wireProSettingsSection, called by the licence section above
+  // whenever a key is activated or removed. A no-op until the card is
+  // wired, and harmless if the card is not on the page at all.
+  let refreshProSettingsCard = async () => {};
+
+  const wireProSettingsSection = () => {
+    const card = GCC.$("proSettingsCard");
+    const lockedEl = GCC.$("proSettingsLocked");
+    const fieldsEl = GCC.$("proSettingsFields");
+    const labelInput = GCC.$("proLabelPrefix");
+    const labelPreview = GCC.$("proLabelPreview");
+    const labelError = GCC.$("proLabelPrefixError");
+    const intervalSel = GCC.$("proAutoPilotInterval");
+    const depthSel = GCC.$("proSmartScanDepth");
+    const saveBtn = GCC.$("proSettingsSaveBtn");
+    const resetBtn = GCC.$("proSettingsResetBtn");
+    const statusEl = GCC.$("proSettingsStatus");
+    const buyLink = GCC.$("proSettingsBuyLink");
+    if (!card || !labelInput || !intervalSel || !depthSel || !saveBtn) return;
+
+    if (buyLink) buyLink.href = GCC.license.buyUrl("options_pro_settings");
+
+    const DEFAULTS = GCC.proSettings.DEFAULTS;
+    let isPro = false;
+
+    const renderPreview = () => {
+      if (!labelPreview) return;
+      const check = GCC.proSettings.validateLabelPrefix(labelInput.value);
+      // An invalid draft keeps the last good preview rather than
+      // rendering a label that could never be created.
+      if (check.ok) labelPreview.textContent = `${check.value} - Promotions`;
+    };
+
+    const showLabelError = (message) => {
+      if (!labelError) return;
+      labelError.textContent = message || "";
+      labelError.hidden = !message;
+      labelInput.setAttribute("aria-invalid", message ? "true" : "false");
+    };
+
+    const applyToForm = (settings) => {
+      labelInput.value = settings.labelPrefix;
+      intervalSel.value = String(settings.autoPilotIntervalDays);
+      depthSel.value = settings.smartScanDepth;
+      showLabelError("");
+      renderPreview();
+    };
+
+    const setLocked = (locked) => {
+      if (lockedEl) lockedEl.hidden = !locked;
+      for (const el of [labelInput, intervalSel, depthSel, saveBtn, resetBtn]) {
+        if (el) el.disabled = locked;
+      }
+      if (fieldsEl) fieldsEl.style.opacity = locked ? "0.55" : "";
+    };
+
+    const renderState = async () => {
+      let licenseState = { active: false };
+      try {
+        licenseState = await GCC.license.getState();
+      } catch {
+        licenseState = { active: false };
+      }
+      isPro = Boolean(licenseState.active);
+      setLocked(!isPro);
+      // effective() is deliberately given the real licence state: a
+      // lapsed copy sees the defaults that are actually in force, not
+      // the values it saved while the key was present.
+      applyToForm(await GCC.proSettings.read(isPro));
+      if (statusEl) statusEl.textContent = "";
+    };
+
+    const persist = async (settings, btn) => {
+      try {
+        await GCC.safeSyncSet({ [GCC.proSettings.KEY]: settings }, "Pro settings");
+      } catch (err) {
+        GCC.showToast(`Could not save: ${err?.message || "unknown error"}`, "error");
+        return false;
+      }
+      // Auto-Pilot's alarm is armed from the interval, so the worker has
+      // to re-arm now. Without this the change only took effect after
+      // the next fire, which on a weekly sweep is up to seven days of
+      // the page showing one interval and the alarm running another.
+      const resp = await sendSwMessage({ type: "gmailCleanerProSettingsChanged" });
+      if (resp?.error) {
+        GCC.showToast("Saved, but Auto-Pilot could not be re-armed. Reopen the popup to retry.", "warning");
+      }
+      showButtonSuccess(btn);
+      srStatus("Pro settings saved.");
+      return true;
+    };
+
+    labelInput.addEventListener("input", () => {
+      const check = GCC.proSettings.validateLabelPrefix(labelInput.value);
+      showLabelError(check.ok ? "" : check.error);
+      renderPreview();
+    });
+
+    saveBtn.addEventListener("click", async () => {
+      if (!isPro) return;
+      const check = GCC.proSettings.validateLabelPrefix(labelInput.value);
+      if (!check.ok) {
+        showLabelError(check.error);
+        GCC.showToast(check.error, "error");
+        labelInput.focus();
+        return;
+      }
+      // A blank field means "use the default", and the field is put back
+      // to it so the box never disagrees with what is stored.
+      if (check.reset) labelInput.value = check.value;
+      showLabelError("");
+
+      const settings = {
+        labelPrefix: check.value,
+        autoPilotIntervalDays: Number(intervalSel.value) || DEFAULTS.autoPilotIntervalDays,
+        smartScanDepth: depthSel.value || DEFAULTS.smartScanDepth
+      };
+      if (await persist(settings, saveBtn)) {
+        GCC.showToast("Pro settings saved", "success");
+        renderPreview();
+      }
+    });
+
+    resetBtn?.addEventListener("click", async () => {
+      if (!isPro) return;
+      // 8.12: repaint only once the write is confirmed. Painting first
+      // meant a refused or failed save left the card showing defaults
+      // while storage still held the user's real label and interval,
+      // which is verbatim the defect this release fixed for the page's
+      // other Restore defaults button a thousand lines above.
+      if (await persist({ ...DEFAULTS }, resetBtn)) {
+        applyToForm(DEFAULTS);
+        GCC.showToast("Pro settings reset to defaults", "info");
+      }
+    });
+
+    refreshProSettingsCard = renderState;
+    renderState().catch(() => {});
+  };
+
+  wireProSettingsSection();
 
   const addScheduleBtn = GCC.$("addScheduleBtn");
   if (addScheduleBtn) {
@@ -1551,8 +1818,12 @@
         lastRun: null
       };
 
-      await sendSwMessage({ type: "gmailCleanerSaveSchedule", schedule });
+      const resp = await sendSwMessage({ type: "gmailCleanerSaveSchedule", schedule });
       renderSchedules();
+      if (!resp || resp.ok === false || resp.error) {
+        GCC.showToast(scheduleError(resp, "Could not create the schedule"), "error");
+        return;
+      }
       GCC.showToast("Schedule created", "success");
     });
   }

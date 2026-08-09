@@ -371,6 +371,12 @@
 
   "notifActionArchived": { "message": "archiviert" },
   "notifActionTrashed": { "message": "in den Papierkorb verschoben" },
+  "notifTitleDeclined": {
+    "message": "Gmail Cleaner - nichts wurde bereinigt"
+  },
+  "notifDeclinedBody": {
+    "message": "Einige Regeln waren zu umfangreich, um ohne Rückfrage zu laufen. Öffnen Sie die Erweiterung und starten Sie sie selbst."
+  },
   "notifTitleOne": { "message": "Gmail Cleaner - 1 E-Mail $1" },
   "notifTitleMany": { "message": "Gmail Cleaner - $1 E-Mails $2" },
   "notifDryBody": { "message": "Testlauf beendet. Keine Mail wurde angefasst." },
@@ -459,6 +465,12 @@
   "progGuardCountUnit": { "message": "Unterhaltungen" },
   "progGuardLeadDelete": { "message": "Dieser Durchlauf würde etwa $1 Unterhaltungen löschen." },
   "progGuardLeadArchive": { "message": "Dieser Durchlauf würde etwa $1 Unterhaltungen archivieren." },
+  "progGuardLeadUnknownArchive": {
+    "message": "Gmail hat nicht angegeben, wie viele Konversationen übereinstimmen. Alle werden archiviert, und das können weit mehr sein als die sichtbare Seite."
+  },
+  "progGuardLeadUnknownDelete": {
+    "message": "Gmail hat nicht angegeben, wie viele Konversationen übereinstimmen. Alle werden gelöscht, und das können weit mehr sein als die sichtbare Seite."
+  },
   "progGuardLeadHuge": { "message": "Etwa $1 Unterhaltungen werden gelöscht." },
   "progGuardAlternatives": { "message": "Wenn das mehr ist als erwartet, stopp und probier erst einen Testlauf, den Sicheren Modus oder weniger Regeln." },
   "progGuardTrashNote": { "message": "Mails gehen in den Papierkorb, und Gmail behält den Papierkorb rund 30 Tage." },

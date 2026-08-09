@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const DIAGNOSTICS_VERSION = "8.11.0";
+  const DIAGNOSTICS_VERSION = "8.12.0";
 
   const CONFIG = Object.freeze({
     MAX_URL_LENGTH: 120,
@@ -43,6 +43,7 @@
     layoutChangeCard: "layoutChangeCard",
     layoutChangeWhen: "layoutChangeWhen",
     layoutChangeDetail: "layoutChangeDetail",
+    layoutChangeDismiss: "layoutChangeDismiss",
 
     lastRunSummary: "lastRunSummary",
     lastRunMeta: "lastRunMeta",
@@ -95,6 +96,7 @@
     layoutChangeCard: GCC.$(SELECTORS.layoutChangeCard),
     layoutChangeWhen: GCC.$(SELECTORS.layoutChangeWhen),
     layoutChangeDetail: GCC.$(SELECTORS.layoutChangeDetail),
+    layoutChangeDismiss: GCC.$(SELECTORS.layoutChangeDismiss),
 
     lastRunSummary: GCC.$(SELECTORS.lastRunSummary),
     lastRunMeta: GCC.$(SELECTORS.lastRunMeta),
@@ -380,46 +382,23 @@
   // Tab Strategy Detection (best-effort)
   // =========================
 
-  const detectTabStrategy = async () => {
-    // default behavior: active tab in current window
-    if (!GCC.hasChromeStorage("sync")) {
-      return { strategy: "active", enabled: false, source: "default" };
-    }
-
-    // we don't know your exact settings keys, so we probe common ones safely
-    const keys = [
-      "useDedicatedCleaningTab",
-      "runInDedicatedTab",
-      "dedicatedTabEnabled",
-      "preferDedicatedTab",
-      "useCleanerTab",
-      "openDedicatedTab",
-      "dedicatedGmailTabEnabled",
-      "dedicatedGmailTab"
-    ];
-
-    const res = await GCC.storageGet("sync", keys).catch(() => ({}));
-
-    let enabled = null;
-    let source = "default";
-
-    for (const k of keys) {
-      if (typeof res?.[k] === "boolean") {
-        enabled = res[k];
-        source = k;
-        break;
-      }
-      // allow string flags like "true"/"false" (bad data but happens)
-      if (typeof res?.[k] === "string" && (res[k] === "true" || res[k] === "false")) {
-        enabled = res[k] === "true";
-        source = k;
-        break;
-      }
-    }
-
-    if (enabled === true) return { strategy: "dedicated", enabled: true, source };
-    return { strategy: "active", enabled: false, source };
-  };
+  // 8.12: this used to probe eight guessed sync-storage keys for a
+  // "dedicated cleaning tab" preference, under a comment admitting we
+  // did not know the real key names and were trying likely ones. They
+  // were guesses, and grepping the shipped tree showed every one of the
+  // eight occurring only here: no writer had ever existed in popup.js,
+  // options.js, background.js, contentScript.js or shared.js. So the
+  // loop always fell through and the card always reported the same
+  // thing, after eight pointless sync reads on every open.
+  //
+  // The extension has exactly one tab strategy and always has: it runs
+  // in the Gmail tab it finds or opens. Reporting that directly is both
+  // shorter and, unlike the probe, actually true.
+  const detectTabStrategy = async () => ({
+    strategy: "active",
+    enabled: false,
+    source: "built-in"
+  });
 
   // =========================
   // Last Run Stats
@@ -478,12 +457,29 @@
     const actionWord = getActionWord(stats);
     const finishedText = GCC.formatDate(stats.finishedAt ?? null);
 
-    let freedMbText = "";
-    if (typeof stats.totalFreedMb === "number" && stats.mode !== "dry") {
-      if (stats.totalFreedMb < 0.1 && stats.totalFreedMb > 0) freedMbText = "< 0.1 MB";
-      else freedMbText = `${stats.totalFreedMb.toFixed(1)} MB`;
+    // 8.12: two fixes in one field.
+    //
+    // (a) `sizeBucket` is not a size. The engine derives it purely from
+    // the CONVERSATION COUNT ("small" / "medium" / "huge"), so printing
+    // it in a field labelled "Freed" reported a count band as a storage
+    // figure after every dry run.
+    //
+    // (b) archiving frees nothing. Mail moves to All Mail, stays in the
+    // account and stays against the quota. stats.js and progress.js both
+    // learned this in 8.9 and 8.10; diagnostics is the last history
+    // surface that still booked megabytes for an archive run, which
+    // contradicts the release notes this extension ships in its own
+    // changelog page.
+    const archived = stats.action === "archive";
+    let freedMbText;
+    if (stats.mode === "dry") freedMbText = "n/a (preview)";
+    else if (archived) freedMbText = "n/a (archived)";
+    else if (typeof stats.totalFreedMb === "number") {
+      freedMbText = stats.totalFreedMb < 0.1 && stats.totalFreedMb > 0
+        ? "< 0.1 MB"
+        : `${stats.totalFreedMb.toFixed(1)} MB`;
     } else {
-      freedMbText = sizeBucket;
+      freedMbText = "-";
     }
 
     if (elements.lastRunSummary) {
@@ -569,6 +565,26 @@
     }
   };
 
+  // 8.12: the notice had no way out. It is written once, on a
+  // gmail_layout_changed run error, and nothing anywhere removed the key
+  // afterwards, so one bad run left a permanent red card on the page a
+  // user opens precisely to find out whether things are working. The
+  // whole point of the card is "this happened recently".
+  const wireLayoutChangeDismiss = () => {
+    const btn = elements.layoutChangeDismiss;
+    if (!btn) return;
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        await GCC.storageSet("local", { layoutChangeNotice: null });
+        if (elements.layoutChangeCard) elements.layoutChangeCard.hidden = true;
+      } catch (err) {
+        console.warn("[Diagnostics] Failed to clear layout change notice:", err);
+        btn.disabled = false;
+      }
+    });
+  };
+
   // =========================
   // Run History
   // =========================
@@ -598,12 +614,17 @@
     const sizeCell = document.createElement("td");
     sizeCell.className = "small muted";
 
+    // 8.12: same two corrections as the last-run card above. Entries
+    // written before 8.9 still carry a freedMb for archive runs, so the
+    // guard has to run on read, exactly as stats.js:255 and progress.js
+    // freedMbOf do.
     let mbText = "-";
-    if (typeof run.totalFreedMb === "number") {
-      if (run.totalFreedMb < 0.1 && run.totalFreedMb > 0) mbText = "<0.1 MB";
-      else mbText = `${run.totalFreedMb.toFixed(1)} MB`;
-    } else if (run.sizeBucket) {
-      mbText = run.sizeBucket;
+    if (run.mode === "dry") mbText = "n/a";
+    else if (run.action === "archive") mbText = "n/a";
+    else if (typeof run.totalFreedMb === "number") {
+      mbText = run.totalFreedMb < 0.1 && run.totalFreedMb > 0
+        ? "<0.1 MB"
+        : `${run.totalFreedMb.toFixed(1)} MB`;
     }
     sizeCell.textContent = mbText;
 
@@ -998,6 +1019,7 @@
 
     await renderEnv();
     setupEventListeners();
+    wireLayoutChangeDismiss();
 
     await Promise.allSettled([
       renderLastRunFromStorage(),

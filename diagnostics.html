@@ -714,7 +714,7 @@
     <header class="page-header">
       <div class="title-row">
         <h1 id="main-content" tabindex="-1">Gmail One-Click Cleaner Diagnostics</h1>
-        <span class="badge" aria-label="Version 8.11.0">v8.10.0</span>
+        <span class="badge" aria-label="Version 8.12.0">v8.12.0</span>
         <span class="badge-secondary" id="diagVersionBadge" aria-label="Runtime snapshot">runtime snapshot</span>
         <div class="theme-switcher" id="themeSwitcher" role="group" aria-label="Color theme" style="margin-left:auto;">
           <button type="button" data-theme-value="system" aria-pressed="true">Auto</button>
@@ -746,6 +746,15 @@
         <p class="muted small" style="margin: 0;">
           Nothing was touched beyond what that run already reported. Gmail moves things around from
           time to time; a compatibility update usually follows within days, so keep the extension updated.
+        </p>
+
+        <!-- 8.12: nothing ever cleared this notice. Not a later
+             successful run, not an extension update, and there was no
+             control here, so a single layout hiccup left a permanent
+             warning on the page a worried user opens to check whether
+             the extension is healthy. -->
+        <p style="margin: 12px 0 0;">
+          <button type="button" id="layoutChangeDismiss" class="btn-ghost">Dismiss this notice</button>
         </p>
       </section>
 

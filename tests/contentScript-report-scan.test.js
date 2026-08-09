@@ -427,8 +427,18 @@ describe("the large-run guardrails stop the run when declined", () => {
   const path = require("path");
   const engine = fs.readFileSync(path.join(__dirname, "..", "contentScript.js"), "utf-8");
 
+  // 8.12: the soft-cap ask picks its dialog copy at the call site now
+  // (`kind: matchTotalUnknown ? "unknownBulk" : "softCap"`), so an
+  // indexOf on the bare literal no longer finds it. Anchor on the
+  // ASK for each gate instead, which is the thing these tests are
+  // really about, and which survives the copy branching.
+  const ASK_ANCHOR = {
+    softCap: 'kind: matchTotalUnknown ? "unknownBulk" : "softCap"',
+    hugeRun: 'kind: "hugeRun"'
+  };
+
   const declineBlock = (kind) => {
-    const at = engine.indexOf(`kind: "${kind}"`);
+    const at = engine.indexOf(ASK_ANCHOR[kind]);
     expect(at).toBeGreaterThan(-1);
     const end = engine.indexOf("window.GCC_CONFIRMED", at);
     return engine.slice(at, end > at ? end : at + 1200);
@@ -447,9 +457,25 @@ describe("the large-run guardrails stop the run when declined", () => {
     // one oversized rule.
     expect(engine).toMatch(/scheduled-soft-cap-declined/);
     expect(engine).toMatch(/scheduled-huge-run-declined/);
-    const softCapAsk = engine.indexOf('kind: "softCap"');
+    const softCapAsk = engine.indexOf(ASK_ANCHOR.softCap);
     const scheduledGuard = engine.indexOf("scheduled-soft-cap-declined");
+    expect(softCapAsk).toBeGreaterThan(-1);
     expect(scheduledGuard).toBeLessThan(softCapAsk);
+  });
+
+  // 8.12: an unattended decline used to be indistinguishable from an
+  // empty match set, so a schedule that skipped every rule signed off
+  // with "nothing matched your rules".
+  test("an unattended decline is reported, not silently swallowed", () => {
+    expect(engine).toMatch(/reason: "scheduled-soft-cap-declined", declined: true/);
+    expect(engine).toMatch(/reason: "scheduled-huge-run-declined", declined: true/);
+    expect(engine).toMatch(/stats\.declinedRules = \(stats\.declinedRules \|\| 0\) \+ 1;/);
+    const summary = engine.slice(
+      engine.indexOf("function buildHumanSummary("),
+      engine.indexOf("// Subscriptions: scan + bulk unsubscribe")
+    );
+    expect(summary).toMatch(/declinedRules/);
+    expect(summary).toMatch(/too large to run unattended/);
   });
 
   test("the guardrail answer is a separate signal from Review Mode", () => {
@@ -458,7 +484,15 @@ describe("the large-run guardrails stop the run when declined", () => {
     expect(engine).toMatch(/let GUARD_SIGNAL = null;/);
     expect(engine).toMatch(/case "gmailCleanerGuardProceed":/);
     expect(engine).toMatch(/case "gmailCleanerGuardStop":/);
-    expect(engine).toMatch(/GUARD_SIGNAL = null;[\s\S]{0,400}gmailCleanerRequestGuardrail/);
+    // Scoped to askGuardrail rather than to a character budget: 8.12
+    // added the unknown-total branch between these two lines and pushed
+    // them past an arbitrary 400-char window. What matters is that the
+    // signal is reset inside this function, before the request goes out.
+    const ask = engine.slice(
+      engine.indexOf("async function askGuardrail"),
+      engine.indexOf("async function waitForReviewResponse")
+    );
+    expect(ask).toMatch(/GUARD_SIGNAL = null;[\s\S]*gmailCleanerRequestGuardrail/);
   });
 
   test("no answer within the window declines", () => {

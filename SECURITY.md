@@ -130,6 +130,12 @@ The extension stores small values using `chrome.storage` so your settings persis
   version, the plan name `pro`, a short purchase-session tail, and a
   timestamp). Storing it in sync means Pro follows you to your other
   signed-in Chrome browsers.
+- `proSettings`, the three Pro Settings values: the recovery label you
+  chose, the Auto-Pilot interval, and the Smart Suggestions scan depth.
+  They are preferences, so they live beside the licence that unlocks
+  them and follow you the same way. None of them contains anything read
+  from your mailbox. They are only ever applied while a licence
+  verifies; without one the extension falls back to its own defaults.
 
 ### Local or Session Storage (device-only / ephemeral)
 - `lastConfig` (last-used popup toggles like Dry-Run, Review Mode, Safe Mode, min age, action type)

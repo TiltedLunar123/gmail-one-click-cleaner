@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const PROGRESS_VERSION = "8.11.0";
+  const PROGRESS_VERSION = "8.12.0";
 
   const CONFIG = Object.freeze({
     MAX_LOG_ENTRIES: 300,
@@ -181,6 +181,7 @@
     // Guardrail modal
     guardModal: document.getElementById("guardModal"),
     guardCount: document.getElementById("guardCount"),
+    guardCountRow: document.getElementById("guardCountRow"),
     guardLead: document.getElementById("guardLead"),
     guardAlternatives: document.getElementById("guardAlternatives"),
     guardTrashNote: document.getElementById("guardTrashNote"),
@@ -911,11 +912,32 @@
 
     const countText = formatNumber(count);
     const isArchive = actionWord === "archive";
+    const countKnown = kind !== "unknownBulk";
 
-    if (ui.guardCount) ui.guardCount.textContent = countText;
+    if (ui.guardCount) ui.guardCount.textContent = countKnown ? countText : "";
+    // Inline display, not [hidden]: .guard-count carries its own display
+    // in the stylesheet and would beat the UA rule at equal importance,
+    // which is the trap popup.html needed a global [hidden] guard for.
+    if (ui.guardCountRow) ui.guardCountRow.style.display = countKnown ? "" : "none";
 
     if (ui.guardLead) {
-      if (kind === "hugeRun") {
+      if (kind === "unknownBulk") {
+        // 8.12: Gmail offered "select all N that match", the engine took
+        // it, and neither the toolbar counter nor the offer text gave up
+        // a number. Naming the viewport count here would be the lie this
+        // dialog exists to prevent, so it says what is actually known.
+        // Two keys rather than one interpolated verb, matching the
+        // archive/delete pair below: chrome.i18n has no way to inflect.
+        ui.guardLead.textContent = isArchive
+          ? t(
+            "progGuardLeadUnknownArchive",
+            "Gmail did not say how many conversations match. Every match will be archived, and that could be far more than the page you can see."
+          )
+          : t(
+            "progGuardLeadUnknownDelete",
+            "Gmail did not say how many conversations match. Every match will be deleted, and that could be far more than the page you can see."
+          );
+      } else if (kind === "hugeRun") {
         ui.guardLead.textContent = t(
           "progGuardLeadHuge",
           `About ${countText} conversations will be deleted.`,
@@ -939,7 +961,12 @@
     // The alternatives only make sense for the soft cap, which fires
     // before the run commits to anything; the huge-run gate is the
     // final yes/no on a delete already in motion.
-    if (ui.guardAlternatives) ui.guardAlternatives.hidden = kind !== "softCap";
+    // 8.12: the unknown-total dialog gets them too. "Try a Dry Run, Safe
+    // Mode, or a smaller set of rules" is the most useful thing anyone
+    // can be told when the size of the run cannot be established.
+    if (ui.guardAlternatives) {
+      ui.guardAlternatives.hidden = kind !== "softCap" && kind !== "unknownBulk";
+    }
 
     // Archived mail never reaches Trash, so the 30-day promise would be
     // a claim about something that is not going to happen.
@@ -1112,8 +1139,15 @@
     if (message.type === "gmailCleanerRequestGuardrail") {
       const count = Number(message.count) || 0;
       const actionWord = message.actionWord === "archive" ? "archive" : "delete";
+      // 8.12: the modal hides the number when the match total could not
+      // be read, because quoting the visible page there is the lie the
+      // dialog exists to prevent. The log line behind the modal was
+      // printing that very number, so the figure the dialog refused to
+      // state was sitting in the activity log the whole time.
       appendLog(
-        `Confirmation needed: this run would ${actionWord} about ${formatNumber(count)} conversations.`,
+        message.guardKind === "unknownBulk"
+          ? `Confirmation needed: Gmail did not report how many conversations this ${actionWord} would reach.`
+          : `Confirmation needed: this run would ${actionWord} about ${formatNumber(count)} conversations.`,
         LOG_LEVELS.WARNING
       );
       setPhaseTag(PHASES.GUARDRAIL);

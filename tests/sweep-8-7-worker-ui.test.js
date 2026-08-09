@@ -231,10 +231,30 @@ describe("the storage x-ray admits its numbers are any-age", () => {
   // describe large mail of ANY age, while the control right underneath
   // defaults to six months. A sender whose big mail is all recent read
   // "at least 400 MB" over a button that cleared none of it.
+  // 8.12: the change handler is a block now, because the chosen age is
+  // persisted alongside the ticked senders. Pin the BEHAVIOUR (a change
+  // on the select re-renders the note) rather than the old one-liner.
   test("there is a note, and it follows the select", () => {
     expect(popupHtml).toContain('id="xrayAgeNote"');
     expect(popupSrc).toContain("const renderXrayAgeNote = () => {");
-    expect(popupSrc).toContain('elements.xrayAge?.addEventListener("change", renderXrayAgeNote);');
+    const at = popupSrc.indexOf('elements.xrayAge?.addEventListener("change"');
+    expect(at).toBeGreaterThan(-1);
+    expect(popupSrc.slice(at, at + 400)).toContain("renderXrayAgeNote();");
+  });
+
+  // 8.12: and it has to come back. Restoring the ticks without the age
+  // re-armed the next purge at the 6-month default, which is wider than
+  // anything else the select offers.
+  test("the chosen purge age is remembered with the selection", () => {
+    expect(popupSrc).toContain('XRAY_AGE: "xrayPurgeAge"');
+    const at = popupSrc.indexOf('elements.xrayAge?.addEventListener("change"');
+    expect(popupSrc.slice(at, at + 400)).toContain("STORAGE_KEYS.XRAY_AGE");
+    const loader = popupSrc.slice(
+      popupSrc.indexOf("const loadXraySelection = async () => {"),
+      popupSrc.indexOf("const updateXrayCount = () => {")
+    );
+    expect(loader).toContain("STORAGE_KEYS.XRAY_AGE");
+    expect(loader).toContain("setSelectIfHasValue(elements.xrayAge, savedAge)");
   });
 
   test("it says nothing when the purge takes any age, because then they agree", () => {
