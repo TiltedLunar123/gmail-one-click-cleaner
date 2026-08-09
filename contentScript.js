@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "8.11.0";
+  const GCC_CONTENT_VERSION = "8.12.0";
 
   // =========================
   // Timing & behavior constants
@@ -98,7 +98,22 @@
     // such a rule destroys. Everything else on this list is recoverable
     // by comparison, so refusing these two is the floor, not an extra.
     "in:trash",
-    "in:spam"
+    "in:spam",
+    // 8.12: three ways into the same two views that 8.8 did not close.
+    // `label:trash` and `label:spam` are Gmail's own synonyms for
+    // `in:trash` / `in:spam`, so the refusal was one spelling deep and
+    // the second guess a user makes after being refused walked straight
+    // through it. `in:anywhere` is worse, because it is a SUPERSET of
+    // both: it was on AGE_REQUIRED_TOKENS only, so `in:anywhere
+    // older_than:1y` passed every check and put the engine in a result
+    // set containing Trash and Spam. Nothing shipped uses any of the
+    // three (grepped: no built-in rule, report band, x-ray, smart or
+    // restore query), and the legitimate intent behind `in:anywhere
+    // older_than:1y` is served by plain `older_than:1y`, which already
+    // excludes Trash and Spam.
+    "label:trash",
+    "label:spam",
+    "in:anywhere"
   ];
 
   function queryHasDangerousToken(rawQuery) {
@@ -120,9 +135,54 @@
   }
 
   // v3.4: Safe Mode additional subject guard (protect receipts, orders, shipping, etc.)
-  const SAFE_MODE_SUBJECT_GUARD = Object.freeze(
-    '-subject:(receipt OR invoice OR "order" OR shipped OR shipping OR tracking OR delivered OR delivery OR confirmation OR refund OR return)'
-  );
+  //
+  // 8.12: this was one frozen English string, appended verbatim to every
+  // rule, in a product whose popup promises Safe Mode in seven languages
+  // and whose engine has driven Gmail's UI in seventeen since 7.5. On a
+  // German mailbox "Ihre Rechnung", "Bestellbestätigung" and "Lieferung
+  // unterwegs" matched none of the English words, so Safe Mode was on,
+  // said it was protecting receipts, and protected nothing.
+  //
+  // The failure direction here is the opposite of the UI-token tables,
+  // and that is why a researched-strings standard is not needed: a term
+  // that misses leaves mail unprotected, a term that over-matches only
+  // makes Safe Mode skip MORE mail. English always ships alongside the
+  // detected language, because commercial mail is routinely English in a
+  // non-English mailbox. Terms are kept distinctive on purpose -- a
+  // short common word would quietly turn Safe Mode into "skip
+  // everything" -- and the total is length-capped by a test, because
+  // this string is prepended to every rule and rules have a 512-char
+  // ceiling.
+  const SAFE_MODE_SUBJECT_TERMS = Object.freeze({
+    en: ["receipt", "invoice", "order", "shipped", "shipping", "tracking",
+      "delivered", "delivery", "confirmation", "refund", "return"],
+    de: ["Rechnung", "Beleg", "Bestellung", "Bestellbestätigung", "Versand", "Lieferung", "Erstattung"],
+    es: ["recibo", "factura", "pedido", "envío", "seguimiento", "entrega", "confirmación", "reembolso"],
+    fr: ["reçu", "facture", "commande", "expédition", "suivi", "livraison", "remboursement"],
+    pt: ["recibo", "fatura", "pedido", "envio", "rastreamento", "entrega", "reembolso"],
+    it: ["ricevuta", "fattura", "ordine", "spedizione", "consegna", "rimborso"],
+    nl: ["factuur", "bestelling", "verzending", "bezorging", "bevestiging", "terugbetaling"],
+    ru: ["чек", "счёт", "заказ", "доставка", "отправление", "подтверждение", "возврат"],
+    ja: ["領収書", "請求書", "注文", "発送", "配送", "返金"],
+    ko: ["영수증", "청구서", "주문", "배송", "발송", "환불"],
+    zh: ["收据", "发票", "订单", "发货", "配送", "退款"]
+  });
+
+  function safeModeSubjectGuard() {
+    let lang = "";
+    try {
+      lang = (document.documentElement?.lang || "").toLowerCase();
+    } catch {
+      // Fall through to English only.
+    }
+    const base = lang.split("-")[0];
+    const extra = base && base !== "en" ? SAFE_MODE_SUBJECT_TERMS[base] : null;
+    const terms = extra
+      ? SAFE_MODE_SUBJECT_TERMS.en.concat(extra)
+      : SAFE_MODE_SUBJECT_TERMS.en;
+    const quoted = terms.map((t) => (/\s/.test(t) ? `"${t}"` : t));
+    return `-subject:(${quoted.join(" OR ")})`;
+  }
 
   // =========================
   // Boot & basic utilities
@@ -443,6 +503,16 @@
     return `-subject:(${terms.join(" OR ")})`;
   }
 
+  // A whole number inside [min, max], or the fallback. Anything the
+  // caller sends that is not a finite number lands on the fallback
+  // rather than on min, so a missing field keeps the historical default
+  // instead of silently becoming the smallest legal value.
+  function clampInt(value, min, max, fallback) {
+    const n = Math.floor(Number(value));
+    if (!Number.isFinite(n)) return fallback;
+    return Math.min(max, Math.max(min, n));
+  }
+
   const sanitizeConfig = (config) => {
     if (!config || typeof config !== "object") {
       config = {};
@@ -470,6 +540,14 @@
       minAge: typeof config.minAge === "string" && validAgePattern.test(config.minAge)
         ? config.minAge
         : null,
+      // 8.12: the Smart scan's sender budget, sent by whoever started the
+      // scan (the popup, or the worker's Auto-Pilot stage) from the Pro
+      // depth setting. Clamped here rather than trusted: this decides how
+      // many Gmail searches a scan spends, and the ceilings are the
+      // deep-mode figures from GCC.proSettings. Absent or junk falls back
+      // to the standard budget every release before this one used.
+      smartSignalSenders: clampInt(config.smartSignalSenders, 1, 20, 10),
+      smartVetoSenders: clampInt(config.smartVetoSenders, 1, 30, 15),
       archiveInsteadOfDelete: Boolean(config.archiveInsteadOfDelete),
       debugMode: Boolean(config.debugMode),
       reviewMode: Boolean(config.reviewMode),
@@ -1546,6 +1624,19 @@
     const scored = [];
 
     for (const el of buttons) {
+      // 8.12: the deny-list every RESTORE finder has run since 7.6, on
+      // the finder that actually deletes. restoreCandidates refuses a
+      // "Delete forever" control BEFORE scoring, precisely so a
+      // well-scoring label can never win it; findDeleteButton had no
+      // such check, and `delete|trash|bin` matches "Delete forever" on
+      // its own merits. So any view whose toolbar offers permanent
+      // deletion could hand it the top score. The dangerous-token list
+      // above is the other half of this and is the one a user can see;
+      // this half also covers a Gmail relabel nobody has predicted,
+      // which is the case the project already ships GmailLayoutError
+      // for. Over-matching on a deny check only skips a candidate, so
+      // the worst outcome is the run reporting it found no control.
+      if (hasDeleteForeverMarking(el)) continue;
       const label = getElementLabel(el).toLowerCase();
       let score = 0;
 
@@ -1752,10 +1843,13 @@
     if (!link) {
       debugLog("No 'Select all conversations' link found");
       safeSend({ phase: "debug", detail: "Select all conversations link not found" });
-      return { success: false, reason: "link-not-found", countBefore, countAfter: null };
+      return { success: false, reason: "link-not-found", countBefore, countAfter: null, offerTotal: null };
     }
 
     const linkText = getTextContent(link);
+    // The offer names the total; see largestNumberIn. Read BEFORE the
+    // click, because the offer is gone immediately afterwards.
+    const offerTotal = largestNumberIn(linkText);
     debugLog("Clicking select all conversations link", { text: linkText.substring(0, 100) });
     safeSend({ phase: "debug", detail: `Clicking: "${linkText.substring(0, 60)}"` });
 
@@ -1797,7 +1891,7 @@
           phase: "debug",
           detail: "Bulk selection verified: the select-all-matching link is gone"
         });
-        return { success: true, reason: "link-consumed", countBefore, countAfter };
+        return { success: true, reason: "link-consumed", countBefore, countAfter, offerTotal };
       }
 
       // Check if we see "All conversations selected" or similar indicator
@@ -1808,7 +1902,7 @@
           phase: "debug",
           detail: "Bulk selection verified via 'all selected' indicator"
         });
-        return { success: true, reason: "all-selected-indicator", countBefore, countAfter };
+        return { success: true, reason: "all-selected-indicator", countBefore, countAfter, offerTotal };
       }
 
       if (countAfter !== null && countBefore !== null && countAfter > countBefore) {
@@ -1816,16 +1910,16 @@
           phase: "debug",
           detail: `Bulk selection successful: ${countBefore} → ${countAfter}`
         });
-        return { success: true, reason: "count-increased", countBefore, countAfter };
+        return { success: true, reason: "count-increased", countBefore, countAfter, offerTotal };
       }
 
       // Even if we can't verify, consider it attempted
       debugLog("Select all clicked but could not verify effect");
-      return { success: true, reason: "clicked-unverified", countBefore, countAfter };
+      return { success: true, reason: "clicked-unverified", countBefore, countAfter, offerTotal };
 
     } catch (e) {
       debugLog("Failed to click select all link", { error: e?.message });
-      return { success: false, reason: "click-error", countBefore, countAfter: null };
+      return { success: false, reason: "click-error", countBefore, countAfter: null, offerTotal: null };
     }
   }
 
@@ -1834,6 +1928,25 @@
    * @returns {boolean}
    */
   function findAllConversationsSelectedIndicator() {
+    // 8.12: the disproof comes first, and it is structural.
+    //
+    // Gmail's page-only banner reads "All 50 conversations on this page
+    // are selected." -- which contains "all" AND "selected", and matches
+    // `all \d+ conversations? are selected` outright. So the sentence
+    // that exists to say "this is ONE PAGE" was being read as proof that
+    // the whole match set was selected. When the select-all click failed
+    // to take (a re-render race, or throttling), the caller then booked
+    // the full match total against a 50-row action: the receipt, Stats,
+    // the undo log and the soft cap all inherited a number that was up
+    // to three orders of magnitude too large.
+    //
+    // Gmail withdraws the "select all N that match this search" offer
+    // the instant the whole set really is selected, so the offer still
+    // being on screen is proof the opposite happened, in every language.
+    // That is the same fact `link-consumed` reads, from the other side.
+    const offer = findSelectAllConversationsLink();
+    if (offer && looksLikeSelectAllOffer(getTextContent(offer))) return false;
+
     const mainRoot = getMainRoot();
     const spans = qsa("span", mainRoot);
 
@@ -2344,8 +2457,14 @@
     // match, so the two coexisting is correct"). The same is true here,
     // so the guard is appended unless this rule already carries this
     // guard verbatim.
-    if (CONFIG.safeMode && !parts[0].includes(SAFE_MODE_SUBJECT_GUARD)) {
-      parts.push(SAFE_MODE_SUBJECT_GUARD);
+    // 8.12: the guard is built per Gmail UI language now, so the
+    // "already carries it verbatim" test has to compare against the
+    // string actually about to be appended. Comparing against the old
+    // frozen constant would have re-appended it on every pass for every
+    // non-English mailbox.
+    if (CONFIG.safeMode) {
+      const safeGuard = safeModeSubjectGuard();
+      if (!parts[0].includes(safeGuard)) parts.push(safeGuard);
     }
 
     if (CONFIG.guardSkipStarred && !/is:starred/i.test(parts[0])) {
@@ -2970,6 +3089,29 @@
     return best;
   }
 
+  // 8.12: the largest number anywhere in a short label.
+  //
+  // Gmail's select-all-matching offer names the match total in its own
+  // text ("Select all 9,000 conversations that match this search"), and
+  // every locale keeps the digits even when it reorders the words. That
+  // makes it a second, language-independent source for the figure the
+  // guardrails are sized against -- and crucially it is readable in the
+  // exact case that defeated them, where the toolbar counter reads
+  // "1-50 of many" and parseCountFromText correctly returns null.
+  // digitsToCount already normalises "," / "." / thin-space grouping.
+  function largestNumberIn(text) {
+    const s = String(text || "");
+    if (!s || s.length > MAX_COUNTER_TEXT_LENGTH * 3) return null;
+    let best = null;
+    let m;
+    COUNT_NUMBER_RE.lastIndex = 0;
+    while ((m = COUNT_NUMBER_RE.exec(s)) !== null) {
+      const n = digitsToCount(m[0]);
+      if (n !== null && (best === null || n > best)) best = n;
+    }
+    return best;
+  }
+
   // 8.3: this only ever searched div[role="main"], and Gmail renders the
   // "1-50 of 1,234" counter in the TOOLBAR, outside that element. So on a
   // normal result page the total was never found, and every caller fell
@@ -3187,7 +3329,18 @@
     // measuring the page would let a 40,000-conversation sweep sail past
     // guardrails sized for it. Capture the match total here, before the
     // action clears the "of N" text that carries it.
-    const matchTotal = bulkSelected ? estimateTotalResults() : null;
+    // 8.12: two sources, because the toolbar counter is unreadable in
+    // exactly the case that matters most. Gmail writes "1-50 of many"
+    // rather than a figure on very large result sets, parseCountFromText
+    // correctly returns null for it, and `Math.max(null ?? 0, 50)` is
+    // 50 -- so the biggest sweeps were the ones sized at one page. The
+    // select-all offer the engine just clicked names the total in its
+    // own text, so read both and take the larger.
+    const counterTotal = bulkSelected ? estimateTotalResults() : null;
+    const offerTotal = bulkSelected ? (selectAllResult.offerTotal ?? null) : null;
+    const matchTotal = counterTotal === null && offerTotal === null
+      ? null
+      : Math.max(counterTotal ?? 0, offerTotal ?? 0);
     const effectiveCount = bulkAllSelected
       ? Math.max(matchTotal ?? 0, selectedCount ?? 0)
       : selectedCount;
@@ -3204,26 +3357,46 @@
       ? Math.max(matchTotal ?? 0, effectiveCount ?? 0)
       : effectiveCount;
 
+    // 8.12: the select-all-matching offer was CLICKED and neither the
+    // toolbar counter nor the offer text gave up a number. Gmail is
+    // about to act on every match and the engine has no idea how many
+    // that is, so the honest size for this click is "unknown", not the
+    // ~50 rows in the viewport that Math.max would otherwise settle on.
+    // Treated as over-cap: the whole point of the soft cap is that a run
+    // this size is the user's call, and an unmeasurable one is more of
+    // that question, not less.
+    const matchTotalUnknown = bulkSelected && matchTotal === null;
+
     // Run-level soft cap guardrail
     if (!CONFIG.dryRun) {
       const projectedTotal = liveRunProcessedSoFar + (guardrailCount ?? 0);
 
-      if (projectedTotal > GUARDRAILS.RUN_SOFT_CAP && !window.GCC_CONFIRMED_SOFT_CAP) {
+      if ((projectedTotal > GUARDRAILS.RUN_SOFT_CAP || matchTotalUnknown) && !window.GCC_CONFIRMED_SOFT_CAP) {
         // Issue #7: confirm() blocks the Gmail tab indefinitely if no
         // user is around. Scheduled cleanups run unattended, so we
         // auto-decline (which stops cleanly) instead of hanging the
         // tab waiting for a click that will never come.
         if (CONFIG.scheduled) {
-          debugLog("Scheduled run hit soft cap, declining unattended", { projectedTotal });
+          debugLog("Scheduled run hit soft cap, declining unattended", { projectedTotal, matchTotalUnknown });
           safeSend({
             phase: "debug",
-            detail: `Scheduled run paused at soft cap (${projectedTotal.toLocaleString()} >= ${GUARDRAILS.RUN_SOFT_CAP.toLocaleString()}). Skipping.`
+            detail: matchTotalUnknown
+              ? "Scheduled run paused: Gmail did not report how many conversations match. Skipping."
+              : `Scheduled run paused at soft cap (${projectedTotal.toLocaleString()} >= ${GUARDRAILS.RUN_SOFT_CAP.toLocaleString()}). Skipping.`
           });
-          return { deleted: false, count: 0, reason: "scheduled-soft-cap-declined" };
+          // 8.12: `declined` rides along so processQuery can tell the
+          // difference between "this rule matched nothing" and "this
+          // rule was refused for being too big". They looked identical
+          // in the summary, so an unattended run that skipped every rule
+          // reported "nothing matched your rules".
+          return { deleted: false, count: 0, reason: "scheduled-soft-cap-declined", declined: true };
         }
 
         const confirmed = await askGuardrail({
-          kind: "softCap",
+          // A run whose size could not be read gets its own dialog copy:
+          // quoting the viewport count here would be the exact lie the
+          // guardrail exists to prevent.
+          kind: matchTotalUnknown ? "unknownBulk" : "softCap",
           count: projectedTotal,
           actionWord
         });
@@ -3295,7 +3468,7 @@
           phase: "debug",
           detail: `Scheduled run paused at huge-run threshold (~${estimatedTotal.toLocaleString()}). Skipping.`
         });
-        return { deleted: false, count: 0, reason: "scheduled-huge-run-declined" };
+        return { deleted: false, count: 0, reason: "scheduled-huge-run-declined", declined: true };
       }
 
       const confirmed = await askGuardrail({
@@ -3729,7 +3902,23 @@
           if (!result.deleted) {
             const durationMs = Date.now() - start;
 
-            safeSend({ detail: `Nothing to act on for: ${guardedQuery} (${result.reason})` });
+            // 8.12: a rule the guardrails REFUSED is not a rule that
+            // matched nothing, and until now both ended here and both
+            // produced the same silence. An unattended run that declined
+            // every rule for being too large finished by telling the
+            // user "nothing matched your rules", which is the opposite
+            // of what happened and leaves them with no idea their
+            // schedule has stopped doing anything.
+            if (result.declined) {
+              stats.declinedRules = (stats.declinedRules || 0) + 1;
+              safeSend({
+                phase: "warning",
+                status: "A rule was skipped because the run would be very large.",
+                detail: `Skipped "${label}": this run needs a confirmation nobody was there to give. Open the popup and run it yourself, or narrow the rule.`
+              });
+            } else {
+              safeSend({ detail: `Nothing to act on for: ${guardedQuery} (${result.reason})` });
+            }
 
             recordQuery({
               query,
@@ -4066,6 +4255,19 @@
 
   function buildHumanSummary(doneStats, totalQueries) {
     const { runCount, mode } = doneStats;
+
+    // 8.12: a run that was REFUSED is not a run that found nothing.
+    // Unattended runs auto-decline at the soft cap and the huge-run gate
+    // rather than hang on a confirm nobody will answer, and this
+    // sentence then told the user their mailbox was already clean. The
+    // notification is the only surface an unattended run has, so this is
+    // the only place the truth could reach them.
+    const declined = Number(stats.declinedRules) || 0;
+    if (declined > 0 && runCount === 0) {
+      return `Cleanup finished without changing anything: ${declined} ` +
+        `${declined === 1 ? "rule was" : "rules were"} skipped for being too large to run unattended. ` +
+        "Open the extension and run it yourself to confirm, or narrow the rules.";
+    }
 
     if (runCount === 0) {
       return mode === "dry"
@@ -5379,7 +5581,11 @@
         .filter((s) => !smartSenderWhitelisted(s.email, CONFIG.whitelist))
         .filter((s) => !smartSenderProtected(s.email, s.name, CONFIG.protectKeywords))
         .sort((a, b) => b.count - a.count)
-        .slice(0, SMART_SCAN.MAX_SIGNAL_SENDERS);
+        // 8.12: the budget is the Pro depth setting now, clamped in
+        // sanitizeConfig. SMART_SCAN.MAX_SIGNAL_SENDERS is the standard
+        // figure and stays as the fallback for a config that carries no
+        // budget at all.
+        .slice(0, CONFIG.smartSignalSenders || SMART_SCAN.MAX_SIGNAL_SENDERS);
 
       const scored = [];
       for (let i = 0; i < candidates.length; i++) {
@@ -5415,7 +5621,10 @@
       const senders = [];
       let heldBackSenders = 0;
       let heldBackCount = 0;
-      let vetoBudget = SMART_SCAN.MAX_VETO_SENDERS;
+      // Moves with the signal budget above. A deep scan that measured
+      // twenty senders and then vetted only fifteen would drop five
+      // finalists for no reason the user could see.
+      let vetoBudget = CONFIG.smartVetoSenders || SMART_SCAN.MAX_VETO_SENDERS;
       for (let i = 0; i < scored.length; i++) {
         if (vetoBudget <= 0 || senders.length >= SMART_SCAN.MAX_RESULTS) break;
         vetoBudget -= 1;
@@ -6259,6 +6468,13 @@
       applyGlobalGuards,
       parseCountFromText,
       estimateTotalResults,
+      // 8.12: the second source for the match total, the localized Safe
+      // Mode shield, and the finder that now carries a Delete forever
+      // deny-list. All three are safety-critical and all three were
+      // previously only reachable through a source pin.
+      largestNumberIn,
+      safeModeSubjectGuard,
+      findDeleteButton,
       sanitizeConfig,
       clickSelectAllConversations,
       handleBulkConfirmation,

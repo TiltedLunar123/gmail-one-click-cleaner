@@ -459,6 +459,12 @@
   "progGuardCountUnit": { "message": "Unterhaltungen" },
   "progGuardLeadDelete": { "message": "Dieser Durchlauf würde etwa $1 Unterhaltungen löschen." },
   "progGuardLeadArchive": { "message": "Dieser Durchlauf würde etwa $1 Unterhaltungen archivieren." },
+  "progGuardLeadUnknownArchive": {
+    "message": "Gmail hat nicht angegeben, wie viele Konversationen übereinstimmen. Alle werden archiviert, und das können weit mehr sein als die sichtbare Seite."
+  },
+  "progGuardLeadUnknownDelete": {
+    "message": "Gmail hat nicht angegeben, wie viele Konversationen übereinstimmen. Alle werden gelöscht, und das können weit mehr sein als die sichtbare Seite."
+  },
   "progGuardLeadHuge": { "message": "Etwa $1 Unterhaltungen werden gelöscht." },
   "progGuardAlternatives": { "message": "Wenn das mehr ist als erwartet, stopp und probier erst einen Testlauf, den Sicheren Modus oder weniger Regeln." },
   "progGuardTrashNote": { "message": "Mails gehen in den Papierkorb, und Gmail behält den Papierkorb rund 30 Tage." },

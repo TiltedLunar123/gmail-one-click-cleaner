@@ -251,13 +251,18 @@ describe("8.9: Options refuses to save a rule the engine will refuse", () => {
     expect(fn).toContain("return { valid: errors.length === 0, errors, blocking };");
   });
 
-  test("a blocking error stops the write", () => {
+  // 8.12: the early exit is `return false` now, because saveData reports
+  // its outcome so restoreDefaults can stop announcing success over a
+  // refusal. Pinning the literal keeps the original guarantee (the
+  // refusal returns BEFORE safeSyncSet) and adds the new one: it returns
+  // the value callers branch on, not a bare undefined.
+  test("a blocking error stops the write, and says so to its caller", () => {
     const fn = fnBody(optionsSrc, "const saveData = async (", "\n  //");
     const blockAt = fn.indexOf("if (validation.blocking.length) {");
     const writeAt = fn.indexOf("await safeSyncSet({");
     expect(blockAt).toBeGreaterThan(-1);
     expect(writeAt).toBeGreaterThan(blockAt);
-    expect(fn.slice(blockAt, writeAt)).toContain("return;");
+    expect(fn.slice(blockAt, writeAt)).toContain("return false;");
   });
 
   test("an unusable whitelist line still saves, because the normaliser drops it", () => {

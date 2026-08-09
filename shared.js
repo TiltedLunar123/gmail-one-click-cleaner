@@ -565,7 +565,16 @@ const GCC = (() => {
     // the `in:trash` mail such a rule removes. Kept in lockstep with the
     // engine's own copy in contentScript.js.
     "in:trash",
-    "in:spam"
+    "in:spam",
+    // 8.12: the same three additions as the engine's copy, in lockstep.
+    // `label:trash` / `label:spam` are Gmail synonyms for the two above,
+    // so the 8.8 refusal only ever covered one spelling. `in:anywhere`
+    // is a superset of both and sat on AGE_REQUIRED_TOKENS alone, so it
+    // needed nothing but an age qualifier to reach mail that delete
+    // removes permanently and Restore cannot find.
+    "label:trash",
+    "label:spam",
+    "in:anywhere"
   ];
 
   // Operators that target the entire mailbox without an age filter make
@@ -829,7 +838,8 @@ const GCC = (() => {
     "The full Storage X-ray list, and the one-click purge",
     "The full Smart Suggestions list, and bulk apply",
     "Every step of the Mailbox Report, and the whole-plan run",
-    "Auto-Pilot, the weekly sweep that archives without being asked"
+    "Auto-Pilot, the weekly sweep that archives without being asked",
+    "Pro Settings: your own recovery label, the Auto-Pilot interval, and a deeper Smart scan"
   ]);
 
   const LICENSE_PUBLIC_JWK = Object.freeze({
@@ -1026,6 +1036,106 @@ const GCC = (() => {
     read: readStoredLicenseKey,
     save: writeLicenseKey,
     buyUrl
+  });
+
+  // =========================
+  // Pro settings (8.12)
+  // =========================
+  // Three knobs a licence unlocks. They are settings on machinery Pro
+  // already owns, never a fence around something that used to be free:
+  // every default below is exactly what the extension did in 8.11, so a
+  // free install, a copy whose key was removed, and a Pro user who never
+  // opens this card all behave identically.
+  //
+  // `effective()` is the ONLY supported way to read them, and it takes
+  // the licence state as an argument. Reading storage.sync directly
+  // would leave a value chosen while Pro was active still applying after
+  // the key is removed, which is the one way a setting like this can
+  // quietly change what an unattended run does.
+  const PRO_SETTINGS_KEY = "proSettings";
+
+  const PRO_SETTINGS_DEFAULTS = Object.freeze({
+    // The recovery label tag-before-delete writes. The engine has
+    // defaulted this to "GmailCleaner" since v3; it simply had no UI.
+    labelPrefix: "GmailCleaner",
+    // Auto-Pilot's sweep interval. Weekly is what 7.12 shipped.
+    autoPilotIntervalDays: 7,
+    // How many senders the Smart scan measures before ranking.
+    smartScanDepth: "standard"
+  });
+
+  const PRO_SETTINGS_LIMITS = Object.freeze({
+    LABEL_MAX: 32,
+    INTERVAL_DAYS: Object.freeze([7, 14, 30]),
+    DEPTHS: Object.freeze(["standard", "deep"]),
+    // Signal and veto budgets move TOGETHER. The engine measures at most
+    // SIGNAL senders and then runs correspondence vetoes on at most VETO
+    // of them; raising the first alone would let the scan measure twenty
+    // senders and then silently drop five before they could be vetted.
+    DEPTH_SIGNAL_SENDERS: Object.freeze({ standard: 10, deep: 20 }),
+    DEPTH_VETO_SENDERS: Object.freeze({ standard: 15, deep: 30 })
+  });
+
+  // Gmail label rules that actually matter here. A double quote would
+  // break `label:"<name>"`, which is the query one-click Restore is built
+  // on, so a prefix carrying one would produce runs that cannot be
+  // undone. A forward slash makes Gmail nest the label instead of
+  // creating it, which silently files recovery tags somewhere else.
+  const LABEL_PREFIX_BANNED_RE = /["\\/]|[\u0000-\u001f]/;
+
+  const validateLabelPrefix = (raw) => {
+    const collapsed = String(raw ?? "").replace(/\s+/g, " ").trim();
+    if (!collapsed) {
+      return { ok: true, value: PRO_SETTINGS_DEFAULTS.labelPrefix, reset: true, error: "" };
+    }
+    if (collapsed.length > PRO_SETTINGS_LIMITS.LABEL_MAX) {
+      return { ok: false, value: "", error: `Keep the label under ${PRO_SETTINGS_LIMITS.LABEL_MAX + 1} characters.` };
+    }
+    if (LABEL_PREFIX_BANNED_RE.test(collapsed)) {
+      return { ok: false, value: "", error: 'A label cannot contain " \\ / or control characters.' };
+    }
+    return { ok: true, value: collapsed, reset: false, error: "" };
+  };
+
+  const proSettingsEffective = (stored, isPro) => {
+    const out = { ...PRO_SETTINGS_DEFAULTS };
+    if (!isPro || !stored || typeof stored !== "object") return out;
+
+    const label = validateLabelPrefix(stored.labelPrefix);
+    if (label.ok) out.labelPrefix = label.value;
+
+    const days = Number(stored.autoPilotIntervalDays);
+    if (PRO_SETTINGS_LIMITS.INTERVAL_DAYS.includes(days)) out.autoPilotIntervalDays = days;
+
+    const depth = String(stored.smartScanDepth || "");
+    if (PRO_SETTINGS_LIMITS.DEPTHS.includes(depth)) out.smartScanDepth = depth;
+
+    return out;
+  };
+
+  // The two numbers the Smart scan config carries. Kept as one function
+  // per budget so a caller cannot send one and forget the other.
+  const smartScanBudget = (depth) => {
+    const key = PRO_SETTINGS_LIMITS.DEPTHS.includes(depth) ? depth : "standard";
+    return {
+      smartSignalSenders: PRO_SETTINGS_LIMITS.DEPTH_SIGNAL_SENDERS[key],
+      smartVetoSenders: PRO_SETTINGS_LIMITS.DEPTH_VETO_SENDERS[key]
+    };
+  };
+
+  const readProSettings = async (isPro) => {
+    const stored = await storageGet("sync", PRO_SETTINGS_KEY);
+    return proSettingsEffective(stored?.[PRO_SETTINGS_KEY], isPro);
+  };
+
+  const proSettings = Object.freeze({
+    KEY: PRO_SETTINGS_KEY,
+    DEFAULTS: PRO_SETTINGS_DEFAULTS,
+    LIMITS: PRO_SETTINGS_LIMITS,
+    validateLabelPrefix,
+    effective: proSettingsEffective,
+    smartScanBudget,
+    read: readProSettings
   });
 
   // =========================
@@ -2339,6 +2449,9 @@ const GCC = (() => {
     report,
 
     // New in 8.4
-    avatar
+    avatar,
+
+    // New in 8.12
+    proSettings
   });
 })();

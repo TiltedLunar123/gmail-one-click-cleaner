@@ -516,11 +516,23 @@ describe("the Options page tells a buyer what they actually bought", () => {
   // bought one fifth of it.
   const GCC = loadShared();
 
+  // 8.12 added Pro Settings as the sixth entry. The count is pinned
+  // rather than left open on purpose: the whole point of this list is
+  // that a pillar cannot be added without the sentence a buyer reads
+  // changing with it, and an open-ended length would let the next one
+  // through silently.
   test("the shared list is the single answer, and covers every pillar", () => {
     expect(Array.isArray(GCC.license.FEATURES)).toBe(true);
-    expect(GCC.license.FEATURES).toHaveLength(5);
+    expect(GCC.license.FEATURES).toHaveLength(6);
     const joined = GCC.license.FEATURES.join(" ").toLowerCase();
-    for (const pillar of ["unsubscribe", "x-ray", "smart suggestions", "report", "auto-pilot"]) {
+    for (const pillar of [
+      "unsubscribe",
+      "x-ray",
+      "smart suggestions",
+      "report",
+      "auto-pilot",
+      "pro settings"
+    ]) {
       expect(joined).toContain(pillar);
     }
   });

@@ -459,6 +459,12 @@
   "progGuardCountUnit": { "message": "conversaciones" },
   "progGuardLeadDelete": { "message": "Esta ejecución eliminaría unas $1 conversaciones." },
   "progGuardLeadArchive": { "message": "Esta ejecución archivaría unas $1 conversaciones." },
+  "progGuardLeadUnknownArchive": {
+    "message": "Gmail no ha indicado cuántas conversaciones coinciden. Se archivarán todas, y pueden ser muchas más que la página que ves."
+  },
+  "progGuardLeadUnknownDelete": {
+    "message": "Gmail no ha indicado cuántas conversaciones coinciden. Se eliminarán todas, y pueden ser muchas más que la página que ves."
+  },
   "progGuardLeadHuge": { "message": "Se eliminarán unas $1 conversaciones." },
   "progGuardAlternatives": { "message": "Si es más de lo que esperabas, detente y prueba primero una simulación, el Modo seguro o un conjunto de reglas más pequeño." },
   "progGuardTrashNote": { "message": "El correo va a la Papelera, y Gmail guarda la Papelera unos 30 días." },

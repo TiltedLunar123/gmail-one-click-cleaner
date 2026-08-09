@@ -99,7 +99,7 @@ has:attachment larger:10M older_than:6m
 
 ## Pro
 
-Pro is a **one-time $9.99 purchase** (no subscription) that unlocks five things: the whole Mailbox Report plan, bulk unsubscribe, the full Storage X-ray with one-click purge, the full Smart Suggestions list with bulk apply, and Auto-Pilot, which keeps your inbox clean every week, automatically. Everything that is free today stays free forever. Compare (prices checked 2026-08-01): Clean Email is $29.99 a year for one account, Trimbox is $39.99 a year, Mailstrom is $59.95 a year, and Google One storage starts at about $20 a year, forever.
+Pro is a **one-time $9.99 purchase** (no subscription) that unlocks six things: the whole Mailbox Report plan, bulk unsubscribe, the full Storage X-ray with one-click purge, the full Smart Suggestions list with bulk apply, Auto-Pilot, which keeps your inbox clean every week automatically, and **Pro Settings** (choose the recovery label put on cleaned mail, set the Auto-Pilot interval, and switch the Smart scan to a deeper pass). Everything that is free today stays free forever. Compare (prices checked 2026-08-01): Clean Email is $29.99 a year for one account, Trimbox is $39.99 a year, Mailstrom is $59.95 a year, and Google One storage starts at about $20 a year, forever.
 
 - Your license key is verified **entirely on your device** with a built-in public key. The extension never contacts a server, not even to check the license.
 - The key is a signed token with no personal data. Stored in Chrome sync, so Pro follows you to your other signed-in browsers.

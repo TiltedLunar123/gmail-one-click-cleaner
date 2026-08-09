@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "8.11.0";
+  const SW_VERSION = "8.12.0";
 
   // =========================
   // Storage Keys
@@ -43,7 +43,14 @@
     // 8.11: the popup's own switch positions, written by
     // persistLastConfig. Read here so the Auto-Pilot scan can measure
     // suggestions through the guards the popup's buttons will apply.
-    LAST_UI: "lastUiSnapshot"
+    LAST_UI: "lastUiSnapshot",
+
+    // 8.12: the Pro-only knobs (recovery label, Auto-Pilot interval,
+    // Smart scan depth). Sync, because they are preferences and belong
+    // with the licence that unlocks them. Read only through
+    // readProSettings below, which applies the same defaults-when-not-Pro
+    // rule as GCC.proSettings.effective in shared.js.
+    PRO_SETTINGS: "proSettings"
   });
 
   // =========================
@@ -257,11 +264,23 @@
       // "previous sweep still pending, skipping". The Pro feature was
       // wedged by closing a tab, and the popup meanwhile reported a
       // sweep that was running right now.
-      const apState = await getAutoPilotState();
-      if (apState?.pending && Number(apState.pending.tabId) === tabId) {
-        console.log("[GCC SW] Gmail tab closed mid Auto-Pilot sweep, clearing pending stage");
-        await setAutoPilotState({ pending: null });
-      }
+      // 8.12: and the read has to be inside the lock, not just the
+      // write. setAutoPilotState is an unlocked get-merge-set, so this
+      // pair was the last remaining writer of the key doing its
+      // get-merge-set outside the queue: closing the Gmail tab as a
+      // sweep finished could merge into a snapshot taken before
+      // resolveAutoPilotDone wrote, putting the previous lastRun back
+      // and wiping the preview tally the popup asks the user to confirm.
+      // The exact half-fix 8.10 caught on setAutoPilotEnabled and 8.11
+      // caught on its local twin. releaseRunClaim above does not hold
+      // the chain, so this cannot deadlock.
+      await withStorageLock(async () => {
+        const apState = await getAutoPilotState();
+        if (apState?.pending && Number(apState.pending.tabId) === tabId) {
+          console.log("[GCC SW] Gmail tab closed mid Auto-Pilot sweep, clearing pending stage");
+          await setAutoPilotState({ pending: null });
+        }
+      });
     } catch (e) {
       console.error("[GCC SW] tabs.onRemoved cleanup failed:", e);
     }
@@ -814,7 +833,10 @@
           dryRun: false,
           safeMode: true,
           tagBeforeDelete: true,
-          tagLabelPrefix: "GmailCleaner",
+          // 8.12: the recovery label a Pro user chose. Scheduled runs are
+          // the ones most likely to need Restore later, so they are the
+          // last place the label should disagree with the rest.
+          tagLabelPrefix: (await readProSettings()).labelPrefix,
           guardSkipStarred: true,
           guardSkipImportant: true,
           guardSkipUnread: true,
@@ -1142,6 +1164,21 @@
       case "gmailCleanerConfirmAutoPilot":
         confirmAutoPilot()
           .then((result) => sendResponse(result))
+          .catch((err) => sendResponse({ ok: false, error: err?.message || "Failed" }));
+        return true;
+
+      // 8.12: Options saved the Pro settings. The only one the worker
+      // holds state for is the Auto-Pilot interval, which is baked into
+      // a live alarm, so re-arm it now. Without this the new interval
+      // only took effect after the next fire, i.e. up to a week of the
+      // settings page and the alarm disagreeing.
+      // No withStorageLock here on purpose: restoreAutoPilotAlarm reads
+      // config and writes an ALARM, never a storage read-modify-write, so
+      // it has nothing to serialise against and taking the queue would
+      // only add a way to deadlock it.
+      case "gmailCleanerProSettingsChanged":
+        restoreAutoPilotAlarm()
+          .then(() => sendResponse({ ok: true }))
           .catch((err) => sendResponse({ ok: false, error: err?.message || "Failed" }));
         return true;
 
@@ -1492,6 +1529,19 @@
       // mark senders when mail was actually affected for real.
       await chrome.storage.local.set({ [STORAGE_KEYS.XRAY_PENDING]: null });
       if (summary?.dryRun || !(Number(summary?.count) > 0)) return;
+
+      // 8.12: the guard resolvePendingReportPurge has carried since 8.0,
+      // finally copied to its twin. The engine reports ONE aggregate
+      // count for the whole run, and a purge of N senders is a
+      // MULTI-RULE run (popup.js chunks the addresses into several
+      // rulesOverride entries). So a run that cleared sender 1 and then
+      // died stamped all N "Purged" off that single count, and the
+      // Purged chip is what tells the user which senders still need
+      // dealing with. With more than one sender in the marker there is
+      // no way to attribute the count, so nothing is stamped: an
+      // unmarked sender the user re-purges is a wasted run, a wrongly
+      // marked one is mail they believe is gone and is not.
+      if (!Array.isArray(pending.senders) || pending.senders.length !== 1) return;
 
       const scanResult = await chrome.storage.local.get(STORAGE_KEYS.STORAGE_XRAY);
       const scan = scanResult?.[STORAGE_KEYS.STORAGE_XRAY];
@@ -1959,7 +2009,8 @@
   // engine's whitelist / protected-keyword / starred / important
   // guards all apply unchanged.
 
-  const AUTOPILOT_INTERVAL_MINUTES = 10080; // weekly
+  // 8.12: the interval moved to PRO_SETTINGS_DEFAULTS.autoPilotIntervalDays
+  // (7) so the settings page and the alarm read one number.
   const AUTOPILOT_MAX_PER_RUN = 25; // mirrors GCC.smart.LIMITS.MAX_BULK_PER_RUN
   const AUTOPILOT_DISMISS_TTL_MS = 90 * 24 * 60 * 60 * 1000;
   const AUTOPILOT_DOMAIN_BOOST = 6;
@@ -2007,16 +2058,22 @@
       const cfg = await getAutoPilotConfig();
       await chrome.alarms.clear(AUTOPILOT_ALARM);
       if (!cfg.enabled) return;
+      // 8.12: the interval is a Pro setting now. Reading it through
+      // readProSettings means a copy whose key was removed falls back to
+      // weekly rather than keeping a 30-day sweep the user can no longer
+      // see or change.
+      const pro = await readProSettings();
+      const intervalMinutes = pro.autoPilotIntervalDays * 24 * 60;
       // Same anchoring as the schedules above: next fire is last run
       // plus the interval, so browser restarts never defer the sweep;
       // a brand-new enable fires the preview about a minute out.
       const now = Date.now();
       const nextDue = cfg.lastRunAt
-        ? cfg.lastRunAt + AUTOPILOT_INTERVAL_MINUTES * 60 * 1000
+        ? cfg.lastRunAt + intervalMinutes * 60 * 1000
         : now + 60 * 1000;
       chrome.alarms.create(AUTOPILOT_ALARM, {
         when: nextDue > now ? nextDue : now + 60 * 1000,
-        periodInMinutes: AUTOPILOT_INTERVAL_MINUTES
+        periodInMinutes: intervalMinutes
       });
     } catch (e) {
       console.error("[GCC SW] restoreAutoPilotAlarm failed:", e);
@@ -2218,6 +2275,66 @@
   // The switches live in the snapshot the popup persists on every run.
   // A missing snapshot reads as all guards ON, which is both the engine's
   // default and the conservative answer.
+  // 8.12: the worker's copy of GCC.proSettings.effective.
+  //
+  // Same reason as bgT and the licence verifier: the worker cannot load
+  // shared.js. The rules it mirrors are exact, and tests/pro-settings
+  // pins the two against each other so they cannot drift the way
+  // hasProLicense did before 8.7.
+  //
+  // The licence check is not a formality. These values reach unattended
+  // runs, so a copy whose key was removed has to fall back to the 8.11
+  // behaviour rather than keep sweeping on a 30-day interval nobody can
+  // see. Callers that already know the licence state pass it in; the
+  // rest let this resolve it.
+  const PRO_SETTINGS_DEFAULTS = Object.freeze({
+    labelPrefix: "GmailCleaner",
+    autoPilotIntervalDays: 7,
+    smartScanDepth: "standard"
+  });
+  const PRO_SETTINGS_INTERVAL_DAYS = Object.freeze([7, 14, 30]);
+  const PRO_SETTINGS_DEPTHS = Object.freeze(["standard", "deep"]);
+  const PRO_SETTINGS_SIGNAL_SENDERS = Object.freeze({ standard: 10, deep: 20 });
+  const PRO_SETTINGS_VETO_SENDERS = Object.freeze({ standard: 15, deep: 30 });
+  const PRO_LABEL_BANNED_RE = /["\\/]|[\u0000-\u001f]/;
+
+  async function readProSettings(knownPro) {
+    const out = { ...PRO_SETTINGS_DEFAULTS };
+    try {
+      const isPro = typeof knownPro === "boolean" ? knownPro : await hasProLicense();
+      if (!isPro) return out;
+
+      const r = await chrome.storage.sync.get(STORAGE_KEYS.PRO_SETTINGS);
+      const stored = r?.[STORAGE_KEYS.PRO_SETTINGS];
+      if (!stored || typeof stored !== "object") return out;
+
+      const label = String(stored.labelPrefix ?? "").replace(/\s+/g, " ").trim();
+      if (label && label.length <= 32 && !PRO_LABEL_BANNED_RE.test(label)) {
+        out.labelPrefix = label;
+      }
+
+      const days = Number(stored.autoPilotIntervalDays);
+      if (PRO_SETTINGS_INTERVAL_DAYS.includes(days)) out.autoPilotIntervalDays = days;
+
+      const depth = String(stored.smartScanDepth || "");
+      if (PRO_SETTINGS_DEPTHS.includes(depth)) out.smartScanDepth = depth;
+
+      return out;
+    } catch {
+      return { ...PRO_SETTINGS_DEFAULTS };
+    }
+  }
+
+  // Signal and veto budgets always travel together: measuring twenty
+  // senders and vetting fifteen would drop five finalists silently.
+  function smartScanBudget(depth) {
+    const key = PRO_SETTINGS_DEPTHS.includes(depth) ? depth : "standard";
+    return {
+      smartSignalSenders: PRO_SETTINGS_SIGNAL_SENDERS[key],
+      smartVetoSenders: PRO_SETTINGS_VETO_SENDERS[key]
+    };
+  }
+
   async function readUserScanGuards() {
     let ui = null;
     try {
@@ -2292,6 +2409,11 @@
         console.log("[GCC SW] Auto-Pilot: no valid Pro license, skipping sweep");
         return;
       }
+
+      // The licence just verified, so pass it in rather than making
+      // readProSettings verify a second time (WebCrypto, and this is the
+      // unattended path).
+      const proSettings = await readProSettings(true);
 
       // Scheduled work honours snooze / vacation mode.
       if (await getSnoozeUntil()) {
@@ -2398,8 +2520,14 @@
         // to match the button beneath it. The sweep's own apply below
         // keeps its hardcoded all-guards-on config, which is stricter
         // than anything measured here, so it can still only take less
-        // than the scan counted.
+        // than the scan counted -- 8.12 closed the one axis where that
+        // was not true, the minimum age, by sending it to the apply too.
         ...(await readUserScanGuards()),
+        // 8.12: this scan overwrites the same smartScan store the popup's
+        // own scan writes, so it has to measure the same number of
+        // senders. A standard-depth sweep landing on a deep-depth user
+        // would quietly shorten their suggestion list every week.
+        ...smartScanBudget(proSettings.smartScanDepth),
         whitelist,
         protectKeywords,
         smartKnownSenders: [...known.values()],
@@ -2448,6 +2576,16 @@
         await setAutoPilotState({ pending: null });
         return;
       }
+
+      // 8.12: the same two reads the scan stage made, re-made here.
+      // Only `minAge` is taken from the guards: the four skip switches
+      // stay hardcoded ON below, which is deliberately stricter than
+      // whatever the user runs manually. Re-reading rather than carrying
+      // the values on `pending` is the point -- minutes pass between the
+      // stages and the popup stays usable throughout, so the floor in
+      // force at APPLY time is the one that should apply.
+      const proSettings = await readProSettings(true);
+      const guards = await readUserScanGuards();
 
       // 7.15: the scan stage takes a minute or two, and the popup stays
       // usable throughout because a scan holds no run claim. Only
@@ -2555,14 +2693,22 @@
         // recommendation would have led with.
         archiveInsteadOfDelete: true,
         rulesOverride: rules,
-        // The rule carries its own older_than:6m; a global minimum age
-        // would stack a second, stricter filter on top.
-        minAge: null,
+        // 8.12: this used to be a hardcoded null, on the reasoning that
+        // the rule carries its own older_than:6m so a global floor would
+        // only stack a second filter on top. That is true of 3m and 6m
+        // and FALSE of 1y, and 8.11 had just taught the scan above to
+        // measure through this very floor -- so a user with "Older than
+        // 1 year" set saw a sweep counted at one year and run at six
+        // months. applyGlobalGuards only appends a floor that is
+        // STRICTLY stricter than the rule's own, so passing it through
+        // can never widen a sweep, only narrow one. Same call 7.15 made
+        // for the X-ray purge and Smart apply; this was the twin.
+        minAge: guards.minAge,
         intensity: "light",
         dryRun,
         safeMode: true,
         tagBeforeDelete: true,
-        tagLabelPrefix: "GmailCleaner",
+        tagLabelPrefix: proSettings.labelPrefix,
         guardSkipStarred: true,
         guardSkipImportant: true,
         guardSkipUnread: true,
@@ -2770,6 +2916,24 @@
       // setAutoPilotState does not take the lock itself, so calling it
       // from in here cannot deadlock the queue.
       if (!enabled) {
+        // 8.12: clearing `pending` was ALL this did about a sweep in
+        // flight, and pending is only the bookkeeping. The engine in the
+        // Gmail tab kept archiving, and because resolveAutoPilotDone
+        // bails when pending is gone, the run that carried on was also
+        // never recorded: no lastRun, no count, nothing in the popup.
+        // Someone switching Auto-Pilot off while watching it work got a
+        // sweep that continued invisibly. Stop the engine and give the
+        // claim back, then drop the stage.
+        const pending = (await getAutoPilotState())?.pending || null;
+        const tabId = Number(pending?.tabId);
+        if (pending && Number.isFinite(tabId)) {
+          try {
+            await chrome.tabs.sendMessage(tabId, { type: "gmailCleanerCancel" });
+          } catch {
+            // The tab is gone or has no engine: nothing to stop.
+          }
+          if (pending.runId) await releaseRunClaim(pending.runId);
+        }
         await setAutoPilotState({ pending: null });
       }
     });

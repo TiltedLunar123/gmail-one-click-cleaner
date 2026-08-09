@@ -34,7 +34,26 @@ describe("contentScript.js: bulk-all measurement", () => {
     // the selection is language-dependent; having CLICKED the
     // select-all-matching link is not, and the guardrails have to be
     // sized for what that click can touch.
-    expect(act).toMatch(/const\s+matchTotal\s*=\s*bulkSelected\s*\?\s*estimateTotalResults\(\)\s*:\s*null;/);
+    //
+    // 8.12 gave it a second source. The toolbar counter reads "1-50 of
+    // many" on the largest result sets, so estimateTotalResults returns
+    // null there and the old single-source read left the guardrails on
+    // the viewport count for exactly the runs that needed them most.
+    // The select-all offer names the total in its own text.
+    expect(act).toMatch(/const\s+counterTotal\s*=\s*bulkSelected\s*\?\s*estimateTotalResults\(\)\s*:\s*null;/);
+    expect(act).toMatch(/const\s+offerTotal\s*=\s*bulkSelected\s*\?\s*\(selectAllResult\.offerTotal\s*\?\?\s*null\)\s*:\s*null;/);
+    expect(act).toMatch(
+      /const\s+matchTotal\s*=\s*counterTotal\s*===\s*null\s*&&\s*offerTotal\s*===\s*null[\s\S]{0,120}Math\.max\(\s*counterTotal\s*\?\?\s*0\s*,\s*offerTotal\s*\?\?\s*0\s*\)/
+    );
+  });
+
+  test("an unreadable total is treated as over-cap, not as one page", () => {
+    // Both sources silent while the offer WAS clicked means Gmail is
+    // about to act on an unknown number of conversations. Sizing that at
+    // the ~50 visible rows is the failure this replaced.
+    expect(act).toMatch(/const\s+matchTotalUnknown\s*=\s*bulkSelected\s*&&\s*matchTotal\s*===\s*null;/);
+    expect(act).toMatch(/projectedTotal\s*>\s*GUARDRAILS\.RUN_SOFT_CAP\s*\|\|\s*matchTotalUnknown/);
+    expect(act).toMatch(/kind:\s*matchTotalUnknown\s*\?\s*"unknownBulk"\s*:\s*"softCap"/);
   });
 
   test("derives an effective count that prefers the match total", () => {

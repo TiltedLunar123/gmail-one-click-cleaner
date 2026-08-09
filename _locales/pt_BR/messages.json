@@ -459,6 +459,12 @@
   "progGuardCountUnit": { "message": "conversas" },
   "progGuardLeadDelete": { "message": "Esta execução excluiria cerca de $1 conversas." },
   "progGuardLeadArchive": { "message": "Esta execução arquivaria cerca de $1 conversas." },
+  "progGuardLeadUnknownArchive": {
+    "message": "O Gmail não informou quantas conversas correspondem. Todas serão arquivadas, e isso pode ser muito mais do que a página que você vê."
+  },
+  "progGuardLeadUnknownDelete": {
+    "message": "O Gmail não informou quantas conversas correspondem. Todas serão excluídas, e isso pode ser muito mais do que a página que você vê."
+  },
   "progGuardLeadHuge": { "message": "Cerca de $1 conversas serão excluídas." },
   "progGuardAlternatives": { "message": "Se isso for mais do que você esperava, pare e tente antes uma simulação, o Modo seguro ou um conjunto menor de regras." },
   "progGuardTrashNote": { "message": "Os e-mails vão para a Lixeira, e o Gmail guarda a Lixeira por cerca de 30 dias." },

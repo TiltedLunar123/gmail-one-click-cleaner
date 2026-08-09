@@ -459,6 +459,12 @@
   "progGuardCountUnit": { "message": "conversations" },
   "progGuardLeadDelete": { "message": "This run would delete about $1 conversations." },
   "progGuardLeadArchive": { "message": "This run would archive about $1 conversations." },
+  "progGuardLeadUnknownArchive": {
+    "message": "Gmail did not say how many conversations match. Every match will be archived, and that could be far more than the page you can see."
+  },
+  "progGuardLeadUnknownDelete": {
+    "message": "Gmail did not say how many conversations match. Every match will be deleted, and that could be far more than the page you can see."
+  },
   "progGuardLeadHuge": { "message": "About $1 conversations will be deleted." },
   "progGuardAlternatives": { "message": "If that is more than you expected, stop and try a Dry Run, Safe Mode, or a smaller set of rules first." },
   "progGuardTrashNote": { "message": "Mail goes to Trash, and Gmail keeps Trash for about 30 days." },

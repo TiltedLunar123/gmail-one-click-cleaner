@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "8.11.0";
+  const POPUP_VERSION = "8.12.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -65,10 +65,20 @@ document.addEventListener("DOMContentLoaded", () => {
     // batch, run, come back, tick the rest", and coming back showed an
     // empty selection with no record of which ones had already gone.
     XRAY_CHECKED: "xrayCheckedEmails",
+    // 8.12: and the age those ticks were chosen under. Restoring the
+    // selection without it re-armed the next purge at the 6-month
+    // default, which is WIDER than anything else the select offers.
+    XRAY_AGE: "xrayPurgeAge",
     SMART_CHECKED: "smartCheckedEmails",
 
     // 8.0: the "Bought Pro? Paste your key" strip, dismissed.
     ACTIVATE_HINT_DISMISSED: "activateHintDismissed",
+
+    // 8.12: was Pro active the last time this popup finished checking?
+    // A paint hint only, so the tab padlocks and the gold Pro pills are
+    // not shown to a buyer for the 100-300ms the real signature check
+    // takes on every open. Never a gate: see applyLicenseHint.
+    PRO_HINT: "proActiveHint",
 
     // 7.4: post-run recap. STATS mirrors the service worker's stats key
     // (read-only here); RECAP_SEEN is the "already shown" timestamp.
@@ -1464,14 +1474,33 @@ document.addEventListener("DOMContentLoaded", () => {
   // Build config
   // =========================
 
+  // 8.12: the Pro settings in force right now. Deliberately not cached:
+  // the licence state is what decides whether the stored values apply at
+  // all, and a verify is about a millisecond, so reading it fresh costs
+  // nothing and can never serve a value from before the key changed.
+  // Every scoped run (X-ray purge, Smart apply, the report plan) reaches
+  // the engine through buildConfig, so setting the label here covers all
+  // of them.
+  const getProSettings = async () => {
+    let active = false;
+    try {
+      active = Boolean((await GCC.license.getState()).active);
+    } catch {
+      active = false;
+    }
+    return GCC.proSettings.read(active);
+  };
+
   const buildConfig = async () => {
     const whitelist = await getWhitelist();
     const protectKeywords = await getProtectKeywords();
+    const proSettings = await getProSettings();
 
     let intensity = elements.intensityEl?.value || "normal";
     if (intensity === "monthly") intensity = "light";
 
     return {
+      tagLabelPrefix: proSettings.labelPrefix,
       intensity,
       dryRun: Boolean(elements.dryRunEl?.checked),
       safeMode: Boolean(elements.safeModeEl?.checked),
@@ -1744,24 +1773,24 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.subsStatus) elements.subsStatus.textContent = text || "";
   };
 
-  const refreshLicenseUi = async () => {
-    try {
-      const licenseState = await GCC.license.getState();
-      state.subs.licenseActive = licenseState.active;
-    } catch {
-      state.subs.licenseActive = false;
-    }
-    const active = state.subs.licenseActive;
-    // 8.0: the pill used to unhide only when the license was ALREADY
-    // active, so it rewarded buyers and told free users nothing. It now
-    // always shows and simply changes what it says, and the tab bar
-    // carries a small padlock, so a user who never opens a tab still
-    // learns a paid tier exists.
-    // 8.2: these pills exist to tell a FREE user a paid tier is there.
-    // Once a licence verifies they are just noise on every section, and
-    // the Auto-Pilot one was static markup that nothing ever updated, so
-    // it sat there in gold saying "Pro" to people who had bought it.
-    // Hide all three when active; the footer still confirms the licence.
+  // 8.12: the upsell chrome, painted from a cached hint before the real
+  // check has run.
+  //
+  // Verifying a licence is an ECDSA signature check over two storage
+  // reads, and init deliberately does not await it, so for the first
+  // 100-300ms of EVERY popup open a paying customer saw padlocks on two
+  // tabs and a gold "Pro" badge on Auto-Pilot: the exact upsell chrome
+  // that is supposed to be invisible to them, on every single open,
+  // forever. 8.11 fixed the paste-your-key strip and the X-ray upsell
+  // one at a time; this is the general form.
+  //
+  // The hint is a cached BOOLEAN in local storage, written by
+  // refreshLicenseUi below once the real answer is known. It decides
+  // nothing: every Pro gate still calls GCC.license and re-verifies, so
+  // a stale or tampered hint changes what is drawn for a moment and
+  // nothing else. A fresh install has no hint and shows the free
+  // chrome, which is both the truth and the safe default.
+  const applyProChrome = (active) => {
     for (const pill of [elements.subsProPill, elements.xrayProPill, elements.autoPilotProPill]) {
       if (!pill) continue;
       if (active) {
@@ -1781,6 +1810,42 @@ document.addEventListener("DOMContentLoaded", () => {
       if (active) lock.setAttribute("hidden", "");
       else lock.removeAttribute("hidden");
     }
+  };
+
+  const applyLicenseHint = async () => {
+    try {
+      const stored = await GCC.storageGet("local", STORAGE_KEYS.PRO_HINT);
+      if (stored?.[STORAGE_KEYS.PRO_HINT] === true) applyProChrome(true);
+    } catch {
+      // No hint, no chrome change: the markup already shows the free state.
+    }
+  };
+
+  const refreshLicenseUi = async () => {
+    try {
+      const licenseState = await GCC.license.getState();
+      state.subs.licenseActive = licenseState.active;
+    } catch {
+      state.subs.licenseActive = false;
+    }
+    const active = state.subs.licenseActive;
+    try {
+      await GCC.storageSet("local", { [STORAGE_KEYS.PRO_HINT]: active });
+    } catch {
+      // A hint that cannot be cached just means the next open paints the
+      // free chrome for a moment, which is what it did before 8.12.
+    }
+    // 8.0: the pill used to unhide only when the license was ALREADY
+    // active, so it rewarded buyers and told free users nothing. It now
+    // always shows and simply changes what it says, and the tab bar
+    // carries a small padlock, so a user who never opens a tab still
+    // learns a paid tier exists.
+    // 8.2: these pills exist to tell a FREE user a paid tier is there.
+    // Once a licence verifies they are just noise on every section, and
+    // the Auto-Pilot one was static markup that nothing ever updated, so
+    // it sat there in gold saying "Pro" to people who had bought it.
+    // Hide all three when active; the footer still confirms the licence.
+    applyProChrome(active);
     if (elements.subsUpsell) elements.subsUpsell.hidden = active;
     if (elements.unsubBtnSub) {
       elements.unsubBtnSub.textContent = active
@@ -2897,9 +2962,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const loadXraySelection = async () => {
     try {
-      const r = await storageGet("local", STORAGE_KEYS.XRAY_CHECKED);
+      const r = await storageGet("local", [STORAGE_KEYS.XRAY_CHECKED, STORAGE_KEYS.XRAY_AGE]);
       const list = r?.[STORAGE_KEYS.XRAY_CHECKED];
       state.xray.checked = new Set(Array.isArray(list) ? list.filter((e) => typeof e === "string") : []);
+      // 8.12: the ticks survived a popup close and the AGE did not.
+      //
+      // 8.5 taught the purge to remember which senders were ticked, so
+      // "run again for the rest" works. The age select next to them was
+      // never persisted, so it snapped back to the 6-month default on
+      // every open. A user who chose "2 years" to protect the last two
+      // years, purged the first 25 senders, then reopened to finish the
+      // job as the toast told them to, got their ticks back and a purge
+      // that reached two years further into their mail than the one
+      // they had just approved. Restoring a WIDER setting than the user
+      // chose is the one direction this must never fail in.
+      const savedAge = r?.[STORAGE_KEYS.XRAY_AGE];
+      if (elements.xrayAge && typeof savedAge === "string" && savedAge) {
+        setSelectIfHasValue(elements.xrayAge, savedAge);
+      }
     } catch {
       state.xray.checked = new Set();
     }
@@ -3686,6 +3766,10 @@ document.addEventListener("DOMContentLoaded", () => {
           // guards they do not have. buildScanGuards already carries
           // the whitelist and the protected keywords.
           ...(await buildScanGuards()),
+          // 8.12: how many senders to measure, from the Pro depth
+          // setting. The worker's Auto-Pilot scan sends the same pair,
+          // because both write the one smartScan store.
+          ...GCC.proSettings.smartScanBudget((await getProSettings()).smartScanDepth),
           smartKnownSenders: buildSmartKnownSenders()
         },
         setSmartStatus
@@ -4274,14 +4358,34 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      // Enter runs cleaner (but not while a select is focused, and not
-      // on a tab, where Enter must activate the tab itself)
+      // Enter runs the cleaner, but ONLY from neutral focus.
+      //
+      // 8.12: this used to exclude just SELECT / INPUT / TEXTAREA and
+      // role="tab", so every other focusable thing in the popup had its
+      // Enter key taken away and replaced with a live cleanup -- and the
+      // preventDefault meant the button the user was actually pressing
+      // never fired. Focus the Pro panel's "Get Pro" (openProPanel
+      // focuses it for you) and press Enter to buy, and you started a
+      // real run instead. The same held for Unsubscribe, Purge, the
+      // banner dismiss buttons and every footer link, and it fired
+      // straight through an open modal.
+      //
+      // Anything that has its own Enter behaviour keeps it. That does
+      // not cost the shortcut: from the Run button itself, Enter now
+      // activates the button natively, which calls runCleanup anyway.
       if (e.key === "Enter" && !e.repeat) {
         const active = document.activeElement;
-        const tag = active?.tagName;
-        const isFormControl = tag === "SELECT" || tag === "INPUT" || tag === "TEXTAREA";
-        const isTab = active?.getAttribute?.("role") === "tab";
-        if (!isFormControl && !isTab && !state.isRunning) {
+        const ownsEnter = active?.closest?.(
+          'a[href], button, select, input, textarea, summary, ' +
+          '[role="button"], [role="tab"], [role="link"], [role="checkbox"], ' +
+          '[contenteditable="true"]'
+        );
+        const modalOpen = Boolean(
+          (elements.proPanel && !elements.proPanel.hidden) ||
+          elements.kbdHelp?.classList.contains("show") ||
+          elements.onboardingBackdrop?.classList.contains("show")
+        );
+        if (!ownsEnter && !modalOpen && !state.isRunning) {
           e.preventDefault();
           runCleanup();
         }
@@ -4972,7 +5076,13 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.xrayPurgeBtn?.addEventListener("click", handleXrayPurge);
     // The caveat depends on the age that is selected right now, so it
     // has to follow the select rather than only the last render.
-    elements.xrayAge?.addEventListener("change", renderXrayAgeNote);
+    elements.xrayAge?.addEventListener("change", () => {
+      renderXrayAgeNote();
+      // Persisted beside the ticks it belongs to, so "run again for the
+      // rest" reuses the age the user actually approved.
+      storageSet("local", { [STORAGE_KEYS.XRAY_AGE]: elements.xrayAge?.value || "" })
+        .catch((e) => log("warn", "xray age persist failed", e));
+    });
     // 8.9: the Clean tab's Minimum Age can be the filter the purge
     // actually applies, so the caveat has to follow it too.
     elements.minAgeEl?.addEventListener("change", renderXrayAgeNote);
@@ -5160,6 +5270,11 @@ document.addEventListener("DOMContentLoaded", () => {
     loadGmailAccounts();
 
     // 7.0 subscriptions: license badge + last scan (both best-effort).
+    // 8.12: paint the cached answer FIRST. This is awaited and the real
+    // check is not, on purpose: a local-storage read is fast enough to
+    // land before first paint, an ECDSA verify is not, and the whole
+    // point is that a buyer never sees the padlocks at all.
+    await applyLicenseHint();
     refreshLicenseUi().catch((e) => log("warn", "license ui failed", e));
     // The remembered tick lists have to land before the lists render.
     // All three are awaited together: each renderer reads its own set,
