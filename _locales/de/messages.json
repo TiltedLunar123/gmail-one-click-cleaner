@@ -371,6 +371,12 @@
 
   "notifActionArchived": { "message": "archiviert" },
   "notifActionTrashed": { "message": "in den Papierkorb verschoben" },
+  "notifTitleDeclined": {
+    "message": "Gmail Cleaner - nichts wurde bereinigt"
+  },
+  "notifDeclinedBody": {
+    "message": "Einige Regeln waren zu umfangreich, um ohne Rückfrage zu laufen. Öffnen Sie die Erweiterung und starten Sie sie selbst."
+  },
   "notifTitleOne": { "message": "Gmail Cleaner - 1 E-Mail $1" },
   "notifTitleMany": { "message": "Gmail Cleaner - $1 E-Mails $2" },
   "notifDryBody": { "message": "Testlauf beendet. Keine Mail wurde angefasst." },

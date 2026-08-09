@@ -371,6 +371,12 @@
 
   "notifActionArchived": { "message": "arquivados" },
   "notifActionTrashed": { "message": "movidos para a Lixeira" },
+  "notifTitleDeclined": {
+    "message": "Gmail Cleaner - nada foi limpo"
+  },
+  "notifDeclinedBody": {
+    "message": "Algumas regras eram grandes demais para rodar sem confirmação. Abra a extensão e execute você mesmo."
+  },
   "notifTitleOne": { "message": "Gmail Cleaner - 1 e-mail $1" },
   "notifTitleMany": { "message": "Gmail Cleaner - $1 e-mails $2" },
   "notifDryBody": { "message": "Simulação concluída. Nenhum e-mail foi tocado." },

@@ -484,7 +484,15 @@ describe("the large-run guardrails stop the run when declined", () => {
     expect(engine).toMatch(/let GUARD_SIGNAL = null;/);
     expect(engine).toMatch(/case "gmailCleanerGuardProceed":/);
     expect(engine).toMatch(/case "gmailCleanerGuardStop":/);
-    expect(engine).toMatch(/GUARD_SIGNAL = null;[\s\S]{0,400}gmailCleanerRequestGuardrail/);
+    // Scoped to askGuardrail rather than to a character budget: 8.12
+    // added the unknown-total branch between these two lines and pushed
+    // them past an arbitrary 400-char window. What matters is that the
+    // signal is reset inside this function, before the request goes out.
+    const ask = engine.slice(
+      engine.indexOf("async function askGuardrail"),
+      engine.indexOf("async function waitForReviewResponse")
+    );
+    expect(ask).toMatch(/GUARD_SIGNAL = null;[\s\S]*gmailCleanerRequestGuardrail/);
   });
 
   test("no answer within the window declines", () => {

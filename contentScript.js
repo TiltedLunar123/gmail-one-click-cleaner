@@ -3672,12 +3672,19 @@
 
     GUARD_SIGNAL = null;
 
+    // 8.12: the unknown-total gate must not name a figure here either.
+    // The modal hides it and the log line skips it; this `detail` is the
+    // third surface fed by the same call, and it was still printing the
+    // visible-page count the dialog had just declined to state.
+    const unknownTotal = kind === "unknownBulk";
     safeSendImmediate({
       phase: "guardrail",
       status: "Waiting for your confirmation",
-      detail: `This run would ${actionWord} about ${count.toLocaleString()} conversations.`,
+      detail: unknownTotal
+        ? `Gmail did not report how many conversations this ${actionWord} would reach.`
+        : `This run would ${actionWord} about ${count.toLocaleString()} conversations.`,
       guardKind: kind,
-      guardCount: count
+      guardCount: unknownTotal ? null : count
     });
 
     safeSendImmediate({
@@ -6442,6 +6449,15 @@
               dryRun: Boolean(CONFIG.dryRun),
               intensity: CONFIG.intensity,
               scheduled: Boolean(CONFIG.scheduled),
+              // 8.12: how many rules the guardrails refused to run
+              // unattended. buildHumanSummary says so too, but that text
+              // travels as the `detail` of a progress message, which
+              // only reaches an OPEN extension page -- and an unattended
+              // run has none. The desktop notification is built from
+              // this payload and from nothing else, so a decline that
+              // does not ride here cannot reach the one person who needs
+              // to know their weekly cleanup has stopped doing anything.
+              declined: Number(stats.declinedRules) || 0,
               runId: CONFIG.runId || ""
             }
           });

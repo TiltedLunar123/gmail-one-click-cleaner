@@ -523,6 +523,20 @@
       }
     });
 
+    // The third list on this page, and the twin the two checks above
+    // very nearly shipped without. Protected Keywords shields SUBJECTS
+    // from deletion, it is saved by the same function, and
+    // GCC.sanitizeProtectKeywords ends in the same silent cut at 25.
+    // Counted from the raw lines for the same reason as the whitelist.
+    const rawKeywordCount = readLines("protectKeywords").length;
+    if (rawKeywordCount > GCC.MAX_PROTECT_KEYWORDS) {
+      overCap(
+        `Protected Keywords holds ${rawKeywordCount} entries and the limit is ` +
+        `${GCC.MAX_PROTECT_KEYWORDS}. Remove ${rawKeywordCount - GCC.MAX_PROTECT_KEYWORDS} ` +
+        "and save again. Nothing was changed."
+      );
+    }
+
     // Validate whitelist entries.
     //
     // 8.11: this used to walk `data.whitelist`, which collectAllData has
@@ -1582,6 +1596,12 @@
         keyInput.value = "";
         GCC.showToast(`Pro activated. All ${GCC.license.FEATURES.length} paid features are unlocked.`, "success");
         await renderState();
+        // 8.12: and the Pro Settings card below, which is one of the
+        // features that toast just counted. Its own isPro is a closure
+        // boolean captured at page load, so without this a buyer who
+        // activates here scrolls down to the new thing they bought and
+        // finds it greyed out behind a Get Pro link until they reload.
+        await refreshProSettingsCard();
       } catch (err) {
         GCC.showToast(`Activation failed: ${err?.message || "unknown error"}`, "error");
       } finally {
@@ -1607,6 +1627,10 @@
           );
         }
         await renderState();
+        // The other direction: with the key gone, the card has to lock
+        // and show the defaults that are now actually in force, rather
+        // than keep accepting edits nothing will ever apply.
+        await refreshProSettingsCard();
       } catch (err) {
         GCC.showToast(`Failed: ${err?.message || "unknown error"}`, "error");
       }
@@ -1632,6 +1656,11 @@
   // if this page is edited in devtools. What this section owns is
   // telling the truth about which state you are in and never leaving a
   // value on screen that is not the value in force.
+
+  // Set by wireProSettingsSection, called by the licence section above
+  // whenever a key is activated or removed. A no-op until the card is
+  // wired, and harmless if the card is not on the page at all.
+  let refreshProSettingsCard = async () => {};
 
   const wireProSettingsSection = () => {
     const card = GCC.$("proSettingsCard");
@@ -1753,12 +1782,18 @@
 
     resetBtn?.addEventListener("click", async () => {
       if (!isPro) return;
-      applyToForm(DEFAULTS);
+      // 8.12: repaint only once the write is confirmed. Painting first
+      // meant a refused or failed save left the card showing defaults
+      // while storage still held the user's real label and interval,
+      // which is verbatim the defect this release fixed for the page's
+      // other Restore defaults button a thousand lines above.
       if (await persist({ ...DEFAULTS }, resetBtn)) {
+        applyToForm(DEFAULTS);
         GCC.showToast("Pro settings reset to defaults", "info");
       }
     });
 
+    refreshProSettingsCard = renderState;
     renderState().catch(() => {});
   };
 

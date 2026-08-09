@@ -371,6 +371,12 @@
 
   "notifActionArchived": { "message": "в архиве" },
   "notifActionTrashed": { "message": "в Корзине" },
+  "notifTitleDeclined": {
+    "message": "Gmail Cleaner - ничего не очищено"
+  },
+  "notifDeclinedBody": {
+    "message": "Некоторые правила оказались слишком большими для запуска без подтверждения. Откройте расширение и запустите его вручную."
+  },
   "notifTitleOne": { "message": "Gmail Cleaner - 1 письмо $1" },
   "notifTitleMany": { "message": "Gmail Cleaner - писем: $1, теперь $2" },
   "notifDryBody": { "message": "Пробный запуск завершён. Почта не тронута." },

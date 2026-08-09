@@ -147,7 +147,15 @@ var GCC_CHANGELOG = {
                 ],
                 [
                   "",
-                  " Paste 150 protected senders in, press Save, and the page said \"Settings saved successfully!\", the counter said 150, and 100 were stored. The rest were not protected. Over-long lists are refused now, with a message saying how many to remove, and nothing is written until they are. The same was true of the per-intensity rule boxes at 50 rules each."
+                  " Paste 150 protected senders in, press Save, and the page said \"Settings saved successfully!\", the counter said 150, and 100 were stored. The rest were not protected. Over-long lists are refused now, with a message saying how many to remove, and nothing is written until they are. The same was true of "
+                ],
+                [
+                  "b",
+                  "Protected Keywords"
+                ],
+                [
+                  "",
+                  " at 25 entries, and of the per-intensity rule boxes at 50 rules each."
                 ]
               ]
             },
@@ -231,7 +239,19 @@ var GCC_CHANGELOG = {
                 ],
                 [
                   "",
-                  " It cleared the paperwork, and the sweep carried on archiving in the background without recording anything it did."
+                  " It cleared the paperwork, and the sweep carried on archiving in the background without recording anything it did. The stop checks that the sweep it is stopping is still the one running in that tab, so it can never interrupt a cleanup you started yourself."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "An unattended run that was refused now says so in the notification."
+                ],
+                [
+                  "",
+                  " The notification is the only thing an unattended run can show you, and it was reporting \"0 emails moved to Trash\", which reads as a clean mailbox."
                 ]
               ]
             },

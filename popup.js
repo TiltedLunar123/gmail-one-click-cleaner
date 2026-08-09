@@ -2976,8 +2976,14 @@ document.addEventListener("DOMContentLoaded", () => {
       // that reached two years further into their mail than the one
       // they had just approved. Restoring a WIDER setting than the user
       // chose is the one direction this must never fail in.
+      // Absent and empty are different: "" is the stored value for the
+      // "any age" option, so a truthiness test made that one choice the
+      // only one that silently reverted to the 6-month default, which is
+      // narrower than what the user picked but is still not what they
+      // picked. setSelectIfHasValue refuses a value with no matching
+      // option, so a corrupt stored age still cannot widen a purge.
       const savedAge = r?.[STORAGE_KEYS.XRAY_AGE];
-      if (elements.xrayAge && typeof savedAge === "string" && savedAge) {
+      if (elements.xrayAge && typeof savedAge === "string") {
         setSelectIfHasValue(elements.xrayAge, savedAge);
       }
     } catch {

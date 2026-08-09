@@ -1139,8 +1139,15 @@
     if (message.type === "gmailCleanerRequestGuardrail") {
       const count = Number(message.count) || 0;
       const actionWord = message.actionWord === "archive" ? "archive" : "delete";
+      // 8.12: the modal hides the number when the match total could not
+      // be read, because quoting the visible page there is the lie the
+      // dialog exists to prevent. The log line behind the modal was
+      // printing that very number, so the figure the dialog refused to
+      // state was sitting in the activity log the whole time.
       appendLog(
-        `Confirmation needed: this run would ${actionWord} about ${formatNumber(count)} conversations.`,
+        message.guardKind === "unknownBulk"
+          ? `Confirmation needed: Gmail did not report how many conversations this ${actionWord} would reach.`
+          : `Confirmation needed: this run would ${actionWord} about ${formatNumber(count)} conversations.`,
         LOG_LEVELS.WARNING
       );
       setPhaseTag(PHASES.GUARDRAIL);

@@ -2926,13 +2926,26 @@
         // claim back, then drop the stage.
         const pending = (await getAutoPilotState())?.pending || null;
         const tabId = Number(pending?.tabId);
-        if (pending && Number.isFinite(tabId)) {
-          try {
-            await chrome.tabs.sendMessage(tabId, { type: "gmailCleanerCancel" });
-          } catch {
-            // The tab is gone or has no engine: nothing to stop.
+        // The stop has to be aimed, not fired at a remembered tab id.
+        // `pending` is cleared on every terminal path but survives an
+        // engine that died silently (a reload, a crash), and it carries
+        // no expiry of its own -- which is exactly why 8.11 introduced
+        // autoPilotPendingIsFresh, whose comment asks that no new reader
+        // be added without it. Without the identity check as well, a
+        // stale row pointing at a tab the user has since started a
+        // manual cleanup in would cancel THAT run and release ITS claim.
+        // probeEngine answers with the live runId, so ask before firing.
+        if (pending && Number.isFinite(tabId) && autoPilotPendingIsFresh(pending)) {
+          const probe = await probeEngine(tabId);
+          if (probe.reachable && probe.runId && probe.runId === pending.runId) {
+            try {
+              await chrome.tabs.sendMessage(tabId, { type: "gmailCleanerCancel" });
+            } catch {
+              // It answered a moment ago; nothing more to do if it stops
+              // answering now.
+            }
+            if (pending.runId) await releaseRunClaim(pending.runId);
           }
-          if (pending.runId) await releaseRunClaim(pending.runId);
         }
         await setAutoPilotState({ pending: null });
       }
@@ -2975,9 +2988,14 @@
       const action = summary?.action === "archive"
         ? bgT("notifActionArchived", "archived")
         : bgT("notifActionTrashed", "moved to Trash");
-      const title = count === 1
-        ? bgT("notifTitleOne", `Gmail Cleaner - 1 email ${action}`, [action])
-        : bgT("notifTitleMany", `Gmail Cleaner - ${count} emails ${action}`, [String(count), action]);
+      const declinedCount = Number(summary?.declined || 0);
+      // "0 emails moved to Trash" over a run that was refused reads as a
+      // clean mailbox, which is the opposite of what happened.
+      const title = (declinedCount > 0 && count === 0 && !summary?.dryRun)
+        ? bgT("notifTitleDeclined", "Gmail Cleaner - nothing was cleaned")
+        : count === 1
+          ? bgT("notifTitleOne", `Gmail Cleaner - 1 email ${action}`, [action])
+          : bgT("notifTitleMany", `Gmail Cleaner - ${count} emails ${action}`, [String(count), action]);
       const freedText = String(summary?.freedMb || 0);
       // 8.10: archiving moves mail to All Mail, where it still counts
       // against the quota, so there is no storage figure to report. The
@@ -2988,7 +3006,20 @@
       // an unattended archive sweep announced "Estimated ~0 MB freed" --
       // and the notification is the ONLY surface an unattended run has.
       let msg;
-      if (summary?.dryRun) {
+      // 8.12: a run that was REFUSED is not a run that found nothing.
+      // The guardrails auto-decline unattended rather than hang on a
+      // confirm nobody will answer, and this notification announced
+      // "0 emails moved to Trash / Estimated ~0 MB freed", which reads
+      // as a clean mailbox. Checked before the freed-MB wording because
+      // it is the more important fact, and only when the run really did
+      // nothing, so a run that cleared its smaller rules still reports
+      // what it cleared.
+      if (declinedCount > 0 && count === 0 && !summary?.dryRun) {
+        msg = bgT(
+          "notifDeclinedBody",
+          "Some rules were too large to run without asking. Open the extension and run it yourself to confirm."
+        );
+      } else if (summary?.dryRun) {
         msg = bgT("notifDryBody", "Dry run finished. No mail was touched.");
       } else if (summary?.action === "archive") {
         msg = bgT(

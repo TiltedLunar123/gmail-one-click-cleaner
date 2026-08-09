@@ -371,6 +371,12 @@
 
   "notifActionArchived": { "message": "アーカイブしました" },
   "notifActionTrashed": { "message": "ゴミ箱へ移動しました" },
+  "notifTitleDeclined": {
+    "message": "Gmail Cleaner - 何も削除されませんでした"
+  },
+  "notifDeclinedBody": {
+    "message": "確認なしで実行するには大きすぎるルールがありました。拡張機能を開いて手動で実行してください。"
+  },
   "notifTitleOne": { "message": "Gmail Cleaner - メール1件を$1" },
   "notifTitleMany": { "message": "Gmail Cleaner - メール$1件を$2" },
   "notifDryBody": { "message": "シミュレーション終了。メールには触れていません。" },

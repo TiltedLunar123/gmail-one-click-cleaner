@@ -371,6 +371,12 @@
 
   "notifActionArchived": { "message": "archived" },
   "notifActionTrashed": { "message": "moved to Trash" },
+  "notifTitleDeclined": {
+    "message": "Gmail Cleaner - nothing was cleaned"
+  },
+  "notifDeclinedBody": {
+    "message": "Some rules were too large to run without asking. Open the extension and run it yourself to confirm."
+  },
   "notifTitleOne": { "message": "Gmail Cleaner - 1 email $1" },
   "notifTitleMany": { "message": "Gmail Cleaner - $1 emails $2" },
   "notifDryBody": { "message": "Dry run finished. No mail was touched." },

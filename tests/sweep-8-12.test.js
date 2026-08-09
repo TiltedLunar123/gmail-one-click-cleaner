@@ -724,3 +724,133 @@ describe("the Pro settings card tells the truth about being locked", () => {
     expect(GCC.license.FEATURES.join(" ").toLowerCase()).toContain("pro settings");
   });
 });
+
+// =====================================================================
+// Found by the completeness pass, after the fixes above were written.
+// Five of these are defects in this release's own new code.
+// =====================================================================
+
+describe("the Auto-Pilot stop is aimed before it is fired", () => {
+  // The new "turning Auto-Pilot off stops the sweep" code sent a cancel
+  // at a remembered tab id with no freshness and no identity check.
+  // `pending` has no expiry of its own and survives an engine that died
+  // silently, so a stale row pointing at a tab the user had since
+  // started a manual cleanup in would cancel THAT run and release its
+  // claim. 8.11 added autoPilotPendingIsFresh with a comment asking that
+  // no new reader be added without it; this was the new reader.
+  const fn = between(BG_SRC, "async function setAutoPilotEnabled(enabled) {", "async function confirmAutoPilot");
+
+  test("it checks the pending row is still worth believing", () => {
+    expect(fn).toContain("autoPilotPendingIsFresh(pending)");
+  });
+
+  test("it checks the engine in that tab is the one it started", () => {
+    expect(fn).toContain("const probe = await probeEngine(tabId);");
+    expect(fn).toContain("probe.runId === pending.runId");
+  });
+
+  test("the cancel and the release are both inside that check", () => {
+    const guardAt = fn.indexOf("probe.runId === pending.runId");
+    expect(guardAt).toBeGreaterThan(-1);
+    expect(fn.indexOf('{ type: "gmailCleanerCancel" }')).toBeGreaterThan(guardAt);
+    expect(fn.indexOf("releaseRunClaim(pending.runId)")).toBeGreaterThan(guardAt);
+  });
+});
+
+describe("all three protection lists refuse an over-long save", () => {
+  // Protected Keywords is the third list on the page, saved by the same
+  // function, capped by the same kind of silent slice, and the first
+  // pass of the over-cap work covered only the other two.
+  test("protected keywords is capped loudly too", () => {
+    const fn = between(OPTIONS_SRC, "const validateData = (data) => {", "\n  /**");
+    expect(fn).toContain('readLines("protectKeywords").length');
+    expect(fn).toContain("GCC.MAX_PROTECT_KEYWORDS");
+  });
+
+  test("all three use the blocking helper, not a warning", () => {
+    const fn = between(OPTIONS_SRC, "const validateData = (data) => {", "\n  /**");
+    // One call per list: Never Delete, the intensity rules, Protected
+    // Keywords. The helper's own definition reads `overCap = (`, so it
+    // is not one of these.
+    expect((fn.match(/overCap\(/g) || []).length).toBe(3);
+    expect(fn).toContain("const overCap = (message) => {");
+  });
+});
+
+describe("the Pro Settings card follows the licence on the same page", () => {
+  // isPro was a closure boolean captured at page load, and the licence
+  // section's own re-render did not touch this card. So a buyer who
+  // pasted their key, saw "All 6 paid features are unlocked", and
+  // scrolled to the sixth one found it greyed out behind a Get Pro link.
+  test("there is a hook the licence section can call", () => {
+    expect(OPTIONS_SRC).toContain("let refreshProSettingsCard = async () => {};");
+    expect(OPTIONS_SRC).toContain("refreshProSettingsCard = renderState;");
+  });
+
+  test("both activating and removing a key refresh it", () => {
+    expect((OPTIONS_SRC.match(/await refreshProSettingsCard\(\);/g) || []).length).toBe(2);
+  });
+
+  test("Reset to defaults repaints only after the write is confirmed", () => {
+    const fn = between(OPTIONS_SRC, 'resetBtn?.addEventListener("click"', "refreshProSettingsCard = renderState;");
+    expect(fn).toContain("if (await persist({ ...DEFAULTS }, resetBtn)) {");
+    expect(fn.indexOf("if (await persist(")).toBeLessThan(fn.indexOf("applyToForm(DEFAULTS);"));
+  });
+});
+
+describe("the declined-rules truth reaches the one surface an unattended run has", () => {
+  // buildHumanSummary's text travels as the `detail` of a progress
+  // message, which only reaches an OPEN extension page. An unattended
+  // run has none. The desktop notification is built from the
+  // gmailCleanerDone payload and from nothing else.
+  test("the count rides on the done payload", () => {
+    expect(ENGINE_SRC).toContain("declined: Number(stats.declinedRules) || 0,");
+  });
+
+  test("the notification branches on it before the freed-MB wording", () => {
+    const fn = between(BG_SRC, "async function maybeNotifyDone(summary) {", "chrome.notifications.create");
+    expect(fn).toContain("notifTitleDeclined");
+    expect(fn).toContain("notifDeclinedBody");
+    expect(fn.indexOf("notifDeclinedBody")).toBeLessThan(fn.indexOf("notifLiveBody"));
+  });
+
+  test("it only fires when the run really did nothing", () => {
+    const fn = between(BG_SRC, "async function maybeNotifyDone(summary) {", "chrome.notifications.create");
+    expect(fn).toContain("declinedCount > 0 && count === 0 && !summary?.dryRun");
+  });
+
+  test("both keys exist in all seven catalogues", () => {
+    for (const locale of ["en", "pt_BR", "es", "fr", "de", "ru", "ja"]) {
+      const cat = JSON.parse(read(`_locales/${locale}/messages.json`));
+      expect(cat.notifTitleDeclined?.message).toBeTruthy();
+      expect(cat.notifDeclinedBody?.message).toBeTruthy();
+    }
+  });
+});
+
+describe("no surface quotes the viewport count for an unreadable total", () => {
+  // The modal was fixed first, and the two sibling surfaces fed by the
+  // same engine call were still printing the number it had just refused
+  // to state: the activity log line behind the modal, and the engine's
+  // own guardrail progress detail.
+  test("the engine's progress detail says unknown, and sends no count", () => {
+    const fn = between(ENGINE_SRC, "async function askGuardrail(", "async function waitForReviewResponse");
+    expect(fn).toContain('const unknownTotal = kind === "unknownBulk";');
+    expect(fn).toContain("guardCount: unknownTotal ? null : count");
+  });
+
+  test("the progress log line honours the kind", () => {
+    const fn = between(PROGRESS_SRC, 'if (message.type === "gmailCleanerRequestGuardrail") {', "setPhaseTag(PHASES.GUARDRAIL)");
+    expect(fn).toContain('message.guardKind === "unknownBulk"');
+  });
+});
+
+describe("the X-ray purge restores every age, including any age", () => {
+  // "" is the stored value for the "any age" option, so a truthiness
+  // test made that one choice the only one that silently reverted.
+  test("absent and empty are distinguished", () => {
+    const loader = between(POPUP_SRC, "const loadXraySelection = async () => {", "const updateXrayCount");
+    expect(loader).toContain('typeof savedAge === "string"');
+    expect(loader).not.toContain('typeof savedAge === "string" && savedAge');
+  });
+});
