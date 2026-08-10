@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+# The post-checkout and recovery pages carry a live licence key in the
+# markup and are noindex in their own <head> as well. Keeping them out
+# here too means a crawler never fetches one in the first place.
+Disallow: /activate.html
+Disallow: /recover.html
+Disallow: /uninstall.html
+
+Sitemap: https://gmail-cleaner-pro.netlify.app/sitemap.xml

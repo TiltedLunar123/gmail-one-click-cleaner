@@ -1334,6 +1334,13 @@
         &nbsp;·&nbsp; Lost your key? <a id="proRecoverLink" href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" style="font-weight: 600;">Recover it with your purchase email</a>,
         or email <a id="proSupportLink" href="#">support</a> with your Stripe receipt.
       </p>
+
+      <p id="proGuaranteeRow" style="font-size: 12.5px; color: var(--text-muted); margin: 10px 0 0;">
+        <strong>30-day money-back guarantee.</strong> Email support within 30 days
+        of buying and you get the whole $9.99 back. Keys are verified on your
+        device and cannot be switched off remotely, so a refunded key keeps
+        working; the guarantee runs on trust in both directions.
+      </p>
     </section>
 
     <!-- 8.12: Pro settings. Every control here tunes machinery Pro
@@ -1394,6 +1401,53 @@
             <option value="standard">Standard - 10 senders</option>
             <option value="deep">Deep - 20 senders</option>
           </select>
+        </div>
+
+        <div>
+          <label for="proAutoPilotMaxSenders" style="font-size: 13px; font-weight: 600; color: var(--text-main); display: block; margin-bottom: 4px;">Senders per Auto-Pilot sweep</label>
+          <p class="hint" style="margin: 0 0 6px;">
+            How many of the top-ranked senders one unattended sweep clears. Anything
+            over the limit waits for the next sweep rather than being dropped.
+          </p>
+          <select id="proAutoPilotMaxSenders" style="width: 100%; max-width: 320px; padding: 8px 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-main); font-size: 13px;">
+            <option value="10">10 senders - cautious</option>
+            <option value="25">25 senders</option>
+            <option value="50">50 senders - clear the backlog faster</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="proAutoPilotMinAge" style="font-size: 13px; font-weight: 600; color: var(--text-main); display: block; margin-bottom: 4px;">Auto-Pilot age floor</label>
+          <p class="hint" style="margin: 0 0 6px;">
+            An extra floor for unattended runs only. It is applied on top of the
+            rule's own age and your Minimum Age setting, and only when it is
+            stricter than both, so it can narrow a sweep and never widen one.
+          </p>
+          <select id="proAutoPilotMinAge" style="width: 100%; max-width: 320px; padding: 8px 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-main); font-size: 13px;">
+            <option value="">No extra floor</option>
+            <option value="1m">Older than 1 month</option>
+            <option value="3m">Older than 3 months</option>
+            <option value="6m">Older than 6 months</option>
+            <option value="1y">Older than 1 year</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="proUndoLogEntries" style="font-size: 13px; font-weight: 600; color: var(--text-main); display: block; margin-bottom: 4px;">Recovery log size</label>
+          <p class="hint" style="margin: 0 0 6px;">
+            How many entries the recovery log keeps before the oldest fall off. One
+            entry per rule per run, so a bigger log means a run stays restorable
+            from the Stats page for longer. It costs local storage, nothing else.
+          </p>
+          <select id="proUndoLogEntries" style="width: 100%; max-width: 320px; padding: 8px 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-main); font-size: 13px;">
+            <option value="60">60 entries</option>
+            <option value="150">150 entries</option>
+            <option value="300">300 entries</option>
+          </select>
+          <p class="hint" style="margin: 6px 0 0;">
+            Deleted mail is still only restorable while Gmail keeps it in Trash,
+            about 30 days. Archived mail has no deadline.
+          </p>
         </div>
       </div>
 

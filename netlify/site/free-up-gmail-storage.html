@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Free up Gmail storage without paying for Google One</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Google One is about $20 a year, forever, to avoid an afternoon of cleanup. Here is what an hour of work actually buys you back, and when paying is the smarter call." />
+  <meta name="color-scheme" content="dark" />
+  <link rel="canonical" href="https://gmail-cleaner-pro.netlify.app/free-up-gmail-storage.html" />
+  <link rel="icon" type="image/png" sizes="128x128" href="./icon128.png" />
+  <meta property="og:title" content="Free up Gmail storage without paying for Google One" />
+  <meta property="og:description" content="What an afternoon of cleanup buys back, which searches find the space, and the honest case for just paying Google instead." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://gmail-cleaner-pro.netlify.app/free-up-gmail-storage.html" />
+  <style>
+    :root {
+      --bg: #06090f;
+      --surface: rgba(17, 26, 36, 0.75);
+      --surface-2: rgba(6, 9, 15, 0.6);
+      --border: rgba(148, 163, 184, 0.2);
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #22d3ee;
+      --ok: #6ee7b7;
+      --warn: #fcd34d;
+    }
+    html { scrollbar-gutter: stable both-edges; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background-color: var(--bg);
+      background-image:
+        radial-gradient(at 0% 0%, rgba(34, 211, 238, 0.14) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.1) 0px, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      line-height: 1.65;
+      padding: 32px 22px 64px;
+    }
+    main { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 30px; line-height: 1.2; margin: 0 0 14px; letter-spacing: -0.015em; }
+    h2 { font-size: 20px; margin: 40px 0 12px; letter-spacing: -0.01em; }
+    h3 { font-size: 16px; margin: 26px 0 8px; }
+    p { margin: 0 0 14px; }
+    .lede { font-size: 17px; color: var(--muted); margin-bottom: 26px; }
+    a { color: var(--accent); }
+    code {
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 13px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 1px 6px;
+      color: var(--ok);
+      white-space: nowrap;
+    }
+    ul, ol { margin: 0 0 14px; padding-left: 22px; }
+    li { margin-bottom: 8px; }
+    table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 14.5px; }
+    th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; font-size: 13px; }
+    td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    tr.this-one td { color: var(--ok); font-weight: 700; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+      margin: 22px 0;
+    }
+    .card h3 { margin-top: 0; }
+    .callout { border-color: rgba(252, 211, 77, 0.35); }
+    .callout h3 { color: var(--warn); }
+    .cta {
+      background: var(--surface);
+      border: 1px solid rgba(34, 211, 238, 0.32);
+      border-radius: 14px;
+      padding: 22px;
+      margin: 36px 0 0;
+    }
+    .cta h2 { margin-top: 0; }
+    .btn {
+      display: inline-block;
+      background: linear-gradient(135deg, #7bf1fd, #22d3ee);
+      color: #04181d;
+      font-weight: 800;
+      padding: 12px 22px;
+      border-radius: 11px;
+      text-decoration: none;
+      margin-top: 6px;
+    }
+    .btn:hover { filter: brightness(1.05); }
+    .btn-sub { display: block; color: var(--muted); font-size: 13px; margin-top: 10px; }
+    .footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--border); font-size: 13px; color: var(--muted); }
+    .updated { font-size: 13px; color: var(--muted); margin: 0 0 26px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Free up Gmail storage without paying for Google One</h1>
+    <p class="lede">
+      Google's answer to a full mailbox is $1.99 a month for 100 GB, which is
+      about $20 a year for as long as you have the account. That is a perfectly
+      reasonable thing to buy. It is also a subscription you are being sold at
+      the exact moment you are most annoyed, so here is what the free version of
+      the fix actually involves before you decide.
+    </p>
+    <p class="updated">Prices checked against Google One, August 2026.</p>
+
+    <h2>What you are choosing between</h2>
+    <table>
+      <thead>
+        <tr><th>Option</th><th>Cost</th><th class="num">Over 10 years</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Google One, 100 GB</td><td>$1.99 / month</td><td class="num">$238.80</td></tr>
+        <tr><td>Google One, 100 GB paid yearly</td><td>$19.99 / year</td><td class="num">$199.90</td></tr>
+        <tr><td>Clean it out by hand</td><td>An afternoon, once</td><td class="num">$0</td></tr>
+        <tr class="this-one"><td>Clean it out with this extension</td><td>Free, or $9.99 once</td><td class="num">$9.99</td></tr>
+      </tbody>
+    </table>
+    <p>
+      The catch with the free column is not the money, it is that mail comes
+      back. If nothing changes about what arrives, you will be doing this again
+      in a year or two. That is the real argument for the subscription, and the
+      real argument for unsubscribing properly while you are in there.
+    </p>
+
+    <h2>Where the space actually is</h2>
+    <p>
+      Two things surprise most people. The first is that the 15 GB is shared
+      with Google Drive and Google Photos, so the mailbox may not be the
+      problem at all. Check
+      <a href="https://one.google.com/storage/management" rel="noopener">Google's storage manager</a>
+      before you spend an hour in the wrong place.
+    </p>
+    <p>
+      The second is that it is never the count. A hundred thousand newsletters
+      might come to a few hundred megabytes. Thirty phone videos somebody
+      emailed you can beat that on their own. Attack size, not volume.
+    </p>
+
+    <div class="card callout">
+      <h3>And deleting is only half of it</h3>
+      <p style="margin-bottom:0">
+        Deleted mail sits in Trash for 30 days and keeps its space the whole
+        time. Empty Trash, and Spam, or nothing you did will show up in the
+        storage bar. Then give it a few hours to update.
+      </p>
+    </div>
+
+    <h2>An hour, done in the right order</h2>
+    <ol>
+      <li>
+        Search <code>larger:25M</code>. This is usually a couple of dozen
+        messages and a surprising number of gigabytes.
+      </li>
+      <li>
+        Search <code>larger:10M older_than:1y</code>, then
+        <code>has:attachment larger:5M older_than:2y</code>.
+      </li>
+      <li>
+        For each search, tick the top-left box, then click
+        <strong>Select all conversations that match this search</strong>. Miss
+        that and you have only got the fifty on screen.
+      </li>
+      <li>Empty Trash. Empty Spam.</li>
+      <li>
+        Unsubscribe from the lists that filled it. This is the step that decides
+        whether you are back here next year.
+      </li>
+    </ol>
+    <p>
+      If you want the longer version of this with the traps spelled out, it is
+      on <a href="./gmail-storage-full.html">the storage-full page</a>.
+    </p>
+
+    <h2>When paying Google is the right call</h2>
+    <p>
+      It is worth saying plainly, because a page selling an alternative has an
+      obvious incentive not to. Buy the storage if you actually need the mail,
+      if the space is going on Photos you want kept at full quality, or if an
+      afternoon of your time is worth more than $20. Cleaning up is the right
+      call when the space is going on things you would never miss, which for
+      most full mailboxes is exactly what it is.
+    </p>
+
+    <div class="cta">
+      <h2>The extension that does the searching</h2>
+      <p>
+        Gmail One-Click Cleaner runs those searches and the select-all step for
+        you, in your own Gmail tab. Everything is labelled before it is touched,
+        so any run can be put back in one click, and starred, important and
+        protected senders are skipped.
+      </p>
+      <p>
+        There is no OAuth prompt and no network code anywhere in it, so there is
+        no server holding your mail and no account to disconnect later. The scan
+        that ranks which senders are eating your storage is free, and so is the
+        bulk cleanup.
+      </p>
+      <p style="margin-bottom:0">
+        <a class="btn" href="https://chromewebstore.google.com/detail/bmcfpljakkpcbinhgiahncpcbhmihgpc" rel="noopener">Get it free on the Chrome Web Store</a>
+        <span class="btn-sub">
+          Also on <a href="https://addons.mozilla.org/firefox/addon/gmail-one-click-cleaner@gmail-cleaner-pro.netlify.app/" rel="noopener">Firefox</a>
+          and Edge. One-click purge, bulk unsubscribe and the weekly sweep are
+          <a href="./">$9.99 once</a>, not a subscription, with a 30-day
+          money-back guarantee.
+        </span>
+      </p>
+    </div>
+
+    <h2>Common questions</h2>
+
+    <h3>Can I get more Gmail storage for free?</h3>
+    <p>
+      Not beyond the 15 GB that comes with the account. A second Google account
+      gets its own 15 GB, and you can forward to it, but that is a filing system
+      rather than extra room in the mailbox you already use.
+    </p>
+
+    <h3>How much is Google One?</h3>
+    <p>
+      100 GB is $1.99 a month, or $19.99 a year if you pay annually. Storage is
+      shared across Gmail, Drive and Photos, and with up to five other people.
+    </p>
+
+    <h3>Will deleting emails free up space straight away?</h3>
+    <p>
+      No. It frees space once you empty Trash, and the storage figure can take a
+      few hours to catch up after that.
+    </p>
+
+    <h3>Is it safe to bulk delete old mail?</h3>
+    <p>
+      Deleted mail is recoverable from Trash for 30 days, so a mistake made
+      today is fixable today. The risk is not deletion, it is deleting something
+      you needed and not noticing for a month, which is a good reason to work
+      from <code>older_than:</code> searches rather than clearing everything.
+    </p>
+
+    <p class="footer">
+      <a href="./">Gmail One-Click Cleaner</a>
+      &nbsp;&middot;&nbsp;
+      <a href="./gmail-storage-full.html">Gmail storage full? What actually frees space</a>
+      &nbsp;&middot;&nbsp;
+      <a href="https://github.com/TiltedLunar123/gmail-one-click-cleaner" rel="noopener">Source on GitHub</a>
+    </p>
+  </main>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Can I get more Gmail storage for free?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Not beyond the 15 GB that comes with the account. A second Google account gets its own 15 GB and you can forward to it, but that is a filing system rather than extra room in the mailbox you already use."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How much is Google One?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "100 GB is $1.99 a month, or $19.99 a year paid annually. Storage is shared across Gmail, Drive and Photos, and with up to five other people."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Will deleting emails free up space straight away?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. It frees space once you empty Trash, and the storage figure can take a few hours to catch up after that."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is it safe to bulk delete old mail?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Deleted mail is recoverable from Trash for 30 days. The safer approach is to work from older_than: searches rather than clearing everything at once."
+        }
+      }
+    ]
+  }
+  </script>
+</body>
+</html>

@@ -824,7 +824,19 @@ const GCC = (() => {
     // paid, for buyers who no longer have the post-checkout link.
     RECOVER_URL: "https://gmail-cleaner-pro.netlify.app/recover.html",
     SUPPORT_EMAIL: "hilgendorfjude@gmail.com",
-    STORAGE_KEY: "proLicense"
+    STORAGE_KEY: "proLicense",
+    // 8.13: a refund window, promised in the product and not only on
+    // the buy page. Every surface that quotes it reads it from here, so
+    // the window can never say 30 days in one place and 14 in another.
+    //
+    // Worth knowing before changing this: a refunded key keeps working.
+    // Verification is offline by design, there is no revocation list,
+    // and adding one would mean the extension phoning home, which is
+    // the one thing the whole product promises it never does. So the
+    // guarantee is honoured on trust, and the honest reading is that it
+    // costs a refunded sale rather than buying back the licence.
+    GUARANTEE_DAYS: 30,
+    GUARANTEE_LABEL: "30-day money-back guarantee"
   });
 
   // What the one payment actually buys, in the order the popup presents
@@ -835,7 +847,11 @@ const GCC = (() => {
   // paid $9.99 read it and was told they had bought one fifth of it.
   const PRO_FEATURES = Object.freeze([
     "Bulk unsubscribe from every mailing list you tick",
-    "The full Storage X-ray list, and the one-click purge",
+    // 8.13: the ranked list itself is free now, so this line names only
+    // what the payment actually adds. Selling someone a list they can
+    // already see is the same defect the comment above describes, just
+    // pointing the other way.
+    "The one-click Storage X-ray purge, for the senders you tick",
     "The full Smart Suggestions list, and bulk apply",
     "Every step of the Mailbox Report, and the whole-plan run",
     "Auto-Pilot, the weekly sweep that archives without being asked",
@@ -1061,13 +1077,36 @@ const GCC = (() => {
     // Auto-Pilot's sweep interval. Weekly is what 7.12 shipped.
     autoPilotIntervalDays: 7,
     // How many senders the Smart scan measures before ranking.
-    smartScanDepth: "standard"
+    smartScanDepth: "standard",
+
+    // 8.13. Same rule as the three above: every default is what 8.12
+    // did, so a free install and an untouched card are identical.
+    //
+    // How many senders one unattended sweep acts on. 25 is
+    // AUTOPILOT_MAX_PER_RUN, hardcoded since 7.12.
+    autoPilotMaxSenders: 25,
+    // An age floor Auto-Pilot adds on top of everything else. Empty is
+    // 8.12's behaviour: the sweep already carries the rule's own
+    // older_than and the Clean tab's Minimum Age, and this can only
+    // ever be stacked on when it is STRICTER than both, so it narrows
+    // an unattended run and can never widen one.
+    autoPilotMinAge: "",
+    // How many recovery-log entries survive. One entry per rule per
+    // run, capped at 60 since 8.0. Raising it lengthens the window in
+    // which a run can still be restored, and costs only local storage.
+    undoLogEntries: 60
   });
 
   const PRO_SETTINGS_LIMITS = Object.freeze({
     LABEL_MAX: 32,
     INTERVAL_DAYS: Object.freeze([7, 14, 30]),
     DEPTHS: Object.freeze(["standard", "deep"]),
+    MAX_SENDERS: Object.freeze([10, 25, 50]),
+    // "" is a real choice here, not a missing one: it means "add no
+    // floor of my own". It has to stay in the allow-list for that
+    // reason, and nothing may test this value for truthiness.
+    MIN_AGES: Object.freeze(["", "1m", "3m", "6m", "1y"]),
+    UNDO_ENTRIES: Object.freeze([60, 150, 300]),
     // Signal and veto budgets move TOGETHER. The engine measures at most
     // SIGNAL senders and then runs correspondence vetoes on at most VETO
     // of them; raising the first alone would let the scan measure twenty
@@ -1109,6 +1148,20 @@ const GCC = (() => {
 
     const depth = String(stored.smartScanDepth || "");
     if (PRO_SETTINGS_LIMITS.DEPTHS.includes(depth)) out.smartScanDepth = depth;
+
+    const senders = Number(stored.autoPilotMaxSenders);
+    if (PRO_SETTINGS_LIMITS.MAX_SENDERS.includes(senders)) out.autoPilotMaxSenders = senders;
+
+    // Deliberately NOT `stored.autoPilotMinAge || ""`: the empty string
+    // is the "no extra floor" choice, and an allow-list membership test
+    // is the only read that treats it as the answer it is.
+    if (typeof stored.autoPilotMinAge === "string"
+      && PRO_SETTINGS_LIMITS.MIN_AGES.includes(stored.autoPilotMinAge)) {
+      out.autoPilotMinAge = stored.autoPilotMinAge;
+    }
+
+    const undoEntries = Number(stored.undoLogEntries);
+    if (PRO_SETTINGS_LIMITS.UNDO_ENTRIES.includes(undoEntries)) out.undoLogEntries = undoEntries;
 
     return out;
   };
@@ -1724,6 +1777,70 @@ const GCC = (() => {
     return count >= RATING_MIN_CLEANED || mb >= RATING_MIN_FREED_MB;
   };
 
+  // 8.13: qualifying used to be only half the gate. One "Maybe later"
+  // then silenced the ask for 90 days (8.0) or forever (7.3), on a
+  // listing whose weakest ranking input is its handful of ratings, so
+  // in practice almost nobody was asked twice. Now every qualifying run
+  // asks, bounded by two things so that "every run" cannot become
+  // nagging:
+  //
+  //   - a short cooldown after a refusal, so somebody clearing out a
+  //     backlog in one sitting is asked once that day, not five times;
+  //   - a hard stop after a few refusals, because three "no"s is an
+  //     answer and the fourth ask is just noise.
+  //
+  // Going to the store, or the explicit "Don't ask again", sets `done`
+  // and ends it permanently. The two are stored the same way on
+  // purpose: whichever the user picked, they have decided.
+  const RATING_ASK_COOLDOWN_MS = 1000 * 60 * 60 * 24 * 3;
+  const RATING_MAX_DISMISSALS = 3;
+
+  // And never on somebody's first run. A first cleanup is the one most
+  // likely to be a nervous try of an unfamiliar tool, and asking for
+  // five stars before the user has decided they trust it is how you
+  // earn a two. The counter is `runSuccessCount`, bumped when a run
+  // starts, so it already reads 1 while the first run's own result is
+  // on screen; asking from the second means requiring 2.
+  const RATING_MIN_RUNS = 2;
+
+  const shouldAskForRating = (stored, now = Date.now(), runs = 0) => {
+    const ask = stored && typeof stored === "object" ? stored : {};
+    if (ask.done) return false;
+    if ((Number(runs) || 0) < RATING_MIN_RUNS) return false;
+    if ((Number(ask.dismissals) || 0) >= RATING_MAX_DISMISSALS) return false;
+    const last = Number(ask.lastDismissedAt) || 0;
+    // Never refused, or refused at an unreadable time: ask.
+    if (!last) return true;
+    return (Number(now) || 0) - last >= RATING_ASK_COOLDOWN_MS;
+  };
+
+  // The 8.12 and earlier key was a single `ratingPromptDismissed`, a
+  // timestamp or a bare `true`, written by BOTH "Maybe later" and the
+  // rate button. It cannot tell the two apart, so it is read as one
+  // refusal rather than as a decision: an existing user who once said
+  // "later" gets asked again, which is the entire point of this change,
+  // and is not sent straight back to the store either.
+  const migrateRatingAsk = (stored, legacy) => {
+    if (stored && typeof stored === "object") return stored;
+    if (!legacy) return {};
+    const at = Number(legacy);
+    return { dismissals: 1, lastDismissedAt: Number.isFinite(at) && at > 0 ? at : 0 };
+  };
+
+  const noteRatingDismissed = (stored, now = Date.now()) => {
+    const ask = stored && typeof stored === "object" ? stored : {};
+    return {
+      ...ask,
+      dismissals: (Number(ask.dismissals) || 0) + 1,
+      lastDismissedAt: Number(now) || 0
+    };
+  };
+
+  const noteRatingDone = (stored) => {
+    const ask = stored && typeof stored === "object" ? stored : {};
+    return { ...ask, done: true };
+  };
+
   // First lines of the Pro upsells. Lead with the user's own scan
   // numbers once a scan exists; before that, fall back to the static
   // pitch. Claims mirror what the features do: the user picks the
@@ -1738,7 +1855,10 @@ const GCC = (() => {
   const xrayUpsellLine = (senderCount, totalMb) => {
     const n = Math.max(0, Math.floor(Number(senderCount) || 0));
     const mb = Math.max(0, Number(totalMb) || 0);
-    if (!n || !mb) return t("xrayUpsellNone", "Pro is $9.99 once: it unlocks the full ranked list and one-click purge.");
+    // 8.13: the list is no longer the thing being sold, so this no
+    // longer offers to unlock it. Every ranked sender is on screen for
+    // free; what $9.99 buys is the purge button underneath them.
+    if (!n || !mb) return t("xrayUpsellNone", "Pro is $9.99 once: it purges the senders you tick, in one click.");
     const mbText = formatMb(mb);
     if (n === 1) return t("xrayUpsellOne", `1 sender is holding at least ${mbText}. Pro purges the ones you pick for $9.99.`, [mbText]);
     return t("xrayUpsellMany", `${n} senders are holding at least ${mbText}. Pro purges the ones you pick for $9.99.`, [String(n), mbText]);
@@ -1807,9 +1927,16 @@ const GCC = (() => {
   const popupUi = Object.freeze({
     RATING_MIN_CLEANED,
     RATING_MIN_FREED_MB,
+    RATING_ASK_COOLDOWN_MS,
+    RATING_MAX_DISMISSALS,
+    RATING_MIN_RUNS,
     RECAP_SEEN_SKEW_MS,
     pickBanner,
     ratingRunQualifies,
+    shouldAskForRating,
+    migrateRatingAsk,
+    noteRatingDismissed,
+    noteRatingDone,
     subsUpsellLine,
     xrayUpsellLine,
     smartUpsellLine,

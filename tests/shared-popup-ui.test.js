@@ -202,9 +202,20 @@ describe("GCC.popupUi.recapAction / recapCleanedCount", () => {
 describe("GCC.popupUi.xrayUpsellLine", () => {
   test("static fallback before any scan", () => {
     const line = UI.xrayUpsellLine(0, 0);
-    expect(line).toBe("Pro is $9.99 once: it unlocks the full ranked list and one-click purge.");
+    expect(line).toBe("Pro is $9.99 once: it purges the senders you tick, in one click.");
     expect(UI.xrayUpsellLine(5, 0)).toBe(line);
     expect(UI.xrayUpsellLine(0, 100)).toBe(line);
+  });
+
+  // 8.13: the ranked list is free, so no upsell may offer to unlock it.
+  // This is the copy half of the change; popup-structure pins the DOM
+  // half. Both are here because the pitch and the paywall drifting
+  // apart is exactly how you end up selling something you gave away.
+  test("no upsell line offers to unlock the list", () => {
+    for (const line of [UI.xrayUpsellLine(0, 0), UI.xrayUpsellLine(1, 80), UI.xrayUpsellLine(9, 412)]) {
+      expect(line).not.toMatch(/full (ranked )?list/i);
+      expect(line).not.toMatch(/unlocks/i);
+    }
   });
 
   test("leads with senders and a floor-estimate size", () => {

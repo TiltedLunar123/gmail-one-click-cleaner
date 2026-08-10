@@ -132,6 +132,25 @@
     }
     .reassure strong { color: var(--text); }
 
+    /* One-click activation. Only ever shown once the extension has
+       actually answered, so the button can never promise something
+       this browser cannot do. */
+    .oneclick { margin-top: 18px; }
+    .oneclick[hidden] { display: none; }
+    button.primary {
+      background: linear-gradient(135deg, #22d3ee, #38bdf8);
+      border-color: transparent;
+      color: #06121a;
+      font-weight: 700;
+      padding: 12px 22px;
+      font-size: 15px;
+    }
+    button.primary:hover { filter: brightness(1.06); background: linear-gradient(135deg, #22d3ee, #38bdf8); }
+    button.primary:disabled { filter: none; opacity: 0.75; cursor: default; }
+    .oneclick-sub { font-size: 13px; color: var(--muted); margin: 10px 0 0; line-height: 1.6; }
+    .oneclick-sub.ok { color: var(--ok); }
+    .oneclick-sub.error { color: var(--warn); }
+
     .status { font-size: 14px; color: var(--muted); }
     .status.error { color: var(--warn); }
     .fineprint { margin-top: 22px; font-size: 12px; color: var(--muted); line-height: 1.6; }
@@ -165,8 +184,13 @@
       <a class="btn" id="mailBtn" href="#">Email it to myself</a>
     </div>
 
-    <h2>Three steps and you're cleaning</h2>
-    <ol>
+    <div class="oneclick" id="oneClick" hidden>
+      <button type="button" class="primary" id="activateBtn">Activate Pro in the extension</button>
+      <p class="oneclick-sub" id="activateSub">Your extension is installed on this browser, so you do not have to paste anything.</p>
+    </div>
+
+    <h2 id="stepsHead">Three steps and you're cleaning</h2>
+    <ol id="steps">
       <li>Right-click the extension icon and pick <strong>Options</strong>.</li>
       <li>Scroll to <strong>Pro License</strong>, paste the key, hit <strong>Activate</strong>.</li>
       <li>Open the popup and run <strong>Scan for subscriptions</strong>. Most people
@@ -205,12 +229,106 @@
       var copyBtn = document.getElementById("copyBtn");
       var mailBtn = document.getElementById("mailBtn");
 
+      // One-click activation. Chrome and Edge expose a limited
+      // chrome.runtime to this page because the extension names this
+      // origin in externally_connectable; Firefox does not implement
+      // any of that, so everything below simply never fires there and
+      // the copy-and-paste steps stay as they are.
+      //
+      // The extension ID has to be named to be messaged. Store builds
+      // carry the ID below; an unpacked development copy has its own,
+      // which is why a miss is silent rather than an error worth
+      // showing anyone.
+      var EXTENSION_IDS = ["bmcfpljakkpcbinhgiahncpcbhmihgpc"];
+      var oneClick = document.getElementById("oneClick");
+      var activateBtn = document.getElementById("activateBtn");
+      var activateSub = document.getElementById("activateSub");
+      var stepsHead = document.getElementById("stepsHead");
+      var steps = document.getElementById("steps");
+      var liveExtensionId = null;
+
+      function canMessageExtensions() {
+        return typeof chrome !== "undefined" &&
+          chrome.runtime &&
+          typeof chrome.runtime.sendMessage === "function";
+      }
+
+      function sendToExtension(id, message, done) {
+        try {
+          chrome.runtime.sendMessage(id, message, function (response) {
+            // Reading lastError is what stops the browser logging an
+            // unchecked-error warning when no extension answers.
+            var err = chrome.runtime.lastError;
+            done(err ? null : response);
+          });
+        } catch (e) {
+          done(null);
+        }
+      }
+
+      // Ask each known ID whether it is there. First to answer wins.
+      function findExtension(done) {
+        if (!canMessageExtensions()) { done(null); return; }
+        var remaining = EXTENSION_IDS.slice();
+        (function next() {
+          if (!remaining.length) { done(null); return; }
+          var id = remaining.shift();
+          sendToExtension(id, { type: "gmailCleanerPing" }, function (res) {
+            if (res && res.ok) { done(id); return; }
+            next();
+          });
+        })();
+      }
+
+      var oneClickWired = false;
+
+      function offerOneClick(key) {
+        // showKey has two callers (a fresh mint and the remembered-key
+        // fallback), and wiring the button twice would fire two
+        // activations per click.
+        if (oneClickWired) return;
+        oneClickWired = true;
+        findExtension(function (id) {
+          if (!id) return;
+          liveExtensionId = id;
+          oneClick.hidden = false;
+          // The manual steps stay on the page, just demoted: they are
+          // still the answer for a second browser, and for anyone whose
+          // click does not take.
+          if (stepsHead) stepsHead.textContent = "Or activate it by hand";
+          activateBtn.addEventListener("click", function () {
+            activateBtn.disabled = true;
+            activateSub.className = "oneclick-sub";
+            activateSub.textContent = "Activating...";
+            // Read the key off the page rather than closing over the
+            // one this was wired with: a remembered key can be replaced
+            // by a freshly minted one after the fetch settles.
+            var current = keybox.textContent || key;
+            sendToExtension(liveExtensionId, { type: "gmailCleanerActivateLicense", key: current }, function (res) {
+              if (res && res.ok) {
+                activateBtn.textContent = "Pro is active";
+                activateSub.className = "oneclick-sub ok";
+                activateSub.textContent = "Done. Open the extension and every paid feature is unlocked. Your key is saved below either way.";
+                if (steps) steps.hidden = true;
+                if (stepsHead) stepsHead.hidden = true;
+                return;
+              }
+              activateBtn.disabled = false;
+              activateBtn.textContent = "Try again";
+              activateSub.className = "oneclick-sub error";
+              activateSub.textContent = "That did not take. Copy the key above and paste it into Options, Pro License. Your purchase is safe.";
+            });
+          });
+        });
+      }
+
       function showKey(key) {
         statusEl.textContent = "Your lifetime Pro key:";
         statusEl.className = "status";
         keybox.textContent = key;
         keybox.style.display = "block";
         copyRow.style.display = "flex";
+        offerOneClick(key);
         mailBtn.href = "mailto:?subject=" +
           encodeURIComponent("My Gmail One-Click Cleaner Pro key") +
           "&body=" +

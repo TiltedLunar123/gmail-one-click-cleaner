@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gmail storage full? What actually frees space, in order</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Your Gmail storage is full and mail is bouncing. Here is what actually frees space, in the order that works, including the Trash step most guides leave out." />
+  <meta name="color-scheme" content="dark" />
+  <link rel="canonical" href="https://gmail-cleaner-pro.netlify.app/gmail-storage-full.html" />
+  <link rel="icon" type="image/png" sizes="128x128" href="./icon128.png" />
+  <meta property="og:title" content="Gmail storage full? What actually frees space, in order" />
+  <meta property="og:description" content="The 15 GB is shared with Drive and Photos, and deleted mail keeps taking up room until Trash is emptied. Here is the order that works." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://gmail-cleaner-pro.netlify.app/gmail-storage-full.html" />
+  <style>
+    :root {
+      --bg: #06090f;
+      --surface: rgba(17, 26, 36, 0.75);
+      --surface-2: rgba(6, 9, 15, 0.6);
+      --border: rgba(148, 163, 184, 0.2);
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #22d3ee;
+      --ok: #6ee7b7;
+      --warn: #fcd34d;
+    }
+    html { scrollbar-gutter: stable both-edges; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background-color: var(--bg);
+      background-image:
+        radial-gradient(at 0% 0%, rgba(34, 211, 238, 0.14) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(56, 189, 248, 0.1) 0px, transparent 50%);
+      background-attachment: fixed;
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      line-height: 1.65;
+      padding: 32px 22px 64px;
+    }
+    main { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 30px; line-height: 1.2; margin: 0 0 14px; letter-spacing: -0.015em; }
+    h2 { font-size: 20px; margin: 40px 0 12px; letter-spacing: -0.01em; }
+    h3 { font-size: 16px; margin: 26px 0 8px; }
+    p { margin: 0 0 14px; }
+    .lede { font-size: 17px; color: var(--muted); margin-bottom: 26px; }
+    a { color: var(--accent); }
+    code {
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 13px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 1px 6px;
+      color: var(--ok);
+      white-space: nowrap;
+    }
+    ul, ol { margin: 0 0 14px; padding-left: 22px; }
+    li { margin-bottom: 8px; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+      margin: 22px 0;
+    }
+    .card h3 { margin-top: 0; }
+    .callout { border-color: rgba(252, 211, 77, 0.35); }
+    .callout h3 { color: var(--warn); }
+    .queries { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+    .queries li {
+      display: grid;
+      grid-template-columns: minmax(0, auto) 1fr;
+      gap: 4px 14px;
+      align-items: baseline;
+      margin: 0;
+    }
+    .queries span { color: var(--muted); font-size: 14px; }
+    @media (max-width: 560px) { .queries li { grid-template-columns: 1fr; } }
+    .cta {
+      background: var(--surface);
+      border: 1px solid rgba(34, 211, 238, 0.32);
+      border-radius: 14px;
+      padding: 22px;
+      margin: 36px 0 0;
+    }
+    .cta h2 { margin-top: 0; }
+    .btn {
+      display: inline-block;
+      background: linear-gradient(135deg, #7bf1fd, #22d3ee);
+      color: #04181d;
+      font-weight: 800;
+      padding: 12px 22px;
+      border-radius: 11px;
+      text-decoration: none;
+      margin-top: 6px;
+    }
+    .btn:hover { filter: brightness(1.05); }
+    .btn-sub { display: block; color: var(--muted); font-size: 13px; margin-top: 10px; }
+    .footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--border); font-size: 13px; color: var(--muted); }
+    .updated { font-size: 13px; color: var(--muted); margin: 0 0 26px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Gmail storage full? Here is what actually frees space</h1>
+    <p class="lede">
+      When the 15 GB runs out, Gmail stops accepting new mail and senders start
+      getting bounces. The fix is not complicated, but the order matters, and
+      one step gets left out of almost every guide, which is why people delete
+      thousands of emails and watch the number refuse to move.
+    </p>
+    <p class="updated">Written for the current Gmail and Google One, August 2026.</p>
+
+    <h2>First, the thing that trips everyone up</h2>
+
+    <div class="card callout">
+      <h3>Deleting mail does not free space. Emptying Trash does.</h3>
+      <p>
+        Deleted mail goes to Trash and sits there for 30 days, still counting
+        against your quota the whole time. If you have just deleted ten thousand
+        emails and the storage bar has not moved, this is why.
+      </p>
+      <p style="margin-bottom:0">
+        Open Trash, click <strong>Empty Trash now</strong>, then do the same in
+        Spam. Then wait: the storage figure updates on Google's schedule, not
+        yours, and it can take a few hours to catch up. Nothing is wrong when it
+        lags.
+      </p>
+    </div>
+
+    <h2>Why it filled up</h2>
+    <p>
+      Your 15 GB is not a Gmail allowance. It is shared across Gmail, Google
+      Drive and Google Photos, so a phone quietly backing up photos can fill the
+      account of somebody who has never sent a large attachment in their life.
+      Before touching your mail at all, check
+      <a href="https://one.google.com/storage/management" rel="noopener">Google's own storage manager</a>,
+      which sorts your largest items across all three services and will tell you
+      in about five seconds whether this is actually a Gmail problem.
+    </p>
+    <p>
+      If it is Gmail, it is almost never the number of emails. It is a small
+      number of messages with big attachments. Twenty years of newsletters might
+      be 200 MB. Forty video attachments from a family group thread can be more
+      than that on their own.
+    </p>
+
+    <h2>The searches that find the space</h2>
+    <p>
+      Paste these into the Gmail search box. They are ordered by how much room
+      they usually free per minute spent.
+    </p>
+
+    <ul class="queries">
+      <li>
+        <code>larger:25M</code>
+        <span>The genuinely huge ones. Often twenty messages holding several GB.</span>
+      </li>
+      <li>
+        <code>larger:10M older_than:1y</code>
+        <span>Big and old enough that nobody will miss it.</span>
+      </li>
+      <li>
+        <code>has:attachment larger:5M older_than:2y</code>
+        <span>The long tail. This is where most accounts are actually hiding it.</span>
+      </li>
+      <li>
+        <code>in:anywhere larger:10M</code>
+        <span>Same again, but including Trash, Spam and archived mail.</span>
+      </li>
+      <li>
+        <code>category:promotions older_than:1y</code>
+        <span>Rarely much space, but it makes the mailbox usable again.</span>
+      </li>
+    </ul>
+
+    <p>
+      Once a search is on screen, tick the box at the top left to select the
+      page, then click <strong>Select all conversations that match this
+      search</strong> in the strip that appears. Without that second click you
+      have only selected the fifty on screen, which is the other reason people
+      think they deleted everything and nothing happened.
+    </p>
+
+    <h3>Sort by size instead</h3>
+    <p>
+      Gmail has no sort-by-size, which is the single most requested thing it
+      does not do. The storage manager linked above is the closest official
+      substitute: it lists your largest Gmail messages directly, and you can
+      delete from there.
+    </p>
+
+    <h2>What to do, in order</h2>
+    <ol>
+      <li>Check the storage manager to find out whether this is Gmail, Drive or Photos.</li>
+      <li>If it is Photos, that is a separate job and usually the bigger win.</li>
+      <li>In Gmail, work the <code>larger:</code> searches above, biggest first.</li>
+      <li>Empty Trash. Then empty Spam.</li>
+      <li>Wait a few hours before deciding it did not work.</li>
+      <li>Unsubscribe from what refilled it, or you will be back here in a year.</li>
+    </ol>
+
+    <h2>Things that do not work</h2>
+    <ul>
+      <li>
+        <strong>Archiving.</strong> Archived mail moves out of the Inbox and
+        stays in All Mail, taking up exactly as much room as before. Archiving
+        is for tidiness, not for storage.
+      </li>
+      <li>
+        <strong>Deleting without emptying Trash.</strong> Covered above, and
+        worth repeating because it is the number one reason people give up.
+      </li>
+      <li>
+        <strong>Buying 100 GB and forgetting about it.</strong> That is
+        $1.99 a month, about $20 a year, forever, to avoid an afternoon of
+        cleanup. Sometimes that is the right trade. It is worth knowing you are
+        making it.
+      </li>
+    </ul>
+
+    <div class="cta">
+      <h2>Or have something do the searching for you</h2>
+      <p>
+        Gmail One-Click Cleaner is a browser extension that runs those searches
+        and the bulk selection for you, inside your own Gmail tab. It labels
+        everything before it touches it, so a run can be put back in one click,
+        and it will not touch anything starred, important or on your protected
+        list.
+      </p>
+      <p>
+        It asks for no OAuth and contains no network code at all. It is not a
+        service with your mailbox on it, because there is no server anywhere in
+        it. The scan that ranks which senders are eating your storage is free.
+      </p>
+      <p style="margin-bottom:0">
+        <a class="btn" href="https://chromewebstore.google.com/detail/bmcfpljakkpcbinhgiahncpcbhmihgpc" rel="noopener">Get it free on the Chrome Web Store</a>
+        <span class="btn-sub">
+          Also on <a href="https://addons.mozilla.org/firefox/addon/gmail-one-click-cleaner@gmail-cleaner-pro.netlify.app/" rel="noopener">Firefox</a>
+          and Edge. The one-click purge and weekly Auto-Pilot are
+          <a href="./">$9.99 once</a>, with a 30-day money-back guarantee.
+        </span>
+      </p>
+    </div>
+
+    <h2>Common questions</h2>
+
+    <h3>Why is my Gmail storage full when I have deleted everything?</h3>
+    <p>
+      Almost always because Trash has not been emptied. Deleted mail keeps its
+      space for 30 days. Empty Trash and Spam, then allow a few hours for the
+      number to update.
+    </p>
+
+    <h3>How do I find large emails in Gmail?</h3>
+    <p>
+      Search <code>larger:10M</code>, or <code>larger:25M</code> for the worst
+      offenders. Add <code>older_than:1y</code> to limit it to mail old enough
+      to be safe. Gmail cannot sort by size, so the size operators are the way.
+    </p>
+
+    <h3>What happens when Gmail storage is completely full?</h3>
+    <p>
+      You stop receiving mail, and people writing to you get a bounce message.
+      You can usually still read and delete what is already there, which is what
+      lets you dig yourself out.
+    </p>
+
+    <h3>Does archiving free up space?</h3>
+    <p>
+      No. Archived mail still lives in All Mail and still counts. Only deleting
+      and then emptying Trash frees anything.
+    </p>
+
+    <h3>Is 15 GB just for Gmail?</h3>
+    <p>
+      No. It is shared with Google Drive and Google Photos, which is why the
+      culprit is often not your mail at all.
+    </p>
+
+    <p class="footer">
+      <a href="./">Gmail One-Click Cleaner</a>
+      &nbsp;&middot;&nbsp;
+      <a href="./free-up-gmail-storage.html">Free up Gmail storage without paying for Google One</a>
+      &nbsp;&middot;&nbsp;
+      <a href="https://github.com/TiltedLunar123/gmail-one-click-cleaner" rel="noopener">Source on GitHub</a>
+    </p>
+  </main>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Why is my Gmail storage full when I have deleted everything?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Almost always because Trash has not been emptied. Deleted mail keeps its space for 30 days. Empty Trash and Spam, then allow a few hours for the storage figure to update."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How do I find large emails in Gmail?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Search larger:10M, or larger:25M for the worst offenders. Add older_than:1y to limit it to mail old enough to be safe. Gmail cannot sort by size, so the size operators are the way."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What happens when Gmail storage is completely full?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "You stop receiving mail, and people writing to you get a bounce message. You can usually still read and delete what is already there."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does archiving free up space in Gmail?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. Archived mail still lives in All Mail and still counts against the quota. Only deleting and then emptying Trash frees anything."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is the 15 GB just for Gmail?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. It is shared across Gmail, Google Drive and Google Photos, so the cause is often not your mail at all."
+        }
+      }
+    ]
+  }
+  </script>
+</body>
+</html>

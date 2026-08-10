@@ -31,7 +31,7 @@ The extension recommends what to clean instead of making you configure it. One f
 - **Hard vetoes first** - a sender is never suggested when they match your whitelist or protected keywords, when any of their mail is starred, or when your Sent folder shows you write to them.
 - **One-click apply** - each suggestion runs as an ordinary cleanup (tag first, dry-run honored, undo log, stats), so nothing new can touch mail. Dismissed suggestions stay silent for 90 days.
 - **The right action per sender** - storage hogs lead with a purge, stopped floods with a delete, and a sender who still emails weekly while you never open them leads with Unsubscribe (Pro), because deleting would not stop the next batch.
-- **Pro** - the full ranked list (top 3 stay free) and bulk apply of checked suggestions, each run honouring the action its own card leads with.
+- **Pro** - the full suggestion list (top 3 stay free) and bulk apply of checked suggestions, each run honouring the action its own card leads with.
 
 ### Auto-Pilot (Pro)
 The same Smart Suggestions sweep, on a weekly schedule, so the inbox stays clean without you opening the popup.
@@ -69,8 +69,8 @@ Deleting hides old mail; unsubscribing stops new mail. The scan samples your las
 
 ### Storage X-ray
 When Google says your storage is full, the question is *what exactly is eating it*. The X-ray answers by sender.
-- **Scan (free)** - read-only. Walks Gmail's own size searches (`larger:25M`, then the 10 MB and 5 MB tiers) and attributes each large email its tier floor, so every number is a defensible "at least". Shows the total reclaimable estimate and your top three space hogs.
-- **Full list + purge (Pro)** - the complete ranked list with one-click purge for the senders you pick. A purge is a normal cleanup run: matches are tagged first, land in Trash (30-day safety net), respect your whitelist, protected keywords and every global guard, and show up in the recovery log. An age filter (default: older than 6 months) keeps recent mail out of it.
+- **Scan and the full ranked list (free)** - read-only. Walks Gmail's own size searches (`larger:25M`, then the 10 MB and 5 MB tiers) and attributes each large email its tier floor, so every number is a defensible "at least". Shows the total reclaimable estimate and every sender it ranked. Nothing about the list is held back: it is a read-only look at your own mailbox.
+- **One-click purge (Pro)** - clear the senders you tick, in one click. A purge is a normal cleanup run: matches are tagged first, land in Trash (30-day safety net), respect your whitelist, protected keywords and every global guard, and show up in the recovery log. An age filter (default: older than 6 months) keeps recent mail out of it.
 
 ### Progress Dashboard
 - Live progress bar with phase tracking
@@ -99,7 +99,7 @@ has:attachment larger:10M older_than:6m
 
 ## Pro
 
-Pro is a **one-time $9.99 purchase** (no subscription) that unlocks six things: the whole Mailbox Report plan, bulk unsubscribe, the full Storage X-ray with one-click purge, the full Smart Suggestions list with bulk apply, Auto-Pilot, which keeps your inbox clean every week automatically, and **Pro Settings** (choose the recovery label put on cleaned mail, set the Auto-Pilot interval, and switch the Smart scan to a deeper pass). Everything that is free today stays free forever. Compare (prices checked 2026-08-01): Clean Email is $29.99 a year for one account, Trimbox is $39.99 a year, Mailstrom is $59.95 a year, and Google One storage starts at about $20 a year, forever.
+Pro is a **one-time $9.99 purchase** (no subscription, **30-day money-back guarantee**) that unlocks six things: the whole Mailbox Report plan, bulk unsubscribe, the one-click Storage X-ray purge, the full Smart Suggestions list with bulk apply, Auto-Pilot, which keeps your inbox clean every week automatically, and **Pro Settings** (the recovery label put on cleaned mail, the Auto-Pilot interval and age floor, how many senders one sweep clears, a deeper Smart scan, and how many entries the recovery log keeps). Keys activate in one click from the page you land on after checkout, in Chrome and Edge; Firefox shows the key to paste. A refunded key keeps working, because verification is offline and there is nothing to revoke. Everything that is free today stays free forever. Compare (prices checked 2026-08-01): Clean Email is $29.99 a year for one account, Trimbox is $39.99 a year, Mailstrom is $59.95 a year, and Google One storage starts at about $20 a year, forever.
 
 - Your license key is verified **entirely on your device** with a built-in public key. The extension never contacts a server, not even to check the license.
 - The key is a signed token with no personal data. Stored in Chrome sync, so Pro follows you to your other signed-in browsers.

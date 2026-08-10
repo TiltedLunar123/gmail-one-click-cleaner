@@ -81,6 +81,23 @@
 
     .section { margin-bottom: var(--space-8); }
 
+    /* Pro pitch (8.13). Deliberately styled as one more section on the
+       page rather than as a banner: it sits under the numbers it is
+       talking about, and it is gone entirely for anyone with a key. */
+    .pro-pitch { border-color: rgba(240, 180, 41, 0.32); }
+    .pro-pitch .section-title { color: var(--pro); }
+    .pro-pitch-lead { font-size: 13.5px; color: var(--text-main); margin: 0 0 var(--space-2); line-height: 1.6; }
+    .pro-pitch-trust { font-size: 12.5px; color: var(--text-dim); margin: 0 0 var(--space-3); line-height: 1.6; }
+    .pro-pitch-fine { font-size: 11.5px; color: var(--text-dim); margin: var(--space-3) 0 0; }
+    .btn-pro {
+      background: linear-gradient(135deg, #f0b429, #f59e0b);
+      border-color: transparent;
+      color: #241a04;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .btn-pro:hover { filter: brightness(1.06); color: #241a04; }
+
     .section-title {
       font-size: 16px;
       font-weight: 600;
@@ -407,6 +424,27 @@
       <div class="undo-list" id="undoList">
         <div class="empty-state">No recovery entries</div>
       </div>
+    </div>
+
+    <!-- Pro (8.13). Stays hidden until a licence check has actually
+         come back false, so a buyer never sees a pitch for something
+         they already own, and a slow check shows nothing rather than
+         flashing one up. -->
+    <div class="section animate-in pro-pitch" id="proPitch" hidden>
+      <div class="section-title">Do this automatically</div>
+      <p class="pro-pitch-lead" id="proPitchLead">
+        Auto-Pilot runs a sweep like these every week and archives what it
+        finds, without being asked.
+      </p>
+      <p class="pro-pitch-trust">
+        No OAuth, no servers, zero network calls: the same extension you
+        are already running, with the paid half switched on.
+      </p>
+      <div class="toolbar">
+        <a class="btn btn-sm btn-pro" id="proPitchBuy" href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">Get Pro, $9.99 once</a>
+        <button class="btn btn-sm" id="proPitchKey" type="button">I have a key</button>
+      </div>
+      <p class="pro-pitch-fine">One payment, every future feature included, 30-day money-back guarantee.</p>
     </div>
   </main>
 

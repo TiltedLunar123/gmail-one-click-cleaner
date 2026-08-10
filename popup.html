@@ -1246,9 +1246,17 @@
     .rating-prompt-btn:hover { transform: translateY(-1px); }
     .rating-prompt-btn:active { transform: translateY(0) scale(0.98); }
 
+    /* Two quiet outs side by side: a soft one that lets the ask come
+       back after a later cleanup, and a final one that ends it. */
+    .rating-dismiss-row {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 2px;
+      margin-top: 8px;
+    }
     .rating-dismiss {
       display: block;
-      margin: 8px auto 0;
       background: none;
       border: none;
       color: var(--dim);
@@ -3030,7 +3038,10 @@
           <span data-i18n="rate5">Rate 5 stars</span>
         </a>
 
-        <button type="button" class="rating-dismiss" id="ratingDismiss" data-i18n="maybeLater">Maybe later</button>
+        <div class="rating-dismiss-row">
+          <button type="button" class="rating-dismiss" id="ratingDismiss" data-i18n="maybeLater">Maybe later</button>
+          <button type="button" class="rating-dismiss" id="ratingNever" data-i18n="ratingNever">Don't ask again</button>
+        </div>
       </div>
 
       <button id="resultBackBtn" class="result-back-btn" type="button">
@@ -3190,7 +3201,7 @@
             aria-label="Version 8.10.0, see what's new"
             title="What's new in this version"
             data-i18n-title="whatsNewTitle"
-          >v8.12.0</button>
+          >v8.13.0</button>
           <button id="kbdHelpBtn" class="linkish" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" data-i18n-label="kbdTitle" data-i18n-title="kbdBtnTitle">
             <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/></svg>
           </button>
@@ -3244,7 +3255,7 @@
         </div>
 
         <p class="pro-panel-lead" id="proPanelLead" data-i18n="proPanelLeadDefault">
-          One payment unlocks every paid feature, forever.
+          No OAuth, no servers, zero network calls. One payment unlocks every paid feature, forever.
         </p>
 
         <ul class="pro-panel-list">
@@ -3258,7 +3269,7 @@
           </li>
           <li>
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v6c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-6"/><path d="M4.5 11.5v6c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-6"/></svg>
-            <span><b data-i18n="pillarXrayName">Storage purge.</b> <span data-i18n="pillarXrayBody">The full ranked list of space hogs, cleared with one click.</span></span>
+            <span><b data-i18n="pillarXrayName">Storage purge.</b> <span data-i18n="pillarXrayBody">Clear the space hogs you tick, in one click.</span></span>
           </li>
           <li>
             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.2"/></svg>
@@ -3269,15 +3280,19 @@
         <ul class="pro-panel-facts">
           <li>
             <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <span data-i18n="proFactOffline">No OAuth, and no network code at all. Nothing here can send anything anywhere, and your key is checked on your device. Grep the zip and see.</span>
+          </li>
+          <li>
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
             <span data-i18n="proFactOnce">One payment of $9.99. Not a subscription, and never will be.</span>
           </li>
           <li>
             <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-            <span data-i18n="proFactOffline">Your key is checked on your device. This extension contains no network code at all, so nothing can be sent anywhere.</span>
+            <span data-i18n="proFactFuture">Every feature added later is included. Buyers from the first version got all four that came after.</span>
           </li>
           <li>
             <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-            <span data-i18n="proFactFuture">Every feature added later is included. Buyers from the first version got all four that came after.</span>
+            <span data-i18n="proFactGuarantee">30-day money-back guarantee. Not for you? Email within 30 days and get the full $9.99 back.</span>
           </li>
         </ul>
 

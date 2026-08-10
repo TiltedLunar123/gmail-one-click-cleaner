@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Gmail One-Click Cleaner Pro - $9.99 once, yours forever</title>
+  <title>Gmail One-Click Cleaner Pro - no OAuth, zero network calls, $9.99 once</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="One $9.99 payment unlocks bulk unsubscribe, storage purge, the full suggestion list, and weekly Auto-Pilot sweeps. No subscription, ever." />
+  <meta name="description" content="The inbox cleaner that never asks for OAuth and makes no network calls at all. One $9.99 payment unlocks bulk unsubscribe, storage purge and weekly Auto-Pilot sweeps. 30-day money-back guarantee." />
   <meta name="color-scheme" content="dark" />
   <link rel="icon" type="image/png" sizes="128x128" href="./icon128.png" />
   <style>
@@ -60,6 +60,28 @@
     }
     .buy:hover { filter: saturate(1.1) brightness(1.03); }
     .buy-sub { display: block; color: var(--muted); font-size: 13px; margin-top: 10px; }
+    .buy-sub strong { color: var(--ok); }
+    .verify-lede { margin-bottom: 12px; font-size: 14.5px; }
+    .verify {
+      background: rgba(6, 9, 15, 0.66);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 13px 15px;
+      overflow-x: auto;
+      margin: 0;
+    }
+    .verify code {
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 12.5px;
+      color: var(--ok);
+      white-space: pre;
+    }
+    .verify-note { color: var(--muted); font-size: 14px; line-height: 1.65; margin: 12px 0 0; }
+    .verify-note code {
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 12.5px;
+      color: var(--text);
+    }
     .pillars { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
     .pillars li {
       background: var(--surface);
@@ -98,22 +120,40 @@
 </head>
 <body>
   <main>
-    <h1>Gmail One-Click Cleaner Pro<br /><span class="price">$9.99 once.</span> Yours forever.</h1>
+    <h1>No OAuth. No servers. <span class="price">Zero network calls.</span><br />Gmail One-Click Cleaner Pro, $9.99 once.</h1>
     <p class="lede">
-      The free cleaner already bulk-deletes clutter with a one-click undo.
-      Pro stops the clutter from coming back, and now keeps the inbox
-      clean for you, every single week.
+      Every other inbox cleaner asks you to hand over OAuth access to your
+      Google account, then does the work on their machines. This one is a
+      browser extension. It drives the Gmail tab you are already signed
+      into, on your computer, and it contains no network code at all: no
+      fetch, no XHR, no websockets, no analytics, no license check.
+      You do not have to take that on faith. Grep the zip.
     </p>
 
     <p class="proof">
-      <span><span class="stars">&#9733;&#9733;&#9733;&#9733;&#189;</span> <strong>4.5 stars</strong> on the Chrome Web Store</span>
-      <span><strong>1,000+</strong> users</span>
-      <span>Open source, runs 100% locally</span>
+      <span><span class="stars">&#9733;&#9733;&#9733;&#9733;&#189;</span> <strong>4.6 stars</strong> on the Chrome Web Store</span>
+      <span><strong>3,000+</strong> installs</span>
+      <span>MIT licensed, every line public</span>
     </p>
 
     <p>
       <a class="buy" id="buyLink" href="https://buy.stripe.com/7sY4gA07N9RE1MIc3VdUY04" rel="noopener">Get Pro - $9.99 lifetime</a>
-      <span class="buy-sub">One payment via Stripe. Your key appears right after checkout and works offline, on all your signed-in browsers.</span>
+      <span class="buy-sub">One payment via Stripe. Your key appears right after checkout, activates in one click, and works offline on every browser you sign into. <strong>30-day money-back guarantee.</strong></span>
+    </p>
+
+    <h2>Check it yourself, in about ten seconds</h2>
+    <p class="lede verify-lede">
+      Download the extension package from the store listing, unzip it, and
+      search the whole thing for the ways code talks to the internet:
+    </p>
+    <pre class="verify"><code>grep -rnE "fetch\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource" .</code></pre>
+    <p class="verify-note">
+      It returns nothing. There is no host permission for any domain but
+      <code>mail.google.com</code>, no <code>identity</code> permission, and
+      no OAuth client, so there is no account to connect and nothing to
+      revoke later. Your Pro key is checked against a public key compiled
+      into the extension, which is why Pro keeps working with the network
+      switched off entirely.
     </p>
 
     <h2>What Pro unlocks</h2>
@@ -165,12 +205,29 @@
       check the license.
     </p>
 
+    <h2>30 days to change your mind</h2>
+    <p class="lifetime">
+      <strong>Full refund, 30 days, no interrogation.</strong> Email
+      <a href="mailto:hilgendorfjude@gmail.com?subject=Gmail%20Cleaner%20Pro%20refund">hilgendorfjude@gmail.com</a>
+      within 30 days of buying and you get the whole $9.99 back. Worth
+      knowing, since nobody else will tell you: your key keeps working
+      after a refund. Verification happens on your device against a
+      built-in public key, so there is no revocation list and there is no
+      way for me to switch a key off without the extension calling home,
+      which is the one thing it does not do. The guarantee runs on trust
+      in that direction too.
+    </p>
+
     <p class="fineprint">
       Not installed yet? <a href="https://chromewebstore.google.com/detail/bmcfpljakkpcbinhgiahncpcbhmihgpc" rel="noopener">Get the free extension on the Chrome Web Store</a>
       &nbsp;&middot;&nbsp;
       <a href="https://github.com/TiltedLunar123/gmail-one-click-cleaner" rel="noopener">Source on GitHub</a><br />
+      Out of space right now? <a href="./gmail-storage-full.html">What actually frees Gmail storage</a>
+      &nbsp;&middot;&nbsp;
+      <a href="./free-up-gmail-storage.html">Doing it without paying for Google One</a><br />
       Bought Pro already? Your license key is on the page Stripe sent you
-      to after checkout; revisiting that same link re-issues it any time.
+      to after checkout, where one button hands it straight to the
+      extension; revisiting that same link re-issues it any time.
       Lost that link? <a href="./recover.html">Recover your key with your purchase email</a>.
     </p>
   </main>

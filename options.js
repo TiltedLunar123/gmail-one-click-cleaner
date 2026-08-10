@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const OPTIONS_VERSION = "8.12.0";
+  const OPTIONS_VERSION = "8.13.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -1671,6 +1671,9 @@
     const labelError = GCC.$("proLabelPrefixError");
     const intervalSel = GCC.$("proAutoPilotInterval");
     const depthSel = GCC.$("proSmartScanDepth");
+    const maxSendersSel = GCC.$("proAutoPilotMaxSenders");
+    const minAgeSel = GCC.$("proAutoPilotMinAge");
+    const undoEntriesSel = GCC.$("proUndoLogEntries");
     const saveBtn = GCC.$("proSettingsSaveBtn");
     const resetBtn = GCC.$("proSettingsResetBtn");
     const statusEl = GCC.$("proSettingsStatus");
@@ -1701,13 +1704,19 @@
       labelInput.value = settings.labelPrefix;
       intervalSel.value = String(settings.autoPilotIntervalDays);
       depthSel.value = settings.smartScanDepth;
+      // 8.13: setSelectIfHasValue is not used here because "" is a
+      // real option on the age select, and a plain assignment of a
+      // value the list does not carry would silently blank the box.
+      if (maxSendersSel) maxSendersSel.value = String(settings.autoPilotMaxSenders);
+      if (minAgeSel) minAgeSel.value = settings.autoPilotMinAge;
+      if (undoEntriesSel) undoEntriesSel.value = String(settings.undoLogEntries);
       showLabelError("");
       renderPreview();
     };
 
     const setLocked = (locked) => {
       if (lockedEl) lockedEl.hidden = !locked;
-      for (const el of [labelInput, intervalSel, depthSel, saveBtn, resetBtn]) {
+      for (const el of [labelInput, intervalSel, depthSel, maxSendersSel, minAgeSel, undoEntriesSel, saveBtn, resetBtn]) {
         if (el) el.disabled = locked;
       }
       if (fieldsEl) fieldsEl.style.opacity = locked ? "0.55" : "";
@@ -1772,7 +1781,11 @@
       const settings = {
         labelPrefix: check.value,
         autoPilotIntervalDays: Number(intervalSel.value) || DEFAULTS.autoPilotIntervalDays,
-        smartScanDepth: depthSel.value || DEFAULTS.smartScanDepth
+        smartScanDepth: depthSel.value || DEFAULTS.smartScanDepth,
+        autoPilotMaxSenders: Number(maxSendersSel?.value) || DEFAULTS.autoPilotMaxSenders,
+        // No `||` fallback: "" is the chosen value, not a missing one.
+        autoPilotMinAge: typeof minAgeSel?.value === "string" ? minAgeSel.value : DEFAULTS.autoPilotMinAge,
+        undoLogEntries: Number(undoEntriesSel?.value) || DEFAULTS.undoLogEntries
       };
       if (await persist(settings, saveBtn)) {
         GCC.showToast("Pro settings saved", "success");
