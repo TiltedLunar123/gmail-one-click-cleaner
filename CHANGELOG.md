@@ -3,6 +3,61 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.13.0 - The whole storage list, and one-click activation
+
+A smaller release. The Storage X-ray stops hiding most of what it found,
+buying Pro no longer means copying a long key by hand, and the Pro
+Settings card gained three more knobs.
+
+### Changed
+- **The Storage X-ray shows every sender it ranked.** The free scan
+  listed the top three and counted the rest behind a line about Pro.
+  That scan is read-only and the numbers in it are your own mailbox, so
+  there was never a good reason to hold most of it back. The whole
+  ranked list is free now. The one-click purge underneath it is still
+  the paid part.
+
+- **The rating prompt asks more than once.** It used to appear after one
+  good cleanup and then stay quiet for 90 days if you picked "Maybe
+  later", which in practice meant most people were asked exactly once
+  ever. It now appears after any cleanup big enough to be worth asking
+  about, with three limits: never on your first run, nothing for three
+  days after you decline, and nothing ever again after three declines or
+  one press of the new "Don't ask again".
+
+- **The completion notification mentions Pro if you do not have it.**
+  One line, appended only to a run that really cleared mail, and never
+  shown to anyone with a key. Desktop notifications are off unless you
+  turned them on, and turning them off again stops this too.
+
+### Added
+- **Activate Pro in one click.** The page you land on after checkout,
+  and the key recovery page, can now hand the key straight to the
+  extension instead of asking you to paste it into Options. This works
+  in Chrome and Edge; Firefox does not support the mechanism, so it
+  still shows the key to copy, exactly as before. Two things make it
+  safe to have at all: the extension accepts messages from
+  gmail-cleaner-pro.netlify.app and from nowhere else, and any key that
+  arrives is checked against the same public key built into the
+  extension before it is stored, so a web page cannot grant itself Pro.
+
+- **Three more Pro settings.** How many senders one Auto-Pilot sweep
+  clears (10, 25 or 50; it was fixed at 25). An age floor for unattended
+  runs only, applied on top of everything else and only when it is
+  stricter, so it can narrow a sweep and never widen one. And how many
+  entries the recovery log keeps before the oldest fall off (60, 150 or
+  300; it was fixed at 60, and a bigger log means a run stays restorable
+  for longer). All three default to exactly what 8.12 did.
+
+- **A 30-day money-back guarantee on Pro.** Worth saying plainly: a
+  refunded key keeps working. Keys are verified on your device with no
+  network call, so there is nothing to switch off remotely, and adding
+  that would mean the extension phoning home.
+
+- **A Pro card on the Stats page**, for people without a key. It quotes
+  the totals already on that page and disappears once a key is
+  activated.
+
 ## 8.12.0 - The views mail does not come back from, and settings for Pro
 
 Two halves. The first closes the ways a cleanup could reach Trash and

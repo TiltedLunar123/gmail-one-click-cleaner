@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "8.12.0";
+  const SW_VERSION = "8.13.0";
 
   // =========================
   // Storage Keys
@@ -1984,6 +1984,80 @@
   }
 
   // =========================
+  // One-click activation (8.13)
+  // =========================
+  // The purchase page can hand the freshly minted key straight to the
+  // extension, so a buyer is not left copying a 200-character string
+  // into a settings page they have never opened. That gap was the one
+  // place someone could pay and end up with nothing.
+  //
+  // Two independent gates, because this is the only door into the
+  // extension that a web page can knock on at all:
+  //
+  //   1. externally_connectable in the manifest. The browser will not
+  //      deliver a message from any origin outside that list, so this
+  //      listener never even runs for a hostile page.
+  //   2. the key is verified here, against the same embedded public
+  //      key everything else uses, before it is written. So even a
+  //      compromised purchase page cannot grant Pro; it would need the
+  //      private signing key, which is what makes Pro Pro.
+  //
+  // The origin check below is a third, redundant gate. It is cheap, and
+  // it means a mistake in the manifest cannot quietly widen this.
+  //
+  // Firefox does not implement externally_connectable or
+  // onMessageExternal, hence the guard: there the purchase page falls
+  // back to copy and paste, which is what every version before this
+  // one did everywhere.
+  const ACTIVATION_ORIGIN = "https://gmail-cleaner-pro.netlify.app";
+
+  async function activateLicenseFromPage(rawKey) {
+    const key = typeof rawKey === "string" ? rawKey.trim() : "";
+    if (!key) return { ok: false, error: "no_key" };
+    if (key.length > 4096) return { ok: false, error: "too_long" };
+    if (!(await verifyProLicenseKey(key))) return { ok: false, error: "invalid_key" };
+
+    // Mirrors GCC.license.save: both areas, and either one landing is a
+    // success. Sync is what follows the user to their other browsers;
+    // local is what survives a profile with sync switched off.
+    const results = await Promise.allSettled([
+      chrome.storage.sync.set({ [LICENSE_STORAGE_KEY]: key }),
+      chrome.storage.local.set({ [LICENSE_STORAGE_KEY]: key })
+    ]);
+    if (!results.some((r) => r.status === "fulfilled")) {
+      return { ok: false, error: "storage_failed" };
+    }
+    return { ok: true, synced: results[0].status === "fulfilled" };
+  }
+
+  if (chrome.runtime?.onMessageExternal?.addListener) {
+    chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
+      let origin = "";
+      try {
+        origin = sender?.origin || (sender?.url ? new URL(sender.url).origin : "");
+      } catch {
+        origin = "";
+      }
+      if (origin !== ACTIVATION_ORIGIN) {
+        console.warn("[GCC SW] Rejected external message from:", origin || "unknown");
+        return;
+      }
+
+      if (msg?.type === "gmailCleanerPing") {
+        sendResponse({ ok: true, version: SW_VERSION });
+        return;
+      }
+
+      if (msg?.type === "gmailCleanerActivateLicense") {
+        activateLicenseFromPage(msg.key)
+          .then(sendResponse)
+          .catch((e) => sendResponse({ ok: false, error: e?.message || "failed" }));
+        return true;
+      }
+    });
+  }
+
+  // =========================
   // Auto-Pilot (7.12, Pro)
   // =========================
   // A weekly scheduled Smart Suggestions sweep: read-only smartScan,
@@ -2175,10 +2249,17 @@
       .sort((a, b) => b.score - a.score || b.estCount - a.estCount);
   }
 
-  function autoPilotPickSenders(senders, feedback, whitelist, protectKeywords, now = Date.now()) {
+  // 8.13: `cap` is the Pro setting, defaulting to the hardcoded 25 that
+  // every caller before this release relied on. It is clamped to the
+  // allow-list rather than trusted, because this number decides how much
+  // mail an unattended run touches and the value arrives from storage.
+  function autoPilotPickSenders(senders, feedback, whitelist, protectKeywords, now = Date.now(), cap = AUTOPILOT_MAX_PER_RUN) {
+    const limit = PRO_SETTINGS_MAX_SENDERS.includes(Number(cap))
+      ? Number(cap)
+      : AUTOPILOT_MAX_PER_RUN;
     return autoPilotEligible(senders, feedback, whitelist, protectKeywords, now)
       .filter(autoPilotActionSweepable)
-      .slice(0, AUTOPILOT_MAX_PER_RUN)
+      .slice(0, limit)
       .map((s) => s.email);
   }
 
@@ -2290,10 +2371,18 @@
   const PRO_SETTINGS_DEFAULTS = Object.freeze({
     labelPrefix: "GmailCleaner",
     autoPilotIntervalDays: 7,
-    smartScanDepth: "standard"
+    smartScanDepth: "standard",
+    autoPilotMaxSenders: 25,
+    autoPilotMinAge: "",
+    undoLogEntries: 60
   });
   const PRO_SETTINGS_INTERVAL_DAYS = Object.freeze([7, 14, 30]);
   const PRO_SETTINGS_DEPTHS = Object.freeze(["standard", "deep"]);
+  const PRO_SETTINGS_MAX_SENDERS = Object.freeze([10, 25, 50]);
+  // "" is the "no extra floor" choice, so it belongs in the allow-list
+  // and must never be read for truthiness.
+  const PRO_SETTINGS_MIN_AGES = Object.freeze(["", "1m", "3m", "6m", "1y"]);
+  const PRO_SETTINGS_UNDO_ENTRIES = Object.freeze([60, 150, 300]);
   const PRO_SETTINGS_SIGNAL_SENDERS = Object.freeze({ standard: 10, deep: 20 });
   const PRO_SETTINGS_VETO_SENDERS = Object.freeze({ standard: 15, deep: 30 });
   const PRO_LABEL_BANNED_RE = /["\\/]|[\u0000-\u001f]/;
@@ -2319,10 +2408,43 @@
       const depth = String(stored.smartScanDepth || "");
       if (PRO_SETTINGS_DEPTHS.includes(depth)) out.smartScanDepth = depth;
 
+      const maxSenders = Number(stored.autoPilotMaxSenders);
+      if (PRO_SETTINGS_MAX_SENDERS.includes(maxSenders)) out.autoPilotMaxSenders = maxSenders;
+
+      if (typeof stored.autoPilotMinAge === "string"
+        && PRO_SETTINGS_MIN_AGES.includes(stored.autoPilotMinAge)) {
+        out.autoPilotMinAge = stored.autoPilotMinAge;
+      }
+
+      const undoEntries = Number(stored.undoLogEntries);
+      if (PRO_SETTINGS_UNDO_ENTRIES.includes(undoEntries)) out.undoLogEntries = undoEntries;
+
       return out;
     } catch {
       return { ...PRO_SETTINGS_DEFAULTS };
     }
+  }
+
+  // The stricter (older) of two Gmail age tokens, or null when neither
+  // is usable. A duplicate of GCC.strictestAgeToken, because the worker
+  // is self-contained by design; tests/sweep-8-13 pins the two against
+  // each other over a shared table of cases.
+  const SW_AGE_TOKEN_DAYS = Object.freeze({ d: 1, w: 7, m: 30, y: 365 });
+
+  function swAgeTokenDays(token) {
+    const parsed = /^(\d+)\s*([dwmy])$/i.exec(String(token || "").trim());
+    if (!parsed) return null;
+    const n = parseInt(parsed[1], 10);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return n * SW_AGE_TOKEN_DAYS[parsed[2].toLowerCase()];
+  }
+
+  function swStrictestAgeToken(a, b) {
+    const entries = [a, b]
+      .map((token) => ({ token, days: swAgeTokenDays(token) }))
+      .filter((entry) => entry.days !== null);
+    if (!entries.length) return null;
+    return entries.reduce((max, entry) => (entry.days > max.days ? entry : max)).token;
   }
 
   // Signal and veto budgets always travel together: measuring twenty
@@ -2615,7 +2737,9 @@
         : [];
       const scanned = localData?.[STORAGE_KEYS.SMART_SCAN]?.senders;
       const feedback = localData?.[STORAGE_KEYS.SMART_FEEDBACK];
-      const senders = autoPilotPickSenders(scanned, feedback, whitelist, protectKeywords);
+      const senders = autoPilotPickSenders(
+        scanned, feedback, whitelist, protectKeywords, Date.now(), proSettings.autoPilotMaxSenders
+      );
       // 8.7's rule for a mixed plan, applied here: run one action group
       // and SAY what was left out. Silently dropping them would read as
       // "Auto-Pilot handled everything" on a sweep that skipped the
@@ -2703,7 +2827,14 @@
         // STRICTLY stricter than the rule's own, so passing it through
         // can never widen a sweep, only narrow one. Same call 7.15 made
         // for the X-ray purge and Smart apply; this was the twin.
-        minAge: guards.minAge,
+        //
+        // 8.13: and the Pro floor joins it here, by the same rule.
+        // swStrictestAgeToken returns whichever of the two is OLDER, so
+        // adding this can only ever narrow the sweep. A Pro user who
+        // wants unattended runs to keep their hands off anything from
+        // this year sets it once; everyone else has "" and this
+        // resolves to exactly what the line above did on its own.
+        minAge: swStrictestAgeToken(guards.minAge, proSettings.autoPilotMinAge),
         intensity: "light",
         dryRun,
         safeMode: true,
@@ -3029,6 +3160,23 @@
       } else {
         msg = bgT("notifLiveBody", `Estimated ~${freedText} MB freed. Open Stats for details.`, [freedText]);
       }
+
+      // 8.13: one Pro line, here, because this notification is the only
+      // surface an unattended run ever reaches and a run that just
+      // cleared real mail is the moment the product proved itself.
+      //
+      // Three conditions, all deliberate. Only a run that really moved
+      // something (a refusal or a dry run has nothing to be pleased
+      // about, and pitching over either reads as a bait). Only for
+      // someone who has not paid. And it rides in `message`, not in
+      // a context line or a button, because Firefox rejects the whole
+      // notification for any option it does not implement.
+      if (count > 0 && !summary?.dryRun && !(await hasProLicense())) {
+        msg += " " + bgT(
+          "notifProPitch",
+          "Pro sweeps this for you every week: $9.99 once, 30-day money-back guarantee."
+        );
+      }
       // Keep to the four properties every browser accepts: Firefox
       // rejects notification options it does not implement (priority,
       // buttons, requireInteraction) with a type error.
@@ -3257,7 +3405,14 @@
 
       // One entry per rule per run, so 60 holds several full sweeps
       // where 20 could not hold one.
-      if (log.length > 60) log.length = 60;
+      //
+      // 8.13: and Pro can raise it. This is the only cap in the product
+      // whose limit costs a user something real when it bites, because
+      // an entry falling off the end is a run that can no longer be
+      // restored from this page. Free keeps 60, which is what every
+      // release since 8.0 kept; nothing was taken away to sell.
+      const undoCap = (await readProSettings()).undoLogEntries;
+      if (log.length > undoCap) log.length = undoCap;
 
       await chrome.storage.local.set({ [STORAGE_KEYS.UNDO_LOG]: log });
     } catch (e) {

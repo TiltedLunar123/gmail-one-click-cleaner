@@ -23,7 +23,11 @@ const ui = {
   restoreStatus: GCC.$("restoreStatus"),
   toastContainer: GCC.$("toastContainer"),
   topSendersList: GCC.$("topSendersList"),
-  themeSwitcher: GCC.$("themeSwitcher")
+  themeSwitcher: GCC.$("themeSwitcher"),
+  proPitch: GCC.$("proPitch"),
+  proPitchLead: GCC.$("proPitchLead"),
+  proPitchBuy: GCC.$("proPitchBuy"),
+  proPitchKey: GCC.$("proPitchKey")
 };
 
 // =========================
@@ -56,6 +60,65 @@ async function loadStats() {
 
   // Top senders (new in 5.0)
   renderTopSenders(stats.topSenders || []);
+
+  // 8.13: the pitch is fed by the same totals the cards just showed, so
+  // it can only ever quote a number this page is already displaying.
+  renderProPitch(stats).catch((e) => console.warn("[Stats] pro pitch failed:", e));
+}
+
+// =========================
+// Pro pitch (8.13)
+// =========================
+// The stats page is where the free tools have just finished proving
+// themselves, which makes it the honest place to mention the paid ones.
+// Two rules it follows:
+//
+//   - a licence that verifies hides the whole section. loadStats polls
+//     every 30 seconds, so activating a key elsewhere clears this
+//     without a reload.
+//   - the lead quotes the totals rendered a few lines above, and never
+//     an estimate of its own. Every number beside a claim in this
+//     product is measured the same way as the thing it is claiming.
+let proPitchWired = false;
+
+async function renderProPitch(stats) {
+  if (!ui.proPitch) return;
+
+  let active = false;
+  try {
+    active = Boolean((await GCC.license.getState()).active);
+  } catch {
+    // A check that could not run is not a check that failed. Saying
+    // nothing is the polite outcome: a buyer is never pitched at, and
+    // a free user simply sees this again on the next poll.
+    ui.proPitch.hidden = true;
+    return;
+  }
+  if (active) {
+    ui.proPitch.hidden = true;
+    return;
+  }
+
+  const cleaned = Number(stats?.totalDeleted || 0) + Number(stats?.totalArchived || 0);
+  if (ui.proPitchLead) {
+    ui.proPitchLead.textContent = cleaned > 0
+      ? `You have cleared ${GCC.formatNumber(cleaned)} emails with the free tools. Auto-Pilot runs a sweep like that every week and archives what it finds, without being asked.`
+      : "Auto-Pilot runs a weekly sweep and archives the new clutter it finds, without being asked.";
+  }
+
+  if (ui.proPitchBuy) ui.proPitchBuy.href = GCC.license.buyUrl("stats");
+  ui.proPitch.hidden = false;
+
+  if (!proPitchWired) {
+    proPitchWired = true;
+    ui.proPitchKey?.addEventListener("click", () => {
+      // Options owns the key field; this page has no business growing
+      // a second one.
+      if (GCC.hasChrome() && chrome.runtime?.openOptionsPage) {
+        chrome.runtime.openOptionsPage();
+      }
+    });
+  }
 }
 
 // =========================

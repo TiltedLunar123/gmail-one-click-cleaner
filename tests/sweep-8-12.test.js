@@ -446,10 +446,15 @@ describe("Auto-Pilot acts on the age range it measured", () => {
   // than anything measured here", which was true of every guard except
   // this one: with the floor set to a year, the sweep was counted at a
   // year and run at six months.
+  // 8.13 moved this pin: the Pro age floor now joins the user's floor
+  // through swStrictestAgeToken, so the literal `minAge: guards.minAge,`
+  // is gone while the fact it was pinning is not. The fact is that the
+  // apply derives its floor from what the user set, and never sends
+  // null.
   test("the apply passes the user's floor through", () => {
     const fn = between(BG_SRC, "async function startAutoPilotApply() {", "async function resolveAutoPilotDone");
     expect(fn).toContain("const guards = await readUserScanGuards();");
-    expect(fn).toContain("minAge: guards.minAge,");
+    expect(fn).toMatch(/minAge: [^,\n]*guards\.minAge/);
     expect(fn).not.toContain("minAge: null,");
   });
 
@@ -555,8 +560,13 @@ describe("the dead tab-strategy probe is gone", () => {
 describe("Pro settings default to exactly what 8.11 did", () => {
   const GCC = loadShared();
 
+  // 8.13 relaxed this from toEqual to toMatchObject so later releases
+  // can add knobs. What it pins is unchanged and is the point of the
+  // whole feature: these three still default to the 8.11 behaviour. Any
+  // knob added later has to satisfy the same rule, which the release
+  // that adds it is expected to pin for itself.
   test("the defaults are the old hardcoded values", () => {
-    expect(GCC.proSettings.DEFAULTS).toEqual({
+    expect(GCC.proSettings.DEFAULTS).toMatchObject({
       labelPrefix: "GmailCleaner",
       autoPilotIntervalDays: 7,
       smartScanDepth: "standard"
@@ -573,7 +583,7 @@ describe("Pro settings default to exactly what 8.11 did", () => {
 
   test("with a licence, stored values apply", () => {
     const stored = { labelPrefix: "Mine", autoPilotIntervalDays: 30, smartScanDepth: "deep" };
-    expect(GCC.proSettings.effective(stored, true)).toEqual(stored);
+    expect(GCC.proSettings.effective(stored, true)).toMatchObject(stored);
   });
 
   test("junk falls back per field rather than wholesale", () => {

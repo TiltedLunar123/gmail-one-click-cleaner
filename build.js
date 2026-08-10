@@ -88,6 +88,13 @@ function firefoxManifest(chromeManifest) {
     }
   };
 
+  // Firefox implements neither externally_connectable nor
+  // onMessageExternal, so shipping the key would be an unsupported
+  // property in a manifest addons-linter reads strictly. The purchase
+  // page notices the extension does not answer and falls back to copy
+  // and paste, which is the flow Firefox has always had.
+  delete m.externally_connectable;
+
   // Firefox ignores options_page; options_ui is the supported key.
   delete m.options_page;
   m.options_ui = {

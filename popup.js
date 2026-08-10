@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "8.12.0";
+  const POPUP_VERSION = "8.13.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -38,6 +38,11 @@ document.addEventListener("DOMContentLoaded", () => {
     ONBOARDED: "onboardedAt",
 
     RUN_COUNT: "runSuccessCount",
+    // 8.13: the ask now keeps a small record instead of one dismissal
+    // flag. RATING_DISMISSED is the pre-8.13 key, still read once so an
+    // existing dismissal is carried across rather than reset or
+    // honoured forever; nothing writes it any more.
+    RATING_ASK: "ratingAsk",
     RATING_DISMISSED: "ratingPromptDismissed",
 
     // 7.3: whether the Advanced disclosure was left open.
@@ -420,6 +425,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     ratingPrompt: $("ratingPrompt"),
     ratingDismiss: $("ratingDismiss"),
+    ratingNever: $("ratingNever"),
     ratingBtn: $("ratingBtn"),
 
     rateBtn: $("rateBtn"),
@@ -1335,51 +1341,56 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 7.3: the rating ask fires right after a run worth bragging about (a
   // real, non-dry cleanup past the size thresholds) instead of counting
-  // popup opens. "Maybe later" still suppresses it for good.
+  // popup opens.
+  //
+  // 8.13: and it fires after EVERY such run, not once per install. The
+  // rules live in GCC.popupUi.shouldAskForRating; all this does is read
+  // the record, carry the pre-8.13 key across, and paint.
+  const readRatingAsk = async () => {
+    const r = await storageGet("local", [STORAGE_KEYS.RATING_ASK, STORAGE_KEYS.RATING_DISMISSED]);
+    return GCC.popupUi.migrateRatingAsk(
+      r?.[STORAGE_KEYS.RATING_ASK],
+      r?.[STORAGE_KEYS.RATING_DISMISSED]
+    );
+  };
+
   const maybeShowRatingForRun = async (run) => {
     if (!elements.ratingPrompt) return;
     if (!GCC.popupUi.ratingRunQualifies(run)) {
       hideRatingPrompt();
       return;
     }
-    const r = await storageGet("local", STORAGE_KEYS.RATING_DISMISSED);
-    const stored = r?.[STORAGE_KEYS.RATING_DISMISSED];
-    // A legacy `true` carries no date, so stamp one now and let the TTL
-    // run from here rather than either forgetting the dismissal or
-    // honouring it forever.
-    if (stored === true) {
-      await storageSet("local", { [STORAGE_KEYS.RATING_DISMISSED]: Date.now() });
-      hideRatingPrompt();
-      return;
-    }
-    if (ratingDismissalActive(stored)) {
+    const [ask, counter] = await Promise.all([
+      readRatingAsk(),
+      storageGet("local", STORAGE_KEYS.RUN_COUNT)
+    ]);
+    const runs = Number(counter?.[STORAGE_KEYS.RUN_COUNT]) || 0;
+    if (!GCC.popupUi.shouldAskForRating(ask, Date.now(), runs)) {
       hideRatingPrompt();
       return;
     }
     elements.ratingPrompt.classList.add("show");
   };
 
-  // 8.0: "Maybe later" used to mean "never again for the life of this
-  // install", which permanently silenced the ask on a listing whose
-  // weakest ranking input is its handful of ratings. It now expires
-  // after 90 days, the same TTL the suggestion dismissals already use.
-  // A legacy `true` (written before this change) is honoured for that
-  // same window from now rather than reset, so nobody is re-prompted
-  // the day they update.
-  const RATING_DISMISS_TTL_MS = 1000 * 60 * 60 * 24 * 90;
-
-  const ratingDismissalActive = (stored) => {
-    if (!stored) return false;
-    const at = Number(stored);
-    // Unparseable means "dismissed at some unknown time"; staying quiet
-    // is the polite failure.
-    if (!Number.isFinite(at) || at <= 0) return true;
-    return Date.now() - at < RATING_DISMISS_TTL_MS;
-  };
-
+  // "Maybe later" is now a soft no: it counts, it starts the cooldown,
+  // and it stops mattering once the cooldown passes. Three of them, or
+  // one "Don't ask again", is a hard no.
   const dismissRatingPrompt = async () => {
     elements.ratingPrompt?.classList.remove("show");
-    await storageSet("local", { [STORAGE_KEYS.RATING_DISMISSED]: Date.now() });
+    const ask = await readRatingAsk();
+    await storageSet("local", {
+      [STORAGE_KEYS.RATING_ASK]: GCC.popupUi.noteRatingDismissed(ask, Date.now())
+    });
+  };
+
+  // Used by both the rate buttons and "Don't ask again": whoever
+  // reaches this has decided, so nothing asks again.
+  const stopRatingAsks = async () => {
+    elements.ratingPrompt?.classList.remove("show");
+    const ask = await readRatingAsk();
+    await storageSet("local", {
+      [STORAGE_KEYS.RATING_ASK]: GCC.popupUi.noteRatingDone(ask)
+    });
   };
 
   const bumpRunCount = async () => {
@@ -3105,10 +3116,13 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const freeCap = GCC.storageXray.LIMITS.FREE_VISIBLE;
-    const visible = active ? senders : senders.slice(0, freeCap);
-
-    for (const sender of visible) {
+    // 8.13: the whole ranked list is free. It used to stop at three
+    // with a teaser row counting what was behind the paywall, which
+    // sold the wrong thing: the scan is read-only, the numbers are the
+    // user's own mail, and hiding them made the free scan feel like a
+    // demo rather than a finding. The paywall now sits on the only
+    // thing that touches mail, which is the purge button below.
+    for (const sender of senders) {
       const text = document.createElement("span");
       text.className = "subs-row-text";
       const name = document.createElement("span");
@@ -3157,24 +3171,6 @@ document.addEventListener("DOMContentLoaded", () => {
       row.appendChild(mb);
 
       elements.xrayList.appendChild(row);
-    }
-
-    if (!active && senders.length > freeCap) {
-      const hidden = senders.slice(freeCap);
-      const hiddenMb = hidden.reduce((sum, s) => sum + (Number(s.estMb) || 0), 0);
-      const locked = document.createElement("div");
-      locked.className = "xray-locked";
-      const strong = document.createElement("span");
-      strong.className = "xray-locked-mb";
-      strong.textContent = `≥ ${GCC.formatMb(hiddenMb)}`;
-      locked.appendChild(document.createTextNode(
-        hidden.length === 1
-          ? t("xrayLockedOne", "1 more sender holding ")
-          : t("xrayLockedMany", `${hidden.length} more senders holding `, [String(hidden.length)])
-      ));
-      locked.appendChild(strong);
-      locked.appendChild(document.createTextNode(t("xrayLockedTail", " - Pro unlocks the full list and one-click purge.")));
-      elements.xrayList.appendChild(locked);
     }
 
     updateXrayCount();
@@ -4989,7 +4985,7 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.ratingBtn?.addEventListener("click", async () => {
       // Reviews land on the store this browser installed from.
       await tabsCreate({ url: GCC.storeLinks().reviews, active: true });
-      dismissRatingPrompt();
+      stopRatingAsks();
       setTimeout(safeClosePopup, 150);
     });
 
@@ -4999,10 +4995,11 @@ document.addEventListener("DOMContentLoaded", () => {
     // where they cannot review, under a button naming the wrong one.
     elements.rateBtn?.addEventListener("click", async () => {
       await tabsCreate({ url: GCC.storeLinks().reviews, active: true });
-      dismissRatingPrompt();
+      stopRatingAsks();
       setTimeout(safeClosePopup, 150);
     });
     elements.ratingDismiss?.addEventListener("click", dismissRatingPrompt);
+    elements.ratingNever?.addEventListener("click", stopRatingAsks);
 
     // 7.3: leave the post-run result view and return to the form.
     elements.resultBackBtn?.addEventListener("click", () => {

@@ -6,13 +6,116 @@
 // even of a file inside the package, would end the extension's
 // no-network-calls promise.
 //
-// Carries the newest 12 of 67 releases; the page says so
+// Carries the newest 12 of 68 releases; the page says so
 // and links the full log on GitHub.
 
 // eslint-disable-next-line no-unused-vars
 var GCC_CHANGELOG = {
-  "total": 67,
+  "total": 68,
   "entries": [
+    {
+      "version": "8.13.0",
+      "title": "The whole storage list, and one-click activation",
+      "intro": [
+        "A smaller release. The Storage X-ray stops hiding most of what it found, buying Pro no longer means copying a long key by hand, and the Pro Settings card gained three more knobs."
+      ],
+      "sections": [
+        {
+          "name": "Changed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "The Storage X-ray shows every sender it ranked."
+                ],
+                [
+                  "",
+                  " The free scan listed the top three and counted the rest behind a line about Pro. That scan is read-only and the numbers in it are your own mailbox, so there was never a good reason to hold most of it back. The whole ranked list is free now. The one-click purge underneath it is still the paid part."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The rating prompt asks more than once."
+                ],
+                [
+                  "",
+                  " It used to appear after one good cleanup and then stay quiet for 90 days if you picked \"Maybe later\", which in practice meant most people were asked exactly once ever. It now appears after any cleanup big enough to be worth asking about, with three limits: never on your first run, nothing for three days after you decline, and nothing ever again after three declines or one press of the new \"Don't ask again\"."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The completion notification mentions Pro if you do not have it."
+                ],
+                [
+                  "",
+                  " One line, appended only to a run that really cleared mail, and never shown to anyone with a key. Desktop notifications are off unless you turned them on, and turning them off again stops this too."
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Added",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "Activate Pro in one click."
+                ],
+                [
+                  "",
+                  " The page you land on after checkout, and the key recovery page, can now hand the key straight to the extension instead of asking you to paste it into Options. This works in Chrome and Edge; Firefox does not support the mechanism, so it still shows the key to copy, exactly as before. Two things make it safe to have at all: the extension accepts messages from gmail-cleaner-pro.netlify.app and from nowhere else, and any key that arrives is checked against the same public key built into the extension before it is stored, so a web page cannot grant itself Pro."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Three more Pro settings."
+                ],
+                [
+                  "",
+                  " How many senders one Auto-Pilot sweep clears (10, 25 or 50; it was fixed at 25). An age floor for unattended runs only, applied on top of everything else and only when it is stricter, so it can narrow a sweep and never widen one. And how many entries the recovery log keeps before the oldest fall off (60, 150 or 300; it was fixed at 60, and a bigger log means a run stays restorable for longer). All three default to exactly what 8.12 did."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "A 30-day money-back guarantee on Pro."
+                ],
+                [
+                  "",
+                  " Worth saying plainly: a refunded key keeps working. Keys are verified on your device with no network call, so there is nothing to switch off remotely, and adding that would mean the extension phoning home."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "A Pro card on the Stats page"
+                ],
+                [
+                  "",
+                  ", for people without a key. It quotes the totals already on that page and disappears once a key is activated."
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "8.12.0",
       "title": "The views mail does not come back from, and settings for Pro",
@@ -1544,29 +1647,6 @@ var GCC_CHANGELOG = {
                 [
                   "",
                   " in the Options subtitle, several screens above the Save button it was talking about. It now sits beside Save."
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "version": "8.3.0",
-      "title": "Real result counts",
-      "sections": [
-        {
-          "name": "Fixed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "The Mailbox Report showed 50 against band after band"
-                ],
-                [
-                  "",
-                  ", and a run then cleared far less than the plan implied. Gmail renders its \"1-50 of 1,234\" counter in the toolbar, outside the results element, and the code only ever looked inside that element. So the total was never found on a normal result page and every caller fell back to counting the rows on screen: one page, fifty. The counter is now looked for in the results area, then the toolbar, then the page. The same total sizes the large-run guardrails, so those were reading a page instead of a match set too."
                 ]
               ]
             }
