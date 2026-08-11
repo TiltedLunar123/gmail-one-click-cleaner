@@ -262,8 +262,12 @@ describe("removing a key removes it everywhere", () => {
 
 describe("the worker gates Pro on the same two areas", () => {
   const bgSrc = fs.readFileSync(path.join(ROOT, "background.js"), "utf-8");
+  // 8.14: the two reads moved out of hasProLicense into readLicenseState,
+  // which hasProLicense now delegates to. The pin follows the behaviour,
+  // not the old function name; sweep-8-14 covers the third answer that
+  // split brought with it.
   const fn = bgSrc.slice(
-    bgSrc.indexOf("async function hasProLicense()"),
+    bgSrc.indexOf("async function readLicenseState()"),
     bgSrc.indexOf("// Auto-Pilot (7.12, Pro)")
   );
 

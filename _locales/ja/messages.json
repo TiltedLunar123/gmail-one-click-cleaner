@@ -184,7 +184,7 @@
   "proLicenseAria": { "message": "Proライセンス" },
   "proPromoLabel": { "message": "Proへのアップグレード" },
   "proPromoLead": { "message": "Pro、買い切り$$9.99:" },
-  "proPromoBody": { "message": "一括登録解除、容量一掃、オートパイロット。無料機能はずっと無料。" },
+  "proPromoBody": { "message": "一括登録解除、容量一掃、候補の全リスト、計画のすべてのステップ、オートパイロット、Pro設定。無料機能はずっと無料。" },
 
   "onbTitle": { "message": "Gmail Cleanerへようこそ" },
   "onbP1": { "message": "ワンクリックでGmailを一括掃除。既定の安全な流れはこちら:" },

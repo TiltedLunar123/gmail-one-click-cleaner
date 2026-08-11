@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "8.13.0";
+  const POPUP_VERSION = "8.14.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -1946,7 +1946,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (elements.proPanelLead) {
       elements.proPanelLead.textContent = lead
-        || t("proPanelLeadDefault", "One payment unlocks every paid feature, forever.");
+        || t("proPanelLeadDefault", "No OAuth, no servers, zero network calls. One payment unlocks every paid feature, forever.");
     }
     elements.proPanel.hidden = false;
     elements.proPanelBuy?.focus();

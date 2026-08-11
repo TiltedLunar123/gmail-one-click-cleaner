@@ -3,6 +3,61 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.14.0 - Imports that say what they drop, and a recovery log that stays put
+
+A tidy-up release. Nothing new to learn: importing a settings backup
+now tells you the truth about what it kept, your recovery log stops
+shrinking when it should not, and buying Pro updates the page you are
+already looking at.
+
+### Fixed
+- **Importing a settings backup no longer drops entries quietly.** The
+  confirmation counted what was in the file, but the extension stores at
+  most 100 whitelist entries, 50 rules per level and 25 protected
+  keywords, and it skips anything it cannot read, such as a mistyped
+  address. So a backup with 150 whitelist entries asked about 150, kept
+  100, and finished with a plain "imported successfully" - and the 50
+  senders that fell off were 50 senders whose mail was no longer
+  protected from a cleanup. The confirmation now counts what will
+  actually be stored, spells out anything that will be dropped, and says
+  so again once the import is done.
+
+- **The recovery log stops trimming itself when it cannot check your
+  key.** With Pro you can raise the log from 60 entries to 300, and the
+  cap is applied every time a run is recorded. If the licence check
+  could not complete at that moment, for instance because storage was
+  briefly unavailable, it was read as "no licence" and the log was cut
+  back to 60 on the spot. Those entries are how one-click Restore finds
+  an old run, and they were not coming back. The log is now left alone
+  whenever the answer is not certain.
+
+- **The daily stats cleanup can no longer erase a cleanup that finished
+  beside it.** Once a day the extension drops day counters older than 90
+  days. If a run finished while that was in progress, the tidy-up could
+  write back what it had read a moment earlier, taking the run's totals
+  and its entry in the Stats history with it - including the Restore
+  button attached to that entry.
+
+- **The version announced to screen readers on the popup was four
+  releases out of date.** The button showed the right number; the label
+  read aloud did not.
+
+### Changed
+- **Activating Pro updates a Settings page you already have open.**
+  Buying in one tab and having Settings open in another left the second
+  one showing "Get Pro" and a locked Pro Settings card until you
+  reloaded it. It now notices, in both directions: removing your key
+  elsewhere locks the card again.
+
+- **The Pro line on the completion notification has a limit.** It was
+  appended to every qualifying run, so cleaning your mail daily meant a
+  daily sales line in a desktop notification, with no way to stop it
+  except turning completion notifications off entirely. It now waits a
+  week between showings and stops after three.
+
+- **The Pro summary in the popup names all six paid features.** It had
+  been listing three of them since two more shipped.
+
 ## 8.13.0 - The whole storage list, and one-click activation
 
 A smaller release. The Storage X-ray stops hiding most of what it found,

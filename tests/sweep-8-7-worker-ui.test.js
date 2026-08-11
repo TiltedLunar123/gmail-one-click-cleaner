@@ -29,8 +29,12 @@ describe("the worker reads a licence the way the pages do", () => {
   // truncated key in sync therefore left the popup showing Pro active
   // while every weekly sweep quietly declined, on a schedule nobody was
   // watching.
+  // 8.14: this body moved into readLicenseState, which hasProLicense
+  // delegates to, so that a profile where NEITHER area answers can be
+  // told apart from one with no licence. The candidate-collecting shape
+  // this pins is unchanged; only its address is.
   const fn = () => {
-    const at = bgSrc.indexOf("async function hasProLicense() {");
+    const at = bgSrc.indexOf("async function readLicenseState() {");
     expect(at).toBeGreaterThan(-1);
     return bgSrc.slice(at, bgSrc.indexOf("\n  }", at));
   };
@@ -42,7 +46,15 @@ describe("the worker reads a licence the way the pages do", () => {
 
   test("it verifies each one and succeeds on the first that passes", () => {
     expect(fn()).toContain("for (const key of candidates) {");
-    expect(fn()).toContain("if (await verifyProLicenseKey(key)) return true;");
+    expect(fn()).toContain('if (await verifyProLicenseKey(key)) return "pro";');
+  });
+
+  test("hasProLicense still answers a plain boolean, and false when unsure", () => {
+    const at = bgSrc.indexOf("async function hasProLicense() {");
+    expect(at).toBeGreaterThan(-1);
+    const gate = bgSrc.slice(at, bgSrc.indexOf("\n  }", at));
+    // Gating must keep failing closed: "unknown" is not "pro".
+    expect(gate).toContain('(await readLicenseState()) === "pro"');
   });
 
   test("the old short circuit is gone", () => {

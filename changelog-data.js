@@ -6,13 +6,116 @@
 // even of a file inside the package, would end the extension's
 // no-network-calls promise.
 //
-// Carries the newest 12 of 68 releases; the page says so
+// Carries the newest 12 of 69 releases; the page says so
 // and links the full log on GitHub.
 
 // eslint-disable-next-line no-unused-vars
 var GCC_CHANGELOG = {
-  "total": 68,
+  "total": 69,
   "entries": [
+    {
+      "version": "8.14.0",
+      "title": "Imports that say what they drop, and a recovery log that stays put",
+      "intro": [
+        "A tidy-up release. Nothing new to learn: importing a settings backup now tells you the truth about what it kept, your recovery log stops shrinking when it should not, and buying Pro updates the page you are already looking at."
+      ],
+      "sections": [
+        {
+          "name": "Fixed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "Importing a settings backup no longer drops entries quietly."
+                ],
+                [
+                  "",
+                  " The confirmation counted what was in the file, but the extension stores at most 100 whitelist entries, 50 rules per level and 25 protected keywords, and it skips anything it cannot read, such as a mistyped address. So a backup with 150 whitelist entries asked about 150, kept 100, and finished with a plain \"imported successfully\" - and the 50 senders that fell off were 50 senders whose mail was no longer protected from a cleanup. The confirmation now counts what will actually be stored, spells out anything that will be dropped, and says so again once the import is done."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The recovery log stops trimming itself when it cannot check your key."
+                ],
+                [
+                  "",
+                  " With Pro you can raise the log from 60 entries to 300, and the cap is applied every time a run is recorded. If the licence check could not complete at that moment, for instance because storage was briefly unavailable, it was read as \"no licence\" and the log was cut back to 60 on the spot. Those entries are how one-click Restore finds an old run, and they were not coming back. The log is now left alone whenever the answer is not certain."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The daily stats cleanup can no longer erase a cleanup that finished beside it."
+                ],
+                [
+                  "",
+                  " Once a day the extension drops day counters older than 90 days. If a run finished while that was in progress, the tidy-up could write back what it had read a moment earlier, taking the run's totals and its entry in the Stats history with it - including the Restore button attached to that entry."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The version announced to screen readers on the popup was four releases out of date."
+                ],
+                [
+                  "",
+                  " The button showed the right number; the label read aloud did not."
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Changed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "Activating Pro updates a Settings page you already have open."
+                ],
+                [
+                  "",
+                  " Buying in one tab and having Settings open in another left the second one showing \"Get Pro\" and a locked Pro Settings card until you reloaded it. It now notices, in both directions: removing your key elsewhere locks the card again."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The Pro line on the completion notification has a limit."
+                ],
+                [
+                  "",
+                  " It was appended to every qualifying run, so cleaning your mail daily meant a daily sales line in a desktop notification, with no way to stop it except turning completion notifications off entirely. It now waits a week between showings and stops after three."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The Pro summary in the popup names all six paid features."
+                ],
+                [
+                  "",
+                  " It had been listing three of them since two more shipped."
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "8.13.0",
       "title": "The whole storage list, and one-click activation",
@@ -1565,88 +1668,6 @@ var GCC_CHANGELOG = {
                 [
                   "",
                   " Four tabs, two of them carrying a padlock, in 380px, and the labels were long: \"Unsubscribe\" barely fit, \"Cancelar inscrição\" and \"Se désabonner\" never did. The labels are short now, and a tab can shrink below its own text instead of pushing the bar wider, so a long translation ellipsises rather than breaking the layout."
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "version": "8.4.0",
-      "title": "Sender marks, and a way out of a stuck run",
-      "sections": [
-        {
-          "name": "Added",
-          "intro": [
-            "The obvious way to build this is a favicon per sender, and that is exactly why it is not built that way. A favicon means one network request per sender, to a third party, handing over the list of who mails you, in an extension whose whole claim is that it makes no requests at all. Every mark here is arithmetic on the address: same sender, same mark, on every machine, offline, forever. The test suite now fails the build if an image or a URL ever appears in that path.",
-            "The refusal now arrives with a banner attached, and the banner says which case you are in. If the cleaner answers and says it is genuinely working, the banner says so, offers to show you its progress page, and will not clear anything without a second, explicit click; that click cancels the run and then waits for it to actually stop before clearing, because the flag it is clearing is the only thing keeping a second cleaner off the same mailbox. If nothing answers, one click clears it and you can start again.",
-            "One case gets special handling. If the tab flag is set but nothing answers at all, a cleaner is probably still running in there with its connection to the extension severed, which is what reloading or updating the extension mid-run leaves behind. It cannot be told to stop, so Reset reloads the Gmail tab, which does stop it. That is the same tab reload that was the only cure for any of this before 8.4, except now the extension knows when it is needed and does it for you.",
-            "Reset never reports success it did not achieve. If the run will not stop, or the Gmail tab is open but refuses to be reached, nothing is cleared at all and it says so, because a cheerful \"you can start again\" backed by nothing is how you end up with two cleaners on one mailbox."
-          ],
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "The Unsubscribe list draws a mark for every sender"
-                ],
-                [
-                  "",
-                  ", a coloured square with the sender's initial, so a row is something you can spot instead of a line of text to read. Addresses at one company share a mark: "
-                ],
-                [
-                  "c",
-                  "news@substack.com"
-                ],
-                [
-                  "",
-                  ", "
-                ],
-                [
-                  "c",
-                  "noreply@email.substack.com"
-                ],
-                [
-                  "",
-                  " and "
-                ],
-                [
-                  "c",
-                  "digest@mg.substack.com"
-                ],
-                [
-                  "",
-                  " all draw the same S, so they group visually. The Suggested cards on the Clean tab use the same marks."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "\"Reset stuck run\""
-                ],
-                [
-                  "",
-                  ", in the popup and on the progress page. Two separate flags could say \"a run is happening\", and neither had any way to clear: the stored run claim, which expired after two hours, and a flag inside the Gmail tab, which expired never. When a run died without reporting back, both were stranded and every later run was refused with \"a cleanup is already running\" while pointing at nothing. Reloading the Gmail tab was the only cure, and nothing said so."
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "name": "Fixed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "\"Unsaved changes\" appeared mid-sentence"
-                ],
-                [
-                  "",
-                  " in the Options subtitle, several screens above the Save button it was talking about. It now sits beside Save."
                 ]
               ]
             }

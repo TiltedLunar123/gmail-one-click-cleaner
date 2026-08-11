@@ -184,7 +184,7 @@
   "proLicenseAria": { "message": "Licencia Pro" },
   "proPromoLabel": { "message": "Mejora a Pro" },
   "proPromoLead": { "message": "Pro, $$9.99 una vez:" },
-  "proPromoBody": { "message": "baja en masa, purga de espacio, Auto-Pilot. Todo lo gratis sigue gratis." },
+  "proPromoBody": { "message": "baja en masa, purga de espacio, la lista completa de sugerencias, todos los pasos del plan, Auto-Pilot y Ajustes Pro. Todo lo gratis sigue gratis." },
 
   "onbTitle": { "message": "Bienvenido a Gmail Cleaner" },
   "onbP1": { "message": "Limpia Gmail en masa con un clic. Así funciona el flujo seguro por defecto:" },
