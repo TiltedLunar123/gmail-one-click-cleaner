@@ -184,7 +184,7 @@
   "proLicenseAria": { "message": "Pro license" },
   "proPromoLabel": { "message": "Pro upgrade" },
   "proPromoLead": { "message": "Pro, $$9.99 once:" },
-  "proPromoBody": { "message": "bulk unsubscribe, storage purge, Auto-Pilot. Everything free stays free." },
+  "proPromoBody": { "message": "bulk unsubscribe, storage purge, the full suggestion list, every step of the plan, Auto-Pilot and Pro Settings. Everything free stays free." },
 
   "onbTitle": { "message": "Welcome to Gmail Cleaner" },
   "onbP1": { "message": "Bulk-clean Gmail in one click. Here's the safe-by-default flow:" },

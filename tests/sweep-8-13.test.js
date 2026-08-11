@@ -480,8 +480,12 @@ describe("Pro settings added in 8.13", () => {
 
   test("the recovery log cap is read rather than hardcoded", () => {
     const fn = bodyOf(BG_SRC, "async function recordUndoEntry");
-    expect(fn).toContain("readProSettings()");
-    expect(fn).toContain("if (log.length > undoCap) log.length = undoCap;");
+    // 8.14: read through readUndoLogCap rather than readProSettings, so
+    // a licence or settings read that FAILS leaves the log alone instead
+    // of trimming a Pro user's 300 entries to the free 60. The pinned
+    // intent is unchanged: the cap is read, never hardcoded.
+    expect(fn).toContain("readUndoLogCap()");
+    expect(fn).toContain("if (undoCap !== null && log.length > undoCap) log.length = undoCap;");
     expect(fn).not.toContain("if (log.length > 60)");
   });
 

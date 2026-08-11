@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "8.13.0";
+  const SW_VERSION = "8.14.0";
 
   // =========================
   // Storage Keys
@@ -50,7 +50,12 @@
     // with the licence that unlocks them. Read only through
     // readProSettings below, which applies the same defaults-when-not-Pro
     // rule as GCC.proSettings.effective in shared.js.
-    PRO_SETTINGS: "proSettings"
+    PRO_SETTINGS: "proSettings",
+
+    // 8.14: how many times the completion notification has carried the
+    // Pro line, and when it last did. Local: an ad allowance is not a
+    // preference and has no business replicating to other machines.
+    PRO_PITCH: "proPitchNotice"
   });
 
   // =========================
@@ -1961,23 +1966,49 @@
   // gate this is, quietly declined every weekly sweep on a schedule
   // nobody was watching. Reading BOTH areas is the whole point of
   // storing in both.
+  // 8.14: three answers, not two.
+  //
+  // Both storage reads below have always swallowed their own errors, so
+  // a profile where neither area answers produced an empty candidate
+  // list and the function said "free" -- a guess, dressed as a fact.
+  // For a gate that is the right guess (see hasProLicense, which still
+  // fails closed). For anything that DISCARDS user data on the strength
+  // of it, it is not: see recordUndoEntry, where a guess trimmed a
+  // Pro user's recovery log from 300 entries to 60, permanently, over a
+  // storage hiccup that fixed itself a second later.
+  //
+  // "unknown" only when BOTH areas are unreachable. One area answering
+  // is enough to know, because the licence is written to both.
+  async function readLicenseState() {
+    let reachable = false;
+    const candidates = [];
+    try {
+      const s = await chrome.storage.sync.get(LICENSE_STORAGE_KEY);
+      reachable = true;
+      const v = s?.[LICENSE_STORAGE_KEY];
+      if (typeof v === "string" && v) candidates.push(v);
+    } catch {}
+    try {
+      const l = await chrome.storage.local.get(LICENSE_STORAGE_KEY);
+      reachable = true;
+      const v = l?.[LICENSE_STORAGE_KEY];
+      if (typeof v === "string" && v && !candidates.includes(v)) candidates.push(v);
+    } catch {}
+    if (!reachable) return "unknown";
+    try {
+      for (const key of candidates) {
+        if (await verifyProLicenseKey(key)) return "pro";
+      }
+    } catch {
+      // A verify that throws is not a licence. Same reading as before.
+      return "free";
+    }
+    return "free";
+  }
+
   async function hasProLicense() {
     try {
-      const candidates = [];
-      try {
-        const s = await chrome.storage.sync.get(LICENSE_STORAGE_KEY);
-        const v = s?.[LICENSE_STORAGE_KEY];
-        if (typeof v === "string" && v) candidates.push(v);
-      } catch {}
-      try {
-        const l = await chrome.storage.local.get(LICENSE_STORAGE_KEY);
-        const v = l?.[LICENSE_STORAGE_KEY];
-        if (typeof v === "string" && v && !candidates.includes(v)) candidates.push(v);
-      } catch {}
-      for (const key of candidates) {
-        if (await verifyProLicenseKey(key)) return true;
-      }
-      return false;
+      return (await readLicenseState()) === "pro";
     } catch {
       return false;
     }
@@ -2010,6 +2041,10 @@
   // back to copy and paste, which is what every version before this
   // one did everywhere.
   const ACTIVATION_ORIGIN = "https://gmail-cleaner-pro.netlify.app";
+  // The popup's own paint hint (popup.js STORAGE_KEYS.PRO_HINT). Named
+  // here rather than imported because the worker is self-contained;
+  // tests/sweep-8-14 pins the two spellings equal.
+  const PRO_HINT_KEY = "proActiveHint";
 
   async function activateLicenseFromPage(rawKey) {
     const key = typeof rawKey === "string" ? rawKey.trim() : "";
@@ -2026,6 +2061,17 @@
     ]);
     if (!results.some((r) => r.status === "fulfilled")) {
       return { ok: false, error: "storage_failed" };
+    }
+
+    // 8.14: and the popup's paint hint, which only the popup itself has
+    // ever written. It exists so a buyer is not shown padlocks for the
+    // 100-300ms the signature check takes -- and the very first popup a
+    // buyer opens, seconds after paying, was the one open it was still
+    // set false for. Paint only, never a gate, exactly as 8.12 built it.
+    try {
+      await chrome.storage.local.set({ [PRO_HINT_KEY]: true });
+    } catch {
+      // A hint that will not cache costs one flash of the free chrome.
     }
     return { ok: true, synced: results[0].status === "fulfilled" };
   }
@@ -2422,6 +2468,37 @@
       return out;
     } catch {
       return { ...PRO_SETTINGS_DEFAULTS };
+    }
+  }
+
+  // 8.14: the recovery-log cap, or null when it cannot be established.
+  //
+  // Every other Pro setting decides what a run DOES, so readProSettings
+  // answering "free defaults" for anything it cannot read is the safe
+  // reading. This one decides what gets THROWN AWAY, where the same
+  // answer is destructive and irreversible: a Pro user sitting on 300
+  // recovery entries loses 240 of them the first time a storage read
+  // hiccups, and no later success brings them back.
+  //
+  // So it is read separately, and every path that cannot prove the
+  // user's cap returns null, which recordUndoEntry treats as "leave the
+  // log alone". The cost of being wrong that way is one extra entry
+  // until the next successful write.
+  async function readUndoLogCap() {
+    const state = await readLicenseState();
+    if (state === "unknown") return null;
+    if (state !== "pro") return PRO_SETTINGS_DEFAULTS.undoLogEntries;
+    try {
+      const r = await chrome.storage.sync.get(STORAGE_KEYS.PRO_SETTINGS);
+      const n = Number(r?.[STORAGE_KEYS.PRO_SETTINGS]?.undoLogEntries);
+      // Same allow-list readProSettings applies; tests/sweep-8-14 pins
+      // the two against each other over every resolvable case.
+      return PRO_SETTINGS_UNDO_ENTRIES.includes(n) ? n : PRO_SETTINGS_DEFAULTS.undoLogEntries;
+    } catch {
+      // A Pro user whose settings will not load is still a Pro user.
+      // Trimming to the free cap here would take entries their licence
+      // had been keeping.
+      return null;
     }
   }
 
@@ -3110,6 +3187,40 @@
   // Completion notification
   // =========================
 
+  // 8.14: the Pro line in the completion notification needed a budget.
+  //
+  // 8.13 added it with three conditions on the RUN (real, live, unpaid)
+  // and none at all on the person. Someone who cleans their mail every
+  // morning got the same sales line in a system notification every
+  // morning, forever, with no way to stop it short of turning off
+  // completion notifications altogether -- which is a genuinely useful
+  // feature they would be giving up to silence an ad.
+  //
+  // Bounded the same way 8.13 bounded the rating ask, and for the same
+  // reason Jude gave then ("dont make it too annoying"): a weekly
+  // cooldown, and a hard stop after three. Someone who has seen the
+  // offer three times and not bought has answered.
+  const PRO_PITCH_MAX_SHOWS = 3;
+  const PRO_PITCH_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+
+  function shouldPitchProInNotification(stored, now = Date.now()) {
+    const seen = stored && typeof stored === "object" ? stored : {};
+    if ((Number(seen.shown) || 0) >= PRO_PITCH_MAX_SHOWS) return false;
+    const last = Number(seen.lastShownAt) || 0;
+    // Never shown, or shown at a time that will not parse: show it.
+    if (!last) return true;
+    return (Number(now) || 0) - last >= PRO_PITCH_COOLDOWN_MS;
+  }
+
+  function noteProPitchShown(stored, now = Date.now()) {
+    const seen = stored && typeof stored === "object" ? stored : {};
+    return {
+      ...seen,
+      shown: (Number(seen.shown) || 0) + 1,
+      lastShownAt: Number(now) || 0
+    };
+  }
+
   async function maybeNotifyDone(summary) {
     try {
       const pref = await chrome.storage.local.get(STORAGE_KEYS.NOTIFY_ENABLED);
@@ -3171,11 +3282,33 @@
       // someone who has not paid. And it rides in `message`, not in
       // a context line or a button, because Firefox rejects the whole
       // notification for any option it does not implement.
+      //
+      // 8.14: and a fourth condition, on the person rather than the run.
+      // See shouldPitchProInNotification.
       if (count > 0 && !summary?.dryRun && !(await hasProLicense())) {
-        msg += " " + bgT(
-          "notifProPitch",
-          "Pro sweeps this for you every week: $9.99 once, 30-day money-back guarantee."
-        );
+        // Decide and book in one locked step. maybeNotifyDone is called
+        // fire-and-forget outside the queue, so two runs finishing
+        // together would otherwise both read shown=0, both write 1, and
+        // spend two of the three showings on one moment. Nothing else
+        // writes this key, so nesting is not a risk here.
+        const pitch = await withStorageLock(async () => {
+          const seen = (await chrome.storage.local.get(STORAGE_KEYS.PRO_PITCH))?.[STORAGE_KEYS.PRO_PITCH];
+          if (!shouldPitchProInNotification(seen)) return false;
+          // Booked before the notification is raised, not after. A write
+          // that lands and a notification that fails costs one showing;
+          // the other order costs the cap its meaning if the write is
+          // the thing that fails.
+          await chrome.storage.local.set({
+            [STORAGE_KEYS.PRO_PITCH]: noteProPitchShown(seen)
+          });
+          return true;
+        });
+        if (pitch) {
+          msg += " " + bgT(
+            "notifProPitch",
+            "Pro sweeps this for you every week: $9.99 once, 30-day money-back guarantee."
+          );
+        }
       }
       // Keep to the four properties every browser accepts: Firefox
       // rejects notification options it does not implement (priority,
@@ -3301,21 +3434,43 @@
     }
   }
 
+  // 8.14: the last unlocked get-merge-set in the worker, and it shares a
+  // key with recordStats, which has been inside the queue for releases.
+  //
+  // The daily alarm fires whenever it likes. Read the stats, let a run
+  // finish and record itself through the lock, then write this stale
+  // snapshot back and the run is gone: totalRuns and totalDeleted roll
+  // back, the day's dailyStats bucket disappears, and so does the
+  // history entry the Stats page hangs that run's Restore button on. A
+  // user who cleaned 4,000 emails and then wanted them back would find
+  // no record that it happened.
+  //
+  // Exactly the half-fix 8.10 caught on setAutoPilotEnabled, 8.11 on its
+  // local twin and 8.12 on tabs.onRemoved. Nothing calls this from
+  // inside the queue (its only caller is the alarm handler), so wrapping
+  // it cannot hit the non-reentrancy deadlock.
   async function pruneOldStats() {
     try {
-      const result = await chrome.storage.local.get(STORAGE_KEYS.STATS);
-      const stats = result?.[STORAGE_KEYS.STATS];
-      if (!stats?.dailyStats) return;
+      await withStorageLock(async () => {
+        const result = await chrome.storage.local.get(STORAGE_KEYS.STATS);
+        const stats = result?.[STORAGE_KEYS.STATS];
+        if (!stats?.dailyStats) return;
 
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - 90);
-      const cutoffStr = cutoff.toISOString().slice(0, 10);
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - 90);
+        const cutoffStr = cutoff.toISOString().slice(0, 10);
 
-      for (const date of Object.keys(stats.dailyStats)) {
-        if (date < cutoffStr) delete stats.dailyStats[date];
-      }
+        let removed = 0;
+        for (const date of Object.keys(stats.dailyStats)) {
+          if (date < cutoffStr) { delete stats.dailyStats[date]; removed++; }
+        }
+        // Nothing aged out, so there is nothing to write. Skipping the
+        // write is not an optimisation here: it removes the only way
+        // this function can lose a concurrent write at all.
+        if (!removed) return;
 
-      await chrome.storage.local.set({ [STORAGE_KEYS.STATS]: stats });
+        await chrome.storage.local.set({ [STORAGE_KEYS.STATS]: stats });
+      });
     } catch (e) {
       console.error("[GCC SW] pruneOldStats failed:", e);
     }
@@ -3411,8 +3566,18 @@
       // an entry falling off the end is a run that can no longer be
       // restored from this page. Free keeps 60, which is what every
       // release since 8.0 kept; nothing was taken away to sell.
-      const undoCap = (await readProSettings()).undoLogEntries;
-      if (log.length > undoCap) log.length = undoCap;
+      //
+      // 8.14: and a cap is only applied when the licence state is known.
+      // readProSettings hands back the free defaults for any failure it
+      // meets, which is right for every other setting (they decide what
+      // a run DOES, and the safe reading of "I cannot tell" is "do what
+      // free does"). Here the same reading throws away 240 of a Pro
+      // user's 300 recovery entries over a storage read that failed for
+      // a moment, and there is no getting them back. So: unknown means
+      // leave the log alone. The log grows by one entry until a check
+      // succeeds, and the next successful write trims it properly.
+      const undoCap = await readUndoLogCap();
+      if (undoCap !== null && log.length > undoCap) log.length = undoCap;
 
       await chrome.storage.local.set({ [STORAGE_KEYS.UNDO_LOG]: log });
     } catch (e) {
@@ -3616,6 +3781,18 @@
       LICENSE_PUBLIC_JWK,
       verifyProLicenseKey,
       hasProLicense,
+      readLicenseState,
+      readUndoLogCap,
+      readProSettings,
+      pruneOldStats,
+      recordStats,
+      recordUndoEntry,
+      withStorageLock,
+      activateLicenseFromPage,
+      shouldPitchProInNotification,
+      noteProPitchShown,
+      PRO_SETTINGS_DEFAULTS,
+      PRO_SETTINGS_UNDO_ENTRIES,
       autoPilotWhitelistCovers,
       autoPilotSenderVetoed,
       autoPilotIsDismissed,

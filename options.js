@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const OPTIONS_VERSION = "8.13.0";
+  const OPTIONS_VERSION = "8.14.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -809,6 +809,51 @@
     return data;
   };
 
+  // 8.14: what the import will ACTUALLY write, measured off the write set
+  // rather than off the file.
+  //
+  // The confirm dialog counted the raw JSON and the write went through
+  // buildImportWriteSet, which caps each list and drops entries that do
+  // not parse. So a backup carrying 150 whitelist entries asked about
+  // 150, wrote 100, and finished with a plain "imported successfully".
+  // The whitelist is a safety list: those 50 senders were protected
+  // before the import and unprotected after it, and no surface on this
+  // page ever said so. Same for a malformed address, a rule past the
+  // per-category cap, and a schedule with no id.
+  //
+  // The rule this restores is the one the rest of the product already
+  // follows: a number shown beside an action is measured through the
+  // same filter that action applies. The dialog now quotes the kept
+  // figure and names every drop, so the user agrees to the import that
+  // is really about to happen.
+  const IMPORT_SECTIONS = Object.freeze([
+    { label: "rules", raw: (j) => RULE_KEYS.reduce((n, k) => n + (Array.isArray(j.rules?.[k]) ? j.rules[k].length : 0), 0),
+      kept: (d) => RULE_KEYS.reduce((n, k) => n + (d[STORAGE_KEYS.RULES]?.[k]?.length || 0), 0) },
+    { label: "whitelist entries", raw: (j) => (Array.isArray(j.whitelist) ? j.whitelist.length : 0),
+      kept: (d) => d[STORAGE_KEYS.WHITELIST]?.length || 0 },
+    { label: "protected keywords", raw: (j) => (Array.isArray(j.protectKeywords) ? j.protectKeywords.length : 0),
+      kept: (d, j) => (Array.isArray(j.protectKeywords) ? (d[STORAGE_KEYS.PROTECT_KEYWORDS]?.length || 0) : 0) },
+    { label: "custom rules", raw: (j) => (Array.isArray(j.customRules) ? j.customRules.length : 0),
+      kept: (d, j) => (Array.isArray(j.customRules) ? (d[STORAGE_KEYS.CUSTOM_RULES]?.length || 0) : 0) },
+    { label: "scheduled cleanups", raw: (j) => (Array.isArray(j.schedules) ? j.schedules.length : 0),
+      kept: (d, j) => (Array.isArray(j.schedules) ? (d[STORAGE_KEYS.SCHEDULES]?.length || 0) : 0) }
+  ]);
+
+  const summarizeImport = (json, writeSet) => {
+    const data = json && typeof json === "object" ? json : {};
+    const set = writeSet && typeof writeSet === "object" ? writeSet : {};
+    const sections = IMPORT_SECTIONS.map((s) => {
+      const raw = Number(s.raw(data)) || 0;
+      const kept = Number(s.kept(set, data)) || 0;
+      return { label: s.label, raw, kept, dropped: Math.max(0, raw - kept) };
+    });
+    return { sections, dropped: sections.filter((s) => s.dropped > 0) };
+  };
+
+  const importDroppedLine = (dropped) => dropped
+    .map((s) => `${s.dropped} of ${s.raw} ${s.label}`)
+    .join(", ");
+
   const exportConfig = async () => {
     const btn = /** @type {HTMLButtonElement|null} */ (GCC.$("exportBtn"));
     setButtonLoading(btn, true);
@@ -917,22 +962,21 @@
       const validation = validateImport(json);
       if (!validation.valid) throw new Error(validation.errors.join("; "));
 
-      const ruleCount = RULE_KEYS.reduce((sum, key) => sum + (json.rules?.[key]?.length || 0), 0);
-      const whitelistCount = Array.isArray(json.whitelist) ? json.whitelist.length : 0;
-      const protectKeywordCount = Array.isArray(json.protectKeywords) ? json.protectKeywords.length : 0;
-      const customRuleCount = Array.isArray(json.customRules) ? json.customRules.length : 0;
-      const scheduleCount = Array.isArray(json.schedules) ? json.schedules.length : 0;
+      // Build the write set FIRST and count that, not the file. See
+      // summarizeImport: this is the whole point of the 8.14 fix.
+      const writeSet = buildImportWriteSet(json);
+      const summary = summarizeImport(json, writeSet);
 
       const name = safeConfirmLabel(file.name);
 
       const confirmMsg =
         `Import configuration from "${name}"?\n\n` +
-        `• ${ruleCount} total rules\n` +
-        `• ${whitelistCount} whitelist entries\n` +
-        `• ${protectKeywordCount} protected keywords\n` +
-        `• ${customRuleCount} custom rules\n` +
-        `• ${scheduleCount} scheduled cleanups\n` +
+        summary.sections.map((s) => `• ${s.kept} ${s.label}`).join("\n") + "\n" +
         `• Debug mode: ${json.debugMode ? "On" : "Off"}\n\n` +
+        (summary.dropped.length
+          ? `This backup holds more than the extension can store, or entries it ` +
+            `cannot read. Importing drops ${importDroppedLine(summary.dropped)}.\n\n`
+          : "") +
         `This will replace your current settings.`;
 
       if (!confirm(confirmMsg)) {
@@ -947,13 +991,21 @@
       const backup = await GCC.storageGet("sync", null);
 
       try {
-        await safeSyncSet(buildImportWriteSet(json), "imported config");
+        await safeSyncSet(writeSet, "imported config");
 
         await loadData();
         clearUnsaved();
 
-        GCC.showToast("Configuration imported successfully!", "success");
-        srStatus("Configuration imported.");
+        // A drop the user agreed to still has to be said out loud after
+        // the fact, because the page they are looking at now shows the
+        // shorter list and nothing else explains why.
+        if (summary.dropped.length) {
+          GCC.showToast(`Imported, minus ${importDroppedLine(summary.dropped)}.`, "warning", 8000);
+          srStatus(`Configuration imported. Dropped ${importDroppedLine(summary.dropped)}.`);
+        } else {
+          GCC.showToast("Configuration imported successfully!", "success");
+          srStatus("Configuration imported.");
+        }
       } catch (importErr) {
         // Rollback to backup
         try {
@@ -1637,6 +1689,27 @@
     });
 
     renderState().catch(() => {});
+
+    // 8.14: the licence can now change without this page touching it.
+    //
+    // 8.13 taught the purchase page to hand the key straight to the
+    // extension, which writes it from the service worker in a different
+    // tab entirely. 8.12's fix covered the case where this page did the
+    // activating; it cannot see this one. A buyer who left Settings open,
+    // paid, clicked Activate on the thank-you page and switched back
+    // found the same "Get Pro" link and the same greyed-out Pro Settings
+    // card they left, with nothing to suggest their money had arrived.
+    //
+    // Both directions: removing the key on another surface has to lock
+    // this page too, or it keeps accepting edits nothing will apply.
+    if (chrome?.storage?.onChanged?.addListener) {
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== "sync" && area !== "local") return;
+        if (!Object.prototype.hasOwnProperty.call(changes, GCC.license.PRO.STORAGE_KEY)) return;
+        renderState().catch(() => {});
+        refreshProSettingsCard().catch(() => {});
+      });
+    }
 
     // The popup deep-links here as options.html#pro.
     if (location.hash === "#pro") {

@@ -59,4 +59,20 @@ describe("version consistency", () => {
     expect(match).not.toBeNull();
     expect(match[1]).toBe(manifest.version);
   });
+
+  // 8.14: the badge pins above read `id="versionBadge"[^>]*>v(...)<`, and
+  // `[^>]*` walks straight over the element's own attributes. The popup's
+  // version button carried aria-label="Version 8.10.0" for four releases
+  // while its visible text tracked the manifest, so a screen reader was
+  // told the wrong version and nothing failed. Every announced version,
+  // on every page, is pinned here instead.
+  test.each([
+    "popup.html", "options.html", "progress.html",
+    "stats.html", "diagnostics.html", "changelog.html"
+  ])("%s announces the manifest version to screen readers", (file) => {
+    const source = read(file);
+    const announced = [...source.matchAll(/aria-label="Version ([0-9]+\.[0-9]+\.[0-9]+)/g)]
+      .map((m) => m[1]);
+    for (const v of announced) expect(v).toBe(manifest.version);
+  });
 });

@@ -855,7 +855,11 @@ const GCC = (() => {
     "The full Smart Suggestions list, and bulk apply",
     "Every step of the Mailbox Report, and the whole-plan run",
     "Auto-Pilot, the weekly sweep that archives without being asked",
-    "Pro Settings: your own recovery label, the Auto-Pilot interval, and a deeper Smart scan"
+    // 8.14: 8.12 shipped three of these and 8.13 added three more
+    // without touching this line, which is the exact drift the comment
+    // above this list exists to stop. Six now: label, interval, depth,
+    // senders per sweep, Auto-Pilot age floor, recovery log size.
+    "Pro Settings: the recovery label, Auto-Pilot's interval, age floor and sweep size, a deeper Smart scan, and a longer recovery log"
   ]);
 
   const LICENSE_PUBLIC_JWK = Object.freeze({
