@@ -31,13 +31,13 @@ The extension recommends what to clean instead of making you configure it. One f
 - **Hard vetoes first** - a sender is never suggested when they match your whitelist or protected keywords, when any of their mail is starred, or when your Sent folder shows you write to them.
 - **One-click apply** - each suggestion runs as an ordinary cleanup (tag first, dry-run honored, undo log, stats), so nothing new can touch mail. Dismissed suggestions stay silent for 90 days.
 - **The right action per sender** - storage hogs lead with a purge, stopped floods with a delete, and a sender who still emails weekly while you never open them leads with Unsubscribe (Pro), because deleting would not stop the next batch.
-- **Pro** - the full suggestion list (top 3 stay free) and bulk apply of checked suggestions, each run honouring the action its own card leads with.
+- **Pro** - the full suggestion list (top 3 stay free) and bulk apply of verified suggestions, each run honouring the action its own card leads with.
 
 ### Auto-Pilot (Pro)
 The same Smart Suggestions sweep, on a weekly schedule, so the inbox stays clean without you opening the popup.
 - **Preview first** - the first scheduled sweep is always a dry run. The popup shows "would have archived N emails" and waits for an explicit confirm before any sweep touches mail.
 - **Archive only** - Auto-Pilot never deletes, whatever a suggestion would normally lead with. Everything it moves is tagged first, capped at 25 senders per sweep, and shows up in stats and the Recovery Log like any other run.
-- **Every guard applies** - whitelist, protected keywords, starred and important mail are all respected, and the license is verified on-device before each sweep. No new permissions.
+- **Every guard applies** - whitelist, protected keywords, starred and important mail are all respected, and the license is checked on-device before each sweep. No new permissions.
 
 ### Cleanup Modes
 - **Live Mode** - Automatically labels and moves matching emails to Trash or Archive
@@ -101,7 +101,7 @@ has:attachment larger:10M older_than:6m
 
 Pro is a **one-time $9.99 purchase** (no subscription, **30-day money-back guarantee**) that unlocks six things: the whole Mailbox Report plan, bulk unsubscribe, the one-click Storage X-ray purge, the full Smart Suggestions list with bulk apply, Auto-Pilot, which keeps your inbox clean every week automatically, and **Pro Settings** (the recovery label put on cleaned mail, the Auto-Pilot interval and age floor, how many senders one sweep clears, a deeper Smart scan, and how many entries the recovery log keeps). Keys activate in one click from the page you land on after checkout, in Chrome and Edge; Firefox shows the key to paste. A refunded key keeps working, because verification is offline and there is nothing to revoke. Everything that is free today stays free forever. Compare (prices checked 2026-08-01): Clean Email is $29.99 a year for one account, Trimbox is $39.99 a year, Mailstrom is $59.95 a year, and Google One storage starts at about $20 a year, forever.
 
-- Your license key is verified **entirely on your device** with a built-in public key. The extension never contacts a server, not even to check the license.
+- Your license key is checked **entirely on your device** with a built-in public key. The extension never contacts a server, not even to check the license.
 - The key is a signed token with no personal data. Stored in Chrome sync, so Pro follows you to your other signed-in browsers.
 - Buy Pro from the popup or the extension's Options page. Your key is shown right after checkout; revisiting that page re-issues it if you lose it.
 - **Lost your key?** Three ways back, no charge. If Pro is active on any browser, open **Options > Pro License** and use **Show key** / **Copy key**. Otherwise revisit the post-checkout link, or enter the email you paid with at [the recovery page](https://gmail-cleaner-pro.netlify.app/recover.html). Re-issued keys are new tokens for the same purchase, so keys you already have keep working.
@@ -126,7 +126,7 @@ Install from [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/gm
    ```
 2. Open `chrome://extensions` in Chrome
 3. Enable **Developer mode** (top-right toggle)
-4. Click **Load unpacked** and select the cloned folder
+4. Click **Load unpacked** and choose the cloned folder
 5. Pin the extension, open Gmail, and click the icon to start
 
 For Firefox, build the dedicated bundle first (`npm run build:firefox`), then load `dist-firefox/` as a temporary add-on from `about:debugging`.
@@ -170,7 +170,7 @@ gmail-one-click-cleaner/
 - **Runs locally** - All cleanup, scanning, and unsubscribing happen in your browser against the Gmail UI. No email content is ever sent anywhere.
 - **No data collection** - No analytics, no tracking, no email content, subjects, or credentials leave your device.
 - **One exception worth naming, because it is visible in the source** - each "Get Pro" link carries a fixed label saying which feature it came from (`?client_reference_id=gcc_autopilot`, for example). It travels only if *you* click through to Stripe, it is recorded only if you actually buy, it contains no user or device data, and it exists so the project can tell which feature was worth paying for. Nothing is sent for anyone who does not buy, and the extension itself still transmits nothing.
-- **License stays offline** - Pro keys are verified on-device with a built-in public key. The extension never phones home, not even to check the license. The only network calls are ones you start: opening the Stripe checkout page and its post-purchase activation page (part of the purchase flow, not the extension). No Gmail data is involved in either.
+- **License stays offline** - Pro keys are checked on-device with a built-in public key. The extension never phones home, not even to check the license. The only network calls are ones you start: opening the Stripe checkout page and its post-purchase activation page (part of the purchase flow, not the extension). No Gmail data is involved in either.
 - **One page opens when you uninstall** - removing the extension opens a fixed goodbye page on the project's own site, using the browser's `setUninstallURL`. It mostly exists to tell Pro buyers their lifetime key still works and where to have it reissued. The address carries no identifier, no version and nothing from your mailbox. The release notes in the extension are compiled into the package, so reading those costs no request at all.
 - **Minimal permissions** - `activeTab`, `scripting`, `tabs`, `storage`, `alarms`, `notifications` + Gmail host access. No new permissions were added for Pro.
 - **30-day safety net** - Gmail keeps Trash for ~30 days, and every run is labeled before it moves. The Recovery Log's one-click Restore puts a run back in your Inbox; archived runs can come back any time, deleted runs within the 30-day window.
