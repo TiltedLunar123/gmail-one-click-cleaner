@@ -3,6 +3,123 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.15.0 - Quality of life, and the safety lists that would not say no
+
+A tidy-up release. Most of it is small things that were quietly in the
+way: steps you had already cleaned that would not offer to run again,
+lists that made you scroll to find out what you could still undo, and a
+Pro setting that did not do what it said. One fix underneath all of that
+matters more than the rest, and it is the first one below.
+
+### Fixed
+- **A cleanup could run with your Never Delete list missing.** Your
+  whitelist and your protected keywords are read when a run starts and
+  handed to the cleaner, which is the only way it knows to leave that
+  mail alone. If either read failed for a moment, and storage does fail
+  for a moment sometimes, the answer came back as an empty list rather
+  than as an error, and the run went ahead with nothing protected. The
+  popup, the progress page and the recovery log all reported an ordinary
+  successful cleanup. A run and a scan now stop and say so instead.
+
+- **A step you cleaned part of the way was marked Cleared for good.** A big
+  step can stop part-way, and the cleaner says so at the time: "run the
+  cleaner again to continue this rule." The Mailbox Report ticked it off
+  anyway. The row kept showing thousands of emails with a Cleared badge
+  and no Run button, "Run the whole plan" skipped it, and nothing ever
+  put it back. The badge now means the step is empty, so a fresh scan
+  that still finds mail there gives you the button back.
+
+- **A second Gmail account could be told to stop by the wrong window.**
+  With two mailboxes open, a finished progress dashboard left open for
+  the first one joined in on the second one's run: it filled its table
+  with the other account's rows and raised the other account's
+  confirmation. Answering on that window sent the answer to a run that
+  was already over, so the live one waited, gave up and stopped after
+  you had clicked Continue. Each dashboard now only listens to its own
+  Gmail tab.
+
+- **Clear stuck run could start a fresh cleanup a minute later.** That
+  button clears the flag that says a cleaner is attached to the tab, and
+  the dashboard reads that same flag when it decides whether to reconnect
+  a run that has gone quiet. So pressing it and walking away looked like
+  a cleaner that had vanished mid-run, and one was started again, from
+  whatever settings ran last. The dashboard now treats a cleared run as
+  over, and it will never re-inject on a page that has not heard from a
+  run at all.
+
+- **An imported schedule never actually ran.** Importing a settings
+  backup wrote the schedule and showed it as Enabled, but nothing told
+  the extension to set the timer, so the unattended cleanup sat there
+  doing nothing until the next time the browser restarted. Import now
+  sets the timers, and the list on screen updates to match.
+
+- **The account picker could name the wrong mailbox.** With two Gmail
+  tabs open it always highlighted the first one, while a run went to
+  whichever mailbox you were looking at. The other half of the same
+  split: choosing an account and then having any run finish, including a
+  scheduled one you did not start, threw the choice away while the
+  highlight stayed put.
+
+- **A backup with more rules than the extension stores said nothing
+  about the ones it dropped.** Version 8.14 fixed this for the whitelist
+  and the keywords. Rules were still counted in a way that hid it,
+  because the missing categories get filled in from the defaults.
+
+- **The summary after an archive run said your mail went to Trash.** An
+  archive run that found nothing to move was filed as a deletion, so the
+  popup offered to reassure you about a 30 day Trash window for mail
+  that was never deleted.
+
+- **Auto-Pilot could start a sweep just after you turned it off.**
+  Between the weekly timer firing and the sweep starting there is a
+  second or so of checks, and switching Auto-Pilot off inside that gap
+  was missed. Your mail was never touched, that part was already
+  guarded, but the scan still ran and your Gmail tab still churned
+  through it.
+
+### Changed
+- **Pro: 50 senders per Auto-Pilot sweep now clears 50.** The setting
+  chose the senders correctly and then built the sweep from the first 25
+  of them, so picking 50 cleared exactly what 25 cleared. 10 and 25 were
+  never affected.
+
+- **The recovery log says how long you have left.** Every deleted run
+  now shows the days remaining before Gmail empties that mail out of
+  Trash, while there is still time to do something about it, rather than
+  only explaining itself once the deadline had passed.
+
+- **Cleanup results say when the space actually comes back.** Deleting
+  moves mail to Trash and Google keeps counting it until Trash empties,
+  about 30 days later. The result screen and the progress dashboard now
+  say so, so a storage bar that has not moved yet is not a surprise.
+
+- **Cleaning by sender or by inbox gets a name.** Those runs were all
+  labelled "Other" in Gmail, in the recovery log and on the Stats page,
+  which made a weekly Auto-Pilot sweep hard to tell from anything else.
+  They are labelled Senders and Inbox now. Runs that already had a name
+  keep it exactly as it was.
+
+- **Protect on the Stats page knows who is already protected.** It
+  offered itself on every sender, including ones your whitelist already
+  covers, and reported adding a duplicate as a fresh success. Senders
+  already covered now show as protected instead.
+
+- **Bulk unsubscribe stops re-doing senders it has finished.** Ticks are
+  remembered between sessions, which is right up until a run settles a
+  sender: after that every later run started with them ticked again and
+  spent part of its 25 sender budget repeating itself. Senders that
+  still need their own website are marked and left out; senders where
+  Gmail's control simply could not be found stay available to retry.
+
+- **Pro Settings warns before you lose an edit.** That card saves on its
+  own button, and it was the one part of the Settings page that could be
+  changed and closed without a word.
+
+- **The scheduled cleanup rows announce themselves properly.** Their
+  enable and remove buttons read as a state word and a punctuation mark
+  to a screen reader, identically on every row, for controls that change
+  and delete an unattended cleanup with no confirmation step.
+
 ## 8.14.0 - Imports that say what they drop, and a recovery log that stays put
 
 A tidy-up release. Nothing new to learn: importing a settings backup

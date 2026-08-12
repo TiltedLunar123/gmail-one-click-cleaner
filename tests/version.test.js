@@ -66,13 +66,30 @@ describe("version consistency", () => {
   // while its visible text tracked the manifest, so a screen reader was
   // told the wrong version and nothing failed. Every announced version,
   // on every page, is pinned here instead.
-  test.each([
-    "popup.html", "options.html", "progress.html",
-    "stats.html", "diagnostics.html", "changelog.html"
-  ])("%s announces the manifest version to screen readers", (file) => {
-    const source = read(file);
-    const announced = [...source.matchAll(/aria-label="Version ([0-9]+\.[0-9]+\.[0-9]+)/g)]
-      .map((m) => m[1]);
+  // 8.15: the loop above was still not a gate. Three of its six files
+  // carry no announced version at all, so those cases matched nothing
+  // and asserted nothing, and the one page it was written for could be
+  // reworded out of the pattern without a single failure (proved by
+  // mutation: `aria-label="Version v8.10.0"` kept the whole suite
+  // green). The pages that are SUPPOSED to announce a version are named
+  // here, and each one has to produce at least one match before the
+  // values are compared.
+  const ANNOUNCE_VERSION = ["popup.html", "diagnostics.html", "changelog.html"];
+  const NO_ANNOUNCE = ["options.html", "progress.html", "stats.html"];
+
+  const announcedIn = (file) =>
+    [...read(file).matchAll(/aria-label="Version ([0-9]+\.[0-9]+\.[0-9]+)/g)].map((m) => m[1]);
+
+  test.each(ANNOUNCE_VERSION)("%s announces the manifest version to screen readers", (file) => {
+    const announced = announcedIn(file);
+    expect(announced.length).toBeGreaterThan(0);
     for (const v of announced) expect(v).toBe(manifest.version);
+  });
+
+  // Named rather than skipped: if one of these grows a version label
+  // later, this fails and the file moves into the list above rather than
+  // slipping into an unpinned one.
+  test.each(NO_ANNOUNCE)("%s does not announce a version, so nothing can drift there", (file) => {
+    expect(announcedIn(file)).toHaveLength(0);
   });
 });

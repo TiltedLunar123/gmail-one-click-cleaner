@@ -318,17 +318,56 @@ describe("a rescan", () => {
     };
   };
 
-  test("replaces the counts but keeps the cleanedAt marks", async () => {
+  // 8.15: the mark means "this step is empty because you cleared it",
+  // which is what the Cleared chip claims, so a rescan that finds mail
+  // again has to drop it. Before this, a run stopped part-way by the
+  // pass cap or the wall-time bail still stamped cleanedAt, the mark was
+  // carried forward on every later scan, and the step lost its Run
+  // button permanently while the row kept showing a five-figure count.
+  test("a rescan that still finds mail drops the cleanedAt mark", async () => {
     seedCleaned();
     await dispatch(SCAN);
 
     const byId = Object.fromEntries(stored().bands.map((b) => [b.id, b]));
+    // sizeHuge was marked and the rescan still counts 4, so the step is
+    // demonstrably not empty and the mark goes.
     expect(byId.sizeHuge.count).toBe(4);
-    expect(byId.sizeHuge.cleanedAt).toBe(111);
+    expect(byId.sizeHuge.cleanedAt).toBe(0);
     expect(byId.promotions.count).toBe(8000);
     expect(byId.promotions.cleanedAt).toBe(0);
     // A band the previous report never held starts unmarked.
     expect(byId.inboxOld.cleanedAt).toBe(0);
+  });
+
+  test("a rescan that finds the band empty keeps the mark", async () => {
+    seedCleaned();
+    await dispatch({
+      type: "gmailCleanerReportScanResult",
+      bands: [
+        { id: "sizeHuge", kind: "size", action: "delete", count: 0, estMb: 0 },
+        { id: "promotions", kind: "noise", action: "delete", count: 8000, estMb: 0 }
+      ]
+    });
+    const byId = Object.fromEntries(stored().bands.map((b) => [b.id, b]));
+    expect(byId.sizeHuge.count).toBe(0);
+    expect(byId.sizeHuge.cleanedAt).toBe(111);
+  });
+
+  test("a band the scan could not measure keeps its mark", async () => {
+    // Absent evidence is not evidence the step refilled: an unmeasured
+    // band carries the count forward from nothing, so dropping the mark
+    // here would un-clear a step on a scan that learned nothing.
+    seedCleaned();
+    await dispatch({
+      type: "gmailCleanerReportScanResult",
+      bands: [
+        { id: "sizeHuge", kind: "size", action: "delete", count: 90, estMb: 2250, measured: false },
+        { id: "promotions", kind: "noise", action: "delete", count: 8000, estMb: 0 }
+      ]
+    });
+    const byId = Object.fromEntries(stored().bands.map((b) => [b.id, b]));
+    expect(byId.sizeHuge.measured).toBe(false);
+    expect(byId.sizeHuge.cleanedAt).toBe(111);
   });
 
   test("a band that drops out of the new scan simply goes", async () => {
@@ -490,7 +529,11 @@ describe("pending band purge lifecycle", () => {
     expect(stored().bands.every((b) => b.cleanedAt === 0)).toBe(true);
   });
 
-  test("a marked band survives the next rescan", async () => {
+  // 8.15: the sibling of the rescan tests above, driven through the real
+  // purge lifecycle. A partial run stamps the mark, and the next scan
+  // that still counts 8,000 takes it away again so the step keeps its
+  // Run button.
+  test("a marked band loses the mark when the next rescan still finds mail", async () => {
     seedReport();
     await dispatch({ type: "gmailCleanerReportPurgeStarted", runId: "run-6", bandIds: ["promotions"] });
     await dispatch({
@@ -501,7 +544,24 @@ describe("pending band purge lifecycle", () => {
     expect(cleanedAt).toBeGreaterThan(0);
 
     await dispatch(SCAN);
-    expect(stored().bands.find((b) => b.id === "promotions").cleanedAt).toBe(cleanedAt);
+    expect(stored().bands.find((b) => b.id === "promotions").cleanedAt).toBe(0);
     expect(stored().bands.find((b) => b.id === "promotions").count).toBe(8000);
+  });
+
+  test("a marked band that really is empty keeps the mark", async () => {
+    seedReport();
+    await dispatch({ type: "gmailCleanerReportPurgeStarted", runId: "run-7", bandIds: ["promotions"] });
+    await dispatch({
+      type: "gmailCleanerDone",
+      summary: { count: 4200, dryRun: false, runId: "run-7" }
+    });
+    const cleanedAt = stored().bands.find((b) => b.id === "promotions").cleanedAt;
+    expect(cleanedAt).toBeGreaterThan(0);
+
+    await dispatch({
+      type: "gmailCleanerReportScanResult",
+      bands: [{ id: "promotions", kind: "noise", action: "delete", count: 0, estMb: 0 }]
+    });
+    expect(stored().bands.find((b) => b.id === "promotions").cleanedAt).toBe(cleanedAt);
   });
 });

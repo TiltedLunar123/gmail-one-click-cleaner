@@ -190,14 +190,18 @@ describe("Smart Suggestions count what their own button acts on (8.6)", () => {
 
 describe("the popup sends the guards rather than letting them default", () => {
   test("there is one helper and every scan uses it", () => {
-    expect(popupSrc).toContain("const buildScanGuards = async () => ({");
+    // 8.15: the pin used to include the arrow body's opening `({`, which
+    // made it a formatting pin rather than a behaviour one. The helper
+    // grew a refusal and a block body and this broke without anything
+    // being wrong. Anchor on the declaration only.
+    expect(popupSrc).toMatch(/const buildScanGuards = async \(\) =>/);
     const uses = popupSrc.split("await buildScanGuards()").length - 1;
     // report, x-ray, and (8.6) the smart scan.
     expect(uses).toBe(3);
   });
 
   test("it carries every guard applyGlobalGuards reads", () => {
-    const helper = fnBody(popupSrc, "const buildScanGuards = async () => ({", "// =========================");
+    const helper = fnBody(popupSrc, "const buildScanGuards = async () =>", "// =========================");
     for (const key of [
       "guardSkipStarred",
       "guardSkipImportant",

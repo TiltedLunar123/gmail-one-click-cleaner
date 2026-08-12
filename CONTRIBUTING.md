@@ -6,7 +6,7 @@ you start on anything in that area.
 
 ## Development Setup
 
-You'll need Node.js 18 or newer.
+You'll need Node.js 20 or newer. The AMO validator (`addons-linter`) requires it, and Node 18 is past end of life.
 
 1. **Clone the repo**
    ```bash

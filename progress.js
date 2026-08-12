@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const PROGRESS_VERSION = "8.14.0";
+  const PROGRESS_VERSION = "8.15.0";
 
   const CONFIG = Object.freeze({
     MAX_LOG_ENTRIES: 300,
@@ -63,6 +63,10 @@
     "Forums",
     "Newsletters",
     "No-reply"
+    // 8.15 deliberately leaves out the two labels added to the engine's
+    // map this release. Archiving old inbox mail is not a bulk-mail
+    // problem, and a sender-scoped run was already aimed at exactly the
+    // senders a pitch would name.
   ]);
 
   const LOG_LEVELS = Object.freeze({
@@ -114,7 +118,12 @@
     toastTimer: null,
     lastMessageTime: Date.now(),
     autoReconnectTimer: null,
-    autoReconnectAttempts: 0
+    autoReconnectAttempts: 0,
+    // 8.15: has an engine in this tab ever spoken to this page? Only
+    // then may auto-reconnect re-inject. Re-injection restarts a
+    // cleanup from the stored config, so doing it on a page that never
+    // saw a run starts one nobody asked for.
+    sawRunEvidence: false
   };
 
   // =========================
@@ -609,7 +618,7 @@
       )
       : t(
         "progDoneSafetyDelete",
-        "Every match was labelled first, then moved to Trash. Gmail keeps Trash for about 30 days, so it is still there."
+        "Every match was labelled first, then moved to Trash. Gmail keeps Trash for about 30 days, so it is still there, and your storage frees up when Trash empties."
       );
   };
 
@@ -1121,8 +1130,25 @@
   // Message Handler
   // =========================
 
+  // 8.15: ownership check for the broadcast engine messages. A message
+  // with no sending tab is not from an engine at all, and one from a
+  // different Gmail tab belongs to a different run.
+  const isMessageForThisRun = (sender) => {
+    if (!gmailTabId) return false;
+    const from = sender?.tab?.id;
+    // A sender without a tab predates nothing in this extension: every
+    // message this page handles is sent by contentScript.js. Refusing it
+    // is the safe direction, since acting on it is what caused the bug.
+    if (typeof from !== "number") return false;
+    return from === gmailTabId;
+  };
+
   const handleProgressMessage = (message) => {
     if (!message) return;
+
+    // Anything that got past the ownership check came from the engine
+    // in this page's Gmail tab, so a run demonstrably existed here.
+    state.sawRunEvidence = true;
 
     // Review request
     if (message.type === "gmailCleanerRequestReview") {
@@ -1376,6 +1402,7 @@
         appendLog("Run cleared. The cancel was sent first.", LOG_LEVELS.SUCCESS);
         setStatus("Run cleared. You can start a new one.");
         showToast("run cleared", "success");
+        markRunOver();
         return;
       }
 
@@ -1405,6 +1432,7 @@
         );
         setStatus("Gmail tab reloaded. You can start a new run.");
         showToast("gmail tab reloaded, run cleared", "success");
+        markRunOver();
         return;
       }
 
@@ -1417,6 +1445,7 @@
       );
       setStatus("Run cleared. You can start a new one.");
       showToast(bits.length ? "run cleared" : "nothing was stuck", "success");
+      markRunOver();
     } catch (err) {
       log("error", "Reset error:", err);
       appendLog(`Reset failed: ${err?.message || err}`, LOG_LEVELS.ERROR);
@@ -1584,6 +1613,18 @@
     }
   };
 
+  // 8.15: "there is no run here any more", said once so every caller
+  // gets both halves. Reset Stuck Run clears the attach flag in the
+  // Gmail tab, which is the exact signal auto-reconnect reads as "the
+  // engine is gone, put it back": pressing Reset and walking away armed
+  // a full unattended cleanup a minute later, from the last stored
+  // config. The terminal-message path has done this since 7.x; the
+  // reset path never did.
+  const markRunOver = () => {
+    state.done = true;
+    stopAutoReconnect();
+  };
+
   // Is the engine still in that tab? Re-injecting while it is would run
   // a SECOND pass over the same mailbox: double deletes, doubled stats,
   // two engines fighting over Gmail's UI. A silent run is not proof it
@@ -1667,6 +1708,24 @@
     // Step 2: Re-inject the content script
     if (!GCC.hasChromeScripting()) {
       appendLog("Auto-reconnect: scripting unavailable, cannot re-inject.", LOG_LEVELS.ERROR);
+      state.isReconnecting = false;
+      return;
+    }
+
+    // 8.15: re-injection is not a reconnect, it starts the cleaner
+    // again from the stored config. That is the right thing to do for a
+    // run that went quiet, and the wrong thing on a page that has never
+    // heard from one: a dashboard opened for a run that failed to
+    // inject, or one whose run was cleared by Reset, would sit there and
+    // then start a full sweep on its own a minute later. Silence with
+    // no run behind it stays silence.
+    if (!state.sawRunEvidence) {
+      appendLog(
+        "Auto-reconnect: no run has reported to this page, so there is nothing to reconnect to. Use Re-inject if you meant to start one.",
+        LOG_LEVELS.WARNING
+      );
+      setStatus("No run reported here. Use Reconnect or Re-inject.");
+      stopAutoReconnect();
       state.isReconnecting = false;
       return;
     }
@@ -1797,8 +1856,19 @@
     setupKeyboardShortcuts();
 
     if (GCC.hasChrome() && chrome.runtime.onMessage) {
-      chrome.runtime.onMessage.addListener((msg) => {
+      chrome.runtime.onMessage.addListener((msg, sender) => {
         try {
+          // 8.15: this page is the dashboard for ONE Gmail tab, and the
+          // engine broadcasts to every extension page. A finished
+          // dashboard left open for account A therefore adopted account
+          // B's run: B's per-query rows appended to A's table, B's
+          // totals repainted A's summary, and both pages raised B's
+          // guardrail dialog. Answering on the wrong one posted the
+          // reply to tab A, whose engine was long gone, so run B waited
+          // out its timeout and stopped after the user had clicked
+          // Continue. Every one of these three message types comes from
+          // a content script, so the sending tab settles ownership.
+          if (!isMessageForThisRun(sender)) return;
           handleProgressMessage(msg);
         } catch (err) {
           log("error", "Error handling progress message:", err);

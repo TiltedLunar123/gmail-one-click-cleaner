@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const OPTIONS_VERSION = "8.14.0";
+  const OPTIONS_VERSION = "8.15.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -124,6 +124,9 @@
   const state = {
     saving: false,
     hasUnsavedChanges: false,
+    // 8.15: the Pro Settings card saves separately, so it tracks its own
+    // edits. Only beforeunload reads both.
+    proSettingsDirty: false,
     initialData: null
   };
 
@@ -662,7 +665,13 @@
     });
 
     window.addEventListener("beforeunload", (e) => {
-      if (!state.hasUnsavedChanges) return;
+      // 8.15: the Pro Settings card has its own Save button and was
+      // never part of this check, because the page's dirty test runs off
+      // collectAllData, which only knows about the rules, the whitelist,
+      // the keywords and the debug switch. So editing the recovery label
+      // or the Auto-Pilot interval and then closing the tab lost the
+      // edit with no indicator, no title bullet and no prompt.
+      if (!state.hasUnsavedChanges && !state.proSettingsDirty) return;
       e.preventDefault();
       e.returnValue = "";
       return "";
@@ -827,8 +836,21 @@
   // figure and names every drop, so the user agrees to the import that
   // is really about to happen.
   const IMPORT_SECTIONS = Object.freeze([
+    // 8.15: rules are the one section where kept and dropped cannot be
+    // read off the same subtraction. normalizeRules backfills any level
+    // the file omits from the built-in defaults, so a hand-written
+    // backup carrying 60 normal rules and nothing else stores 50 of them
+    // plus 29 defaults: kept (79) came out ABOVE raw (60) and the drop
+    // floored to zero, so the ten rules that fell off the cap were never
+    // mentioned. kept stays the honest total that will be in storage;
+    // the drop is now measured level by level, and only against levels
+    // the file actually carried.
     { label: "rules", raw: (j) => RULE_KEYS.reduce((n, k) => n + (Array.isArray(j.rules?.[k]) ? j.rules[k].length : 0), 0),
-      kept: (d) => RULE_KEYS.reduce((n, k) => n + (d[STORAGE_KEYS.RULES]?.[k]?.length || 0), 0) },
+      kept: (d) => RULE_KEYS.reduce((n, k) => n + (d[STORAGE_KEYS.RULES]?.[k]?.length || 0), 0),
+      dropped: (d, j) => RULE_KEYS.reduce((n, k) => {
+        if (!Array.isArray(j.rules?.[k])) return n;
+        return n + Math.max(0, j.rules[k].length - (d[STORAGE_KEYS.RULES]?.[k]?.length || 0));
+      }, 0) },
     { label: "whitelist entries", raw: (j) => (Array.isArray(j.whitelist) ? j.whitelist.length : 0),
       kept: (d) => d[STORAGE_KEYS.WHITELIST]?.length || 0 },
     { label: "protected keywords", raw: (j) => (Array.isArray(j.protectKeywords) ? j.protectKeywords.length : 0),
@@ -845,7 +867,14 @@
     const sections = IMPORT_SECTIONS.map((s) => {
       const raw = Number(s.raw(data)) || 0;
       const kept = Number(s.kept(set, data)) || 0;
-      return { label: s.label, raw, kept, dropped: Math.max(0, raw - kept) };
+      // A section may measure its own drop when kept and raw are not
+      // counting the same population. Everything else is the plain
+      // subtraction, floored at 0 so a defaults backfill never reads as
+      // a loss.
+      const dropped = typeof s.dropped === "function"
+        ? Math.max(0, Number(s.dropped(set, data)) || 0)
+        : Math.max(0, raw - kept);
+      return { label: s.label, raw, kept, dropped };
     });
     return { sections, dropped: sections.filter((s) => s.dropped > 0) };
   };
@@ -992,6 +1021,21 @@
 
       try {
         await safeSyncSet(writeSet, "imported config");
+
+        // 8.15: an import writes `schedules` straight to sync, which is
+        // the one thing the save path does that this one did not: arm
+        // the alarm. So an imported schedule rendered as Enabled with
+        // nothing behind it, and only a browser restart or a manual
+        // toggle off and on ever made it run. Re-arm from what was just
+        // written, and repaint the list, which loadData does not touch.
+        if (Object.prototype.hasOwnProperty.call(writeSet, STORAGE_KEYS.SCHEDULES)) {
+          try {
+            await sendSwMessage({ type: "gmailCleanerSchedulesReplaced" });
+          } catch (e) {
+            console.warn("[Options] could not re-arm imported schedules:", e);
+          }
+          await renderSchedules();
+        }
 
         await loadData();
         clearUnsaved();
@@ -1439,9 +1483,19 @@
       const info = document.createElement("div");
       info.style.cssText = "flex:1;";
 
+      // 8.15: both row controls name the action AND the schedule they
+      // act on. Their visible text is a state word and a multiplication
+      // sign, so a screen reader read "Enabled, button" and "times,
+      // button", identically on every row, for a pair of controls that
+      // change and delete unattended cleanups with no confirm step.
+      // The custom-rule delete button has named itself since 7.x; these
+      // two never did.
+      const scheduleName = (freqLabels[String(schedule.intervalMinutes)] || "Custom") +
+        " " + schedule.intensity + " clean";
+
       const title = document.createElement("div");
       title.style.cssText = "font-size:13px; font-weight:500; color:var(--text-main);";
-      title.textContent = (freqLabels[String(schedule.intervalMinutes)] || "Custom") + " " + schedule.intensity + " clean";
+      title.textContent = scheduleName;
 
       const meta = document.createElement("div");
       meta.style.cssText = "font-size:11px; color:var(--text-muted); margin-top:2px;";
@@ -1454,6 +1508,11 @@
       const toggle = document.createElement("button");
       toggle.type = "button";
       toggle.textContent = schedule.enabled ? "Enabled" : "Disabled";
+      toggle.setAttribute("aria-pressed", schedule.enabled ? "true" : "false");
+      toggle.setAttribute(
+        "aria-label",
+        (schedule.enabled ? "Disable" : "Enable") + " the " + scheduleName
+      );
       toggle.style.cssText = "padding:4px 10px; border-radius:9999px; font-size:11px; font-weight:600; border:1px solid; cursor:pointer;";
       if (schedule.enabled) {
         toggle.style.background = "rgba(16,185,129,0.15)";
@@ -1487,6 +1546,7 @@
       deleteBtn.type = "button";
       deleteBtn.textContent = "\u00D7";
       deleteBtn.title = "Remove schedule";
+      deleteBtn.setAttribute("aria-label", "Remove the " + scheduleName);
       deleteBtn.style.cssText = "background:none; border:none; color:#ef4444; font-size:18px; cursor:pointer; padding:0 4px; line-height:1;";
       deleteBtn.addEventListener("click", async () => {
         const resp = await sendSwMessage({ type: "gmailCleanerDeleteSchedule", scheduleId: schedule.id });
@@ -1758,6 +1818,29 @@
     const DEFAULTS = GCC.proSettings.DEFAULTS;
     let isPro = false;
 
+    // 8.15: the card's own unsaved-changes tracking.
+    //
+    // Snapshot the DOM values, not the settings object: the save path
+    // rewrites the field itself when the label prefix is blank
+    // (`if (check.reset) labelInput.value = check.value`), so a baseline
+    // taken from the object would read clean while the box on screen
+    // said something else.
+    const proFields = () => [labelInput, intervalSel, depthSel, maxSendersSel, minAgeSel, undoEntriesSel];
+    const proSnapshot = () => proFields().map((el) => (el ? String(el.value) : "")).join(" ");
+    let proBaseline = proSnapshot();
+
+    const setProDirty = (dirty) => {
+      state.proSettingsDirty = dirty;
+      if (statusEl) statusEl.textContent = dirty ? "Unsaved changes" : "";
+    };
+
+    const rebaselinePro = () => {
+      proBaseline = proSnapshot();
+      setProDirty(false);
+    };
+
+    const onProFieldEdit = () => setProDirty(proSnapshot() !== proBaseline);
+
     const renderPreview = () => {
       if (!labelPreview) return;
       const check = GCC.proSettings.validateLabelPrefix(labelInput.value);
@@ -1808,7 +1891,11 @@
       // lapsed copy sees the defaults that are actually in force, not
       // the values it saved while the key was present.
       applyToForm(await GCC.proSettings.read(isPro));
-      if (statusEl) statusEl.textContent = "";
+      // renderState re-runs when a licence is activated or removed in
+      // another tab, and it repaints every field, so the baseline has to
+      // move with it or the card would call itself dirty over a change
+      // the user did not make.
+      rebaselinePro();
     };
 
     const persist = async (settings, btn) => {
@@ -1835,7 +1922,12 @@
       const check = GCC.proSettings.validateLabelPrefix(labelInput.value);
       showLabelError(check.ok ? "" : check.error);
       renderPreview();
+      onProFieldEdit();
     });
+
+    for (const el of [intervalSel, depthSel, maxSendersSel, minAgeSel, undoEntriesSel]) {
+      el?.addEventListener("change", onProFieldEdit);
+    }
 
     saveBtn.addEventListener("click", async () => {
       if (!isPro) return;
@@ -1863,6 +1955,7 @@
       if (await persist(settings, saveBtn)) {
         GCC.showToast("Pro settings saved", "success");
         renderPreview();
+        rebaselinePro();
       }
     });
 
@@ -1875,6 +1968,7 @@
       // other Restore defaults button a thousand lines above.
       if (await persist({ ...DEFAULTS }, resetBtn)) {
         applyToForm(DEFAULTS);
+        rebaselinePro();
         GCC.showToast("Pro settings reset to defaults", "info");
       }
     });
