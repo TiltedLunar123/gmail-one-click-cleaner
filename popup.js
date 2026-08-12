@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "8.14.0";
+  const POPUP_VERSION = "8.15.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -124,6 +124,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const state = {
     isRunning: false,
     currentGmailTabId: null,
+    // 8.15: the account the user picked, kept apart from the tab handle
+    // above. That one belongs to the run in flight and the terminal
+    // handlers null it; a pick has to outlive any run, including one
+    // this popup never started.
+    selectedGmailTabId: null,
     // True only when THIS popup instance injected the running engine.
     // Distinguishes "my run" from a schedule or Auto-Pilot sweep the popup
     // merely detected through the active-run marker.
@@ -755,7 +760,7 @@ document.addEventListener("DOMContentLoaded", () => {
         ? t("resultNoteDry", "This was a preview. No mail was moved, deleted or labelled.")
         : (archived
           ? t("resultNoteArchive", "Nothing deleted. Archived mail stays in All Mail, and you can restore it from Stats at any time.")
-          : t("resultNote", "Nothing permanently deleted, Gmail keeps Trash for 30 days. You can restore anytime."));
+          : t("resultNote", "Nothing permanently deleted, Gmail keeps Trash for 30 days. You can restore anytime. Your storage only frees up once Trash empties."));
     }
     elements.resultSummary.classList.add("show");
   };
@@ -823,18 +828,58 @@ document.addEventListener("DOMContentLoaded", () => {
     return Boolean(r?.[STORAGE_KEYS.DEBUG_MODE]);
   };
 
+  // 8.15: a read that FAILED is not a read that found nothing.
+  //
+  // storageGet answers a rejected read with `{}`, which is right for a
+  // preference and wrong for a safety list. The whitelist and the
+  // protected keywords are the only two things standing between a rule
+  // and mail the user said never to touch, and the engine cannot ask
+  // for them itself: it exclusively emits `-from:` and `-subject:`
+  // exclusions from what the popup hands over. So a transient sync
+  // failure turned "these senders are protected" into "nothing is
+  // protected" and the run went ahead and reported an ordinary success.
+  //
+  // Same shape as readLicenseState in the worker (8.14): a third
+  // answer for "could not tell", and the caller refuses rather than
+  // guesses. Outside an extension context (tests, the HTTP render
+  // harness) there is no storage to fail, so those still read empty.
+  const readSafetyList = async (key) => {
+    if (!GCC.hasChromeStorage("sync")) return { ok: true, value: undefined };
+    try {
+      const r = await GCC.promisify(
+        chrome.storage.sync.get.bind(chrome.storage.sync),
+        key
+      );
+      return { ok: true, value: r?.[key] };
+    } catch (e) {
+      log("warn", `storage.sync.get failed for ${key}`, e);
+      return { ok: false, value: undefined };
+    }
+  };
+
+  // null means "unreadable", never "empty".
   const getWhitelist = async () => {
-    const r = await storageGet("sync", STORAGE_KEYS.WHITELIST);
-    const wl = r?.[STORAGE_KEYS.WHITELIST];
-    return Array.isArray(wl) ? wl : [];
+    const read = await readSafetyList(STORAGE_KEYS.WHITELIST);
+    if (!read.ok) return null;
+    return Array.isArray(read.value) ? read.value : [];
   };
 
   // 6.1: global protected keywords (subject shield). Sanitized here via
   // the shared helper so the engine always receives a clean list.
   const getProtectKeywords = async () => {
-    const r = await storageGet("sync", STORAGE_KEYS.PROTECT_KEYWORDS);
-    return GCC.sanitizeProtectKeywords(r?.[STORAGE_KEYS.PROTECT_KEYWORDS]);
+    const read = await readSafetyList(STORAGE_KEYS.PROTECT_KEYWORDS);
+    if (!read.ok) return null;
+    return GCC.sanitizeProtectKeywords(read.value);
   };
+
+  // Thrown by buildConfig and buildScanGuards so no run and no scan can
+  // be assembled without them. Every caller of both already sits in a
+  // try/catch that reports the message and releases the run claim, so
+  // the refusal is visible and a future caller inherits it for free.
+  const guardsUnreadableError = () => new Error(t(
+    "guardsUnreadable",
+    "your protected senders and keywords could not be read, so nothing was touched. Try again in a moment."
+  ));
 
   // We persist the raw UI snapshot (preserves "monthly" as the user
   // picked it) AND the engine-normalised config (legacy callers and
@@ -1042,11 +1087,20 @@ document.addEventListener("DOMContentLoaded", () => {
   const findGmailTab = async () => {
     if (!GCC.hasChromeTabs()) return null;
 
-    // Multi-account: if user selected a specific tab, use it
-    if (state.currentGmailTabId) {
+    // Multi-account: if user selected a specific tab, use it.
+    //
+    // 8.15: the account pick and the live run's tab handle used to be
+    // one field, and the terminal handlers null it. So a pick made a
+    // moment before a schedule or an Auto-Pilot sweep reported done was
+    // thrown away while its pill stayed highlighted, and the next Run
+    // silently fell through to whatever Gmail tab happened to be in
+    // front. The pick is its own field now and nothing on the run
+    // lifecycle clears it.
+    const picked = state.selectedGmailTabId ?? state.currentGmailTabId;
+    if (picked) {
       try {
         const tabs = await tabsQuery({ url: `${CONFIG.GMAIL_URL}*` });
-        const selected = tabs.find(t => t.id === state.currentGmailTabId);
+        const selected = tabs.find(t => t.id === picked);
         if (selected) return selected;
       } catch (e) {
         log("warn", "findGmailTab selected tab lookup failed", e);
@@ -1082,10 +1136,22 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.accountSelector.style.display = "flex";
       elements.accountSelector.textContent = "";
 
-      tabs.forEach((tab, idx) => {
+      // 8.15: the highlight used to be hardcoded to the first pill while
+      // findGmailTab, with nothing picked, resolves the ACTIVE Gmail tab.
+      // With two accounts open and the second one in front, the one
+      // control whose whole job is to say which mailbox a run acts on
+      // named the wrong one, and every run kind goes through the same
+      // fallback. Resolve the target first, then paint from it, so the
+      // highlight and the injection target cannot be two guesses.
+      const defaultTab = tabs.find((t) => t.active) || tabs[0];
+      if (state.selectedGmailTabId === null && defaultTab) {
+        state.selectedGmailTabId = defaultTab.id;
+      }
+
+      tabs.forEach((tab) => {
         const pill = document.createElement("button");
         pill.type = "button";
-        pill.className = "account-pill" + (idx === 0 ? " active" : "");
+        pill.className = "account-pill" + (tab.id === state.selectedGmailTabId ? " active" : "");
         pill.textContent = tab.title
           ? tab.title.replace(/ - Gmail.*$/, "").slice(0, 25)
           : t("accountPill", "Account " + tab.account, [String(tab.account)]);
@@ -1093,7 +1159,7 @@ document.addEventListener("DOMContentLoaded", () => {
         pill.addEventListener("click", () => {
           elements.accountSelector.querySelectorAll(".account-pill").forEach(pill => pill.classList.remove("active"));
           pill.classList.add("active");
-          state.currentGmailTabId = tab.id;
+          state.selectedGmailTabId = tab.id;
         });
         elements.accountSelector.appendChild(pill);
       });
@@ -1505,6 +1571,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const buildConfig = async () => {
     const whitelist = await getWhitelist();
     const protectKeywords = await getProtectKeywords();
+    if (whitelist === null || protectKeywords === null) throw guardsUnreadableError();
     const proSettings = await getProSettings();
 
     let intensity = elements.intensityEl?.value || "normal";
@@ -1548,16 +1615,26 @@ document.addEventListener("DOMContentLoaded", () => {
   // reads a MISSING guard as ON: a scan that shipped no guards would
   // count as though all four were set even for a user who turned them
   // off, which is the same lie pointing the other way.
-  const buildScanGuards = async () => ({
-    safeMode: Boolean(elements.safeModeEl?.checked),
-    minAge: elements.minAgeEl?.value || null,
-    guardSkipStarred: elements.skipStarredEl?.checked ?? true,
-    guardSkipImportant: elements.skipImportantEl?.checked ?? true,
-    guardSkipUnread: elements.skipUnreadEl?.checked ?? true,
-    guardSkipUserLabels: elements.skipLabeledEl?.checked ?? true,
-    whitelist: await getWhitelist(),
-    protectKeywords: await getProtectKeywords()
-  });
+  //
+  // 8.15: and it refuses on an unreadable list for the same reason
+  // buildConfig does. A scan that quietly dropped the exclusions would
+  // over-count in exactly the direction that makes the purge beside it
+  // look correct, so the parity surface could not reveal the loss.
+  const buildScanGuards = async () => {
+    const whitelist = await getWhitelist();
+    const protectKeywords = await getProtectKeywords();
+    if (whitelist === null || protectKeywords === null) throw guardsUnreadableError();
+    return {
+      safeMode: Boolean(elements.safeModeEl?.checked),
+      minAge: elements.minAgeEl?.value || null,
+      guardSkipStarred: elements.skipStarredEl?.checked ?? true,
+      guardSkipImportant: elements.skipImportantEl?.checked ?? true,
+      guardSkipUnread: elements.skipUnreadEl?.checked ?? true,
+      guardSkipUserLabels: elements.skipLabeledEl?.checked ?? true,
+      whitelist,
+      protectKeywords
+    };
+  };
 
   // =========================
   // Run cleanup
@@ -2050,11 +2127,27 @@ document.addEventListener("DOMContentLoaded", () => {
         persistSubsSelection();
       });
       if (sender.status === "unsubscribed") checkbox.disabled = true;
+      // 8.15: "Needs their website" is a positive match on Gmail handing
+      // the unsubscribe off to the sender's own site, so a run can never
+      // finish that one and the row is closed. "No unsubscribe link" is
+      // NOT: the engine returns it when a six-second wait missed Gmail's
+      // control, and nothing anywhere resets a stored status, so
+      // disabling it would lock a sender out over one slow page load.
+      if (sender.status === "manual") checkbox.disabled = true;
       // 8.0: restore a selection the user made before they were sent to
       // checkout. handleUnsubscribe checks the licence BEFORE it reads
       // the checkboxes and then closes the popup, so the people who
       // lost their triage were exactly the people about to pay.
-      if (state.subs.checked.has(sender.email) && !checkbox.disabled) checkbox.checked = true;
+      //
+      // 8.15: but not onto a sender the last run already settled. The
+      // selection is a snapshot taken at popup open and the change
+      // handler never removes from it, so every later run re-ticked the
+      // senders it had just finished and spent its 25-sender budget
+      // re-doing them, most often while the popup was closed and the
+      // user could not see it happening.
+      if (state.subs.checked.has(sender.email) && !checkbox.disabled && !sender.status) {
+        checkbox.checked = true;
+      }
 
       const name = document.createElement("span");
       name.className = "subs-row-name";
@@ -3708,8 +3801,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const loadStoredSmartScan = async () => {
     if (!GCC.hasChrome() || !chrome.runtime?.sendMessage) return;
     try {
-      state.smart.whitelist = await getWhitelist();
-      state.smart.protectKeywords = await getProtectKeywords();
+      // 8.15: these two drive the card vetoes, so an unreadable list
+      // must not read as "nothing is protected" here either. Keeping
+      // the last known lists means the cards can only under-suggest.
+      const wl = await getWhitelist();
+      const pk = await getProtectKeywords();
+      if (wl !== null) state.smart.whitelist = wl;
+      if (pk !== null) state.smart.protectKeywords = pk;
       const resp = await new Promise((resolve) => {
         chrome.runtime.sendMessage({ type: "gmailCleanerGetSmartScan" }, resolve);
       });

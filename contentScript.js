@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "8.14.0";
+  const GCC_CONTENT_VERSION = "8.15.0";
 
   // =========================
   // Timing & behavior constants
@@ -2381,7 +2381,18 @@
     [/category:updates/, "Updates"],
     [/category:forums/, "Forums"],
     [/newsletter|unsubscribe/, "Newsletters"],
-    [/no-reply|donotreply|do-not-reply/, "No-reply"]
+    [/no-reply|donotreply|do-not-reply/, "No-reply"],
+    // 8.15: appended, never inserted, so every query that already
+    // matched one of the seven above keeps the exact label it had. These
+    // two only catch what used to fall through to "Other": the report's
+    // two Inbox steps, and any sender-scoped run (a Smart Suggestion
+    // apply, an Auto-Pilot sweep, a Storage X-ray purge). That label is
+    // the Gmail label the mail is tagged with, the heading in the
+    // recovery log, and the category on the Stats page, so filing all of
+    // them under "Other" made a weekly sweep indistinguishable from a
+    // one-off and left the Restore search harder to read.
+    [/\bin:inbox\b/, "Inbox"],
+    [/\bfrom:\(/, "Senders"]
   ]);
 
   function labelQuery(query) {

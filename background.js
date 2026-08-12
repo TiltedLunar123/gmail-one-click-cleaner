@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "8.14.0";
+  const SW_VERSION = "8.15.0";
 
   // =========================
   // Storage Keys
@@ -1013,6 +1013,17 @@
           .then(() => sendResponse({ ok: true }));
         return true;
 
+      // 8.15: an import writes the schedules key straight to sync
+      // storage rather than going through saveSchedule, so nothing armed
+      // the alarms and an imported schedule sat there reading "Enabled"
+      // with no unattended run behind it until the next browser restart.
+      // Options calls this after the write.
+      case "gmailCleanerSchedulesReplaced":
+        restoreScheduledAlarms()
+          .then(() => sendResponse({ ok: true }))
+          .catch((err) => sendResponse({ ok: false, error: err?.message || "rearm failed" }));
+        return true;
+
       // Ping
       case "gmailCleanerSwPing":
         sendResponse({ ok: true, version: SW_VERSION });
@@ -1630,13 +1641,29 @@
 
       // A rescan replaces counts but keeps the "you already cleared
       // this" marks, so the plan does not forget what the user did.
+      //
+      // 8.15: unless the fresh scan says there is mail there. A run can
+      // finish having cleared only part of a step (the pass cap, or the
+      // per-query wall-time bail) and the engine's own message says so:
+      // "Cleared 7,500 so far; run the cleaner again to continue this
+      // rule." But cleanedAt was stamped on any run that moved anything,
+      // and then carried forward forever. The row kept showing a
+      // five-figure count with a "Cleared" chip and no Run button, the
+      // whole-plan button excluded it, and for a free user that was
+      // their one unlocked step gone for good. The mark now means "this
+      // step is empty because you cleared it", which is what the chip
+      // claims, so a rescan that finds mail again drops it.
       const prevResult = await chrome.storage.local.get(STORAGE_KEYS.REPORT);
       const prevCleaned = Object.create(null);
       for (const entry of prevResult?.[STORAGE_KEYS.REPORT]?.bands || []) {
         if (entry?.id && Number(entry.cleanedAt) > 0) prevCleaned[entry.id] = Number(entry.cleanedAt);
       }
       for (const band of clean) {
-        if (prevCleaned[band.id]) band.cleanedAt = prevCleaned[band.id];
+        // A band the scan could not measure keeps its mark: absent
+        // evidence is not evidence the step refilled.
+        if (!prevCleaned[band.id]) continue;
+        if (band.measured !== false && band.count > 0) continue;
+        band.cleanedAt = prevCleaned[band.id];
       }
 
       const topSenders = [];
@@ -1852,10 +1879,16 @@
     }
   }
 
-  async function recordPendingSmartApply(runId, senders) {
+  // 8.15: `cap` exists because the marker has to describe the run that
+  // actually happened. The popup's bulk apply is fixed at 25, but an
+  // Auto-Pilot sweep can now clear up to the Pro setting, and a marker
+  // that named only the first 25 would book applied-feedback for a
+  // fraction of the senders the sweep really touched.
+  async function recordPendingSmartApply(runId, senders, cap = 25) {
     const id = String(runId || "");
+    const limit = Number.isFinite(Number(cap)) && Number(cap) > 0 ? Number(cap) : 25;
     const list = Array.isArray(senders)
-      ? senders.filter((s) => typeof s === "string").slice(0, 25)
+      ? senders.filter((s) => typeof s === "string").slice(0, limit)
       : [];
     if (!id || list.length === 0) return;
     try {
@@ -2331,8 +2364,19 @@
   // storage x-ray hit exactly this in 8.0 and chunks; Auto-Pilot runs
   // unattended and weekly, so it was the one place nobody would see it
   // happen. The cleanup path already accepts several rules.
-  function autoPilotBuildRules(emails) {
+  //
+  // 8.15: `cap` mirrors autoPilotPickSenders. 8.13 taught the picker the
+  // Pro setting and left this one on the constant, so choosing 50
+  // senders per sweep picked 50 and then built rules for 25: the option
+  // was a silent no-op above the default and nothing reported the 25 it
+  // dropped. Clamped to the same allow-list for the same reason, and
+  // defaulted so the parity with GCC.smart.buildBulkRules (which caps at
+  // MAX_BULK_PER_RUN) still holds for every caller that passes nothing.
+  function autoPilotBuildRules(emails, cap = AUTOPILOT_MAX_PER_RUN) {
     if (!Array.isArray(emails)) return [];
+    const limit = PRO_SETTINGS_MAX_SENDERS.includes(Number(cap))
+      ? Number(cap)
+      : AUTOPILOT_MAX_PER_RUN;
     const clean = [];
     const seen = new Set();
     for (const raw of emails) {
@@ -2341,7 +2385,7 @@
       if (!email || email.length > 320 || !SMART_EMAIL_RE.test(email) || seen.has(email)) continue;
       seen.add(email);
       clean.push(email);
-      if (clean.length >= AUTOPILOT_MAX_PER_RUN) break;
+      if (clean.length >= limit) break;
     }
     if (!clean.length) return [];
 
@@ -2699,6 +2743,23 @@
       // picked its tab afresh by "whichever Gmail tab is active". See
       // startAutoPilotApply: the account is now pinned here and checked
       // there.
+      // 8.15: `enabled` was read once at the top of this function, and
+      // everything between there and here is awaited work: a management
+      // round trip, a licence verify with a P-256 signature check, four
+      // storage reads, a tabs query, and a scripting probe into the
+      // Gmail tab. Turning Auto-Pilot off inside that window landed
+      // before this write, so setAutoPilotEnabled saw no pending stage
+      // to stop, its `pending: null` was overwritten a moment later, and
+      // the sweep went on to churn the user's Gmail tab through thirty
+      // searches for a feature they had just switched off. The apply
+      // stage already re-reads the licence and the switch for the same
+      // reason; the scan stage now does too.
+      const freshConfig = await getAutoPilotConfig();
+      if (!freshConfig.enabled) {
+        console.log("[GCC SW] Auto-Pilot: turned off while the sweep was starting, standing down");
+        return;
+      }
+
       const scanRunId = `ap_scan_${Date.now()}`;
       await setAutoPilotState({
         pending: {
@@ -2822,7 +2883,7 @@
       // "Auto-Pilot handled everything" on a sweep that skipped the
       // large-attachment and unsubscribe suggestions on purpose.
       const deferred = autoPilotDeferredCount(scanned, feedback, whitelist, protectKeywords);
-      const rules = autoPilotBuildRules(senders);
+      const rules = autoPilotBuildRules(senders, proSettings.autoPilotMaxSenders);
 
       if (!rules.length) {
         // Nothing safe to sweep: record the visit so the popup can say
@@ -2871,7 +2932,7 @@
       // Live sweeps register the pending-apply marker so confirmed
       // applies feed the same feedback loop popup applies do.
       if (!dryRun) {
-        await recordPendingSmartApply(runId, senders);
+        await recordPendingSmartApply(runId, senders, proSettings.autoPilotMaxSenders);
       }
 
       await setAutoPilotState({
@@ -3802,6 +3863,10 @@
       autoPilotActionSweepable,
       autoPilotDeferredCount,
       autoPilotBuildRules,
+      // 8.15: the sweep's cap has to reach the applied-feedback marker
+      // too, so the marker is now testable on its own.
+      recordPendingSmartApply,
+      restoreScheduledAlarms,
       runAutoPilot,
       runScheduledCleanup,
       isEngineAttached,

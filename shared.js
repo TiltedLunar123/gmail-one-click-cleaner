@@ -1896,10 +1896,20 @@ const GCC = (() => {
     return newest;
   };
 
-  // History entries carry deleted/archived counts but not the run's
-  // action; a run books everything under one of the two, so archived
-  // hits with zero deletions read as an archive run.
+  // 8.15: read the recorded action first. History entries have carried
+  // one since 8.7, and inferring from counts gets the empty run wrong in
+  // the one direction that matters: an archive run that moved nothing
+  // has archived === 0, so it recapped as "all moved to Trash" with
+  // "nothing permanently deleted, Gmail keeps Trash for 30 days" under
+  // it, a claim about mail that was never deleted. It also un-suppressed
+  // the freed-MB clause, which 8.9 hid for archive runs on purpose.
+  // Stats made exactly this fix in 8.7 for the same reason; the recap
+  // was the last reader still guessing. Entries written before 8.7 carry
+  // no action field, so those keep the old inference.
   const recapAction = (entry) => {
+    const recorded = entry?.action;
+    if (recorded === "archive") return "archive";
+    if (recorded === "delete") return "trash";
     const archived = Number(entry?.archived) || 0;
     const deleted = Number(entry?.deleted) || 0;
     return archived > 0 && deleted === 0 ? "archive" : "trash";
@@ -2408,6 +2418,10 @@ const GCC = (() => {
     ACTION_LABELS: SMART_ACTION_LABELS,
     score: smartScore,
     vetoReasons: smartVetoReasons,
+    // 8.15: exported so the Stats page can answer "is this sender
+    // already protected" with the same semantics the engine's query
+    // builder uses, rather than growing a fourth copy of them.
+    whitelistCovers: whitelistCoversSender,
     recordFeedback: smartRecordFeedback,
     isDismissed: smartIsDismissed,
     rankSenders: smartRankSenders,

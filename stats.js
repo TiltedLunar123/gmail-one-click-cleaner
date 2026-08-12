@@ -35,6 +35,10 @@ const ui = {
 // =========================
 
 async function loadStats() {
+  // Before the senders render, so a protected sender never flashes an
+  // enabled Protect button.
+  await loadWhitelist();
+
   const resp = await GCC.sendMessage({ type: "gmailCleanerGetStats" });
   const stats = resp?.stats;
 
@@ -125,6 +129,37 @@ async function renderProPitch(stats) {
 // Top Senders Intelligence
 // =========================
 
+// 8.15: the whitelist, read once per stats load and kept here so the
+// top-sender rows can say which senders are already protected. Without
+// it the Protect button offered itself on every row, including senders
+// the whitelist already covers, and the 30-second refresh wiped the
+// "Protected" text the click had just written.
+let whitelistEntries = [];
+
+async function loadWhitelist() {
+  try {
+    const stored = await GCC.storageGet("sync", "whitelist");
+    const wl = stored?.whitelist;
+    whitelistEntries = Array.isArray(wl) ? wl.filter((e) => typeof e === "string") : [];
+  } catch {
+    // A read that failed is not an empty whitelist. Leaving the previous
+    // list in place means a row can only ever look MORE protected than
+    // it is, and the button underneath still refuses a duplicate.
+  }
+}
+
+// An entry the engine itself refuses (spaces, braces, parens) protects
+// nobody, so it must not paint a Protected chip either.
+const WHITELIST_UNUSABLE_RE = /\s|[{}()]/;
+
+function senderIsProtected(email) {
+  const addr = String(email || "").trim().toLowerCase();
+  if (!addr.includes("@")) return false;
+  return whitelistEntries.some(
+    (entry) => !WHITELIST_UNUSABLE_RE.test(entry) && GCC.smart.whitelistCovers(entry, addr)
+  );
+}
+
 function renderTopSenders(senders) {
   if (!ui.topSendersList) return;
   ui.topSendersList.textContent = "";
@@ -155,17 +190,30 @@ function renderTopSenders(senders) {
       textContent: "Search"
     });
 
+    const covered = senderIsProtected(entry.sender);
+
     const whitelistBtn = GCC.createEl("button", {
       className: "btn btn-sm btn-success",
       type: "button",
-      textContent: "Protect"
+      textContent: covered ? "Protected" : "Protect"
     });
+    if (covered) whitelistBtn.disabled = true;
     whitelistBtn.addEventListener("click", async () => {
       const resp = await GCC.sendMessage({ type: "gmailCleanerAddToWhitelist", sender: entry.sender });
-      if (resp?.ok) {
+      if (resp?.ok && resp.added === false) {
+        // addToWhitelist answers ok with added:false for a sender the
+        // list already covers. Reporting that as a fresh success was the
+        // reason the row could claim it had just done something it had
+        // not.
+        GCC.showToast("Already in your whitelist", "info");
+        whitelistBtn.disabled = true;
+        whitelistBtn.textContent = "Protected";
+      } else if (resp?.ok) {
         GCC.showToast("Added to whitelist", "success");
         whitelistBtn.disabled = true;
         whitelistBtn.textContent = "Protected";
+        const addr = String(entry.sender || "").trim().toLowerCase();
+        if (addr) whitelistEntries.push(addr);
       } else if (resp?.error === "not an address or domain") {
         // Gmail did not render an address for this row, so the only key
         // we have is the display name, and a whitelist entry has to be
@@ -558,6 +606,22 @@ function handleRestoreProgress(msg) {
   }, 600);
 }
 
+// Whole days left in Gmail's Trash window for a restorable DELETE
+// entry, or null when the countdown does not apply (archive runs, runs
+// already restored, entries that were never restorable). Hedged with
+// "about" by the caller, because every other surface in this product
+// hedges the 30 days: it is Gmail's window, not ours, and Google
+// describes it as approximate.
+function restoreDaysLeft(entry, verdict, now = Date.now()) {
+  if (!verdict?.eligible) return null;
+  if (verdict.action !== "delete") return null;
+  const ts = Number(entry?.timestamp) || 0;
+  if (!ts) return null;
+  const left = GCC.restore.TRASH_WINDOW_MS - (now - ts);
+  if (left <= 0) return null;
+  return Math.max(1, Math.ceil(left / (24 * 60 * 60 * 1000)));
+}
+
 async function loadUndoLog() {
   const resp = await GCC.sendMessage({ type: "gmailCleanerGetUndoLog" });
   const log = resp?.log || [];
@@ -582,6 +646,18 @@ async function loadUndoLog() {
     const metaParts = [GCC.relativeTime(entry.timestamp)];
     if (entry.tagLabel) metaParts.push("Label: " + entry.tagLabel);
     if (verdict.restored) metaParts.push("Restored " + GCC.relativeTime(entry.restoredAt));
+
+    // 8.15: a deleted run is restorable only while Gmail still holds the
+    // mail in Trash, and the page said so nowhere until the deadline had
+    // already passed and the button was disabled with a past-tense
+    // explanation. Say how long is left while there is still time to act
+    // on it. Archive entries have no deadline and get no countdown.
+    const daysLeft = restoreDaysLeft(entry, verdict);
+    if (daysLeft !== null) {
+      metaParts.push(daysLeft <= 1
+        ? "last day to restore"
+        : "about " + daysLeft + " days left to restore");
+    }
 
     const findUrl = "https://mail.google.com/mail/u/0/#search/label:" +
       encodeURIComponent(entry.tagLabel || "GmailCleaner");
