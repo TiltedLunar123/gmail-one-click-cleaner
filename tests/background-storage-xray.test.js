@@ -186,7 +186,11 @@ describe("pending purge lifecycle", () => {
     await dispatch({ type: "gmailCleanerStorageXrayPurgeStarted", runId: "run-1", senders: ["big@files.com"] });
     await dispatch({
       type: "gmailCleanerDone",
-      summary: { count: 12, freedMb: 300, action: "delete", dryRun: false, runId: "run-1" }
+      // 8.16: `outcome: "completed"` is part of every done summary the engine
+      // sends now, and the resolvers below refuse to stamp a "you have finished
+      // this" mark on a summary that cannot prove the run finished. Cancelled,
+      // errored and stopped-short runs are covered in tests/sweep-8-16.test.js.
+      summary: { count: 12, freedMb: 300, action: "delete", dryRun: false, runId: "run-1", outcome: "completed" }
     });
 
     const scan = storageBacking.local.storageXray;
@@ -200,7 +204,7 @@ describe("pending purge lifecycle", () => {
     await dispatch({ type: "gmailCleanerStorageXrayPurgeStarted", runId: "run-2", senders: ["big@files.com"] });
     await dispatch({
       type: "gmailCleanerDone",
-      summary: { count: 12, dryRun: true, runId: "run-2" }
+      summary: { count: 12, dryRun: true, runId: "run-2", outcome: "completed" }
     });
     expect(storageBacking.local.storageXray.senders[0].status).toBe("");
     expect(storageBacking.local.storageXrayPendingPurge).toBeNull();
@@ -211,7 +215,7 @@ describe("pending purge lifecycle", () => {
     await dispatch({ type: "gmailCleanerStorageXrayPurgeStarted", runId: "run-3", senders: ["big@files.com"] });
     await dispatch({
       type: "gmailCleanerDone",
-      summary: { count: 0, dryRun: false, runId: "run-3" }
+      summary: { count: 0, dryRun: false, runId: "run-3", outcome: "completed" }
     });
     expect(storageBacking.local.storageXray.senders[0].status).toBe("");
     expect(storageBacking.local.storageXrayPendingPurge).toBeNull();
@@ -222,7 +226,7 @@ describe("pending purge lifecycle", () => {
     await dispatch({ type: "gmailCleanerStorageXrayPurgeStarted", runId: "run-4", senders: ["big@files.com"] });
     await dispatch({
       type: "gmailCleanerDone",
-      summary: { count: 5, dryRun: false, runId: "some-other-run" }
+      summary: { count: 5, dryRun: false, runId: "some-other-run", outcome: "completed" }
     });
     expect(storageBacking.local.storageXrayPendingPurge).toMatchObject({ runId: "run-4" });
     expect(storageBacking.local.storageXray.senders[0].status).toBe("");

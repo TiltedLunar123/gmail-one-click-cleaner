@@ -138,8 +138,13 @@ describe("7.15: Auto-Pilot only advances on its own scan", () => {
 describe("7.15: the Auto-Pilot apply stage re-checks the guards", () => {
   const apply = grab(background, /async\s+function\s+startAutoPilotApply\(\)[\s\S]*?\n\s\s\}/);
 
+  // 8.16 moved this pin. getSnoozeUntil now answers null for "could not
+  // read", and null is falsy, so `if (await getSnoozeUntil())` would have
+  // read an unreadable snooze as permission to sweep. The three unattended
+  // callers ask snoozeBlocksUnattended instead, which counts unreadable as
+  // snoozed. Same guard, same position, one more answer.
   test("vacation mode switched on during the scan stops the sweep", () => {
-    expect(apply).toMatch(/if\s*\(await\s+getSnoozeUntil\(\)\)/);
+    expect(apply).toMatch(/if\s*\(\(await\s+snoozeBlocksUnattended\(\)\)\.blocked\)/);
   });
 
   test("the install-source guard is re-checked too", () => {
@@ -147,7 +152,7 @@ describe("7.15: the Auto-Pilot apply stage re-checks the guards", () => {
   });
 
   test("both run before any mail is touched", () => {
-    const snoozeAt = apply.indexOf("await getSnoozeUntil()");
+    const snoozeAt = apply.indexOf("await snoozeBlocksUnattended()");
     const injectAt = apply.indexOf('files: ["contentScript.js"]');
     expect(snoozeAt).toBeGreaterThan(-1);
     expect(injectAt).toBeGreaterThan(snoozeAt);

@@ -446,7 +446,11 @@ describe("pending band purge lifecycle", () => {
     });
     await dispatch({
       type: "gmailCleanerDone",
-      summary: { runId: "plan-1", dryRun: false, count: 200 }
+      // 8.16: `outcome: "completed"` is part of every done summary the engine
+      // sends now, and the resolvers below refuse to stamp a "you have finished
+      // this" mark on a summary that cannot prove the run finished. Cancelled,
+      // errored and stopped-short runs are covered in tests/sweep-8-16.test.js.
+      summary: { runId: "plan-1", dryRun: false, count: 200, outcome: "completed" }
     });
 
     // The marker is still consumed: it belonged to this run.
@@ -461,7 +465,7 @@ describe("pending band purge lifecycle", () => {
     await dispatch({ type: "gmailCleanerReportPurgeStarted", runId: "run-1", bandIds: ["promotions"] });
     await dispatch({
       type: "gmailCleanerDone",
-      summary: { count: 4200, freedMb: 300, action: "delete", dryRun: false, runId: "run-1" }
+      summary: { count: 4200, freedMb: 300, action: "delete", dryRun: false, runId: "run-1", outcome: "completed" }
     });
 
     const byId = Object.fromEntries(stored().bands.map((b) => [b.id, b]));
@@ -475,7 +479,7 @@ describe("pending band purge lifecycle", () => {
     await dispatch({ type: "gmailCleanerReportPurgeStarted", runId: "run-2", bandIds: ["promotions"] });
     await dispatch({
       type: "gmailCleanerDone",
-      summary: { count: 8000, dryRun: true, runId: "run-2" }
+      summary: { count: 8000, dryRun: true, runId: "run-2", outcome: "completed" }
     });
     expect(stored().bands.every((b) => b.cleanedAt === 0)).toBe(true);
     expect(marker()).toBeNull();
@@ -486,7 +490,7 @@ describe("pending band purge lifecycle", () => {
     await dispatch({ type: "gmailCleanerReportPurgeStarted", runId: "run-3", bandIds: ["promotions"] });
     await dispatch({
       type: "gmailCleanerDone",
-      summary: { count: 0, dryRun: false, runId: "run-3" }
+      summary: { count: 0, dryRun: false, runId: "run-3", outcome: "completed" }
     });
     expect(stored().bands.every((b) => b.cleanedAt === 0)).toBe(true);
     expect(marker()).toBeNull();
@@ -497,7 +501,7 @@ describe("pending band purge lifecycle", () => {
     await dispatch({ type: "gmailCleanerReportPurgeStarted", runId: "run-4", bandIds: ["promotions"] });
     await dispatch({
       type: "gmailCleanerDone",
-      summary: { count: 500, dryRun: false, runId: "some-other-run" }
+      summary: { count: 500, dryRun: false, runId: "some-other-run", outcome: "completed" }
     });
     expect(marker()).toMatchObject({ runId: "run-4" });
     expect(stored().bands.every((b) => b.cleanedAt === 0)).toBe(true);
@@ -512,7 +516,7 @@ describe("pending band purge lifecycle", () => {
     };
     await dispatch({
       type: "gmailCleanerDone",
-      summary: { count: 500, dryRun: false, runId: "some-other-run" }
+      summary: { count: 500, dryRun: false, runId: "some-other-run", outcome: "completed" }
     });
     expect(marker()).toBeNull();
     // Clearing a stale marker is not the same as crediting the bands.
@@ -523,7 +527,7 @@ describe("pending band purge lifecycle", () => {
     seedReport();
     await dispatch({
       type: "gmailCleanerDone",
-      summary: { count: 500, dryRun: false, runId: "run-x" }
+      summary: { count: 500, dryRun: false, runId: "run-x", outcome: "completed" }
     });
     expect(marker()).toBeUndefined();
     expect(stored().bands.every((b) => b.cleanedAt === 0)).toBe(true);
@@ -538,7 +542,7 @@ describe("pending band purge lifecycle", () => {
     await dispatch({ type: "gmailCleanerReportPurgeStarted", runId: "run-6", bandIds: ["promotions"] });
     await dispatch({
       type: "gmailCleanerDone",
-      summary: { count: 4200, dryRun: false, runId: "run-6" }
+      summary: { count: 4200, dryRun: false, runId: "run-6", outcome: "completed" }
     });
     const cleanedAt = stored().bands.find((b) => b.id === "promotions").cleanedAt;
     expect(cleanedAt).toBeGreaterThan(0);
@@ -553,7 +557,7 @@ describe("pending band purge lifecycle", () => {
     await dispatch({ type: "gmailCleanerReportPurgeStarted", runId: "run-7", bandIds: ["promotions"] });
     await dispatch({
       type: "gmailCleanerDone",
-      summary: { count: 4200, dryRun: false, runId: "run-7" }
+      summary: { count: 4200, dryRun: false, runId: "run-7", outcome: "completed" }
     });
     const cleanedAt = stored().bands.find((b) => b.id === "promotions").cleanedAt;
     expect(cleanedAt).toBeGreaterThan(0);

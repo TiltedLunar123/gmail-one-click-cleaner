@@ -717,16 +717,33 @@ describe("the Pro settings card tells the truth about being locked", () => {
     }
   });
 
+  // 8.16 moved both of these pins. Intent unchanged in both cases; the
+  // addresses moved because the card grew a third state ("could not read
+  // your settings") between locked and editable.
   test("a free user cannot edit them", () => {
     const fn = between(OPTIONS_SRC, "const wireProSettingsSection = () => {", "wireProSettingsSection();");
     expect(fn).toContain("const setLocked = (locked) => {");
-    expect(fn).toContain("if (el) el.disabled = locked;");
+    // The per-element disable moved into setProFieldsDisabled, which
+    // setLocked now delegates to, so that the unreadable case can disable
+    // the same controls without raising the "Pro required" panel at
+    // somebody who has paid. Pinned as the pair.
+    expect(fn).toContain("const setProFieldsDisabled = (disabled) => {");
+    expect(fn).toContain("if (el) el.disabled = disabled;");
+    expect(fn).toContain("setProFieldsDisabled(locked);");
     expect(fn).toContain("if (!isPro) return;");
   });
 
   test("the form shows what is in force, not what was stored", () => {
     const fn = between(OPTIONS_SRC, "const wireProSettingsSection = () => {", "wireProSettingsSection();");
-    expect(fn).toContain("applyToForm(await GCC.proSettings.read(isPro));");
+    // 8.16: read -> readOrNull. Same question ("what is actually in
+    // force?"), one more answer: a sync read that FAILED must not be
+    // painted as the six defaults, because the next edit writes all six
+    // back. Asserted with the refusal beside it so the rename cannot be
+    // undone by dropping the null check.
+    expect(fn).toContain("await GCC.proSettings.readOrNull(isPro)");
+    expect(fn).toContain("if (settings === null) {");
+    expect(fn).toContain("applyToForm(settings);");
+    expect(fn).not.toContain("applyToForm(await GCC.proSettings.read(isPro));");
   });
 
   test("Pro Settings is on the list a buyer is shown", () => {

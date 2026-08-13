@@ -44,6 +44,15 @@ const build = () => new Function(
    ${blocks.strictest[0]}
    const SAFE_MODE_SUBJECT_GUARD = "-subject:(receipt)";
    const debugLog = () => {};
+   // 8.16: applyGlobalGuards now measures its own output against the
+   // project's query ceiling and warns once per run when it is past it, so
+   // the sliced function reaches for these two. Stubbed rather than
+   // imported: the age logic is what is under test here, and a slicing
+   // harness that does not declare a new neighbour dies with a
+   // ReferenceError on every case instead of failing the one it cares about.
+   const MAX_GUARDED_QUERY_CHARS = 512;
+   let QUERY_LENGTH_WARNED = false;
+   const safeSend = () => {};
    const buildSubjectExclusion = (kw) => (kw.length ? \`-subject:(\${kw.join(" OR ")})\` : "");
    const CONFIG = {
      safeMode: false,

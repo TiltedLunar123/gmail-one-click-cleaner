@@ -565,7 +565,13 @@ describe("the recovery log says how long is left to restore", () => {
   });
 
   test("the countdown is rendered on the entry, hedged like every other mention of the window", () => {
-    const fn = bodyOf(STATS_SRC, "const daysLeft = restoreDaysLeft(entry, verdict);", "const findUrl =");
+    // 8.16 moved the end anchor: `const findUrl =` is gone, because the
+    // Find in Gmail link is now built inside a ternary that omits it
+    // entirely for an entry with no recovery label. bodyOf returns "" for a
+    // missing anchor rather than throwing, so a stale anchor here passes
+    // nothing to the assertions and the test goes quietly green-on-empty.
+    const fn = bodyOf(STATS_SRC, "const daysLeft = restoreDaysLeft(entry, verdict);", "// 8.16: quoted, the way the engine");
+    expect(fn.length).toBeGreaterThan(50);
     expect(fn).toContain('"about " + daysLeft + " days left to restore"');
     expect(fn).toContain('"last day to restore"');
   });
@@ -596,7 +602,25 @@ describe("the Protect button tells the truth about the whitelist", () => {
     // A read that failed keeps the previous list: a row can then only
     // look more protected than it is, never less.
     expect(fn).toContain("catch {");
-    expect(fn).not.toContain("whitelistEntries = [];");
+    // 8.16 sharpened this pin, because the blunt version was passing over a
+    // function that did exactly what it forbade. GCC.storageGet answers a
+    // REJECTED read with {}, never throwing, so the catch was unreachable
+    // and the ternary below it assigned [] on every failed poll. The read
+    // is direct now, so the failure is visible, and the only remaining
+    // `whitelistEntries = []` is the no-sync-storage case, which really has
+    // no whitelist and is what the jsdom and http harnesses run as.
+    // Matched as a CALL, not as a substring: writing this pin the blunt way
+    // made it fail on the fix's own explanatory comment, which is the third
+    // time a source pin in this repo has been satisfied (or broken) by prose
+    // rather than code. The comment was reworded too; both halves matter.
+    expect(fn).not.toMatch(/GCC\.storageGet\s*\(/);
+    expect(fn).toContain("chrome.storage.sync.get.bind(chrome.storage.sync)");
+    expect(fn).toContain('if (!GCC.hasChromeStorage("sync")) {');
+    // The clearing assignment must sit in that branch and nowhere else.
+    expect(fn.match(/whitelistEntries = \[\];/g) || []).toHaveLength(1);
+    const clearAt = fn.indexOf("whitelistEntries = [];");
+    expect(clearAt).toBeGreaterThan(-1);
+    expect(clearAt).toBeLessThan(fn.indexOf("try {"));
   });
 });
 
