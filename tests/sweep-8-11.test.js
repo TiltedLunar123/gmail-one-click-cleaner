@@ -267,9 +267,15 @@ describe("the result screen stops describing runs that did not happen", () => {
   // for a run that never touched anything. progress.js has said "emails
   // matched, nothing was moved" since 8.9; the popup is the screen the
   // preview exists to produce and it was the one that lied.
+  // 8.16 moved this pin: showResultSummary grew a `stoppedShort` argument,
+  // so the exact-signature match broke on an addition that changed nothing
+  // about what it was guarding. Pinned structurally now, which is what this
+  // repo learned to do the last three times a literal pin moved: the fact
+  // being protected is that the dry flag is a named argument with a false
+  // default, not the current column count of the parameter list.
   test("showResultSummary takes the dry flag", () => {
-    expect(POPUP_SRC).toContain(
-      'const showResultSummary = ({ count = 0, freedBytes = 0, action = "trash", dryRun = false } = {}) => {'
+    expect(POPUP_SRC).toMatch(
+      /const showResultSummary = \(\{[^}]*\bdryRun = false\b[^}]*\} = \{\}\) => \{/
     );
   });
 
@@ -304,7 +310,11 @@ describe("the result screen stops describing runs that did not happen", () => {
   test("the done handler passes the flag it already had in hand", () => {
     // stats.mode was already being read two lines below, for the rating
     // gate, which is what makes this a miss rather than missing data.
-    expect(POPUP_SRC).toContain('showResultSummary({ count, freedBytes, action, dryRun: stats?.mode === "dry" });');
+    //
+    // 8.16 moved this pin for the same reason as the signature above: the
+    // call gained a `stoppedShort` argument and became multi-line. Matched
+    // on the argument rather than the whole call.
+    expect(POPUP_SRC).toMatch(/dryRun:\s*stats\?\.mode === "dry"/);
   });
 
   test("the notes are reachable by id, not by inline-style guesswork", () => {
@@ -554,7 +564,30 @@ describe("the Options page tells a buyer what they actually bought", () => {
 
   test("the section blurb lists the report step it had been missing", () => {
     const section = OPTIONS_HTML.slice(OPTIONS_HTML.indexOf('id="pro"'));
-    expect(section.slice(0, 1500)).toContain("Mailbox Report");
+    // 8.16 widened the window and the claim. A 1,500-character slice is a
+    // budget in disguise: this went red because the fix above it added a
+    // comment, not because the copy regressed. And while it was only
+    // checking one feature name, the same sentence was still selling the
+    // Storage X-ray LIST, which has been free since 8.13, and omitting Pro
+    // Settings, which has been paid since 8.12. Every paid pillar is pinned
+    // now, so the blurb cannot drift again in either direction.
+    // Whitespace flattened, per the rule this repo keeps relearning: a
+    // phrase pin against raw HTML is really a pin on where the author
+    // happened to wrap the line. Comments stripped for the other rule this
+    // repo keeps relearning: a pin that prose can satisfy is not a pin, and
+    // this one went red on the explanatory comment of its own fix.
+    const blurb = section.slice(0, 3000)
+      .replace(/<!--[\s\S]*?-->/g, " ")
+      .replace(/\s+/g, " ");
+    for (const feature of [
+      "bulk unsubscribe", "Storage X-ray", "Smart Suggestions",
+      "Mailbox Report", "Auto-Pilot", "Pro Settings"
+    ]) {
+      expect(blurb).toContain(feature);
+    }
+    // The list is free; the purge under it is what is bought.
+    expect(blurb).toContain("purging from the Storage X-ray");
+    expect(blurb).not.toContain("the full Storage X-ray");
   });
 });
 

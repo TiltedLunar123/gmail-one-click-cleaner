@@ -6,13 +6,248 @@
 // even of a file inside the package, would end the extension's
 // no-network-calls promise.
 //
-// Carries the newest 12 of 70 releases; the page says so
+// Carries the newest 12 of 71 releases; the page says so
 // and links the full log on GitHub.
 
 // eslint-disable-next-line no-unused-vars
 var GCC_CHANGELOG = {
-  "total": 70,
+  "total": 71,
   "entries": [
+    {
+      "version": "8.16.0",
+      "title": "Runs that stopped are not runs that finished",
+      "intro": [
+        "A tidy-up release, and most of it comes from one thing being true in more places than anyone had noticed: pressing Cancel, or a rule running out of room, left the extension believing the job was done. The other half is a batch of settings pages that could paint an empty list when storage had a bad second, and then save it."
+      ],
+      "sections": [
+        {
+          "name": "Fixed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "Cancelling a cleanup marked the work as finished."
+                ],
+                [
+                  "",
+                  " Stopping a run half way still ticked the Mailbox Report step off as Cleared, still stamped senders as Purged on the Storage X-ray, and still counted a suggestion as applied. The Cleared badge also takes that step's Run button away, and on the free plan that is the one step you have, so cancelling could cost you it. A run that errors out did the same. All four of those marks now wait for a run that really finished."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "A run that ran out of room said nothing afterwards."
+                ],
+                [
+                  "",
+                  " A single rule can hold more mail than one run can get through, and Gmail sometimes slows a rule down until the extension gives up on it and moves on. It says so at the time, in the progress log, and that was the only place it ever said it: the result screen still read \"Cleanup Complete!\", the desktop notification still read like a finished sweep, and the Mailbox Report ticked the step off. The result screen, the recap, the notification and the Auto-Pilot line now all say a rule stopped early and that running it again carries on where it left off."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The number of emails a search had found could be read off your mail instead."
+                ],
+                [
+                  "",
+                  " The extension looks for Gmail's \"1-50 of 12,438\" counter to size a run. It searched the message list before the toolbar the counter actually sits in, and accepted any short text with \"of\" and a number in it, so a subject line like \"Part 3 of 12\" or \"Best of 2024\" could stand in for the total. That number is what the Mailbox Report shows against every step, what Smart Suggestions ranks senders by, what Dry Run quotes and what the too-big-to-run-unattended check is measured against. It reads the toolbar first now, and only accepts text shaped like a real counter."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The Settings page could save an empty Never Delete list over your real one."
+                ],
+                [
+                  "",
+                  " If reading your synced settings failed for a moment, the page drew empty lists, said \"Settings loaded\", and treated that emptiness as your settings. Pressing Save then wrote it. The page now refuses to draw or save anything until it has actually read what is there, and says so. Exporting and importing refuse on the same page state: a backup built from lists that were never read would record an empty Never Delete list as your settings, and an import cannot be undone when the storage its rollback needs is the storage that is failing."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Pro: opening Settings during a storage hiccup could reset four of your Pro settings."
+                ],
+                [
+                  "",
+                  " The card drew the defaults, took them as your current values, and wrote all six back the moment you changed one. One of them decides how much of your recovery log is kept, so a 300 entry log was trimmed to 60 on the next run and runs you could still have undone stopped being restorable. The card now stays blank and locked rather than showing values that are not yours."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Pro: Auto-Pilot could switch itself off in the middle of a sweep."
+                ],
+                [
+                  "",
+                  " If reading its settings failed while a sweep was finishing, \"off, and not yet confirmed\" was written back over your real settings. The weekly timer kept firing and nothing happened, the switch read as off, and turning it back on dropped it to preview mode until you found the confirm button again. The same read failure at browser startup deleted the weekly timer for the whole session while the switch still showed as on."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Importing a settings file with no whitelist in it emptied yours."
+                ],
+                [
+                  "",
+                  " Custom rules, protected keywords and schedules were all left alone when a file did not carry them. The whitelist, which is the one that decides what never gets deleted, was overwritten with nothing."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Vacation mode could be ignored by the runs it is for."
+                ],
+                [
+                  "",
+                  " If the extension could not read whether you had snoozed, it treated that as \"not snoozed\" and let the scheduled and Auto-Pilot sweeps go ahead. Unattended work now waits when it cannot tell."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Snooze reported success whether or not it saved."
+                ],
+                [
+                  "",
+                  " The Settings page said \"Schedules snoozed 14 days\" without checking, so a write that failed left the sweeps running with nothing to suggest it."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Clearing the recovery log could be undone by a run finishing beside it."
+                ],
+                [
+                  "",
+                  " The two writes were not queued against each other, so a cleanup that finished at that moment put every entry back."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Traditional Chinese: cleanup could not find the Delete button."
+                ],
+                [
+                  "",
+                  " The extension knew the Simplified Chinese word and not the Traditional one, which are different characters, so a run selected the mail and then stopped, having done nothing. Archive and labelling already knew both."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Safe Mode did not shield receipts in six languages."
+                ],
+                [
+                  "",
+                  " Swedish, Danish, Norwegian, Polish, Turkish and Arabic mailboxes were checked against the English words only, and Traditional Chinese against the Simplified ones, while Safe Mode reported itself as on. Norwegian is covered whichever of the two language codes Gmail uses."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "\"Find in Gmail\" in the recovery log searched for nothing."
+                ],
+                [
+                  "",
+                  " Every recovery label has a space in it, and the link did not quote it, so Gmail searched for a label that does not exist and showed an empty result next to a Restore button that would have worked."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "A refused cleanup left the popup looking like a live one."
+                ],
+                [
+                  "",
+                  " Starting a cleanup while a scan was still running is correctly refused, but the popup kept the running status, the Cancel button and an Open progress button that handed back a finished dashboard for somebody else's run."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Five refusals on the scan buttons were in English only."
+                ],
+                [
+                  "",
+                  " The one that matters most tells you to allow Gmail access, which is the single thing that fixes it. Every other copy of the same sentence in the popup was already translated."
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Changed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "Very long searches say so."
+                ],
+                [
+                  "",
+                  " With a big whitelist and a long list of protected keywords, the search the extension builds can get long enough to be worth trimming, and the exclusions are the part on the end. A run now says so once, and names the two lists to trim."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The Pro panel counts its own history correctly."
+                ],
+                [
+                  "",
+                  " It said buyers from the first version got the four features that came after. There have been five."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The Settings page stops selling something that is already free."
+                ],
+                [
+                  "",
+                  " It described the full Storage X-ray as part of Pro. The list of what is filling your mailbox has been free since 8.13; the one-click purge under it is the paid part. Pro Settings was missing from the same sentence."
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "8.15.0",
       "title": "Quality of life, and the safety lists that would not say no",
@@ -1719,105 +1954,6 @@ var GCC_CHANGELOG = {
           "items": [
             {
               "text": "Pinning the ID changes it once, so an unpacked install has to be given its Pro key one more time. After that it stays."
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "version": "8.5.1",
-      "title": "Unsubscribe actually unsubscribes",
-      "sections": [
-        {
-          "name": "Fixed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "Bulk unsubscribe skipped senders whose unsubscribe link was plainly on screen"
-                ],
-                [
-                  "",
-                  ", and blamed them for it. The engine looked for Gmail's Unsubscribe control exactly once, 300 milliseconds after opening the message, with no retry, while every other control it drives is waited for with a multi-second budget. Gmail renders that link only after it has processed the message's List-Unsubscribe header, which is routinely later than that. So the engine lost a race it did not know it was running, and the row read \"No 1-click option\", which sounds like the sender's fault and is not. It now waits up to six seconds."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "\"No 1-click option\" and \"Manual step needed\" were describing the sender when they were describing us."
-                ],
-                [
-                  "",
-                  " They now read \"No unsubscribe link\" and \"Needs their website\"."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A confirmation Gmail never acknowledged was reported as success."
-                ],
-                [
-                  "",
-                  " The code waited for the dialog to close and then ignored the answer, always returning \"Unsubscribed\". A dialog still sitting there means the click did not take, and that is the one failure a user cannot detect for themselves: they cross the sender off and keep getting the mail. It now reports \"Unconfirmed\"."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Finding the control no longer rests on one Gmail class surviving forever."
-                ],
-                [
-                  "",
-                  " There is a third fallback for markup carrying neither the class nor the role. It still refuses anything the sender wrote: the message body, list rows, and any real link, because Gmail's control acts in place while a sender's link navigates your tab to them."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The report headline counted mail no run could ever touch."
-                ],
-                [
-                  "",
-                  " A bare "
-                ],
-                [
-                  "c",
-                  "older_than:6m"
-                ],
-                [
-                  "",
-                  " searches all mail, which includes Sent, Drafts and Chats, all three of which the cleaner refuses to act on by design. A mailbox full of sent mail produced a five-figure headline above a plan with no steps in it."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "\"Nothing matched the plan. Your mailbox is already clean.\" printed directly under a headline of 5,120"
-                ],
-                [
-                  "",
-                  ", which is not a sentence anyone should have to read. Empty bands and an empty mailbox are different findings, and it now says which one it found."
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "name": "Changed",
-          "items": [
-            {
-              "text": "The popup is 440px wide, up from 380. Four tabs could not hold their own labels at the old width and every list row was fighting for space."
             }
           ]
         }

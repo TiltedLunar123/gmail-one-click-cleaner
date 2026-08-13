@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "8.15.0";
+  const SW_VERSION = "8.16.0";
 
   // =========================
   // Storage Keys
@@ -360,12 +360,29 @@
     }
   }
 
+  // 8.16: null means "could not read", which is not the same as 0 ("not
+  // snoozed"). Snooze is the switch a user flips before going away, and the
+  // only thing it governs is work that happens while nobody is watching, so
+  // a read that failed must not be answered with permission to sweep. The
+  // two unattended callers below treat null as snoozed and skip; the popup's
+  // status query passes it through, because telling someone they are
+  // snoozed when the read failed would be its own lie.
   async function getSnoozeUntil() {
     try {
       const r = await chrome.storage.local.get(STORAGE_KEYS.SNOOZE_UNTIL);
       const v = Number(r?.[STORAGE_KEYS.SNOOZE_UNTIL] || 0);
       return Number.isFinite(v) && v > Date.now() ? v : 0;
-    } catch { return 0; }
+    } catch { return null; }
+  }
+
+  // The question the three unattended callers are actually asking. An
+  // unreadable snooze counts as snoozed: skipping a sweep costs one
+  // interval, and sweeping through somebody's holiday is the thing snooze
+  // exists to prevent.
+  async function snoozeBlocksUnattended() {
+    const until = await getSnoozeUntil();
+    if (until === null) return { blocked: true, until: null, readable: false };
+    return { blocked: until > 0, until, readable: true };
   }
 
   async function hasActiveRun() {
@@ -733,9 +750,11 @@
     }
 
     // Honour snooze / vacation mode before doing any work.
-    const snoozeUntil = await getSnoozeUntil();
-    if (snoozeUntil) {
-      console.log(`[GCC SW] Snooze active until ${new Date(snoozeUntil).toISOString()}, skipping schedule ${scheduleId}`);
+    const snooze = await snoozeBlocksUnattended();
+    if (snooze.blocked) {
+      console.log(snooze.readable
+        ? `[GCC SW] Snooze active until ${new Date(snooze.until).toISOString()}, skipping schedule ${scheduleId}`
+        : `[GCC SW] Snooze unreadable, skipping schedule ${scheduleId}`);
       return;
     }
 
@@ -987,7 +1006,8 @@
         return true;
 
       case "gmailCleanerClearUndoLog":
-        clearUndoLog().then(() => sendResponse({ ok: true }));
+        // 8.16: locked, like recordUndoEntry above it. See clearUndoLog.
+        withStorageLock(() => clearUndoLog()).then(() => sendResponse({ ok: true }));
         return true;
 
       // Stats retrieval
@@ -1527,6 +1547,35 @@
     }
   }
 
+  // 8.16: a terminal message is not a completion.
+  //
+  // The engine sends `gmailCleanerDone` from a `finally`, so a run the user
+  // cancelled and a run that died on an unexpected error arrive here in the
+  // same shape as one that finished, carrying whatever they had moved up to
+  // that point. Three resolvers below, plus Auto-Pilot's preview, used to
+  // decide off `dryRun` and `count > 0` alone, and each of them writes a
+  // mark that tells the user they are FINISHED with something: the Mailbox
+  // Report's Cleared chip (which also removes that step's Run button, and
+  // a free user has exactly one), the X-ray's Purged chip (which is how
+  // they track which senders are left), and Smart Suggestions' applied
+  // feedback. Pressing Cancel halfway therefore marked the thing done.
+  //
+  // `stoppedShort` covers the quieter half: a rule that ran out of passes
+  // or kept rate-limiting is a rule with mail still behind it, and the
+  // engine only ever said so in a progress message, which reaches an open
+  // extension page and nothing else.
+  //
+  // A summary with no `outcome` at all is a Gmail tab still running a
+  // pre-8.16 content script after an update. That cannot prove it
+  // finished, so it does not get the mark. The cost of being wrong that
+  // way is one rescan; the cost the other way is the button the user
+  // needed to finish the job.
+  function runFinishedClean(summary) {
+    if (!summary || typeof summary !== "object") return false;
+    if (summary.outcome !== "completed") return false;
+    return !(Number(summary.stoppedShort) > 0);
+  }
+
   async function resolvePendingStoragePurge(summary) {
     try {
       const result = await chrome.storage.local.get(STORAGE_KEYS.XRAY_PENDING);
@@ -1545,6 +1594,11 @@
       // mark senders when mail was actually affected for real.
       await chrome.storage.local.set({ [STORAGE_KEYS.XRAY_PENDING]: null });
       if (summary?.dryRun || !(Number(summary?.count) > 0)) return;
+      // 8.16: and only when the run finished. The Purged chip is how the
+      // user tracks which of their heaviest senders they have already
+      // dealt with, so a cancelled purge that had cleared some of one
+      // sender's mail marked that sender done and left the rest.
+      if (!runFinishedClean(summary)) return;
 
       // 8.12: the guard resolvePendingReportPurge has carried since 8.0,
       // finally copied to its twin. The engine reports ONE aggregate
@@ -1752,6 +1806,14 @@
       await chrome.storage.local.set({ [STORAGE_KEYS.REPORT_PENDING]: null });
       if (summary?.dryRun || !(Number(summary?.count) > 0)) return;
 
+      // 8.16: and only when the run finished the step. This is the mark
+      // 8.15 stopped carrying forward across rescans, but it was still
+      // STAMPED on a run that stopped short, and the two symptoms of that
+      // are a "Cleared" chip and a missing Run button, which are the two
+      // reasons a user would never think to rescan. A free user has one
+      // unlocked step, so being wrong here spends it.
+      if (!runFinishedClean(summary)) return;
+
       // The engine reports ONE aggregate count for the run, so a
       // multi-step plan that dies after its first step would mark every
       // step it was going to run as cleared. Only a single-step run can
@@ -1917,6 +1979,11 @@
       // record feedback when mail was actually affected for real.
       await chrome.storage.local.set({ [STORAGE_KEYS.SMART_PENDING]: null });
       if (summary?.dryRun || !(Number(summary?.count) > 0)) return;
+      // 8.16: "applied" is what stops a sender being suggested again. A
+      // run the user cancelled, or one that ran out of passes with that
+      // sender's mail still there, is exactly the case where the
+      // suggestion should come back.
+      if (!runFinishedClean(summary)) return;
 
       await recordSmartFeedback(pending.senders.map((email) => ({ email, action: "applied" })));
     } catch (e) {
@@ -2175,6 +2242,22 @@
   const autoPilotPendingIsFresh = (pending) =>
     Boolean(pending) && (Date.now() - (Number(pending.startedAt) || 0)) < AUTOPILOT_PENDING_TTL_MS;
 
+  // 8.16: three answers, not two, for the same reason readLicenseState got
+  // a third in 8.14 and readSafetyList got one in 8.15.
+  //
+  // All-false is the right answer for the one question this config is asked
+  // most often ("may an unattended sweep run?"), because a sweep that
+  // cannot prove it was authorised must not run. It is the wrong answer for
+  // every WRITE, and there are four of them, each doing `{...cfg, oneField}`
+  // and putting the whole object back. A sync read that rejected for a
+  // second therefore had a live sweep finish by writing enabled:false and
+  // confirmed:false over a paying user's settings: Auto-Pilot turned itself
+  // off mid-job, and because `confirmed` went with it, switching it back on
+  // dropped it to preview mode, so it archived nothing until they found the
+  // confirm button a second time. Nothing anywhere said why.
+  //
+  // `readable` is an answer about the READ. It must never be written: see
+  // autoPilotRecord, which is why every write goes through it.
   async function getAutoPilotConfig() {
     try {
       const r = await chrome.storage.sync.get(STORAGE_KEYS.AUTOPILOT);
@@ -2182,11 +2265,24 @@
       return {
         enabled: Boolean(cfg?.enabled),
         confirmed: Boolean(cfg?.confirmed),
-        lastRunAt: Number(cfg?.lastRunAt) || 0
+        lastRunAt: Number(cfg?.lastRunAt) || 0,
+        readable: true
       };
     } catch {
-      return { enabled: false, confirmed: false, lastRunAt: 0 };
+      return { enabled: false, confirmed: false, lastRunAt: 0, readable: false };
     }
+  }
+
+  // The stored shape, and only the stored shape. Spreading the config
+  // straight into a set would file `readable` in the user's synced Google
+  // account, where the next reader would coerce it to a setting.
+  function autoPilotRecord(cfg, patch) {
+    return {
+      enabled: Boolean(cfg?.enabled),
+      confirmed: Boolean(cfg?.confirmed),
+      lastRunAt: Number(cfg?.lastRunAt) || 0,
+      ...patch
+    };
   }
 
   async function getAutoPilotState() {
@@ -2209,6 +2305,23 @@
   async function restoreAutoPilotAlarm() {
     try {
       const cfg = await getAutoPilotConfig();
+      // 8.16: read first, and only clear once the config is proven. The
+      // clear used to run before the enabled check, so a sync read that
+      // rejected deleted the weekly alarm and then returned before
+      // recreating it. Nothing re-arms until the next onStartup or
+      // onInstalled, so on a machine that stays up for a fortnight the
+      // paid sweep simply never fires again, while the popup keeps
+      // reporting it as on (the toggle reads sync, not the alarm).
+      //
+      // Its twin restoreScheduledAlarms already gets this right by
+      // accident: its sync read is NOT swallowed, so a rejection reaches
+      // the outer catch before the clear loop. An alarm that fires once
+      // too often on an unreadable config is recoverable. A deleted one
+      // is not.
+      if (!cfg.readable) {
+        console.warn("[GCC SW] Auto-Pilot config unreadable, leaving the existing alarm alone");
+        return;
+      }
       await chrome.alarms.clear(AUTOPILOT_ALARM);
       if (!cfg.enabled) return;
       // 8.12: the interval is a Pro setting now. Reading it through
@@ -2659,8 +2772,8 @@
       const proSettings = await readProSettings(true);
 
       // Scheduled work honours snooze / vacation mode.
-      if (await getSnoozeUntil()) {
-        console.log("[GCC SW] Auto-Pilot: snooze active, skipping sweep");
+      if ((await snoozeBlocksUnattended()).blocked) {
+        console.log("[GCC SW] Auto-Pilot: snoozed (or unreadable), skipping sweep");
         return;
       }
 
@@ -2857,8 +2970,8 @@
         await setAutoPilotState({ pending: null });
         return;
       }
-      if (await getSnoozeUntil()) {
-        console.log("[GCC SW] Auto-Pilot: snoozed during the scan, dropping this sweep");
+      if ((await snoozeBlocksUnattended()).blocked) {
+        console.log("[GCC SW] Auto-Pilot: snoozed (or unreadable) during the scan, dropping this sweep");
         await setAutoPilotState({ pending: null });
         return;
       }
@@ -2893,10 +3006,16 @@
           pending: null,
           lastRun: { at: now, count: 0, dryRun: !cfg.confirmed, deferred }
         });
-        await safeSyncSet(
-          { [STORAGE_KEYS.AUTOPILOT]: { ...cfg, lastRunAt: now } },
-          "autoPilot"
-        );
+        // 8.16: safe already (the `!cfg.enabled` return above means an
+        // unreadable config never reaches here), but written through the
+        // record builder like its three siblings so the next person to
+        // add a write finds one pattern rather than two.
+        if (cfg.readable) {
+          await safeSyncSet(
+            { [STORAGE_KEYS.AUTOPILOT]: autoPilotRecord(cfg, { lastRunAt: now }) },
+            "autoPilot"
+          );
+        }
         console.log("[GCC SW] Auto-Pilot: no eligible suggestions, nothing to sweep");
         return;
       }
@@ -3113,27 +3232,53 @@
       const count = Number.isFinite(Number(pending.observedCount))
         ? Number(pending.observedCount)
         : Math.max(0, Number(summary?.count) || 0);
+      // 8.16: whether the sweep finished, carried so the popup's
+      // Auto-Pilot line can say "stopped early" rather than report a
+      // partial tally as the week's work.
+      const finishedClean = runFinishedClean(summary);
       const patch = {
         pending: null,
         lastRun: {
           at: now,
           count,
           dryRun: Boolean(pending.dryRun),
-          deferred: Math.max(0, Number(pending.deferred) || 0)
+          deferred: Math.max(0, Number(pending.deferred) || 0),
+          incomplete: !finishedClean
         }
       };
       if (pending.dryRun) {
         // The anti-1-star mechanism: the first sweep's would-have tally
         // waits in the popup for an explicit "turn on for real".
-        patch.preview = { count, at: now };
+        //
+        // 8.16: and only a tally that was finished counts. This number is
+        // the one the user presses "Turn on for real" against, so it is
+        // consent given on a measurement, which makes a partial one the
+        // worst kind to print: a preview cancelled after three senders
+        // says "would have archived 40" about a sweep that will reach 25
+        // senders. Left unwritten rather than nulled, so an earlier good
+        // preview still stands and setAutoPilotState's merge keeps it; the
+        // popup then simply keeps offering a preview, which is the
+        // outcome a user who stopped one would expect.
+        if (finishedClean) patch.preview = { count, at: now };
       } else {
         patch.preview = null;
       }
       await setAutoPilotState(patch);
-      await safeSyncSet(
-        { [STORAGE_KEYS.AUTOPILOT]: { ...cfg, lastRunAt: now } },
-        "autoPilot"
-      );
+      // 8.16: this is the write that cost the user their settings. It has
+      // no `!cfg.enabled` early return in front of it, so a sync read that
+      // rejected while a sweep was finishing put enabled:false and
+      // confirmed:false back over a live, paid, confirmed Auto-Pilot. The
+      // local patch above still lands either way; skipping only the sync
+      // half costs at most one early re-fire of the weekly alarm, because
+      // lastRunAt keeps its old value.
+      if (cfg.readable) {
+        await safeSyncSet(
+          { [STORAGE_KEYS.AUTOPILOT]: autoPilotRecord(cfg, { lastRunAt: now }) },
+          "autoPilot"
+        );
+      } else {
+        console.warn("[GCC SW] Auto-Pilot config unreadable, not re-anchoring lastRunAt");
+      }
       console.log(`[GCC SW] Auto-Pilot: sweep finished (${pending.dryRun ? "preview" : "live"}, ${count} affected)`);
     } catch (e) {
       console.error("[GCC SW] resolveAutoPilotDone failed:", e);
@@ -3170,12 +3315,28 @@
     if (enabled && !(await hasProLicense())) {
       return { ok: false, error: "pro_required" };
     }
+    // 8.16: refuse rather than guess. This write merges into the whole
+    // stored object, so saving the toggle off an unreadable read takes
+    // `confirmed` and `lastRunAt` with it: the user's explicit "turn on
+    // for real" is gone and the next sweep is a preview they have to
+    // confirm a second time. `saved` is reported back so the popup can say
+    // the switch did not stick rather than draw it in its new position
+    // over a stored value that never changed.
+    //
+    // The stop-the-sweep half below still runs when switching off, because
+    // an engine archiving mail right now matters more than the bookkeeping,
+    // and it is safe to do twice.
+    let saved = true;
     await withStorageLock(async () => {
       const cfg = await getAutoPilotConfig();
-      await safeSyncSet(
-        { [STORAGE_KEYS.AUTOPILOT]: { ...cfg, enabled: Boolean(enabled) } },
-        "autoPilot"
-      );
+      if (cfg.readable) {
+        await safeSyncSet(
+          { [STORAGE_KEYS.AUTOPILOT]: autoPilotRecord(cfg, { enabled: Boolean(enabled) }) },
+          "autoPilot"
+        );
+      } else {
+        saved = false;
+      }
       // 8.11: this sat OUTSIDE the lock, and setAutoPilotState is itself
       // an unlocked get-merge-set. resolveAutoPilotDone holds the lock
       // for its whole get-merge-set of the same key, so a toggle landing
@@ -3220,6 +3381,7 @@
       }
     });
     await restoreAutoPilotAlarm();
+    if (!saved) return { ok: false, error: "storage_unreadable" };
     return { ok: true, autoPilot: await getAutoPilotForPopup() };
   }
 
@@ -3230,10 +3392,20 @@
     if (!(await hasProLicense())) {
       return { ok: false, error: "pro_required" };
     }
+    // 8.16: and the refusal matters most here, exactly as the comment
+    // above says. Writing `confirmed: true` merged onto an unreadable read
+    // also writes enabled:false, so the one press that was meant to turn
+    // Auto-Pilot loose would switch it off instead. The preview is left in
+    // place too, so the confirm button is still there to press again.
+    let saved = true;
     await withStorageLock(async () => {
       const cfg = await getAutoPilotConfig();
+      if (!cfg.readable) {
+        saved = false;
+        return;
+      }
       await safeSyncSet(
-        { [STORAGE_KEYS.AUTOPILOT]: { ...cfg, confirmed: true } },
+        { [STORAGE_KEYS.AUTOPILOT]: autoPilotRecord(cfg, { confirmed: true }) },
         "autoPilot"
       );
       // Inside the lock for the reason given in setAutoPilotEnabled. The
@@ -3241,6 +3413,7 @@
       // the confirm button comes back asking about a tally that is gone.
       await setAutoPilotState({ preview: null });
     });
+    if (!saved) return { ok: false, error: "storage_unreadable" };
     return { ok: true, autoPilot: await getAutoPilotForPopup() };
   }
 
@@ -3331,6 +3504,19 @@
         );
       } else {
         msg = bgT("notifLiveBody", `Estimated ~${freedText} MB freed. Open Stats for details.`, [freedText]);
+      }
+
+      // 8.16: a run that ran out of passes, or gave up on a rule Gmail
+      // kept rate-limiting, left mail behind. The engine says so in a
+      // `warning` progress message, and an unattended run has no open page
+      // to receive one, so this notification announced a partial sweep as
+      // a finished one. Said for dry runs too: a preview that stopped
+      // short is a preview of less than the rule holds.
+      const shortRules = Number(summary?.stoppedShort) || 0;
+      if (shortRules > 0) {
+        msg += " " + (shortRules === 1
+          ? bgT("notifStoppedShortOne", "1 rule stopped before it finished, so some mail is still there. Run it again to continue.")
+          : bgT("notifStoppedShortMany", `${shortRules} rules stopped before they finished, so some mail is still there. Run it again to continue.`, [String(shortRules)]));
       }
 
       // 8.13: one Pro line, here, because this notification is the only
@@ -3467,7 +3653,10 @@
         intensity: data.intensity || "normal",
         dryRun: data.dryRun || false,
         duration: data.duration || 0,
-        perQuery: data.perQuery || []
+        perQuery: data.perQuery || [],
+        // 8.16: see the engine's recordStats payload. Clamped like every
+        // other number that arrives from the page.
+        stoppedShort: Math.max(0, Math.min(999, Number(data.stoppedShort) || 0))
       });
       if (stats.history.length > 50) stats.history.length = 50;
 
@@ -3689,6 +3878,17 @@
     }
   }
 
+  // 8.16: the last unlocked writer of a key the queue owns, which is what
+  // 8.14 said pruneOldStats was. recordUndoEntry runs LOCKED and is a
+  // get-merge-set, so a run finishing while the user confirmed "Clear all
+  // recovery log entries?" read the log, this emptied it, and then the merge
+  // wrote every entry back. The user's confirmation appeared to do nothing,
+  // and the entries they meant to destroy stayed in local storage with their
+  // sender labels and thread ids.
+  //
+  // LOCKED(caller): taken at the router, like recordUndoEntry beside it,
+  // because withStorageLock is a plain queue and nesting a locked call
+  // inside another deadlocks the worker.
   async function clearUndoLog() {
     try {
       await chrome.storage.local.set({ [STORAGE_KEYS.UNDO_LOG]: [] });

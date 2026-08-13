@@ -224,7 +224,11 @@ describe("pending apply lifecycle", () => {
     await dispatch({ type: "gmailCleanerSmartApplyStarted", runId: "run-1", senders: ["news@shop.com", "deals@shop.com"] });
     await dispatch({
       type: "gmailCleanerDone",
-      summary: { count: 42, freedMb: 10, action: "delete", dryRun: false, runId: "run-1" }
+      // 8.16: `outcome: "completed"` is part of every done summary the engine
+      // sends now, and the resolvers below refuse to stamp a "you have finished
+      // this" mark on a summary that cannot prove the run finished. Cancelled,
+      // errored and stopped-short runs are covered in tests/sweep-8-16.test.js.
+      summary: { count: 42, freedMb: 10, action: "delete", dryRun: false, runId: "run-1", outcome: "completed" }
     });
     expect(storageBacking.local.smartPendingApply).toBeNull();
     const fb = storageBacking.local.smartFeedback;
@@ -236,7 +240,7 @@ describe("pending apply lifecycle", () => {
     await dispatch({ type: "gmailCleanerSmartApplyStarted", runId: "run-2", senders: ["news@shop.com"] });
     await dispatch({
       type: "gmailCleanerDone",
-      summary: { count: 42, freedMb: 0, action: "delete", dryRun: true, runId: "run-2" }
+      summary: { count: 42, freedMb: 0, action: "delete", dryRun: true, runId: "run-2", outcome: "completed" }
     });
     expect(storageBacking.local.smartPendingApply).toBeNull();
     expect(storageBacking.local.smartFeedback).toBeUndefined();
@@ -246,7 +250,7 @@ describe("pending apply lifecycle", () => {
     await dispatch({ type: "gmailCleanerSmartApplyStarted", runId: "run-3", senders: ["news@shop.com"] });
     await dispatch({
       type: "gmailCleanerDone",
-      summary: { count: 0, freedMb: 0, action: "delete", dryRun: false, runId: "run-3" }
+      summary: { count: 0, freedMb: 0, action: "delete", dryRun: false, runId: "run-3", outcome: "completed" }
     });
     expect(storageBacking.local.smartPendingApply).toBeNull();
     expect(storageBacking.local.smartFeedback).toBeUndefined();
@@ -256,7 +260,7 @@ describe("pending apply lifecycle", () => {
     await dispatch({ type: "gmailCleanerSmartApplyStarted", runId: "run-4", senders: ["news@shop.com"] });
     await dispatch({
       type: "gmailCleanerDone",
-      summary: { count: 5, freedMb: 1, action: "delete", dryRun: false, runId: "other-run" }
+      summary: { count: 5, freedMb: 1, action: "delete", dryRun: false, runId: "other-run", outcome: "completed" }
     });
     expect(storageBacking.local.smartPendingApply).toMatchObject({ runId: "run-4" });
     expect(storageBacking.local.smartFeedback).toBeUndefined();

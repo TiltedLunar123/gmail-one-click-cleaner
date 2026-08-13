@@ -617,7 +617,11 @@ describe("the sweep stage machine", () => {
     });
     await dispatch({
       type: "gmailCleanerDone",
-      summary: { count: 0, freedMb: 0, action: "archive", dryRun: true, runId }
+      // 8.16: `outcome: "completed"` is part of every done summary the engine
+      // sends now, and the resolvers below refuse to stamp a "you have finished
+      // this" mark on a summary that cannot prove the run finished. Cancelled,
+      // errored and stopped-short runs are covered in tests/sweep-8-16.test.js.
+      summary: { count: 0, freedMb: 0, action: "archive", dryRun: true, runId, outcome: "completed" }
     });
 
     const state = storageBacking.local.autoPilotState;
@@ -647,7 +651,7 @@ describe("the sweep stage machine", () => {
     });
     await dispatch({
       type: "gmailCleanerDone",
-      summary: { count: 14, freedMb: 3, action: "archive", dryRun: false, runId }
+      summary: { count: 14, freedMb: 3, action: "archive", dryRun: false, runId, outcome: "completed" }
     });
 
     const state = storageBacking.local.autoPilotState;

@@ -1280,9 +1280,18 @@
     <section class="card" id="pro" style="margin-top: 24px; animation: fadeInUp 0.35s cubic-bezier(0.4,0,0.2,1) both; animation-delay: 0.25s;" aria-labelledby="proTitle">
       <h2 id="proTitle"><span class="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4.5"/><path d="M11.2 11.8 20.5 2.5M15 8l2.5 2.5M18 5l2.5 2.5"/></svg></span> Pro License</h2>
       <p style="font-size: 13px; color: var(--text-muted); margin: 8px 0 16px;">
-        Pro is a <strong>one-time $9.99 purchase</strong> that unlocks bulk unsubscribe, the full
-        Storage X-ray, the full Smart Suggestions list, every step of the Mailbox Report, and
-        weekly Auto-Pilot sweeps in the popup.
+        <!-- 8.16: this sentence used to sell the whole Storage X-ray list,
+             which 8.13 made free. The ranked list of what is filling the
+             mailbox is a read-only look at the user's own mail and is not
+             gated; only the one-click purge underneath it is. Selling
+             something the extension already gives away is the worst kind of
+             stale copy, because this is the page where somebody decides to
+             pay. Pro Settings, paid since 8.12, was missing from the same
+             sentence. A test pins all six pillars, and deliberately does not
+             quote the old wording: a pin a comment can satisfy is not one. -->
+        Pro is a <strong>one-time $9.99 purchase</strong> that unlocks bulk unsubscribe, one-click
+        purging from the Storage X-ray, the full Smart Suggestions list, every step of the Mailbox
+        Report, Auto-Pilot sweeps, and Pro Settings.
         Everything that is free today stays free forever. Your key is verified locally on this
         device with a built-in public key; the extension never contacts a server, not even to
         check the license.
