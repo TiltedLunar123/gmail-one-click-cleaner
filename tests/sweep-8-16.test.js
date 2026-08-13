@@ -678,6 +678,32 @@ describe("the copy says what the product actually does", () => {
     }
   });
 
+  // The forcing function for the whole class. Both of the stale-copy bugs
+  // this release fixed were a sentence that stopped matching PRO_FEATURES and
+  // nothing that would notice. Adding a seventh pillar now fails here until
+  // the blurb, the "came after" count and this list are all updated together.
+  test("the paid pillars, the blurb and the history count move as one", () => {
+    const list = between(SHARED_SRC, "const PRO_FEATURES = Object.freeze([", "]);");
+    const entries = list.split("\n").filter((l) => /^\s*"/.test(l));
+    expect(entries).toHaveLength(6);
+
+    const blurb = OPTIONS_HTML
+      .slice(OPTIONS_HTML.indexOf('id="pro"'), OPTIONS_HTML.indexOf('id="pro"') + 3000)
+      .replace(/<!--[\s\S]*?-->/g, " ")
+      .replace(/\s+/g, " ");
+    for (const keyword of [
+      "bulk unsubscribe", "Storage X-ray", "Smart Suggestions",
+      "Mailbox Report", "Auto-Pilot", "Pro Settings"
+    ]) {
+      expect(blurb).toContain(keyword);
+    }
+
+    // Pro shipped in 7.0 with the first pillar, so the number that "came
+    // after" is always one fewer than the list.
+    const en = JSON.parse(read("_locales/en/messages.json"));
+    expect(en.proFactFuture.message).toContain("all five that came after");
+  });
+
   test("the Options blurb stops selling the Storage X-ray list, free since 8.13", () => {
     const section = OPTIONS_HTML.slice(OPTIONS_HTML.indexOf('id="pro"'), OPTIONS_HTML.indexOf('id="pro"') + 3000)
       .replace(/<!--[\s\S]*?-->/g, " ")

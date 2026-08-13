@@ -46,7 +46,11 @@ bad second, and then save it.
   page drew empty lists, said "Settings loaded", and treated that
   emptiness as your settings. Pressing Save then wrote it. The page now
   refuses to draw or save anything until it has actually read what is
-  there, and says so.
+  there, and says so. Exporting and importing refuse on the same page
+  state: a backup built from lists that were never read would record an
+  empty Never Delete list as your settings, and an import cannot be
+  undone when the storage its rollback needs is the storage that is
+  failing.
 
 - **Pro: opening Settings during a storage hiccup could reset four of
   your Pro settings.** The card drew the defaults, took them as your
@@ -91,7 +95,8 @@ bad second, and then save it.
 - **Safe Mode did not shield receipts in six languages.** Swedish,
   Danish, Norwegian, Polish, Turkish and Arabic mailboxes were checked
   against the English words only, and Traditional Chinese against the
-  Simplified ones, while Safe Mode reported itself as on.
+  Simplified ones, while Safe Mode reported itself as on. Norwegian is
+  covered whichever of the two language codes Gmail uses.
 
 - **"Find in Gmail" in the recovery log searched for nothing.** Every
   recovery label has a space in it, and the link did not quote it, so

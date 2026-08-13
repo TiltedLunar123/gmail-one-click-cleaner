@@ -67,7 +67,7 @@ var GCC_CHANGELOG = {
                 ],
                 [
                   "",
-                  " If reading your synced settings failed for a moment, the page drew empty lists, said \"Settings loaded\", and treated that emptiness as your settings. Pressing Save then wrote it. The page now refuses to draw or save anything until it has actually read what is there, and says so."
+                  " If reading your synced settings failed for a moment, the page drew empty lists, said \"Settings loaded\", and treated that emptiness as your settings. Pressing Save then wrote it. The page now refuses to draw or save anything until it has actually read what is there, and says so. Exporting and importing refuse on the same page state: a backup built from lists that were never read would record an empty Never Delete list as your settings, and an import cannot be undone when the storage its rollback needs is the storage that is failing."
                 ]
               ]
             },
@@ -163,7 +163,7 @@ var GCC_CHANGELOG = {
                 ],
                 [
                   "",
-                  " Swedish, Danish, Norwegian, Polish, Turkish and Arabic mailboxes were checked against the English words only, and Traditional Chinese against the Simplified ones, while Safe Mode reported itself as on."
+                  " Swedish, Danish, Norwegian, Polish, Turkish and Arabic mailboxes were checked against the English words only, and Traditional Chinese against the Simplified ones, while Safe Mode reported itself as on. Norwegian is covered whichever of the two language codes Gmail uses."
                 ]
               ]
             },
