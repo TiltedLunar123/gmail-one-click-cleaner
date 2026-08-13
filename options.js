@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const OPTIONS_VERSION = "8.15.0";
+  const OPTIONS_VERSION = "8.16.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -127,7 +127,10 @@
     // 8.15: the Pro Settings card saves separately, so it tracks its own
     // edits. Only beforeunload reads both.
     proSettingsDirty: false,
-    initialData: null
+    initialData: null,
+    // 8.16: set when the load could not READ sync, as opposed to reading
+    // it and finding nothing. See loadData and readSyncSettings.
+    loadFailed: false
   };
 
   // =========================
@@ -385,6 +388,23 @@
     updateAllCounts();
   };
 
+  // 8.16: the controls whose values are written back to sync by saveData.
+  // Disabled together when the load could not read what is already there,
+  // so the page cannot be used to overwrite settings it never saw. The
+  // Pro Settings card owns its own fields and its own lock (setLocked).
+  const SETTINGS_FORM_IDS = Object.freeze([
+    ...RULE_KEYS, "debugMode", "whitelist", "protectKeywords",
+    "save", "restoreDefaultsBtn", "exportBtn", "importBtn", "importFile",
+    "addCustomRuleBtn", "newCustomQuery", "newCustomAction"
+  ]);
+
+  const setSettingsFormEnabled = (enabled) => {
+    for (const id of SETTINGS_FORM_IDS) {
+      const el = GCC.$(id);
+      if (el && "disabled" in el) el.disabled = !enabled;
+    }
+  };
+
   /** @param {string} id */
   const readLines = (id) => {
     const el = GCC.$(id);
@@ -415,6 +435,35 @@
   // Load / Save
   // =========================
 
+  // 8.16: three answers, not two, and this page needed them more than the
+  // popup did.
+  //
+  // GCC.storageGet answers a REJECTED read with {} (shared.js), so a
+  // one-second sync hiccup made loadData paint an empty Global Whitelist and
+  // empty Protected Keywords, take that emptiness as the clean baseline,
+  // and tell the screen reader "Settings loaded." The catch below could
+  // never fire, because nothing threw. Then the user pressed Save, for any
+  // reason at all, and saveData wrote those empty lists to sync under
+  // "Settings saved successfully!"
+  //
+  // 8.15 fixed this shape in the popup, which only READS the two lists.
+  // This page WRITES them, and they are the only thing standing between a
+  // bulk-delete rule and mail the user said never to touch. The next
+  // cleanup, scheduled and Auto-Pilot sweeps included, would have appended
+  // no exclusions at all.
+  const readSyncSettings = async () => {
+    try {
+      const data = await GCC.promisify(
+        chrome.storage.sync.get.bind(chrome.storage.sync),
+        [STORAGE_KEYS.RULES, STORAGE_KEYS.DEBUG_MODE, STORAGE_KEYS.WHITELIST, STORAGE_KEYS.PROTECT_KEYWORDS]
+      );
+      return { ok: true, data: data || {} };
+    } catch (e) {
+      console.warn("[Gmail Cleaner] sync read failed:", e?.message || e);
+      return { ok: false, data: {} };
+    }
+  };
+
   const loadData = async () => {
     try {
       if (!GCC.hasChromeStorage("sync")) {
@@ -426,7 +475,19 @@
         return;
       }
 
-      const data = await GCC.storageGet("sync", [STORAGE_KEYS.RULES, STORAGE_KEYS.DEBUG_MODE, STORAGE_KEYS.WHITELIST, STORAGE_KEYS.PROTECT_KEYWORDS]);
+      const read = await readSyncSettings();
+      if (!read.ok) {
+        // Nothing is rendered and nothing may be saved. Painting defaults
+        // here is the whole bug: it looks exactly like a mailbox with no
+        // protections configured, and one Save makes it one.
+        state.loadFailed = true;
+        setSettingsFormEnabled(false);
+        GCC.showToast("Could not read your settings. Nothing was changed. Reload the page to try again.", "error", 9000);
+        srStatus("Settings could not be read. Nothing was changed, and saving is disabled until a reload succeeds.");
+        return;
+      }
+      state.loadFailed = false;
+      const data = read.data;
 
       const normalizedRules = normalizeRules(data[STORAGE_KEYS.RULES]);
       renderRules(normalizedRules);
@@ -583,6 +644,17 @@
     // A save already in flight is not a save this call completed, so it
     // reports false like every other non-success path.
     if (state.saving) return false;
+
+    // 8.16: and a save built from a load that could not read sync is the
+    // one save that must never happen. The fields are disabled too, but
+    // Ctrl+S and the import path both reach here without a click, and
+    // "refuse at the write" is the guard that cannot be routed around.
+    if (state.loadFailed) {
+      GCC.showToast("Your settings could not be read, so nothing can be saved over them. Reload the page.", "error", 9000);
+      srStatus("Not saved: your settings could not be read. Reload the page and try again.");
+      return false;
+    }
+
     state.saving = true;
 
     const btn = /** @type {HTMLButtonElement|null} */ (GCC.$("save"));
@@ -800,9 +872,23 @@
   const buildImportWriteSet = (json) => {
     const data = {
       [STORAGE_KEYS.RULES]: normalizeRules(json.rules),
-      [STORAGE_KEYS.DEBUG_MODE]: !!json.debugMode,
-      [STORAGE_KEYS.WHITELIST]: normalizeWhitelist(json.whitelist)
+      [STORAGE_KEYS.DEBUG_MODE]: !!json.debugMode
     };
+    // 8.16: the whitelist gets the same back-compat guard its three
+    // neighbours already had, and it is the one that needed it most.
+    //
+    // normalizeWhitelist returns [] for a missing key, and this wrote it
+    // unconditionally, so importing ANY backup or config file that does not
+    // carry a whitelist emptied the user's Global Whitelist. That includes
+    // a hand-written file with just a rule set in it, which is exactly the
+    // kind of file someone shares. The comment below has spelled out why
+    // that is wrong since 8.0, for the key sitting one line under it.
+    //
+    // The whitelist is a safety list: the senders it held were protected
+    // from every run before the import and unprotected after it.
+    if (Array.isArray(json.whitelist)) {
+      data[STORAGE_KEYS.WHITELIST] = normalizeWhitelist(json.whitelist);
+    }
     // Only restore protectKeywords when the backup carried them. A format
     // 1/2 backup predates the key, so writing [] would wipe the user's
     // current keywords (same back-compat rule as customRules/schedules).
@@ -1382,23 +1468,41 @@
     const daysEl = GCC.$("snoozeDays");
     const clearBtn = GCC.$("snoozeClearBtn");
 
-    setBtn?.addEventListener("click", async () => {
-      const days = Math.max(1, Math.min(60, parseInt(daysEl?.value || "7", 10) || 7));
-      await new Promise((resolve) => {
+    // 8.16: both of these passed `resolve` as the callback and then reported
+    // success without looking at the reply. Snooze is a safety switch, and
+    // the failure it hid is the one that matters: somebody about to leave
+    // for a fortnight presses Snooze, is told "Schedules snoozed 14 days",
+    // and the write never landed, so the unattended sweeps they thought they
+    // had stopped run anyway. The worker answers { ok } on this message, so
+    // the reply was there to be read. Same rule the rest of this page
+    // already follows: a control that silently does nothing is worse than
+    // one that says no.
+    const sendSnooze = async (days) => {
+      const resp = await new Promise((resolve) => {
         try { chrome.runtime.sendMessage({ type: "gmailCleanerSetSnooze", days }, resolve); }
         catch { resolve(null); }
       });
       await loadSnoozeStatus();
-      GCC.showToast(`Schedules snoozed ${days} day${days === 1 ? "" : "s"}`, "success");
+      return Boolean(resp?.ok);
+    };
+
+    setBtn?.addEventListener("click", async () => {
+      const days = Math.max(1, Math.min(60, parseInt(daysEl?.value || "7", 10) || 7));
+      if (await sendSnooze(days)) {
+        GCC.showToast(`Schedules snoozed ${days} day${days === 1 ? "" : "s"}`, "success");
+        srStatus(`Schedules snoozed for ${days} day${days === 1 ? "" : "s"}.`);
+      } else {
+        GCC.showToast("Could not snooze your schedules. They are still active. Try again.", "error");
+        srStatus("Snooze failed. Your schedules are still active.");
+      }
     });
 
     clearBtn?.addEventListener("click", async () => {
-      await new Promise((resolve) => {
-        try { chrome.runtime.sendMessage({ type: "gmailCleanerSetSnooze", days: 0 }, resolve); }
-        catch { resolve(null); }
-      });
-      await loadSnoozeStatus();
-      GCC.showToast("Snooze cleared", "info");
+      if (await sendSnooze(0)) {
+        GCC.showToast("Snooze cleared", "info");
+      } else {
+        GCC.showToast("Could not clear the snooze. Try again.", "error");
+      }
     });
   }
 
@@ -1826,7 +1930,7 @@
     // taken from the object would read clean while the box on screen
     // said something else.
     const proFields = () => [labelInput, intervalSel, depthSel, maxSendersSel, minAgeSel, undoEntriesSel];
-    const proSnapshot = () => proFields().map((el) => (el ? String(el.value) : "")).join(" ");
+    const proSnapshot = () => proFields().map((el) => (el ? String(el.value) : "")).join("\u0000");
     let proBaseline = proSnapshot();
 
     const setProDirty = (dirty) => {
@@ -1870,12 +1974,18 @@
       renderPreview();
     };
 
+    // 8.16: split out so the unreadable case can disable the same controls
+    // WITHOUT raising the "Pro required" panel at a user who has paid.
+    const setProFieldsDisabled = (disabled) => {
+      for (const el of [labelInput, intervalSel, depthSel, maxSendersSel, minAgeSel, undoEntriesSel, saveBtn, resetBtn]) {
+        if (el) el.disabled = disabled;
+      }
+      if (fieldsEl) fieldsEl.style.opacity = disabled ? "0.55" : "";
+    };
+
     const setLocked = (locked) => {
       if (lockedEl) lockedEl.hidden = !locked;
-      for (const el of [labelInput, intervalSel, depthSel, maxSendersSel, minAgeSel, undoEntriesSel, saveBtn, resetBtn]) {
-        if (el) el.disabled = locked;
-      }
-      if (fieldsEl) fieldsEl.style.opacity = locked ? "0.55" : "";
+      setProFieldsDisabled(locked);
     };
 
     const renderState = async () => {
@@ -1890,7 +2000,21 @@
       // effective() is deliberately given the real licence state: a
       // lapsed copy sees the defaults that are actually in force, not
       // the values it saved while the key was present.
-      applyToForm(await GCC.proSettings.read(isPro));
+      //
+      // 8.16: readOrNull, not read. The card's own contract a few dozen
+      // lines up promises never to leave a value on screen that is not the
+      // value in force, and painting DEFAULTS over an unreadable sync read
+      // broke it in the most expensive direction: the next edit wrote all
+      // six defaults back over the user's real settings. Nothing is
+      // repainted and nothing can be saved until a read succeeds.
+      const settings = await GCC.proSettings.readOrNull(isPro);
+      if (settings === null) {
+        setProFieldsDisabled(true);
+        showLabelError("Your Pro settings could not be read. Reload the page to try again.");
+        GCC.showToast("Could not read your Pro settings. Nothing was changed.", "error", 9000);
+        return;
+      }
+      applyToForm(settings);
       // renderState re-runs when a licence is activated or removed in
       // another tab, and it repaints every field, so the baseline has to
       // move with it or the card would call itself dirty over a change

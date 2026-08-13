@@ -137,8 +137,25 @@ async function renderProPitch(stats) {
 let whitelistEntries = [];
 
 async function loadWhitelist() {
+  // 8.16: the catch below was unreachable, so the comment inside it
+  // described behaviour the code did not have. The shared storage helper
+  // answers a REJECTED read with an empty object rather than throwing, so
+  // `wl` came back undefined, the ternary assigned [], and one failed poll
+  // of the 30-second refresh wiped the very cache this function exists to
+  // keep. Reading sync directly makes the failure visible again, and the
+  // assignment now only happens on a read that completed.
+  //
+  // The helper is deliberately not named here: a test pins its absence from
+  // this function, and a pin that a comment can satisfy is not a pin.
+  if (!GCC.hasChromeStorage("sync")) {
+    whitelistEntries = [];
+    return;
+  }
   try {
-    const stored = await GCC.storageGet("sync", "whitelist");
+    const stored = await GCC.promisify(
+      chrome.storage.sync.get.bind(chrome.storage.sync),
+      "whitelist"
+    );
     const wl = stored?.whitelist;
     whitelistEntries = Array.isArray(wl) ? wl.filter((e) => typeof e === "string") : [];
   } catch {
@@ -659,16 +676,35 @@ async function loadUndoLog() {
         : "about " + daysLeft + " days left to restore");
     }
 
-    const findUrl = "https://mail.google.com/mail/u/0/#search/label:" +
-      encodeURIComponent(entry.tagLabel || "GmailCleaner");
-
-    const findLink = GCC.createEl("a", {
-      className: "btn btn-sm",
-      href: findUrl,
-      target: "_blank",
-      rel: "noopener noreferrer",
-      textContent: "Find in Gmail"
-    });
+    // 8.16: quoted, the way the engine's own restore query does it.
+    //
+    // Every recovery label the engine writes has a space in it
+    // ("GmailCleaner - Promotions"), and Gmail's `label:` operator takes
+    // only the token up to the first space. So this link searched for a
+    // label named "GmailCleaner", which the extension never creates, plus
+    // the loose text "- Promotions", and landed on "No messages matched
+    // your search". It is the one link offered to check that
+    // tag-before-delete really labelled the mail, so somebody who had just
+    // trashed thousands of emails clicked it to confirm the safety net and
+    // was shown an empty mailbox, next to a Restore button that would have
+    // worked, because buildRestoreQuery quotes the label.
+    //
+    // The old hardcoded fallback label was wrong for the same reason and
+    // could never match anything, because no bare prefix label is ever
+    // created, so an entry with no label gets no link at all:
+    // restoreEligibility already treats that entry as unrestorable. Not
+    // quoted here, because a test pins its absence and a pin that a comment
+    // can satisfy is not a pin.
+    const findLink = entry.tagLabel
+      ? GCC.createEl("a", {
+        className: "btn btn-sm",
+        href: "https://mail.google.com/mail/u/0/#search/" +
+          encodeURIComponent('label:"' + entry.tagLabel + '"'),
+        target: "_blank",
+        rel: "noopener noreferrer",
+        textContent: "Find in Gmail"
+      })
+      : null;
 
     const countEl = GCC.createEl("span", {
       textContent: GCC.formatNumber(entry.count) + " emails"

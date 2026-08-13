@@ -1185,6 +1185,37 @@ const GCC = (() => {
     return proSettingsEffective(stored?.[PRO_SETTINGS_KEY], isPro);
   };
 
+  // 8.16: the third answer readSafetyList got in 8.15, for the same reason
+  // and one surface further out.
+  //
+  // read() above cannot tell "nothing is stored" from "the read failed",
+  // because storageGet answers both with {}, and its reply to both is
+  // DEFAULTS. That is the correct reading for a RUN: defaults are the free
+  // behaviour, which can only ever do less. It is the wrong reading for the
+  // Options card, which paints the answer into six controls and then writes
+  // all six back from the DOM on the next edit. A Pro user who opened
+  // Options during a sync hiccup and changed one dropdown had their
+  // recovery-log cap silently reset from 300 entries to 60, their
+  // Auto-Pilot age floor and sweep size reverted, and their recovery label
+  // renamed. The undo cap is the one that destroys data: the next run trims
+  // the log to it, and runs that were still restorable stop being so.
+  //
+  // No sync storage at all still answers with defaults, or the http render
+  // harness and every jsdom test that loads a page sees an unreadable card.
+  const readProSettingsOrNull = async (isPro) => {
+    if (!hasChromeStorage("sync")) return proSettingsEffective(null, isPro);
+    try {
+      const stored = await promisify(
+        chrome.storage.sync.get.bind(chrome.storage.sync),
+        PRO_SETTINGS_KEY
+      );
+      return proSettingsEffective(stored?.[PRO_SETTINGS_KEY], isPro);
+    } catch (e) {
+      console.warn("[GCC] proSettings read failed:", e?.message || e);
+      return null;
+    }
+  };
+
   const proSettings = Object.freeze({
     KEY: PRO_SETTINGS_KEY,
     DEFAULTS: PRO_SETTINGS_DEFAULTS,
@@ -1192,7 +1223,8 @@ const GCC = (() => {
     validateLabelPrefix,
     effective: proSettingsEffective,
     smartScanBudget,
-    read: readProSettings
+    read: readProSettings,
+    readOrNull: readProSettingsOrNull
   });
 
   // =========================
