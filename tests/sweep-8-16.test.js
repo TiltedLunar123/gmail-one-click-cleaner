@@ -147,7 +147,11 @@ describe("the worker refuses to mark work finished that was not", () => {
     // The number the user presses "Turn on for real" against.
     expect(fn).toContain("if (finishedClean) patch.preview = { count, at: now };");
     // Left unwritten rather than nulled, so an earlier good preview stands.
-    expect(fn).not.toContain("patch.preview = { count, at: now };\n      } else {");
+    // Counted rather than matched around a line break. The first draft of
+    // this assertion embedded a bare \n and so passed on a CRLF checkout and
+    // failed on CI's LF one, which is the wrong reason for a test to be
+    // green. Exactly one write of the preview, and it is the guarded one.
+    expect(fn.match(/patch\.preview = \{ count, at: now \};/g) || []).toHaveLength(1);
     expect(fn).toContain("incomplete: !finishedClean");
   });
 
@@ -324,7 +328,12 @@ describe("the Pro Settings card shows what is in force or nothing at all", () =>
     expect(fn).toContain("if (settings === null) {");
     expect(fn).toContain("setProFieldsDisabled(true);");
     // And not the Pro-required panel: this user has paid.
-    expect(fn).not.toContain("setLocked(true);\n        showLabelError");
+    // And not through setLocked, which raises the "Pro required" panel: this
+    // user has paid, the read just failed. Line-break-free so a CRLF
+    // checkout and an LF one agree.
+    const unreadable = between(fn, "if (settings === null) {", "applyToForm(settings);");
+    expect(unreadable).toContain("setProFieldsDisabled(true);");
+    expect(unreadable).not.toContain("setLocked(");
   });
 });
 
