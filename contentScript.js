@@ -189,6 +189,20 @@
     ar: ["إيصال", "فاتورة", "طلب", "شحن", "توصيل", "استرداد"]
   });
 
+  // 8.16: base codes that name the same words. Every locale table in this
+  // file keys Norwegian as `no`, but BCP-47 prefers the specific `nb` for
+  // Bokmal and Gmail can stamp either, in which case the base lookup below
+  // finds nothing and the mailbox falls back to English terms.
+  //
+  // Aliased HERE and not in the button tables on purpose. This guard builds a
+  // NEGATIVE clause, so reaching for the wrong language's words can only
+  // exclude more mail from a run: over-matching costs a few receipts left
+  // alone. The button tables fail the other way, where a wrong token means
+  // clicking the wrong control, and widening those wants the same
+  // per-locale research the 7.5 tables were built from. Logged as a
+  // follow-up rather than guessed at.
+  const SAFE_MODE_LANG_ALIASES = Object.freeze({ nb: "no", nn: "no" });
+
   function safeModeSubjectGuard() {
     let lang = "";
     try {
@@ -196,7 +210,8 @@
     } catch {
       // Fall through to English only.
     }
-    const base = lang.split("-")[0];
+    const raw = lang.split("-")[0];
+    const base = SAFE_MODE_LANG_ALIASES[raw] || raw;
     const extra = base && base !== "en" ? SAFE_MODE_SUBJECT_TERMS[base] : null;
     const terms = extra
       ? SAFE_MODE_SUBJECT_TERMS.en.concat(extra)

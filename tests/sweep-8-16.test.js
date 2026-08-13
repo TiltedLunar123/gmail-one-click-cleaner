@@ -493,6 +493,38 @@ describe("Safe Mode's receipt shield covers every locale the engine drives", () 
     const fn = between(ENGINE_SRC, "function safeModeSubjectGuard() {", "// =========================");
     expect(fn).toContain("SAFE_MODE_SUBJECT_TERMS.en.concat(extra)");
   });
+
+  // Behaviour, not a pin: the real function, driven across the language tags
+  // Gmail actually stamps on <html lang>. A table with the right words in it
+  // is worth nothing if the lookup cannot reach them.
+  describe("resolved against the tags Gmail really stamps", () => {
+    const build = (lang) => {
+      const src = between(ENGINE_SRC, "const SAFE_MODE_SUBJECT_TERMS", "// Boot & basic utilities");
+      // eslint-disable-next-line no-new-func
+      return new Function("document", src + "\nreturn safeModeSubjectGuard();")({ documentElement: { lang } });
+    };
+    const englishOnly = build("en");
+
+    test.each([
+      ["sv"], ["sv-SE"], ["da"], ["da-DK"], ["pl"], ["pl-PL"], ["tr"], ["tr-TR"], ["ar"],
+      // Every locale table in this file keys Norwegian as `no`, and BCP-47
+      // prefers `nb`. Aliased, so all three forms reach the same words.
+      ["no"], ["nb"], ["nb-NO"], ["nn"],
+      // Traditional words live in the zh list, which every Chinese tag
+      // reaches through the base code.
+      ["zh"], ["zh-TW"], ["zh-HK"], ["zh-CN"]
+    ])("%s gets terms of its own on top of English", (lang) => {
+      expect(build(lang).length).toBeGreaterThan(englishOnly.length);
+    });
+
+    test("an uncovered language still gets the English shield, never nothing", () => {
+      // Czech is deliberately uncovered, and the failure has to be
+      // "protected by English words" rather than "not protected".
+      expect(build("cs")).toBe(englishOnly);
+      expect(englishOnly).toContain("-subject:(");
+      expect(englishOnly).toContain("receipt");
+    });
+  });
 });
 
 // =====================================================================
