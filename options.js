@@ -970,6 +970,20 @@
     .join(", ");
 
   const exportConfig = async () => {
+    // 8.16: a backup built from a load that could not read sync is worse
+    // than no backup, because it looks like one. collectAllData() reads the
+    // DOM, and on that path the DOM holds empty lists, so the file would
+    // record an empty Global Whitelist as the user's settings and be
+    // restored months later by somebody who trusts it.
+    //
+    // Refused here rather than left to the disabled button, for the reason
+    // saveData gives: the button is a guard you can route around, and the
+    // finally below re-enables it.
+    if (state.loadFailed) {
+      GCC.showToast("Your settings could not be read, so there is nothing safe to export. Reload the page.", "error", 9000);
+      srStatus("Export cancelled: your settings could not be read.");
+      return;
+    }
     const btn = /** @type {HTMLButtonElement|null} */ (GCC.$("exportBtn"));
     setButtonLoading(btn, true);
 
@@ -1065,6 +1079,18 @@
     const fileInput = /** @type {HTMLInputElement} */ (evt.target);
     const file = fileInput.files?.[0];
     if (!file) return;
+
+    // 8.16: import writes through safeSyncSet directly, so saveData's
+    // refusal never sees it, and its rollback reads the backup with the same
+    // storage that is already failing. An import that went wrong on this
+    // path could not be undone. Refused at the write for the same reason as
+    // the export above.
+    if (state.loadFailed) {
+      fileInput.value = "";
+      GCC.showToast("Your settings could not be read, so an import cannot be undone. Reload the page first.", "error", 9000);
+      srStatus("Import cancelled: your settings could not be read.");
+      return;
+    }
 
     const btn = /** @type {HTMLButtonElement|null} */ (GCC.$("importBtn"));
     setButtonLoading(btn, true);

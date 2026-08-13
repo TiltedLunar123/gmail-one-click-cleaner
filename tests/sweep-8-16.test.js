@@ -338,6 +338,29 @@ describe("the Options page will not overwrite settings it never read", () => {
       expect(ids).toContain(id);
     }
   });
+
+  // Found by this release's own review pass. Both of these reach storage
+  // without going through saveData, so the DOM was their only guard, and
+  // both re-enable their own button in a finally.
+  test("export refuses too, rather than writing a backup of lists it never read", () => {
+    const fn = between(OPTIONS_SRC, "const exportConfig = async () => {", "const handleImportFile = async (evt)");
+    const guardAt = fn.indexOf("if (state.loadFailed) {");
+    const loadingAt = fn.indexOf("setButtonLoading(btn, true)");
+    expect(guardAt).toBeGreaterThan(-1);
+    // Before the button-loading call, whose finally re-enables it.
+    expect(guardAt).toBeLessThan(loadingAt);
+    expect(fn).toContain("nothing safe to export");
+  });
+
+  test("import refuses too, because its rollback reads the storage that is failing", () => {
+    const fn = between(OPTIONS_SRC, "const handleImportFile = async (evt) => {", "const setupKeyboardShortcuts");
+    const guardAt = fn.indexOf("if (state.loadFailed) {");
+    expect(guardAt).toBeGreaterThan(-1);
+    expect(guardAt).toBeLessThan(fn.indexOf("setButtonLoading(btn, true)"));
+    // It writes through safeSyncSet, which saveData's refusal never sees.
+    expect(fn).toContain("safeSyncSet(writeSet");
+    expect(fn).toContain("cannot be undone");
+  });
 });
 
 describe("the Pro Settings card shows what is in force or nothing at all", () => {
