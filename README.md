@@ -10,6 +10,8 @@ A browser extension that bulk-cleans Gmail in one click. Run configurable cleanu
 
 > Works with Chrome, Edge, Brave, and Firefox. One codebase, per-browser builds.
 
+<img src="docs/popup.png" alt="The popup on the Report tab, with tabs for Report, Clean, Lists and Storage. It offers a read-only mailbox scan described as free and changing nothing, and explains that the scan counts old promotions, big attachments, forgotten newsletters and unarchived inbox mail, then ranks them. A footer carries Rules, Stats and Diagnostics links, the version, and the Pro pricing line." width="504">
+
 ## Features
 
 ### Mailbox Report
@@ -31,7 +33,7 @@ The extension recommends what to clean instead of making you configure it. One f
 - **Hard vetoes first** - a sender is never suggested when they match your whitelist or protected keywords, when any of their mail is starred, or when your Sent folder shows you write to them.
 - **One-click apply** - each suggestion runs as an ordinary cleanup (tag first, dry-run honored, undo log, stats), so nothing new can touch mail. Dismissed suggestions stay silent for 90 days.
 - **The right action per sender** - storage hogs lead with a purge, stopped floods with a delete, and a sender who still emails weekly while you never open them leads with Unsubscribe (Pro), because deleting would not stop the next batch.
-- **Pro** - the full suggestion list (top 3 stay free) and bulk apply of verified suggestions, each run honouring the action its own card leads with.
+- **Pro** - the full suggestion list (top 3 stay free) and bulk apply of checked suggestions, each run honouring the action its own card leads with.
 
 ### Auto-Pilot (Pro)
 The same Smart Suggestions sweep, on a weekly schedule, so the inbox stays clean without you opening the popup.
