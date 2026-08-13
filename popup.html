@@ -1145,15 +1145,24 @@
       line-height: 1.4;
     }
     /* 8.16: the same pill, in the warning tone, for "this run left mail
-       behind". Built on the theme-aware --warning trio so it needs no
-       per-theme override: both palettes define all three, and the light
-       value (#b45309) is dark enough on its own tint to read. */
+       behind". Built on the theme-aware --warning trio, which both palettes
+       define, so the dark theme needs nothing: #fbbf24 on its own tint over
+       the surface measures 7.66:1.
+
+       Light needs one override, and this is the second time the amber tokens
+       have wanted one (7.8.1 moved light --danger from #dc2626 to #b91c1c for
+       the same reason). --warning #b45309 on its 10% tint, composited over
+       the card and the #d9e6ec page beneath it, comes to 4.25:1: under the
+       4.5 that 11px bold text needs, and close enough that eyeballing it
+       would have passed. #8a3f07 measures 6.36:1 on the same stack.
+       Border and background stay on the tokens; only the text moves. */
     .recap-note--partial {
       border-color: var(--warning-border);
       background: var(--warning-bg);
       color: var(--warning);
       max-width: 100%;
     }
+    html[data-theme="light"] .recap-note--partial { color: #8a3f07; }
 
     /* Success CTAs */
     .success-ctas {

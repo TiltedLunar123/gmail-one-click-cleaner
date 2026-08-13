@@ -185,6 +185,43 @@ describe("every surface that reports a run says when it left mail behind", () =>
     expect(css).toContain("var(--warning)");
   });
 
+  // 8.16's own review caught this one: the amber tokens alone measured
+  // 4.25:1 in light mode, under the 4.5 that 11px bold text needs, and close
+  // enough that looking at it would have passed. Computed rather than
+  // eyeballed, the way 7.8.1's contrast pass had to be, and read out of the
+  // file so it measures what ships.
+  test("the light theme override clears WCAG AA, and the dark theme still does", () => {
+    const parse = (c) => {
+      const n = parseInt(c.slice(1), 16);
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255, 1];
+    };
+    const over = (f, b) => [0, 1, 2].map((i) => f[i] * f[3] + b[i] * (1 - f[3])).concat(1);
+    const lum = (c) => {
+      const f = (v) => {
+        v /= 255;
+        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+      };
+      return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]);
+    };
+    const ratio = (a, b) => {
+      const la = lum(a), lb = lum(b);
+      return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+    };
+
+    const m = POPUP_HTML.match(
+      /html\[data-theme="light"\] \.recap-note--partial \{ color: (#[0-9a-f]{6}); \}/i
+    );
+    expect(m).not.toBeNull();
+
+    // Light: page #d9e6ec, card rgba(255,255,255,0.86), tint rgba(180,83,9,0.1).
+    const lightTint = over([180, 83, 9, 0.1], over([255, 255, 255, 0.86], parse("#d9e6ec")));
+    expect(ratio(parse(m[1]), lightTint)).toBeGreaterThanOrEqual(4.5);
+
+    // Dark: surface over the deep background, tint rgba(251,191,36,0.15).
+    const darkTint = over([251, 191, 36, 0.15], [17, 26, 36, 1]);
+    expect(ratio(parse("#fbbf24"), darkTint)).toBeGreaterThanOrEqual(4.5);
+  });
+
   test("showResultSummary takes the count and hides the note at zero", () => {
     const fn = between(POPUP_SRC, "const showResultSummary = ({", "const hideResultSummary");
     expect(fn).toContain("stoppedShort = 0");
