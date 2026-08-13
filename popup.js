@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "8.15.0";
+  const POPUP_VERSION = "8.16.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -423,6 +423,8 @@ document.addEventListener("DOMContentLoaded", () => {
     resultLead: $("resultLead"),
     resultActionNote: $("resultActionNote"),
     resultSafetyNote: $("resultSafetyNote"),
+    // 8.16: shown when the run finished with rules still unfinished.
+    resultPartialNote: $("resultPartialNote"),
     successCtas: $("successCtas"),
 
     // 7.4 post-run recap
@@ -723,7 +725,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // for archive runs, and left the note underneath still describing
   // Trash: archived mail never goes there, so there is no 30-day
   // window and restore is by label with no deadline at all.
-  const showResultSummary = ({ count = 0, freedBytes = 0, action = "trash", dryRun = false } = {}) => {
+  const showResultSummary = ({ count = 0, freedBytes = 0, action = "trash", dryRun = false, stoppedShort = 0 } = {}) => {
     if (!elements.resultSummary) return;
     if (elements.resultCount) elements.resultCount.textContent = String(Math.max(0, Number(count || 0)));
     // 8.9: archiving moves mail to All Mail, where it still counts
@@ -761,6 +763,20 @@ document.addEventListener("DOMContentLoaded", () => {
         : (archived
           ? t("resultNoteArchive", "Nothing deleted. Archived mail stays in All Mail, and you can restore it from Stats at any time.")
           : t("resultNote", "Nothing permanently deleted, Gmail keeps Trash for 30 days. You can restore anytime. Your storage only frees up once Trash empties."));
+    }
+    // 8.16: "Cleanup Complete!" is the wrong headline for a run that ran
+    // out of passes on one of its rules, and the per-rule warning that
+    // said so scrolled past in the progress log. Set on every caller,
+    // including the recap, because a recap of a partial run is exactly
+    // when the user has forgotten and needs telling.
+    if (elements.resultPartialNote) {
+      const short = Math.max(0, Number(stoppedShort) || 0);
+      if (short > 0) {
+        elements.resultPartialNote.textContent = short === 1
+          ? t("resultPartialOne", "One rule stopped before it finished. Run the cleaner again to carry on where it left off.")
+          : t("resultPartialMany", `${short} rules stopped before they finished. Run the cleaner again to carry on where they left off.`, [String(short)]);
+      }
+      elements.resultPartialNote.hidden = short === 0;
     }
     elements.resultSummary.classList.add("show");
   };
@@ -1493,7 +1509,11 @@ document.addEventListener("DOMContentLoaded", () => {
     showResultSummary({
       count: cleaned,
       freedBytes: freedMb * 1024 * 1024,
-      action: GCC.popupUi.recapAction(entry)
+      action: GCC.popupUi.recapAction(entry),
+      // 8.16: history rows written before this release carry no such
+      // field, and 0 is the right reading for them: the note is a claim
+      // that a rule stopped short, and there is no evidence of one.
+      stoppedShort: Number(entry.stoppedShort) || 0
     });
     if (elements.recapNote) {
       const when = GCC.relativeTime(entry.timestamp);
@@ -1774,6 +1794,22 @@ document.addEventListener("DOMContentLoaded", () => {
         resetRunButton();
         hideProgress();
         state.isRunning = false;
+        // 8.16: and put back everything this function had already claimed
+        // on screen before the guard. The status line still read "live
+        // started, opening progress...", the quick-actions strip was still
+        // up offering Cancel and Open progress, and startedRunHere was
+        // still true. That combination is worse than untidy: Open progress
+        // reads startedRunHere and focuses a leftover dashboard WITHOUT
+        // reloading it (which is the exact case handleOpenProgress guards
+        // against, a page frozen on "Run finished" with Cancel disabled),
+        // and Cancel aims a stop at a run this popup never started, then
+        // clears the claim belonging to whatever run really holds it.
+        // Matches the catch block at the bottom of this function, which
+        // has always got this right.
+        hideQuickActions();
+        setStatus("", STATUS_TYPES.INFO);
+        state.currentGmailTabId = null;
+        state.startedRunHere = false;
         return;
       }
 
@@ -2213,10 +2249,17 @@ document.addEventListener("DOMContentLoaded", () => {
   // null when the run could not start. setStatusFn receives the
   // user-facing reason on refusal.
   const injectEngineRun = async (config, setStatusFn) => {
+    // 8.16: these three were raw English literals in a file where every
+    // sibling call site already routes the identical sentence through the
+    // catalogue. This is the shared path for all five auxiliary run kinds,
+    // so a French or Japanese user whose scan refused got an English
+    // instruction telling them the one thing they needed to do, while the
+    // Run button on the Clean tab explained the same refusal in their own
+    // language. The keys already existed and are already translated.
     if (!(await GCC.gmailAccess.check())) {
       refreshBanners().catch(() => {});
-      setStatusFn("Allow Gmail access at the top of this popup first.");
-      showToast("gmail access needed", "warning");
+      setStatusFn(t("allowAccessFirst", "Allow Gmail access at the top of this popup first."));
+      showToast(t("accessNeededToast", "gmail access needed"), "warning");
       return null;
     }
 
@@ -2224,7 +2267,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!gmailTab) return null;
 
     if (await isEngineAttached(gmailTab.id)) {
-      showToast("another run is already in progress", "warning");
+      // Its own key rather than alreadyRunningToast: what is attached here
+      // is as likely to be a scan as a cleanup, and this path serves all
+      // five auxiliary run kinds.
+      showToast(t("runInProgressToast", "another run is already in progress"), "warning");
       return null;
     }
 
@@ -2926,6 +2972,12 @@ document.addEventListener("DOMContentLoaded", () => {
         await clearActiveRun(claimedRunId);
         claimedRunId = null;
         state.isRunning = false;
+        // 8.16: see the same branch in runCleanup. A refusal that leaves
+        // startedRunHere set makes Open progress reuse a dead dashboard,
+        // and the panel status still reads "Running the plan...".
+        setReportStatus("");
+        state.currentGmailTabId = null;
+        state.startedRunHere = false;
         return;
       }
 
@@ -3464,6 +3516,10 @@ document.addEventListener("DOMContentLoaded", () => {
         await clearActiveRun(claimedRunId);
         claimedRunId = null;
         state.isRunning = false;
+        // 8.16: see the same branch in runCleanup.
+        setXrayStatus("");
+        state.currentGmailTabId = null;
+        state.startedRunHere = false;
         return;
       }
 
@@ -3988,6 +4044,10 @@ document.addEventListener("DOMContentLoaded", () => {
         await clearActiveRun(claimedRunId);
         claimedRunId = null;
         state.isRunning = false;
+        // 8.16: see the same branch in runCleanup.
+        setSmartStatus("");
+        state.currentGmailTabId = null;
+        state.startedRunHere = false;
         return;
       }
 
@@ -4226,6 +4286,14 @@ document.addEventListener("DOMContentLoaded", () => {
             ? t("apDeferredOne", "1 suggestion needs a different action, so it is waiting on the Clean tab.")
             : t("apDeferredMany", `${dText} suggestions need a different action, so they are waiting on the Clean tab.`, [dText]));
         }
+        // 8.16: a sweep the user cancelled, or one that ran out of passes,
+        // reported its partial tally as the week's work with nothing to say
+        // it had stopped early. Rows written before this release carry no
+        // flag, and absent means "no evidence it stopped", which is the
+        // reading that cannot invent a warning about a sweep that was fine.
+        if (ap.lastRun.incomplete) {
+          statusText += " " + t("apLastSweepIncomplete", "It stopped before finishing, so there is more left than this.");
+        }
       } else {
         statusText = t("apFirstSweepSoon", "First sweep runs soon as a preview. Nothing is archived until you confirm below.");
       }
@@ -4272,7 +4340,14 @@ document.addEventListener("DOMContentLoaded", () => {
       showToast(
         resp?.error === "pro_required"
           ? t("apNeedsPro", "Auto-Pilot needs an active Pro license")
-          : t("apUpdateFailed", "could not update Auto-Pilot"),
+          // 8.16: the worker refuses this write outright when it cannot read
+          // the stored config, because saving the toggle merges the whole
+          // object and would take the user's live-mode confirmation with it.
+          // Saying which of the two happened is the difference between
+          // "try again in a moment" and "something is broken".
+          : resp?.error === "storage_unreadable"
+            ? t("apStorageUnreadable", "your synced settings could not be read, so nothing was changed. Try again in a moment.")
+            : t("apUpdateFailed", "could not update Auto-Pilot"),
         "warning"
       );
     }
@@ -4285,7 +4360,12 @@ document.addEventListener("DOMContentLoaded", () => {
       state.autoPilot = resp.autoPilot;
       showToast(t("apLiveToast", "Auto-Pilot is live - weekly sweeps now archive for real"), "success");
     } else {
-      showToast(t("apConfirmFailed", "could not confirm Auto-Pilot"), "warning");
+      showToast(
+        resp?.error === "storage_unreadable"
+          ? t("apStorageUnreadable", "your synced settings could not be read, so nothing was changed. Try again in a moment.")
+          : t("apConfirmFailed", "could not confirm Auto-Pilot"),
+        "warning"
+      );
     }
     renderAutoPilot();
   };
@@ -4615,7 +4695,15 @@ document.addEventListener("DOMContentLoaded", () => {
           state.tabs?.select("tabClean");
           hideRecapNote();
           showResultState();
-          showResultSummary({ count, freedBytes, action, dryRun: stats?.mode === "dry" });
+          showResultSummary({
+            count,
+            freedBytes,
+            action,
+            dryRun: stats?.mode === "dry",
+            // 8.16: from buildFinalStats, so the screen that says
+            // "Cleanup Complete!" says it only when the run was.
+            stoppedShort: Number(stats?.stoppedShort) || 0
+          });
 
           // 7.4: a live result counts as seen; without the marker this
           // same run would come back as a recap on the next open.

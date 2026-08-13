@@ -1144,6 +1144,16 @@
       font-weight: 700;
       line-height: 1.4;
     }
+    /* 8.16: the same pill, in the warning tone, for "this run left mail
+       behind". Built on the theme-aware --warning trio so it needs no
+       per-theme override: both palettes define all three, and the light
+       value (#b45309) is dark enough on its own tint to read. */
+    .recap-note--partial {
+      border-color: var(--warning-border);
+      background: var(--warning-bg);
+      color: var(--warning);
+      max-width: 100%;
+    }
 
     /* Success CTAs */
     .success-ctas {
@@ -2976,6 +2986,12 @@
         <!-- Recap marker. Shown only when this view replays the last
              cleanup on popup open instead of a run that just finished. -->
         <div class="recap-note" id="recapNote" hidden data-i18n="recapStatic">Recap: your last cleanup finished while the popup was closed.</div>
+        <!-- 8.16: a run can finish successfully and still have left mail
+             behind, because a rule ran out of passes or Gmail kept rate
+             limiting it. The engine says so per rule in the progress log,
+             which nobody reads after the fact, so this screen said
+             "Cleanup Complete!" over a job that was half done. -->
+        <div class="recap-note recap-note--partial" id="resultPartialNote" hidden data-i18n="resultPartialOne">One rule stopped before it finished. Run the cleaner again to carry on where it left off.</div>
         <div class="result-summary-stats">
           <!-- 8.9: the freed-storage clause is its own element because an
                archive run frees nothing. It moves mail to All Mail, where
@@ -3198,10 +3214,10 @@
             class="badge"
             id="versionBadge"
             type="button"
-            aria-label="Version 8.15.0, see what's new"
+            aria-label="Version 8.16.0, see what's new"
             title="What's new in this version"
             data-i18n-title="whatsNewTitle"
-          >v8.15.0</button>
+          >v8.16.0</button>
           <button id="kbdHelpBtn" class="linkish" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" data-i18n-label="kbdTitle" data-i18n-title="kbdBtnTitle">
             <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/></svg>
           </button>
@@ -3288,7 +3304,13 @@
           </li>
           <li>
             <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-            <span data-i18n="proFactFuture">Every feature added later is included. Buyers from the first version got all four that came after.</span>
+            <!-- 8.16: five, not four. Pro shipped in 7.0 with bulk
+                 unsubscribe; the X-ray purge (7.2), Smart Suggestions
+                 (7.8), Auto-Pilot (7.12), the Mailbox Report plan (8.0)
+                 and Pro Settings (8.12) all came after it. Undercounting
+                 the promise on the panel that asks for money is a strange
+                 way to keep it. -->
+            <span data-i18n="proFactFuture">Every feature added later is included. Buyers from the first version got all five that came after.</span>
           </li>
           <li>
             <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>

@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "8.15.0";
+  const GCC_CONTENT_VERSION = "8.16.0";
 
   // =========================
   // Timing & behavior constants
@@ -165,7 +165,28 @@
     ru: ["чек", "счёт", "заказ", "доставка", "отправление", "подтверждение", "возврат"],
     ja: ["領収書", "請求書", "注文", "発送", "配送", "返金"],
     ko: ["영수증", "청구서", "주문", "배송", "발송", "환불"],
-    zh: ["收据", "发票", "订单", "发货", "配送", "退款"]
+    // 8.16: Traditional forms appended. The lookup below keys on the base
+    // language code, so zh-TW and zh-HK land here and were being shielded
+    // with Simplified words their mailboxes never contain.
+    zh: ["收据", "发票", "订单", "发货", "配送", "退款",
+      "收據", "發票", "訂單", "出貨"],
+    // 8.16: the six locales the engine drives but this shield did not
+    // cover. 8.12 built this table to replace one frozen English string and
+    // reached 11 of the engine's 17 locales; sv, da, no, pl, tr and ar were
+    // getting the bare English list, so a Swedish or Arabic mailbox had no
+    // receipt protection at all while Safe Mode reported itself as on.
+    //
+    // The failure direction here is the inverse of the UI token tables, and
+    // that is why adding terms is safe: this builds a NEGATIVE clause
+    // (-subject:), so a term that is wrong or unused only ever excludes
+    // more mail from the run. A MISSING term is the one that costs
+    // something, because it lets a receipt be deleted.
+    sv: ["kvitto", "faktura", "order", "beställning", "leverans", "frakt", "återbetalning"],
+    da: ["kvittering", "faktura", "ordre", "levering", "forsendelse", "refusion"],
+    no: ["kvittering", "faktura", "ordre", "levering", "forsendelse", "refusjon"],
+    pl: ["paragon", "faktura", "zamówienie", "dostawa", "przesyłka", "zwrot"],
+    tr: ["fiş", "fatura", "sipariş", "kargo", "teslimat", "iade"],
+    ar: ["إيصال", "فاتورة", "طلب", "شحن", "توصيل", "استرداد"]
   });
 
   function safeModeSubjectGuard() {
@@ -436,6 +457,14 @@
   let liveRunProcessedSoFar = 0;
   // One-shot guard so selector-rot telemetry warns at most once per run.
   let SELECTOR_ROT_WARNED = false;
+  // 8.16: same idea for the guarded-query length warning. Every rule in a
+  // run carries the identical guard suffix, so this would otherwise say the
+  // same thing thirty times.
+  let QUERY_LENGTH_WARNED = false;
+  // The ceiling shared.js calls MAX_QUERY_CHARS. Duplicated because the
+  // content script cannot reach GCC; a test pins the two together, the way
+  // it does for every other constant that exists in both places.
+  const MAX_GUARDED_QUERY_CHARS = 512;
 
   // v3.3: dynamic backoff for throttling
   let dynamicBackoffMs = TIMING.RATE_LIMIT_BACKOFF_START_MS;
@@ -631,7 +660,16 @@
     "Löschen", "Papierkorb", "Excluir", "Lixeira",
     "Elimina", "Cestino", "Verwijderen", "Prullenbak",
     "Ta bort", "Slet", "Slett", "Usuń", "Kosz",
-    "Sil", "Удалить", "حذف", "削除", "삭제", "删除"
+    // 8.16: Traditional Chinese. This list carried only the Simplified
+    // 删除, and 刪 and 删 are different code points, so findButtonByTokens
+    // (which scores on substring) could not match Gmail's zh-TW / zh-HK
+    // Delete button and the English /delete|trash|bin/i fallback cannot
+    // match CJK either. The whole delete path failed on a Traditional
+    // Chinese mailbox: the run selected mail, found no button, and stopped.
+    // Both sibling tables already carry their Traditional forms (封存 in
+    // ARCHIVE_LABEL_TOKENS, 標籤 in LABEL_BUTTON_TOKENS), so this was the
+    // odd one out rather than a locale the engine does not claim.
+    "Sil", "Удалить", "حذف", "削除", "삭제", "删除", "刪除"
   ]);
 
   // 7.5: widened to the same locale set as DELETE_LABEL_TOKENS. Button
@@ -2551,7 +2589,42 @@
       if (exclusion) parts.push(exclusion);
     }
 
-    return parts.join(" ").trim();
+    const guarded = parts.join(" ").trim();
+
+    // 8.16: measure the string that actually reaches Gmail.
+    //
+    // The project has a query ceiling, MAX_QUERY_CHARS in shared.js, and
+    // validateGmailQuery enforces it -- but only ever against the RAW rule.
+    // This function is what builds the search Gmail is given, and nothing
+    // has ever measured its output. With Safe Mode on and ten whitelist
+    // entries it is already past 560 characters; at the maximum the Options
+    // page itself allows (100 whitelist entries, 25 protected keywords) it
+    // is past 6,400.
+    //
+    // The exclusions are both the part that grows and the part that
+    // protects mail, so the failure mode if anything downstream ever does
+    // clip a long search is the worst available one: what falls off the end
+    // is the whitelist, and the run deletes mail from senders the user
+    // explicitly protected. Warned rather than refused, because refusing
+    // would stop cleaning altogether for someone whose only mistake was
+    // filling in the list the Options page invites them to fill in, and
+    // because no clipping has been observed. Once per run, not per rule.
+    if (guarded.length > MAX_GUARDED_QUERY_CHARS && !QUERY_LENGTH_WARNED) {
+      QUERY_LENGTH_WARNED = true;
+      debugLog("Guarded query past the length ceiling", {
+        length: guarded.length,
+        ceiling: MAX_GUARDED_QUERY_CHARS,
+        whitelistEntries: (CONFIG.whitelist || []).length,
+        protectKeywords: (CONFIG.protectKeywords || []).length
+      });
+      safeSend({
+        phase: "warning",
+        status: "Your searches are unusually long",
+        detail: `The guards this run adds make each search ${guarded.length} characters, past the ${MAX_GUARDED_QUERY_CHARS} this extension aims to stay under. Trimming the Global Whitelist or the Protected Keywords in Options keeps every protection inside one search.`
+      });
+    }
+
+    return guarded;
   }
 
   // =========================
@@ -3065,8 +3138,33 @@
     // concatenated text happens to contain the word "of".
     if (text.length > MAX_COUNTER_TEXT_LENGTH) return null;
 
-    const ofMatch = text.match(/\bof\s+(?:about\s+)?([\d,.\s]+)/i);
-    if (ofMatch) {
+    // 8.16: this branch used to accept the word "of" followed by digits
+    // ANYWHERE in a short string, and estimateTotalResults searched
+    // div[role="main"] -- the conversation list -- before the toolbar. So
+    // a subject line reading "Best of 2024" or "Invoice 2 of 3" was read
+    // as Gmail's results counter, and that figure is what sizes the
+    // guardrails, the 10,000 soft cap, the huge-run confirm, the Dry Run
+    // quote and the count a bulk-all selection is booked at. Not a number
+    // measured through the wrong filter: a number measured off unrelated
+    // mail.
+    //
+    // Two conditions, both true of every counter Gmail shows on a RESULT
+    // LIST and neither true of prose.
+    //
+    // The total ends the counter's own text node, so anything with words
+    // after the number is a sentence ("The best of 500 deals, just for
+    // you"). And a list view always states the visible RANGE before the
+    // total: "1-50 of 12,438", or "Showing 1-50 of 12,438", or "1-12 of 12"
+    // on a single page. A bare position was not enough to require, because
+    // "Part 3 of 12" satisfies it and is an ordinary subject line; the range
+    // is the part real mail does not have. The single-position form ("12 of
+    // 1,234") only appears with a conversation OPEN, which is not a state
+    // this function is ever asked about.
+    //
+    // Every non-English counter goes through COUNT_RANGE_RE below and is
+    // unaffected: this branch is the one that needs the word "of".
+    const ofMatch = text.match(/\bof\s+(?:about\s+)?([\d,.\s]+)$/i);
+    if (ofMatch && COUNT_RANGE_RE.test(text.slice(0, ofMatch.index))) {
       const n = digitsToCount(ofMatch[1]);
       if (n !== null) return n;
     }
@@ -3131,12 +3229,20 @@
   // tens of thousands of messages, and why the guardrails that size a run
   // were reading a page instead of a match set. Search main first, then
   // the toolbar, then the document.
+  // 8.16: toolbar FIRST. 8.3 added it as a fallback behind
+  // div[role="main"], but main is the conversation LIST: every subject line
+  // on screen is searched, in document order, before the one element Gmail
+  // actually renders the counter in. The first thing that parsed won, so
+  // any subject a user happened to receive could stand in for the match
+  // total. The toolbar holds the counter and no mail, so it is the right
+  // place to ask first; main and the document stay as fallbacks, which
+  // keeps 8.3's fix intact for whatever layout put it there.
   function estimateTotalResults() {
     const scopes = [];
-    const main = qs(SELECTORS.main);
-    if (main) scopes.push(main);
     const toolbar = findToolbarRoot();
     if (toolbar) scopes.push(toolbar);
+    const main = qs(SELECTORS.main);
+    if (main) scopes.push(main);
     scopes.push(document);
 
     const seen = new Set();
@@ -3652,7 +3758,16 @@
     // 8.0: every label this run actually applied, so the completion
     // screen can show the user what their mail was tagged with instead
     // of only promising that it was.
-    tagLabels: []
+    tagLabels: [],
+    // 8.16: how many rules stopped with mail still behind them. Two exits
+    // in processQuery do that: the pass cap, and giving up on a rule that
+    // kept rate-limiting past the wall-time budget. Both already tell the
+    // user, but only through a `warning` progress message, and a progress
+    // message reaches an OPEN extension page and nothing else. The worker
+    // marks "you have cleared this" off the terminal summary, so it needs
+    // the fact here, where it survives a closed popup and an unattended
+    // run.
+    stoppedShort: 0
   };
 
   function resetStats() {
@@ -3661,6 +3776,7 @@
     stats.totalFreedMb = 0;
     stats.perQuery = [];
     stats.tagLabels = [];
+    stats.stoppedShort = 0;
   }
 
   // 8.0: the two big-run guardrails used to be native confirm() calls
@@ -4107,6 +4223,9 @@
               status: `Skipping ${label} after ${retries} retries`,
               detail: `Last error: ${errMsg}. Run continues with the next rule.`
             });
+            // 8.16: this rule was abandoned, not finished. Whatever it
+            // still matches is still there.
+            stats.stoppedShort++;
             recordQuery({
               query,
               label,
@@ -4138,6 +4257,8 @@
     // a three-pass rule that cleared 150 booked 50 + 100 + 150 = 300
     // into the progress table, the run receipt and the persisted
     // categoryBreakdown the Stats page reads.
+    // 8.16: and the same fact in a form that outlives the message above.
+    stats.stoppedShort++;
     safeSend({
       phase: "warning",
       status: `${label} stopped at the pass limit`,
@@ -4261,6 +4382,10 @@
       tagLabels: [...stats.tagLabels],
       runCount,
       sizeBucket,
+      // 8.16: rules that stopped with mail still behind them. Rides on the
+      // done progress message so the popup's result screen can stop
+      // calling a half-finished sweep "Cleanup Complete!".
+      stoppedShort: Number(stats.stoppedShort) || 0,
       isHugeRun: runCount >= 5000,
       finishedAt: Date.now(),
       version: GCC_CONTENT_VERSION,
@@ -6260,11 +6385,31 @@
     RUNNING = true;
     const runStartTime = Date.now();
 
+    // 8.16: which of the three terminal branches below actually ran.
+    //
+    // `gmailCleanerDone` is sent from the `finally`, so a cancelled run and
+    // a run that died on an unexpected error post the same shaped summary
+    // as one that finished, carrying whatever it had moved up to that
+    // point. Four things in the worker read that summary and write a
+    // durable "you are done with this" mark off it: the Mailbox Report's
+    // Cleared chip, the Storage X-ray's Purged chip, Smart Suggestions'
+    // applied feedback, and Auto-Pilot's preview count. Pressing Cancel
+    // halfway through therefore told the user they had cleared a step they
+    // had just stopped, and took away the button that would have let them
+    // finish it.
+    //
+    // Starts at "error" on purpose. Every way out of this function that is
+    // not one of the two good ones is a run that cannot prove it finished,
+    // and each of those marks costs the user more when it is applied
+    // wrongly than when it is skipped.
+    let runOutcome = "error";
+
     CANCELLED = false;
     REVIEW_SIGNAL = null;
     liveRunProcessedSoFar = 0;
     lastMasterCheckboxClickTime = 0;
     SELECTOR_ROT_WARNED = false;
+    QUERY_LENGTH_WARNED = false;
     window.GCC_CONFIRMED_SOFT_CAP = false;
     window.GCC_CONFIRMED_HUGE = false;
     resetStats();
@@ -6305,6 +6450,9 @@
         });
 
         debugLog("Run aborted: no rules");
+        // Nothing to do is a finished run, not a failed one. It moves
+        // nothing, so no mark hangs off it either way.
+        runOutcome = "completed";
         return;
       }
 
@@ -6364,7 +6512,13 @@
               intensity: CONFIG.intensity,
               dryRun: CONFIG.dryRun,
               duration: Date.now() - runStartTime,
-              perQuery: stats.perQuery
+              perQuery: stats.perQuery,
+              // 8.16: rules that stopped with mail still behind them, so
+              // the history row and the popup's recap can say the run was
+              // partial. Without it a run that cleared 7,500 of 40,000
+              // and hit the pass cap is indistinguishable, days later,
+              // from one that finished the rule.
+              stoppedShort: Number(stats.stoppedShort) || 0
             }
           });
         }
@@ -6392,6 +6546,8 @@
       // Skip it for unattended scheduled runs, the desktop
       // notification (if opted in) and the stats page surface the
       // outcome instead.
+      runOutcome = "completed";
+
       if (!CONFIG.dryRun && stats.totalDeleted > 0 && !CONFIG.scheduled) {
         const destination = CONFIG.archiveInsteadOfDelete ? "All Mail" : "Trash";
 
@@ -6406,6 +6562,7 @@
         (e instanceof Error && e.message.includes("Cancelled"));
 
       if (isCancellation) {
+        runOutcome = "cancelled";
         safeSendImmediate({
           phase: "cancelled",
           status: "Run cancelled.",
@@ -6469,6 +6626,14 @@
               // does not ride here cannot reach the one person who needs
               // to know their weekly cleanup has stopped doing anything.
               declined: Number(stats.declinedRules) || 0,
+              // 8.16: "completed" | "cancelled" | "error", and how many
+              // rules stopped with mail still behind them. Read together
+              // by the worker's four pending-marker resolvers: a mark that
+              // claims the user has finished with something is only
+              // honest when the run finished it. Additive fields, so an
+              // older worker ignores them and behaves exactly as before.
+              outcome: runOutcome,
+              stoppedShort: Number(stats.stoppedShort) || 0,
               runId: CONFIG.runId || ""
             }
           });
