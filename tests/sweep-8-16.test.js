@@ -173,9 +173,20 @@ describe("every surface that reports a run says when it left mail behind", () =>
 
   test("the popup result screen has somewhere to say it", () => {
     expect(POPUP_HTML).toContain('id="resultPartialNote"');
-    // A class, hidden by the global [hidden] rule this file carries.
     expect(POPUP_HTML).toContain("recap-note--partial");
-    expect(POPUP_HTML).toContain("[hidden]");
+    // Inside the result region, so hiding the result hides this with it.
+    // Bounded by the next sibling's id rather than by a blank line, because
+    // a line-break anchor is a pin on the checkout's line endings.
+    const region = between(POPUP_HTML, 'id="resultSummary"', 'id="successCtas"');
+    expect(region).toContain('id="resultPartialNote"');
+    expect(region).toContain('id="resultSafetyNote"');
+    // The 7.3 trap: author display beats the UA [hidden] rule at equal
+    // importance, which is why this file carries a global !important
+    // override. .recap-note is display:inline-block, so the variant must add
+    // no display of its own or `hidden` would stop working on it.
+    expect(POPUP_HTML).toMatch(/\[hidden\]\s*\{\s*display:\s*none\s*!important/);
+    const css = between(POPUP_HTML, ".recap-note--partial {", "}");
+    expect(css).not.toContain("display");
   });
 
   test("its tone comes from the theme-aware warning trio, so both themes work", () => {
