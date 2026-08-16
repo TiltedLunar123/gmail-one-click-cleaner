@@ -1227,6 +1227,58 @@ const GCC = (() => {
     readOrNull: readProSettingsOrNull
   });
 
+  // 8.17: three free unsubscribes, once, for the life of the install.
+  // Bulk unsubscribe is the one paid outcome a free user cannot fake
+  // with a Clean-tab rule, and until now they were asked to pay for it
+  // without ever seeing it work. The counter is local, has no clock
+  // and no server, and is charged only against senders that actually
+  // came back `unsubscribed`.
+  //
+  // Three answers, same reason as readOrNull / readSafetyList /
+  // readLicenseState: storageGet turns a failed read into {}, which
+  // is indistinguishable from "never used". remaining(null) is 0 so
+  // a broken store cannot mint a fresh allowance on every open.
+  const FREE_UNSUB_KEY = "freeUnsubUsed";
+  const FREE_UNSUB_LIMIT = 3;
+
+  const freeUnsubUsedOf = (stored) => {
+    if (stored === null) return FREE_UNSUB_LIMIT;
+    if (stored === undefined) return 0;
+    const n = Number(stored);
+    if (!Number.isFinite(n) || n < 0) return FREE_UNSUB_LIMIT;
+    return Math.min(FREE_UNSUB_LIMIT, Math.floor(n));
+  };
+
+  const freeUnsubRemaining = (stored) => FREE_UNSUB_LIMIT - freeUnsubUsedOf(stored);
+
+  const freeUnsubSpend = (stored, okCount) => {
+    const n = Number(okCount);
+    const add = Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+    return Math.min(FREE_UNSUB_LIMIT, freeUnsubUsedOf(stored) + add);
+  };
+
+  const readFreeUnsubOrNull = async () => {
+    if (!hasChromeStorage("local")) return undefined;
+    try {
+      const stored = await promisify(
+        chrome.storage.local.get.bind(chrome.storage.local),
+        FREE_UNSUB_KEY
+      );
+      return stored?.[FREE_UNSUB_KEY];
+    } catch (e) {
+      console.warn("[GCC] freeUnsub read failed:", e?.message || e);
+      return null;
+    }
+  };
+
+  const freeUnsub = Object.freeze({
+    KEY: FREE_UNSUB_KEY,
+    LIMIT: FREE_UNSUB_LIMIT,
+    remaining: freeUnsubRemaining,
+    spend: freeUnsubSpend,
+    readOrNull: readFreeUnsubOrNull
+  });
+
   // =========================
   // Browser + store identity (7.1)
   // =========================
@@ -2629,6 +2681,9 @@ const GCC = (() => {
     avatar,
 
     // New in 8.12
-    proSettings
+    proSettings,
+
+    // New in 8.17
+    freeUnsub
   });
 })();

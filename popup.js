@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "8.16.0";
+  const POPUP_VERSION = "8.17.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -61,6 +61,12 @@ document.addEventListener("DOMContentLoaded", () => {
     // the popup, so the people who lost their triage were exactly the
     // people who had just decided to pay.
     SUBS_CHECKED: "subsCheckedEmails",
+
+    // 8.17: how many of the three free unsubscribes this install has
+    // actually used. Missing means none. A failed read is NOT treated
+    // as missing: remaining(null) is 0, so a broken store cannot mint
+    // a fresh three on every open.
+    FREE_UNSUB_USED: "freeUnsubUsed",
 
     // 8.11: the same fix for the other two lists that carry checkboxes.
     // 8.0 reasoned about the trip to checkout and stopped there, but the
@@ -169,7 +175,10 @@ document.addEventListener("DOMContentLoaded", () => {
       running: null,
       // 8.0: which senders were ticked, so a trip to checkout does not
       // throw the triage away.
-      checked: new Set()
+      checked: new Set(),
+      // 8.17: remaining free unsubscribes. Starts at 0 (deny) until
+      // the local counter is read, which is the unread-as-zero answer.
+      freeLeft: 0
     },
 
     // 7.2 storage X-ray: last scan + totals. Pro gating reads
@@ -1939,7 +1948,17 @@ document.addEventListener("DOMContentLoaded", () => {
   const applyLicenseHint = async () => {
     try {
       const stored = await GCC.storageGet("local", STORAGE_KEYS.PRO_HINT);
-      if (stored?.[STORAGE_KEYS.PRO_HINT] === true) applyProChrome(true);
+      if (stored?.[STORAGE_KEYS.PRO_HINT] === true) {
+        applyProChrome(true);
+        // 8.17: the markup now opens on the free allowance, which is the
+        // wrong greeting for someone who paid. Paint it out on the same
+        // hint that hides the padlocks. Still a paint only, never a
+        // gate: the licence flag is set by the real verify, not here.
+        if (elements.unsubBtnSub) {
+          elements.unsubBtnSub.textContent =
+            t("unsubActiveSub", "Uses Gmail's own Unsubscribe control");
+        }
+      }
     } catch {
       // No hint, no chrome change: the markup already shows the free state.
     }
@@ -1971,12 +1990,12 @@ document.addEventListener("DOMContentLoaded", () => {
     // Hide all three when active; the footer still confirms the licence.
     applyProChrome(active);
     if (elements.subsUpsell) elements.subsUpsell.hidden = active;
-    if (elements.unsubBtnSub) {
-      elements.unsubBtnSub.textContent = active
-        ? t("unsubActiveSub", "Uses Gmail's own Unsubscribe control")
-        : t("proPriceSub", "Pro · $9.99 lifetime");
-    }
-    if (elements.unsubBtn) elements.unsubBtn.classList.toggle("locked", !active);
+    // 8.17: the button sub and the upsell have to name the remaining
+    // free allowance before a click, not after a spend. A licensed
+    // install still gets the old Pro copy; an exhausted one still
+    // gets the old price line.
+    await loadFreeUnsub();
+    paintSubsAllowance();
     if (elements.subsBuyLink) elements.subsBuyLink.href = GCC.license.buyUrl("unsubscribe");
     if (elements.proPromoBuy) elements.proPromoBuy.href = GCC.license.buyUrl("popup_promo");
     if (elements.proPromo) elements.proPromo.hidden = active;
@@ -2101,12 +2120,96 @@ document.addEventListener("DOMContentLoaded", () => {
         : t("nSendersFound", `${total} senders found`, [String(total)]));
   };
 
+  // 8.17: three answers on the local counter, same shape as
+  // readSafetyList. remaining(null) is 0, so a failed read cannot
+  // mint a fresh allowance.
+  const loadFreeUnsub = async () => {
+    try {
+      const stored = await GCC.freeUnsub.readOrNull();
+      state.subs.freeLeft = GCC.freeUnsub.remaining(stored);
+    } catch {
+      state.subs.freeLeft = 0;
+    }
+  };
+
+  const persistFreeUnsubSpend = async (okCount) => {
+    const stored = await GCC.freeUnsub.readOrNull();
+    // 8.16 found this same shape four times, and every one of them did
+    // its damage on the WRITE. Reading unreadable as "fully used" is
+    // right for the gate, because it refuses; writing that number back
+    // is not, because it spends all three on one storage hiccup and the
+    // user never gets them back. Leave the counter untouched and let
+    // the next good read settle it. The run already happened either way.
+    if (stored === null) return;
+    const next = GCC.freeUnsub.spend(stored, okCount);
+    await storageSet("local", { [STORAGE_KEYS.FREE_UNSUB_USED]: next });
+    state.subs.freeLeft = GCC.freeUnsub.remaining(next);
+    paintSubsAllowance();
+  };
+
+  // The number on the button is the cap the next click will apply.
+  // One painter, so the upsell and the sub-label cannot drift.
+  const paintSubsAllowance = () => {
+    const left = Math.max(0, Number(state.subs.freeLeft) || 0);
+    const active = state.subs.licenseActive;
+
+    if (elements.unsubBtnSub) {
+      if (active) {
+        elements.unsubBtnSub.textContent = t("unsubActiveSub", "Uses Gmail's own Unsubscribe control");
+      } else if (left === GCC.freeUnsub.LIMIT) {
+        elements.unsubBtnSub.textContent = t("unsubFreeSubStart", "3 free unsubscribes left");
+      } else if (left === 1) {
+        elements.unsubBtnSub.textContent = t("unsubFreeSubOne", "1 free unsubscribe left");
+      } else if (left > 0) {
+        elements.unsubBtnSub.textContent = t(
+          "unsubFreeSubMany",
+          `${left} free unsubscribes left`,
+          [String(left)]
+        );
+      } else {
+        elements.unsubBtnSub.textContent = t("proPriceSub", "Pro · $9.99 lifetime");
+      }
+    }
+    if (elements.unsubBtn) {
+      elements.unsubBtn.classList.toggle("locked", !active && left <= 0);
+    }
+    updateSubsUpsellCopy();
+  };
+
   // 7.3: once a scan exists, the upsell leads with the user's own
   // numbers; before that it keeps the static pitch from the markup.
+  // 8.17: a free install with allowance left is told the remaining
+  // count first. Once it is gone, the old paywall line takes over
+  // and still leads with the scan count.
   const updateSubsUpsellCopy = () => {
     if (!elements.subsUpsellText) return;
-    elements.subsUpsellText.textContent =
-      GCC.popupUi.subsUpsellLine(state.subs.senders.length);
+    if (state.subs.licenseActive) return;
+    const left = Math.max(0, Number(state.subs.freeLeft) || 0);
+    if (left === GCC.freeUnsub.LIMIT) {
+      elements.subsUpsellText.textContent = t(
+        "subsFreeLeftStart",
+        "3 free unsubscribes left. After that, Pro is $9.99 once."
+      );
+      return;
+    }
+    if (left === 1) {
+      elements.subsUpsellText.textContent = t(
+        "subsFreeLeftOne",
+        "1 free unsubscribe left. After that, Pro is $9.99 once."
+      );
+      return;
+    }
+    if (left > 0) {
+      elements.subsUpsellText.textContent = t(
+        "subsFreeLeftMany",
+        `${left} free unsubscribes left. After that, Pro is $9.99 once.`,
+        [String(left)]
+      );
+      return;
+    }
+    const usedUp = t("subsFreeUsedUp", "Your 3 free unsubscribes are used up.");
+    const line = GCC.popupUi.subsUpsellLine(state.subs.senders.length);
+    elements.subsUpsellText.textContent = `${usedUp} ${line}`;
   };
 
   const persistSubsSelection = () => {
@@ -2317,11 +2420,17 @@ document.addEventListener("DOMContentLoaded", () => {
     if (state.subs.running) return;
 
     if (!state.subs.licenseActive) {
-      openProPanel("unsubscribe_locked", {
-        lead: GCC.popupUi.subsUpsellLine(state.subs.senders.length),
-        fallbackUpsell: elements.subsUpsell
-      });
-      return;
+      // Re-read at the click so a stale freeLeft cannot spend more
+      // than the stored counter still has. Unreadable is 0 remaining,
+      // so the existing paywall path runs unchanged.
+      await loadFreeUnsub();
+      if (state.subs.freeLeft <= 0) {
+        openProPanel("unsubscribe_locked", {
+          lead: GCC.popupUi.subsUpsellLine(state.subs.senders.length),
+          fallbackUpsell: elements.subsUpsell
+        });
+        return;
+      }
     }
 
     const emails = getCheckedSubEmails();
@@ -2329,9 +2438,21 @@ document.addEventListener("DOMContentLoaded", () => {
       showToast(t("pickOneSender", "pick at least one sender first"), "warning");
       return;
     }
-    const capped = emails.slice(0, 25);
+    const cap = state.subs.licenseActive ? 25 : state.subs.freeLeft;
+    const capped = emails.slice(0, cap);
     if (emails.length > capped.length) {
-      showToast(t("firstTwentyFive", "running the first 25; re-run for the rest"), "info");
+      showToast(
+        state.subs.licenseActive
+          ? t("firstTwentyFive", "running the first 25; re-run for the rest")
+          : (capped.length === 1
+            ? t("firstFreeUnsubOne", "using your 1 free unsubscribe; Pro unlocks the rest")
+            : t(
+              "firstFreeUnsubs",
+              `using your ${capped.length} free unsubscribes; Pro unlocks the rest`,
+              [String(capped.length)]
+            )),
+        "info"
+      );
     }
 
     try {
@@ -2417,6 +2538,12 @@ document.addEventListener("DOMContentLoaded", () => {
       renderSubsList();
       setSubsStatus(doneLine(status, detail) || t("unsubRunComplete", "Unsubscribe run complete."));
       const okCount = msg.unsubResults.filter((r) => r.status === "unsubscribed").length;
+      // Cancelled and errored runs return above this branch, so a
+      // terminal-but-not-finished message never charges the allowance.
+      // Only `unsubscribed` counts; manual / no-link / failed do not.
+      if (!state.subs.licenseActive) {
+        persistFreeUnsubSpend(okCount).catch((e) => log("warn", "free unsub spend failed", e));
+      }
       showToast(
         okCount === 1
           ? t("unsubbedFromOne", "unsubscribed from 1 sender")
@@ -5463,6 +5590,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // check is not, on purpose: a local-storage read is fast enough to
     // land before first paint, an ECDSA verify is not, and the whole
     // point is that a buyer never sees the padlocks at all.
+    await loadFreeUnsub();
     await applyLicenseHint();
     refreshLicenseUi().catch((e) => log("warn", "license ui failed", e));
     // The remembered tick lists have to land before the lists render.

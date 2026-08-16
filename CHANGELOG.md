@@ -3,6 +3,21 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.17.0 - Three free unsubscribes so you can see it work
+
+Bulk unsubscribe is the one paid feature you cannot try with a Clean-tab
+rule. You could scan, tick the senders you hate, and then hit a paywall
+for something you had never seen work. Every unpaid install now gets
+three real unsubscribes on its own mail, once. After that the usual
+paywall takes over, and it can name the number you just watched be real.
+
+### Added
+- **Three free unsubscribes, once, for the life of the install.** The
+  Lists tab says how many you have left before you click. Only senders
+  that actually unsubscribe count against it. A cancelled run, a failed
+  run, or a sender that needs their website costs you nothing. When the
+  three are used up, Pro is what it was.
+
 ## 8.16.0 - Runs that stopped are not runs that finished
 
 A tidy-up release, and most of it comes from one thing being true in more
