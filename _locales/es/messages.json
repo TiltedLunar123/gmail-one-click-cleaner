@@ -289,6 +289,7 @@
   "firstTwentyFive": { "message": "van los primeros 25; repite para el resto" },
   "firstFreeUnsubOne": { "message": "usando tu 1 baja gratis; Pro desbloquea el resto" },
   "firstFreeUnsubs": { "message": "usando tus $1 bajas gratis; Pro desbloquea el resto" },
+  "smartFreeUnsubUsing": { "message": "usando 1 de tus bajas gratis" },
   "nOfMSelected": { "message": "$1 de $2 seleccionados" },
   "oneSenderFound": { "message": "1 remitente encontrado" },
   "nSendersFound": { "message": "$1 remitentes encontrados" },

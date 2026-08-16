@@ -2132,6 +2132,25 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  // How many senders one unsubscribe run may take. Paid runs cap at
+  // MAX_UNSUB_PER_RUN; a free run caps at whatever is left of the three.
+  const MAX_UNSUB_PER_RUN = 25;
+
+  // ONE gate for every unsubscribe entry point. There are two of them,
+  // the Lists tab and a Smart card, and three free unsubscribes have to
+  // mean three wherever they are spent or the count on the Lists tab is
+  // describing something the other button does not honour. Answers with
+  // the number of senders the caller may actually run; 0 means show the
+  // wall. Re-reads the counter here rather than trusting the freeLeft
+  // painted at open, which is stale as soon as one run has landed, and
+  // an unreadable read is 0 remaining rather than a fresh three.
+  const allowedUnsubCount = async (wanted) => {
+    const asked = Math.max(0, Math.floor(Number(wanted) || 0));
+    if (state.subs.licenseActive) return Math.min(asked, MAX_UNSUB_PER_RUN);
+    await loadFreeUnsub();
+    return Math.min(asked, state.subs.freeLeft);
+  };
+
   const persistFreeUnsubSpend = async (okCount) => {
     const stored = await GCC.freeUnsub.readOrNull();
     // 8.16 found this same shape four times, and every one of them did
@@ -2419,27 +2438,26 @@ document.addEventListener("DOMContentLoaded", () => {
   const handleUnsubscribe = async () => {
     if (state.subs.running) return;
 
-    if (!state.subs.licenseActive) {
-      // Re-read at the click so a stale freeLeft cannot spend more
-      // than the stored counter still has. Unreadable is 0 remaining,
-      // so the existing paywall path runs unchanged.
-      await loadFreeUnsub();
-      if (state.subs.freeLeft <= 0) {
-        openProPanel("unsubscribe_locked", {
-          lead: GCC.popupUi.subsUpsellLine(state.subs.senders.length),
-          fallbackUpsell: elements.subsUpsell
-        });
-        return;
-      }
+    // Gated before the checkboxes are read, on purpose and since 8.0:
+    // a click with nothing ticked should still show the pitch to
+    // someone who cannot run at all, not a nag to pick a sender.
+    const slots = await allowedUnsubCount(MAX_UNSUB_PER_RUN);
+    if (!slots) {
+      openProPanel("unsubscribe_locked", {
+        lead: GCC.popupUi.subsUpsellLine(state.subs.senders.length),
+        fallbackUpsell: elements.subsUpsell
+      });
+      return;
     }
+    // The gate awaits, so re-check the flag it was read against.
+    if (state.subs.running) return;
 
     const emails = getCheckedSubEmails();
     if (!emails.length) {
       showToast(t("pickOneSender", "pick at least one sender first"), "warning");
       return;
     }
-    const cap = state.subs.licenseActive ? 25 : state.subs.freeLeft;
-    const capped = emails.slice(0, cap);
+    const capped = emails.slice(0, slots);
     if (emails.length > capped.length) {
       showToast(
         state.subs.licenseActive
@@ -4244,10 +4262,16 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // The unsubscribe action rides the existing Pro path with its
-    // existing gate; everything else is a free cleanup run.
+    // The unsubscribe action rides the existing Pro path; everything
+    // else is a free cleanup run.
     if (rule.runKind === "unsubscribe") {
-      if (!state.subs.licenseActive) {
+      // 8.17: the same gate the Lists tab uses. A card is always exactly
+      // one sender (buildActionRule), so it asks for one slot. Before
+      // this, the Lists tab could read "3 free unsubscribes left" while
+      // this button showed a paywall, which is the house bug: a number
+      // beside one action that the neighbouring action does not honour.
+      const slots = await allowedUnsubCount(1);
+      if (!slots) {
         openProPanel("smart_unsub_locked", {
           lead: GCC.popupUi.smartUpsellLine(hiddenSmartCount()),
           fallbackUpsell: elements.smartUpsell
@@ -4255,6 +4279,12 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
       if (state.subs.running) return;
+      // Announced before it is spent, the same rule the Lists tab
+      // follows. This surface has no running total of its own, so the
+      // toast is the only place it can be said.
+      if (!state.subs.licenseActive) {
+        showToast(t("smartFreeUnsubUsing", "using 1 of your free unsubscribes"), "info");
+      }
       // 8.7: the two sibling handlers wrap this in try/catch and this
       // one did not. injectSubscriptionRun reaches
       // chrome.scripting.executeScript, which rejects on a tab that

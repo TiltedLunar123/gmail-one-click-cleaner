@@ -289,6 +289,7 @@
   "firstTwentyFive": { "message": "идут первые 25; запустите снова для остальных" },
   "firstFreeUnsubOne": { "message": "идёт 1 бесплатная отписка; Pro откроет остальные" },
   "firstFreeUnsubs": { "message": "идут $1 бесплатные отписки; Pro откроет остальные" },
+  "smartFreeUnsubUsing": { "message": "используется одна из бесплатных отписок" },
   "nOfMSelected": { "message": "выбрано $1 из $2" },
   "oneSenderFound": { "message": "найден 1 отправитель" },
   "nSendersFound": { "message": "найдено отправителей: $1" },

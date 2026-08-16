@@ -60,6 +60,16 @@ const SENDERS = [
   { email: "e@list.example", name: "List E", count: 2 }
 ];
 
+// A Smart card names its own action, so `action` is enough to make the
+// first card an unsubscribe without hand-tuning the signal thresholds
+// (smartResolvedAction takes sender.action when it is a known one).
+const SMART_SENDERS = [
+  { email: "a@list.example", name: "List A", action: "unsubscribe", estCount: 140,
+    signals: { count: 140, unreadRatio: 0.95, oldShare: 0.1, estMb: 4 } },
+  { email: "b@list.example", name: "List B", action: "unsubscribe", estCount: 90,
+    signals: { count: 90, unreadRatio: 0.9, oldShare: 0.1, estMb: 3 } }
+];
+
 let executed;
 let localStore;
 let syncStore;
@@ -112,9 +122,16 @@ function installChrome({ failLocal = false, used } = {}) {
       getManifest: () => ({ version: "8.17.0", permissions: [], host_permissions: [] }),
       onMessage: { addListener: (fn) => messageListeners.push(fn) },
       sendMessage: (msg, cb) => {
-        const reply = msg?.type === "gmailCleanerGetSubscriptions"
-          ? { ok: true, scan: { senders: SENDERS } }
-          : { ok: true };
+        let reply = { ok: true };
+        if (msg?.type === "gmailCleanerGetSubscriptions") {
+          reply = { ok: true, scan: { senders: SENDERS } };
+        } else if (msg?.type === "gmailCleanerGetSmartScan") {
+          reply = {
+            ok: true,
+            scan: { senders: SMART_SENDERS, updatedAt: 1 },
+            feedback: { bySender: {} }
+          };
+        }
         if (typeof cb === "function") cb(reply);
       }
     },
@@ -418,6 +435,92 @@ describe("a finished unsubscribe run charges only real unsubscribes", () => {
   });
 });
 
+describe("a Smart card spends the same three", () => {
+  const smartUnsubBtn = () => document.querySelector("#smartList .smart-apply-btn");
+
+  test("an unlicensed user with allowance runs instead of seeing the paywall", async () => {
+    await boot({ pro: false });
+    const before = unsubConfigs().length;
+    smartUnsubBtn().click();
+    await settle(40);
+
+    expect(unsubConfigs().length).toBe(before + 1);
+    expect(document.getElementById("proPanel").hidden).toBe(true);
+  });
+
+  test("the card sends exactly the one sender it names", async () => {
+    await boot({ pro: false });
+    smartUnsubBtn().click();
+    await settle(40);
+
+    const cfg = unsubConfigs().pop();
+    expect(cfg.args[0].unsubSenders).toEqual(["a@list.example"]);
+  });
+
+  test("an unlicensed user at 0 gets the paywall and injects nothing", async () => {
+    await boot({ pro: false, used: 3 });
+    const before = unsubConfigs().length;
+    smartUnsubBtn().click();
+    await settle(40);
+
+    expect(unsubConfigs().length).toBe(before);
+    expect(document.getElementById("proPanel").hidden).toBe(false);
+  });
+
+  test("an unreadable counter sends a Smart click to the paywall too", async () => {
+    await boot({ pro: false, failLocal: true });
+    const before = unsubConfigs().length;
+    smartUnsubBtn().click();
+    await settle(40);
+
+    expect(unsubConfigs().length).toBe(before);
+    expect(document.getElementById("proPanel").hidden).toBe(false);
+  });
+
+  test("a Smart unsubscribe costs exactly 1 and the Lists tab agrees", async () => {
+    await boot({ pro: false });
+    const before = unsubConfigs().length;
+    smartUnsubBtn().click();
+    await settle(40);
+    // Without this the done message alone would satisfy the charge and
+    // the test would pass against a Smart button that never ran.
+    expect(unsubConfigs().length).toBe(before + 1);
+
+    fireProgress({
+      type: "gmailCleanerProgress",
+      runKind: "unsubscribe",
+      phase: "done",
+      done: true,
+      unsubResults: [{ sender: "a@list.example", status: "unsubscribed" }]
+    });
+    await settle(20);
+
+    expect(localStore.freeUnsubUsed).toBe(1);
+    // The count the other button advertises has to move with it.
+    expect(document.getElementById("unsubBtnSub").textContent)
+      .toMatch(/2 free unsubscribes left/i);
+  });
+
+  test("a Smart run that comes back manual costs nothing", async () => {
+    await boot({ pro: false });
+    const before = unsubConfigs().length;
+    smartUnsubBtn().click();
+    await settle(40);
+    expect(unsubConfigs().length).toBe(before + 1);
+
+    fireProgress({
+      type: "gmailCleanerProgress",
+      runKind: "unsubscribe",
+      phase: "done",
+      done: true,
+      unsubResults: [{ sender: "a@list.example", status: "manual" }]
+    });
+    await settle(20);
+
+    expect(localStore.freeUnsubUsed).toBe(0);
+  });
+});
+
 describe("the three-copy rule", () => {
   test("the new keys exist in all 7 locale files", () => {
     for (const locale of LOCALES) {
@@ -455,21 +558,51 @@ describe("the three-copy rule", () => {
 });
 
 describe("the allowance never widens anything else", () => {
-  test("X-ray and Smart still gate on the licence alone", () => {
+  // Both unsubscribe buttons share the allowance, so the pin is no
+  // longer "Smart never mentions it" but "neither one decides alone".
+  // Two gates drift; that drift is what let the Lists tab advertise a
+  // count the Smart card would not honour.
+  test("both unsubscribe entry points go through the one gate", () => {
+    const popup = read("popup.js");
+    const lists = popup.slice(
+      popup.indexOf("const handleUnsubscribe = async () => {"),
+      popup.indexOf("const finishSubsRun = () => {")
+    );
+    const smart = popup.slice(
+      popup.indexOf("const handleSmartApply = async (sender, action) => {"),
+      popup.indexOf("const handleSmartBulkApply = async () => {")
+    );
+    expect(lists).toContain("await allowedUnsubCount(");
+    expect(smart).toContain("await allowedUnsubCount(");
+    // Neither may read the counter or size its own cap.
+    expect(lists).not.toContain("GCC.freeUnsub.remaining");
+    expect(smart).not.toContain("GCC.freeUnsub.remaining");
+    expect(smart).not.toMatch(/\.slice\(0,/);
+  });
+
+  test("the counter is spent in exactly one place", () => {
+    const popup = read("popup.js");
+    expect(popup.match(/GCC\.freeUnsub\.spend\(/g)).toHaveLength(1);
+    expect(popup.match(/await allowedUnsubCount\(/g)).toHaveLength(2);
+  });
+
+  test("X-ray and Smart bulk apply still gate on the licence alone", () => {
     const popup = read("popup.js");
     const xray = popup.slice(
       popup.indexOf("const handleXrayPurge = async () => {"),
       popup.indexOf("const handleSmartScan = async () => {")
     );
     expect(xray).toContain("if (!state.subs.licenseActive)");
-    expect(xray).not.toContain("freeLeft");
+    expect(xray).not.toContain("allowedUnsubCount");
 
-    const smart = popup.slice(
-      popup.indexOf("const handleSmartApply = async (sender, action) => {"),
-      popup.indexOf("const handleSmartBulkApply = async () => {")
+    // Bulk apply stays paid: PRO_FEATURES sells "bulk apply" by name,
+    // which is a line a user can actually infer. One card is not bulk.
+    const bulk = popup.slice(
+      popup.indexOf("const handleSmartBulkApply = async () => {"),
+      popup.indexOf("const handleSmartDismiss = (email) => {")
     );
-    expect(smart).toContain('openProPanel("smart_unsub_locked"');
-    expect(smart).not.toContain("freeLeft");
+    expect(bulk).toContain("if (!state.subs.licenseActive)");
+    expect(bulk).not.toContain("allowedUnsubCount");
   });
 
   // The markup fallback now opens on the free allowance, so the cached

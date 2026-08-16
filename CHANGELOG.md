@@ -17,6 +17,11 @@ paywall takes over, and it can name the number you just watched be real.
   that actually unsubscribe count against it. A cancelled run, a failed
   run, or a sender that needs their website costs you nothing. When the
   three are used up, Pro is what it was.
+- **The three are spendable from a Smart Suggestions card too.** There
+  are two places to unsubscribe from one sender, and three free ones
+  now mean three in both. Spending one from a card says so as it goes,
+  and the count on the Lists tab moves with it. Bulk apply is still
+  Pro: one card is not bulk.
 
 ## 8.16.0 - Runs that stopped are not runs that finished
 
