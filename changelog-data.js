@@ -34,6 +34,18 @@ var GCC_CHANGELOG = {
                   " The Lists tab says how many you have left before you click. Only senders that actually unsubscribe count against it. A cancelled run, a failed run, or a sender that needs their website costs you nothing. When the three are used up, Pro is what it was."
                 ]
               ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The three are spendable from a Smart Suggestions card too."
+                ],
+                [
+                  "",
+                  " There are two places to unsubscribe from one sender, and three free ones now mean three in both. Spending one from a card says so as it goes, and the count on the Lists tab moves with it. Bulk apply is still Pro: one card is not bulk."
+                ]
+              ]
             }
           ]
         }

@@ -289,6 +289,7 @@
   "firstTwentyFive": { "message": "まず25人分を実行します。残りは再実行してください" },
   "firstFreeUnsubOne": { "message": "無料の登録解除1件を使います。残りはProで解除できます" },
   "firstFreeUnsubs": { "message": "無料の登録解除$1件を使います。残りはProで解除できます" },
+  "smartFreeUnsubUsing": { "message": "無料の登録解除を1件使います" },
   "nOfMSelected": { "message": "$2人中$1人を選択" },
   "oneSenderFound": { "message": "差出人1人が見つかりました" },
   "nSendersFound": { "message": "差出人$1人が見つかりました" },

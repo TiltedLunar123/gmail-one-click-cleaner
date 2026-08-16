@@ -289,6 +289,7 @@
   "firstTwentyFive": { "message": "die ersten 25 laufen; für den Rest erneut starten" },
   "firstFreeUnsubOne": { "message": "deine 1 kostenlose Abbestellung wird genutzt; Pro schaltet den Rest frei" },
   "firstFreeUnsubs": { "message": "deine $1 kostenlosen Abbestellungen werden genutzt; Pro schaltet den Rest frei" },
+  "smartFreeUnsubUsing": { "message": "eine deiner kostenlosen Abbestellungen wird genutzt" },
   "nOfMSelected": { "message": "$1 von $2 ausgewählt" },
   "oneSenderFound": { "message": "1 Absender gefunden" },
   "nSendersFound": { "message": "$1 Absender gefunden" },
