@@ -6,13 +6,39 @@
 // even of a file inside the package, would end the extension's
 // no-network-calls promise.
 //
-// Carries the newest 12 of 71 releases; the page says so
+// Carries the newest 12 of 72 releases; the page says so
 // and links the full log on GitHub.
 
 // eslint-disable-next-line no-unused-vars
 var GCC_CHANGELOG = {
-  "total": 71,
+  "total": 72,
   "entries": [
+    {
+      "version": "8.17.0",
+      "title": "Three free unsubscribes so you can see it work",
+      "intro": [
+        "Bulk unsubscribe is the one paid feature you cannot try with a Clean-tab rule. You could scan, tick the senders you hate, and then hit a paywall for something you had never seen work. Every unpaid install now gets three real unsubscribes on its own mail, once. After that the usual paywall takes over, and it can name the number you just watched be real."
+      ],
+      "sections": [
+        {
+          "name": "Added",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "Three free unsubscribes, once, for the life of the install."
+                ],
+                [
+                  "",
+                  " The Lists tab says how many you have left before you click. Only senders that actually unsubscribe count against it. A cancelled run, a failed run, or a sender that needs their website costs you nothing. When the three are used up, Pro is what it was."
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "8.16.0",
       "title": "Runs that stopped are not runs that finished",
@@ -1863,97 +1889,6 @@ var GCC_CHANGELOG = {
           "items": [
             {
               "text": "The safety line under Run no longer says unread mail is \"never\" touched. It is skipped while the switch is on, and the switch is yours to turn off."
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "version": "8.6.0",
-      "title": "Suggestions count what they clean",
-      "sections": [
-        {
-          "name": "Fixed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "A suggestion could be sold on exactly the mail its own button refused to touch."
-                ],
-                [
-                  "",
-                  " A card reading \"402 emails, 100% unread, mostly older than 6 months\" with a Delete old mail button underneath it cleaned nothing, every time, on every mailbox. The count came from a plain search for that sender; the button sent that search plus your safety switches, one of which is Skip Unread. The more unread mail a sender had, the higher it ranked, and the more certain it was that the run would find nothing. Suggestions are now measured through the same switches the button applies, so the number beside a button is the number that button will act on."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Senders your switches hold back entirely are no longer suggested, and no longer disappear without explanation."
-                ],
-                [
-                  "",
-                  " The list says how many were held back, which switches did it, and takes you to them."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The suggestion scan never sent your switch settings"
-                ],
-                [
-                  "",
-                  ", so it measured everyone against the defaults. If you had turned Skip Unread off, the scan still counted as though it were on."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Checking more than 25 suggestions quietly cleaned only 25."
-                ],
-                [
-                  "",
-                  " The status line said it was cleaning all of them and the run history recorded all of them. It now says which it is running, the way the bulk unsubscribe button already did."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Your Pro key survives an update."
-                ],
-                [
-                  "",
-                  " It was stored in one place, so one storage hiccup lost something you paid for; it now lives in two and repairs whichever copy goes missing. A stale copy in one can no longer hide a good key in the other. Removing a key clears both, and says so plainly if it could only clear one."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Unpacked builds keep one identity."
-                ],
-                [
-                  "",
-                  " Chrome derives an unpacked extension's ID from the folder it was loaded from, and all extension storage is scoped to that ID, so unzipping each release next to the last one made every update a brand new extension with nothing in it. The key was never forgotten; it belonged to a different extension. Builds now pin an ID. Firefox already did."
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "name": "Note",
-          "items": [
-            {
-              "text": "Pinning the ID changes it once, so an unpacked install has to be given its Pro key one more time. After that it stays."
             }
           ]
         }
