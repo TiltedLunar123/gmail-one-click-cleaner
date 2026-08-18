@@ -177,7 +177,7 @@ gmail-one-click-cleaner/
 - **Minimal permissions** - `activeTab`, `scripting`, `tabs`, `storage`, `alarms`, `notifications` + Gmail host access. No new permissions were added for Pro.
 - **30-day safety net** - Gmail keeps Trash for ~30 days, and every run is labeled before it moves. The Recovery Log's one-click Restore puts a run back in your Inbox; archived runs can come back any time, deleted runs within the 30-day window.
 
-See [SECURITY.md](SECURITY.md) for the full security policy and permissions breakdown, and the official [privacy policy](https://secplusmastery.com/extensions#gmail-one-click-cleaner-privacy) for the published listing terms.
+See [SECURITY.md](SECURITY.md) for the full security policy and permissions breakdown, the [privacy policy](https://github.com/TiltedLunar123/gmail-one-click-cleaner/blob/main/PRIVACY.md) for what does and does not leave your browser, and [TERMS.md](TERMS.md) for the terms of use.
 
 ---
 

@@ -34,10 +34,51 @@ describe("the privacy policy is reachable from inside the extension", () => {
     expect(URL_MATCH).not.toBeNull();
     const url = URL_MATCH[1];
     expect(url.startsWith("https://")).toBe(true);
-    // The same URL both store listings carry, so what the extension
-    // shows and what the stores show cannot drift apart.
-    expect(url).toBe("https://secplusmastery.com/extensions#gmail-one-click-cleaner-privacy");
+    // 8.18.1: the policy moved off secplusmastery.com and into this
+    // repo. Still one URL, so what the extension shows and what the
+    // stores show cannot drift apart, as long as both dashboards point
+    // here too.
+    expect(url).toBe("https://github.com/TiltedLunar123/gmail-one-click-cleaner/blob/main/PRIVACY.md");
     expect(read("README.md")).toContain(url);
+  });
+
+  test("the policy it points at is actually in the repo", () => {
+    // The old URL was hosted elsewhere, so a broken link could only be
+    // caught by opening it. Now that the target is a file in this
+    // repository, a rename or a delete can be caught here instead. A
+    // 404 on this URL is not cosmetic: both stores require a working
+    // privacy policy link and can pull a listing over a dead one.
+    const url = URL_MATCH[1];
+    const file = url.split("/blob/main/")[1];
+    expect(file).toBe("PRIVACY.md");
+    const policy = read(file);
+    // Not just present: actually the policy, not a stub.
+    expect(policy).toMatch(/# Gmail One-Click Cleaner privacy policy/);
+    expect(policy).toMatch(/\*\*Effective \d{4}-\d{2}-\d{2}\.\*\*/);
+    expect(policy.length).toBeGreaterThan(2000);
+    // The claim the whole document rests on.
+    expect(policy).toMatch(/no network requests of its own/);
+  });
+
+  test("nothing still LINKS to the retired secplusmastery policy", () => {
+    // The page is gone, so any surviving link is a dead one.
+    //
+    // Comments are stripped first. The comment explaining that the
+    // policy MOVED OFF secplusmastery.com necessarily names it, so a
+    // bare substring search finds the note about the fix and reports
+    // it as the fix being undone. Third time this repo has hit that;
+    // match links, not prose.
+    const strip = (s) => s
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "")
+      .replace(/<!--[\s\S]*?-->/g, "");
+    for (const f of ["shared.js", "README.md", "PRIVACY.md", "TERMS.md",
+      "netlify/site/uninstall.html"]) {
+      expect(`${f}: ${strip(read(f))}`).not.toMatch(/https?:\/\/(www\.)?secplusmastery\.com/);
+    }
+    // Prove the matcher still catches a real link, or it passes against
+    // anything.
+    expect("https://secplusmastery.com/extensions#x").toMatch(/https?:\/\/(www\.)?secplusmastery\.com/);
   });
 
   test("it lives in exactly one place", () => {

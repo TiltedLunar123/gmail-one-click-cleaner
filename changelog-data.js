@@ -6,13 +6,39 @@
 // even of a file inside the package, would end the extension's
 // no-network-calls promise.
 //
-// Carries the newest 12 of 73 releases; the page says so
+// Carries the newest 12 of 74 releases; the page says so
 // and links the full log on GitHub.
 
 // eslint-disable-next-line no-unused-vars
 var GCC_CHANGELOG = {
-  "total": 73,
+  "total": 74,
   "entries": [
+    {
+      "version": "8.18.1",
+      "title": "The privacy policy lives with the source now",
+      "sections": [
+        {
+          "name": "Changed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "The Privacy policy link opens the policy in this repository"
+                ],
+                [
+                  "",
+                  " instead of a page on another site. Same policy, same effective date, now version-controlled alongside the code it describes, so a change to what the extension does and a change to the document saying so land in the same commit. The terms of use moved with it."
+                ]
+              ]
+            },
+            {
+              "text": "The first claim in that policy is that the extension makes no network requests, and the policy now shows you the one-line command that checks it for yourself."
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "8.18.0",
       "title": "A calmer popup, and motion that means something",
@@ -1733,113 +1759,6 @@ var GCC_CHANGELOG = {
                 [
                   "",
                   " did not register as carrying its own age floor, so a redundant one could be added on top."
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "version": "8.8.0",
-      "title": "Unattended runs work again",
-      "sections": [
-        {
-          "name": "Fixed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "Scheduled cleanups and Auto-Pilot stopped running on any tab that had already run once."
-                ],
-                [
-                  "",
-                  " After a run finished, the old run's messaging hook stayed live in the Gmail tab and answered on behalf of the next one. The extension checks that the run it just started is really the run that answered, got the previous run's name back, decided its own injection had been swallowed, and gave up. The first sweep in a fresh tab worked and every one after it silently did nothing."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Purge selected on the Storage tab could archive instead of delete."
-                ],
-                [
-                  "",
-                  " It borrowed the Delete or Archive setting from the Clean tab, so if that had ever been switched to Archive, the purge moved your biggest mail to All Mail. The button said Trash, the summary said megabytes freed, and the senders were marked Purged so a rescan stopped offering them, while the storage that feature exists to reclaim never moved. It now always deletes, whatever the Clean tab says."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A rule that needed more than one pass claimed it had given up."
-                ],
-                [
-                  "",
-                  " Any rule with more mail than one pass clears announced \"stopped at the pass limit\" while it was still working, and filed a duplicate entry each time. A rule that cleared 150 messages over three passes was recorded as 300, in the progress table, the run receipt and the category totals on the Stats page."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Applying many suggestions at once could search for fewer senders than you picked."
-                ],
-                [
-                  "",
-                  " Twenty-five addresses do not fit in one Gmail search, so the search was cut short while the status line and the run history still claimed all of them. Both the bulk button and Auto-Pilot now split the work into as many searches as it takes."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Rules aimed at Trash or Spam could destroy mail permanently."
-                ],
-                [
-                  "",
-                  " Those are the two places where Gmail's delete button means delete forever, so a custom rule pointed at either one skipped the Trash entirely and left nothing for Undo or Restore to find. They are now refused, the same way rules aimed at starred or sent mail already were."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Some whitelisted senders were never actually protected."
-                ],
-                [
-                  "",
-                  " An address with a standalone \"and\" or \"or\" in it, like sales.and.marketing@company.com, was dropped from the Global Whitelist without a word, and the next run treated that sender as fair game."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Picking Maximum still ran Normal for some people."
-                ],
-                [
-                  "",
-                  " 8.7 fixed this for anyone who had never saved Settings. Anyone who had saved before Maximum existed still got the Normal rules under a progress page announcing Maximum."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The Apply checked button always said Trash."
-                ],
-                [
-                  "",
-                  " When the suggestions it was about to run were archive suggestions, it archived them, which is what the individual cards said all along. Now the button says so too."
                 ]
               ]
             }

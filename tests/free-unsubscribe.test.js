@@ -119,7 +119,7 @@ function installChrome({ failLocal = false, used } = {}) {
       id: "test",
       lastError: null,
       getURL: (p) => `chrome-extension://test/${p}`,
-      getManifest: () => ({ version: "8.18.0", permissions: [], host_permissions: [] }),
+      getManifest: () => ({ version: "8.18.1", permissions: [], host_permissions: [] }),
       onMessage: { addListener: (fn) => messageListeners.push(fn) },
       sendMessage: (msg, cb) => {
         let reply = { ok: true };

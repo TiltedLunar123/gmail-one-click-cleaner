@@ -1362,13 +1362,21 @@ const GCC = (() => {
   const CWS_LISTING = "https://chromewebstore.google.com/detail/bmcfpljakkpcbinhgiahncpcbhmihgpc";
   const AMO_LISTING = "https://addons.mozilla.org/firefox/addon/gmail-one-click-cleaner@gmail-cleaner-pro.netlify.app/";
 
-  // 8.6: the published policy, the same URL both store listings point
-  // at, so what the extension shows and what the stores show cannot
-  // drift. Hosted rather than bundled on purpose: a copy shipped inside
-  // the package is frozen at whatever the last release said, and a
-  // stale privacy policy is worse than none. Opening it is a link, not
-  // a request: the extension still makes no network calls of its own.
-  const PRIVACY_URL = "https://secplusmastery.com/extensions#gmail-one-click-cleaner-privacy";
+  // The published policy. 8.18.1 moved it off secplusmastery.com and
+  // into this repo; that site no longer carries it.
+  //
+  // The two properties the old hosted copy was chosen for both survive
+  // the move. It is still not BUNDLED, so it is not frozen at whatever
+  // the last release said: the file updates the moment it is pushed,
+  // which is the whole reason a shipped copy was rejected. And it is
+  // still one URL, so what the extension shows and what the stores
+  // show cannot drift, PROVIDED the store dashboards are pointed here
+  // too. That is a manual step in each dashboard and it is the only
+  // way this can go wrong.
+  //
+  // Opening it is a link, not a request: the extension still makes no
+  // network calls of its own.
+  const PRIVACY_URL = "https://github.com/TiltedLunar123/gmail-one-click-cleaner/blob/main/PRIVACY.md";
 
   const detectBrowser = (uaOverride) => {
     const ua = String(

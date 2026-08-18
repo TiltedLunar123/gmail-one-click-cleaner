@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.18.1 - The privacy policy lives with the source now
+
+### Changed
+- **The Privacy policy link opens the policy in this repository** instead
+  of a page on another site. Same policy, same effective date, now
+  version-controlled alongside the code it describes, so a change to
+  what the extension does and a change to the document saying so land
+  in the same commit. The terms of use moved with it.
+- The first claim in that policy is that the extension makes no network
+  requests, and the policy now shows you the one-line command that
+  checks it for yourself.
+
 ## 8.18.0 - A calmer popup, and motion that means something
 
 The Clean tab showed thirteen things at once while every other tab
