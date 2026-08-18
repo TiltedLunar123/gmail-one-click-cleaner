@@ -138,8 +138,14 @@
 
     .chart-bar:hover { opacity: 0.8; }
 
+    /* 8.18: display:none/block cannot animate and, more to the point,
+       a hover-only tooltip is unreachable by keyboard. The bar carries
+       tabindex + a label now, and this reveals on focus as well as
+       hover. Opacity + visibility rather than display so it fades. */
     .chart-bar .tooltip {
-      display: none;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity var(--t-2) var(--ease), visibility var(--t-2) var(--ease), transform var(--t-2) var(--ease-out);
       position: absolute;
       bottom: 100%;
       left: 50%;
@@ -154,7 +160,13 @@
       margin-bottom: 4px;
     }
 
-    .chart-bar:hover .tooltip { display: block; }
+    .chart-bar:hover .tooltip,
+    .chart-bar:focus-visible .tooltip {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) translateY(-2px);
+    }
+    .chart-bar:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 
     .chart-labels {
       display: flex;

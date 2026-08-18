@@ -61,6 +61,46 @@
   --border-medium: rgba(180, 220, 235, 0.14);
   --border-focus: rgba(34, 211, 238, 0.6);
 
+  /* -------------------------------------------------------------
+     Semantic surface alphas (8.18).
+
+     Every one of these existed before as a literal rgba() repeated
+     across the pages, which is why the light theme needed ~180 lines
+     of overrides restating the same components in near-white. The
+     literal is the reason for the override: a rule that hardcodes
+     rgba(255,255,255,.06) as its hairline cannot be right on white.
+     Name the ROLE instead and one rule serves both themes.
+     ------------------------------------------------------------- */
+
+  /* Hairlines and the light that falls on a raised edge */
+  --hairline: rgba(255, 255, 255, 0.06);
+  --hairline-strong: rgba(255, 255, 255, 0.1);
+  --sheen: rgba(255, 255, 255, 0.06);
+  --sheen-strong: rgba(255, 255, 255, 0.2);
+
+  /* Neutral wash used for hover on quiet surfaces */
+  --wash: rgba(255, 255, 255, 0.04);
+  --wash-strong: rgba(255, 255, 255, 0.08);
+
+  /* Brand tints. The fill and edge of anything cyan-on-surface. */
+  --tint-brand: rgba(34, 211, 238, 0.09);
+  --tint-brand-strong: rgba(34, 211, 238, 0.15);
+  --edge-brand: rgba(34, 211, 238, 0.35);
+  --edge-brand-strong: rgba(34, 211, 238, 0.6);
+
+  /* List rows: sender lists, report steps, X-ray rows */
+  --row-bg: rgba(148, 163, 184, 0.05);
+  --row-bg-hover: rgba(148, 163, 184, 0.09);
+  --row-edge: rgba(148, 163, 184, 0.14);
+
+  /* Ink that has to darken on white to stay readable as TEXT.
+     --success itself is a fill colour and stays as it is. */
+  --ink-good: var(--success);
+  --ink-brand: var(--primary);
+
+  --scroll-thumb: rgba(148, 163, 184, 0.28);
+  --scroll-thumb-hover: rgba(148, 163, 184, 0.45);
+
   /* Shape */
   --radius-xl: 20px;
   --radius-lg: 16px;
@@ -82,12 +122,41 @@
   --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  /* Motion */
+  /* -------------------------------------------------------------
+     Motion (8.18).
+
+     Durations and easings are SEPARATE tokens and must stay that way.
+     The popup used to bundle them ("--t-fast: 140ms var(--ease)"),
+     which reads fine until a rule composes an easing at the use site:
+     "transition: background var(--t-fast) var(--ease)" then expands to
+     two timing functions, which is invalid, and the browser drops the
+     WHOLE declaration silently. A bundled token cannot be composed, so
+     it is not a token, it is a trap.
+     ------------------------------------------------------------- */
   --ease: cubic-bezier(0.2, 0.9, 0.2, 1);
-  --ease-out: cubic-bezier(0.0, 0.0, 0.2, 1);
-  --t-fast: 140ms;
-  --t-normal: 190ms;
-  --t-slow: 280ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.55, 0, 1, 0.45);
+  /* Overshoots by ~6%. For things that ARRIVE (chips, pills, badges),
+     never for things that leave, and never on anything holding text
+     the user is reading. */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --t-1: 90ms;
+  --t-2: 140ms;
+  --t-3: 190ms;
+  --t-4: 280ms;
+  --t-5: 420ms;
+
+  /* Named aliases: the numbered scale is for new work, these keep the
+     existing call sites reading as intent. */
+  --t-fast: var(--t-2);
+  --t-normal: var(--t-3);
+  --t-slow: var(--t-4);
+
+  /* One list row after another. 28ms x 12 rows = 336ms to fill a
+     list, which is under the ~400ms where a stagger stops reading as
+     "arriving" and starts reading as "slow". */
+  --stagger: 28ms;
 
   /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.25);
@@ -154,6 +223,36 @@
   --border-medium: rgba(13, 30, 40, 0.14);
   --border-focus: rgba(14, 116, 144, 0.55);
 
+  /* Light counterparts of the semantic surface alphas. Hairlines
+     become ink rather than light; the sheen stays white because on a
+     white card the raised edge really is the brightest thing. */
+  --hairline: rgba(13, 30, 40, 0.08);
+  --hairline-strong: rgba(13, 30, 40, 0.12);
+  --sheen: rgba(255, 255, 255, 0.7);
+  --sheen-strong: rgba(255, 255, 255, 0.9);
+
+  --wash: rgba(13, 30, 40, 0.05);
+  --wash-strong: rgba(13, 30, 40, 0.08);
+
+  /* Deep teal, not the dark theme's neon cyan: a 34,211,238 tint on
+     white reads as a pale sky smudge and its edge disappears. */
+  --tint-brand: rgba(14, 116, 144, 0.08);
+  --tint-brand-strong: rgba(14, 116, 144, 0.14);
+  --edge-brand: rgba(14, 116, 144, 0.32);
+  --edge-brand-strong: rgba(14, 116, 144, 0.55);
+
+  --row-bg: #ffffff;
+  --row-bg-hover: #f2f7f9;
+  --row-edge: rgba(13, 30, 40, 0.12);
+
+  /* #047857 is the emerald that clears 4.5:1 on white; --success
+     (#059669) is a fill and measures 3.9:1 as text. */
+  --ink-good: #047857;
+  --ink-brand: var(--primary);
+
+  --scroll-thumb: rgba(13, 30, 40, 0.2);
+  --scroll-thumb-hover: rgba(13, 30, 40, 0.34);
+
   --shadow-sm: 0 1px 2px 0 rgba(13, 30, 40, 0.06);
   --shadow-md: 0 4px 10px -2px rgba(13, 30, 40, 0.1), 0 2px 4px -1px rgba(13, 30, 40, 0.05);
   --shadow-lg: 0 14px 30px -8px rgba(13, 30, 40, 0.14), 0 4px 10px -4px rgba(13, 30, 40, 0.08);
@@ -200,6 +299,21 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+/* =========================================================
+   Reduced motion: THE authoritative block.
+
+   This lives in shared.css and every page loads shared.css first, so
+   the blanket rule here already covers page-local animations. The
+   per-page copies that used to restate it are redundant; what a page
+   may still need is a carve-out, and a carve-out has to come AFTER
+   this rule, which is what the ordering below is for.
+
+   The rule is: motion that is DECORATION goes to zero; motion that is
+   the only signal that a system is working stays. WCAG SC 2.3.3 is
+   about animation from interaction, and 2.2.2 exempts activity that
+   is essential. A spinner that stops spinning is a spinner that says
+   "frozen", so it keeps spinning.
+   ========================================================= */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     transition-duration: 0.01ms !important;
@@ -207,17 +321,22 @@
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
   }
-  /* Spinners convey "system is busy", they're state indicators, not
-     decoration. WCAG SC 2.3.3 / 2.2.2 specifically carve out
-     non-essential animation; a loading spinner is essential context.
-     Restore the rotation for both the standalone .spinner element and
-     the primary-button busy state spinner. */
-  .spinner {
-    animation-duration: 0.6s !important;
+
+  /* 8.18: also kill the stagger. Without this every list row keeps
+     its animation-delay and the list appears one row at a time in
+     0.01ms steps, which is a flicker, not a reveal. */
+  * { animation-delay: 0ms !important; }
+
+  /* Essential, not decoration: these say "busy". */
+  .spinner,
+  .primary.loading::after {
+    animation-duration: 0.7s !important;
     animation-iteration-count: infinite !important;
   }
-  .primary.loading::after {
-    animation-duration: 0.8s !important;
+  /* The indeterminate progress band is the only thing on screen
+     saying a run is still alive. */
+  .progress-bar-inner.indeterminate::after {
+    animation-duration: 1.4s !important;
     animation-iteration-count: infinite !important;
   }
 }
@@ -396,7 +515,86 @@
 }
 .skip-link:focus { top: var(--space-4); }
 
-/* Animation */
+/* =========================================================
+   Motion library (8.18)
+
+   Every page used to keep its own copy of "fade up a bit", each with
+   its own duration written as a literal, so the same gesture took
+   0.22s in one place and 0.3s in another and nothing could be tuned
+   in one edit. These are the shared gestures. Page-local keyframes
+   are for genuinely page-local effects only.
+
+   Naming: gcc-prefixed so a page-local @keyframes of the obvious name
+   cannot silently shadow one of these.
+   ========================================================= */
+
+/* Arrive: the default for anything appearing in place. */
+@keyframes gccFadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Arrive from above: banners and things that drop into a slot. */
+@keyframes gccDropIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes gccFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Arrive with weight: modals, result cards, hero numbers. */
+@keyframes gccScaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Arrive with a bounce. Small things only: pills, chips, badges,
+   counts. Paired with --ease-spring the overshoot is ~6%, which on a
+   20px pill is about 1px and reads as confidence rather than wobble. */
+@keyframes gccPop {
+  0% { opacity: 0; transform: scale(0.7); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Panels sliding in from the direction you navigated. */
+@keyframes gccSlideFromRight {
+  from { opacity: 0; transform: translateX(10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes gccSlideFromLeft {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* A single pass of light across a surface. Used for the loading
+   skeletons and for the "this just changed" flash on a value. */
+@keyframes gccShimmer {
+  0% { background-position: 100% 0%; }
+  100% { background-position: -100% 0%; }
+}
+
+/* Draws an SVG check/path on. Requires stroke-dasharray on the path. */
+@keyframes gccDraw {
+  from { stroke-dashoffset: var(--draw-length, 48); }
+  to { stroke-dashoffset: 0; }
+}
+
+/* Attention without motion sickness: opacity only, no transform, so
+   it can run under a block of text without shifting it. */
+@keyframes gccBreathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* Indeterminate progress: a band travelling along a track. */
+@keyframes gccTravel {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }

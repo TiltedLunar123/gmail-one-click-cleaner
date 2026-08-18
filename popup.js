@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "8.17.0";
+  const POPUP_VERSION = "8.18.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -736,7 +736,16 @@ document.addEventListener("DOMContentLoaded", () => {
   // window and restore is by label with no deadline at all.
   const showResultSummary = ({ count = 0, freedBytes = 0, action = "trash", dryRun = false, stoppedShort = 0 } = {}) => {
     if (!elements.resultSummary) return;
-    if (elements.resultCount) elements.resultCount.textContent = String(Math.max(0, Number(count || 0)));
+    // 8.18: rolls up to the count instead of appearing at it. The
+    // string handed to countUp is the same String(...) this line always
+    // produced and it is written before any frame runs, so the value
+    // shown is identical whether or not the roll happens.
+    // "plain" because this figure has never been thousands-separated.
+    const resultTotal = Math.max(0, Number(count || 0));
+    if (elements.resultCount) {
+      elements.resultCount.dataset.countFormat = "plain";
+      GCC.countUp(elements.resultCount, resultTotal, String(resultTotal));
+    }
     // 8.9: archiving moves mail to All Mail, where it still counts
     // against the quota. There is no storage figure to report, so the
     // clause goes rather than reading "Freed ~0 MB". Every caller of
@@ -2763,7 +2772,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (elements.reportScanBtn) elements.reportScanBtn.classList.toggle("is-compact", scanned);
     if (elements.reportHeroCount) {
-      elements.reportHeroCount.textContent = Number(state.report.cleanableCount || 0).toLocaleString();
+      // 8.18: the hero number is the payoff of the whole Report tab, so
+      // it rolls up rather than simply being there. toLocaleString() is
+      // still what produces the text that lands; countUp writes it
+      // first and animates second, so a reduced-motion user, a missing
+      // rAF or a second scan arriving mid-roll all end on this exact
+      // string.
+      const cleanable = Number(state.report.cleanableCount || 0);
+      GCC.countUp(elements.reportHeroCount, cleanable, cleanable.toLocaleString());
     }
     if (elements.reportHeroMb) {
       elements.reportHeroMb.textContent = totals.largeMb

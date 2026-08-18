@@ -56,11 +56,17 @@
 
       --font: var(--font-sans);
 
-      /* Motion tokens bundle their easing, so they stay local */
-      --ease: cubic-bezier(0.2, 0.9, 0.2, 1);
-      --t-fast: 140ms var(--ease);
-      --t: 190ms var(--ease);
-      --t-slow: 280ms var(--ease);
+      /* 8.18: motion comes from shared.css now and the easing is NOT
+         bundled into the duration. The old local tokens read
+         "--t-fast: 140ms var(--ease)", which works until a rule
+         composes its own easing: "var(--t-fast) var(--ease)" then
+         expands to two timing functions, which is invalid, and the
+         browser drops the whole transition without a word. shared.css
+         writes exactly that shape, so any shared component dropped
+         into the popup lost its motion.
+         --t is the one local name worth keeping (it is used as the
+         "normal" speed in ~5 rules); it now aliases the shared scale. */
+      --t: var(--t-3);
     }
 
     * { box-sizing: border-box; margin: 0; }
@@ -112,7 +118,7 @@
       border-radius: var(--r-sm);
       text-decoration: none;
       font-weight: 700;
-      transition: top var(--t-fast);
+      transition: top var(--t-fast) var(--ease);
     }
     .skip-link:focus { top: var(--s-4); }
 
@@ -144,13 +150,13 @@
       border: 1px solid var(--border);
       box-shadow:
         0 24px 52px -28px rgba(0, 0, 0, 0.7),
-        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        inset 0 1px 0 var(--wash-strong);
       backdrop-filter: blur(12px) saturate(1.05);
       -webkit-backdrop-filter: blur(12px) saturate(1.05);
       position: relative;
       overflow: hidden;
       contain: paint;
-      animation: cardIn 0.22s var(--ease) both;
+      animation: cardIn var(--t-3) var(--ease-out) both;
     }
     .card::before {
       content: "";
@@ -158,8 +164,8 @@
       inset: 0;
       pointer-events: none;
       background:
-        radial-gradient(480px 130px at 30% 0%, rgba(255, 255, 255, 0.06), transparent 60%),
-        radial-gradient(420px 150px at 85% 0%, rgba(34, 211, 238, 0.09), transparent 60%);
+        radial-gradient(480px 130px at 30% 0%, var(--sheen), transparent 60%),
+        radial-gradient(420px 150px at 85% 0%, var(--tint-brand), transparent 60%);
       -webkit-mask-image: linear-gradient(180deg, #000 0, #000 60px, transparent 130px);
       mask-image: linear-gradient(180deg, #000 0, #000 60px, transparent 130px);
     }
@@ -201,7 +207,7 @@
       height: 28px;
       border-radius: 8px;
       will-change: transform;
-      transition: transform 0.25s var(--ease);
+      transition: transform var(--t-3) var(--ease);
     }
     .app-mark:hover img { transform: scale(1.08); }
 
@@ -228,7 +234,7 @@
     .badge {
       padding: 3px 6px;
       border-radius: var(--r-sm);
-      background: rgba(34, 211, 238, 0.09);
+      background: var(--tint-brand);
       border: 1px solid rgba(34, 211, 238, 0.24);
       color: var(--primary-strong);
       font-family: var(--font-mono);
@@ -245,7 +251,7 @@
       display: inline-flex;
       gap: 2px;
       padding: 2px;
-      background: rgba(255, 255, 255, 0.04);
+      background: var(--wash);
       border: 1px solid var(--border);
       border-radius: var(--r-pill);
       flex: 0 0 auto;
@@ -262,7 +268,7 @@
       padding: 4px 6px;
       border-radius: var(--r-pill);
       cursor: pointer;
-      transition: color var(--t-fast), background var(--t-fast);
+      transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
     }
     .theme-switcher-popup button:hover { color: var(--text); }
     .theme-switcher-popup button[aria-pressed="true"] {
@@ -283,10 +289,9 @@
       border: 0;
     }
 
-    @keyframes slideDown {
-      from { opacity: 0; transform: translateY(-8px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
+    /* 8.18: the local slideDown is gone; its four call sites use the
+       shared gccDropIn, which is the same gesture. A gesture that
+       appears on four pages should be defined once. */
 
     /* Banner: pin hint. One quiet line; it dismisses forever and
        hides itself once the browser reports the icon already pinned. */
@@ -299,7 +304,7 @@
       border-radius: var(--r-md);
       background: linear-gradient(135deg, rgba(34, 211, 238, 0.13), rgba(56, 189, 248, 0.06));
       border: 1px solid rgba(34, 211, 238, 0.24);
-      animation: slideDown 0.22s var(--ease);
+      animation: gccDropIn var(--t-3) var(--ease-out);
     }
     .pin-hint.show { display: flex; }
     .pin-hint-icon { color: var(--primary); flex: 0 0 auto; }
@@ -313,7 +318,7 @@
     }
     .pin-hint-close {
       margin-left: auto;
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--wash-strong);
       border: 1px solid var(--border);
       color: var(--muted);
       cursor: pointer;
@@ -321,10 +326,10 @@
       border-radius: 9px;
       line-height: 1;
       opacity: 0.85;
-      transition: opacity var(--t-fast), background var(--t-fast), border-color var(--t-fast);
+      transition: opacity var(--t-fast) var(--ease), background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
       flex: 0 0 auto;
     }
-    .pin-hint-close:hover { opacity: 1; background: rgba(255, 255, 255, 0.08); border-color: var(--border2); }
+    .pin-hint-close:hover { opacity: 1; background: var(--wash-strong); border-color: var(--border2); }
 
     /* Banner: Gmail host access (Firefox lets users revoke it) */
     .access-banner {
@@ -336,7 +341,7 @@
       border-radius: var(--r-md);
       background: linear-gradient(135deg, rgba(251, 191, 36, 0.13), rgba(245, 158, 11, 0.06));
       border: 1px solid rgba(251, 191, 36, 0.3);
-      animation: slideDown 0.22s var(--ease);
+      animation: gccDropIn var(--t-3) var(--ease-out);
     }
     .access-banner.show { display: flex; }
     .access-banner-icon { color: #fbbf24; margin-top: 1px; flex: 0 0 auto; }
@@ -354,7 +359,7 @@
       padding: 7px 12px;
       border-radius: 9px;
       line-height: 1;
-      transition: background var(--t-fast), border-color var(--t-fast);
+      transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
       flex: 0 0 auto;
     }
     .access-banner-btn:hover { background: rgba(251, 191, 36, 0.26); }
@@ -372,7 +377,7 @@
       border-radius: var(--r-md);
       background: linear-gradient(135deg, rgba(34, 211, 238, 0.12), rgba(34, 211, 238, 0.04));
       border: 1px solid rgba(34, 211, 238, 0.3);
-      animation: slideDown 0.22s var(--ease);
+      animation: gccDropIn var(--t-3) var(--ease-out);
     }
     .run-banner.show { display: flex; }
     .run-banner.is-stuck {
@@ -387,7 +392,7 @@
     .run-banner-actions { display: flex; gap: 6px; align-self: center; flex: 0 0 auto; }
     .run-banner-btn {
       background: rgba(148, 163, 184, 0.1);
-      border: 1px solid rgba(148, 163, 184, 0.32);
+      border: 1px solid var(--scroll-thumb);
       color: var(--text);
       cursor: pointer;
       font-weight: 700;
@@ -396,7 +401,7 @@
       border-radius: 9px;
       line-height: 1;
       white-space: nowrap;
-      transition: background var(--t-fast), border-color var(--t-fast);
+      transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
     }
     .run-banner-btn:hover { background: rgba(148, 163, 184, 0.2); }
     .run-banner-btn.primary {
@@ -447,17 +452,17 @@
       font-size: 11px;
       font-weight: 500;
       background: rgba(17, 26, 36, 0.56);
-      border: 1px solid rgba(255, 255, 255, 0.07);
+      border: 1px solid var(--wash-strong);
       color: var(--muted);
       cursor: pointer;
-      transition: border-color var(--t-fast), background var(--t-fast), color var(--t-fast);
+      transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
     }
     .account-pill.active {
       background: rgba(34, 211, 238, 0.2);
       border-color: rgba(34, 211, 238, 0.4);
       color: var(--text);
     }
-    .account-pill:hover { border-color: rgba(255, 255, 255, 0.15); }
+    .account-pill:hover { border-color: var(--sheen-strong); }
 
     /* Tab bar: sits under the header; the active panel is the only
        scroll container in the popup. */
@@ -497,7 +502,7 @@
       letter-spacing: 0.01em;
       white-space: nowrap;
       cursor: pointer;
-      transition: background var(--t-fast), color var(--t-fast);
+      transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
       touch-action: manipulation;
     }
     .tab-bar [role="tab"] svg { flex: 0 0 auto; }
@@ -528,12 +533,12 @@
       padding: 2px 6px 6px 2px;
       scrollbar-gutter: stable;
       scrollbar-width: thin;
-      scrollbar-color: rgba(148, 163, 184, 0.32) transparent;
+      scrollbar-color: var(--scroll-thumb) transparent;
     }
     .tab-panel::-webkit-scrollbar { width: 8px; }
     .tab-panel::-webkit-scrollbar-track { background: transparent; }
     .tab-panel::-webkit-scrollbar-thumb {
-      background: rgba(148, 163, 184, 0.28);
+      background: var(--scroll-thumb);
       border-radius: var(--r-pill);
       border: 2px solid transparent;
       background-clip: content-box;
@@ -572,7 +577,7 @@
       border-radius: var(--r-md);
       margin-bottom: 6px;
       overflow: hidden;
-      transition: border-color var(--t-fast);
+      transition: border-color var(--t-fast) var(--ease);
     }
     .section:focus-within { border-color: rgba(34, 211, 238, 0.3); }
 
@@ -593,20 +598,20 @@
       letter-spacing: 0.01em;
       color: var(--dim);
 
-      transition: background var(--t-fast), color var(--t-fast);
+      transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
     }
     summary.section-title::-webkit-details-marker { display: none; }
     summary.section-title::marker { content: ""; }
-    summary.section-title:hover { background: rgba(255, 255, 255, 0.04); color: var(--text); }
+    summary.section-title:hover { background: var(--wash); color: var(--text); }
 
     .section-content {
       padding: 0 12px 12px;
       border-top: 1px solid transparent;
     }
     details[open] .section-content {
-      border-top-color: rgba(255, 255, 255, 0.06);
+      border-top-color: var(--hairline);
       padding-top: 10px;
-      animation: sectionReveal 0.22s var(--ease);
+      animation: sectionReveal var(--t-3) var(--ease-out);
     }
 
     @keyframes sectionReveal {
@@ -626,7 +631,7 @@
 
     .chevron {
       color: var(--muted);
-      transition: transform var(--t), color var(--t);
+      transition: transform var(--t) var(--ease), color var(--t) var(--ease);
       flex: 0 0 auto;
     }
     details[open] .chevron { transform: rotate(180deg); color: var(--primary); }
@@ -645,7 +650,23 @@
     /* Preset group: Monthly + one-category targets share one quiet
        visual family, so "pick what to clean" reads as a single choice
        and the Run button below stays the only saturated control. */
-    .preset-stack { margin: 0 0 6px; }
+    /* 8.18: .preset-stack always MEANT "pick what to clean" (the
+       markup comment says so) but it drew nothing, so the featured
+       sweep, the "or target one thing" label and four chips read as
+       six unrelated controls stacked above the Run button. On the
+       Clean tab that is six of the thirteen things visible on a fresh
+       install, and it is the tab that is four times denser than any
+       other. Bounding it does not remove a single control; it makes
+       them one decision with options instead of a list. */
+    .preset-stack {
+      margin: 0 0 8px;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      background: var(--surface3);
+      transition: border-color var(--t-2) var(--ease);
+    }
+    .preset-stack:focus-within { border-color: var(--edge-brand); }
 
     .monthly-clean-btn {
       width: 100%;
@@ -661,7 +682,7 @@
       font-family: inherit;
       font-size: inherit;
       text-align: left;
-      transition: border-color var(--t-fast), background var(--t-fast), transform var(--t-fast);
+      transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
       touch-action: manipulation;
     }
     .monthly-clean-btn:hover {
@@ -728,7 +749,7 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      transition: border-color var(--t-fast), background var(--t-fast), color var(--t-fast), transform var(--t-fast);
+      transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease), color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
       touch-action: manipulation;
     }
     .target-chip:hover {
@@ -788,7 +809,7 @@
       padding: 9px 34px 9px 11px;
       outline: none;
       cursor: pointer;
-      transition: background-color var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast);
+      transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7' /%3E%3C/svg%3E");
       background-repeat: no-repeat;
       background-position: right 11px center;
@@ -817,11 +838,11 @@
       border-radius: 10px;
       border: 1px solid transparent;
       background: rgba(255, 255, 255, 0.02);
-      transition: background var(--t-fast), border-color var(--t-fast);
+      transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
     }
     .toggle:hover {
-      background: rgba(255, 255, 255, 0.05);
-      border-color: rgba(255, 255, 255, 0.06);
+      background: var(--wash-strong);
+      border-color: var(--hairline-strong);
     }
 
     .toggle input[type="checkbox"] {
@@ -831,12 +852,12 @@
       height: 22px;
       border-radius: var(--r-pill);
       border: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--hairline-strong);
       position: relative;
       cursor: pointer;
       outline: none;
       flex: 0 0 auto;
-      transition: background var(--t), border-color var(--t), box-shadow var(--t);
+      transition: background var(--t) var(--ease), border-color var(--t) var(--ease), box-shadow var(--t) var(--ease);
       box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.35);
     }
     .toggle input[type="checkbox"]::after {
@@ -849,17 +870,17 @@
       border-radius: var(--r-pill);
       background: #fff;
       box-shadow: 0 5px 12px -8px rgba(0, 0, 0, 0.9);
-      transition: transform var(--t);
+      transition: transform var(--t) var(--ease);
       will-change: transform;
     }
     .toggle input[type="checkbox"]:focus-visible {
       box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.35), 0 0 0 2px rgba(34, 211, 238, 0.55);
-      border-color: rgba(34, 211, 238, 0.35);
+      border-color: var(--edge-brand);
     }
     .toggle input[type="checkbox"]:checked {
       background: linear-gradient(135deg, var(--primary), var(--primary2));
       border-color: transparent;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+      box-shadow: inset 0 1px 0 var(--sheen-strong);
     }
     .toggle input[type="checkbox"]:checked::after { transform: translateX(16px); }
 
@@ -891,8 +912,8 @@
       background: linear-gradient(135deg, var(--primary-strong), var(--primary));
       box-shadow:
         0 16px 32px -20px rgba(34, 211, 238, 0.9),
-        inset 0 1px 0 rgba(255, 255, 255, 0.2);
-      transition: transform var(--t-fast), box-shadow var(--t-fast), opacity var(--t-fast), filter var(--t-fast);
+        inset 0 1px 0 var(--sheen-strong);
+      transition: transform var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease), filter var(--t-fast) var(--ease);
       position: relative;
       overflow: hidden;
       touch-action: manipulation;
@@ -906,7 +927,7 @@
       inset: 0;
       background: linear-gradient(135deg, rgba(255, 255, 255, 0.18), transparent 55%);
       opacity: 0;
-      transition: opacity var(--t-fast);
+      transition: opacity var(--t-fast) var(--ease);
       z-index: 1;
     }
     .primary:hover:not(:disabled) { transform: translateY(-1px); filter: saturate(1.05); }
@@ -953,17 +974,17 @@
 
     .primary.success {
       background: linear-gradient(135deg, var(--good), #059669);
-      box-shadow: 0 16px 32px -22px rgba(16, 185, 129, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      box-shadow: 0 16px 32px -22px rgba(16, 185, 129, 0.9), inset 0 1px 0 var(--sheen-strong);
       color: #fff;
     }
     .primary.success .sub { color: rgba(255, 255, 255, 0.85); }
     @keyframes runningPulse {
-      0%, 100% { box-shadow: 0 16px 32px -22px rgba(245, 158, 11, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.2); }
-      50% { box-shadow: 0 16px 32px -22px rgba(245, 158, 11, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 0 22px -4px rgba(245, 158, 11, 0.3); }
+      0%, 100% { box-shadow: 0 16px 32px -22px rgba(245, 158, 11, 0.85), inset 0 1px 0 var(--sheen-strong); }
+      50% { box-shadow: 0 16px 32px -22px rgba(245, 158, 11, 0.85), inset 0 1px 0 var(--sheen-strong), 0 0 22px -4px rgba(245, 158, 11, 0.3); }
     }
     .primary.running {
       background: linear-gradient(135deg, var(--warn), #d97706);
-      box-shadow: 0 16px 32px -22px rgba(245, 158, 11, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      box-shadow: 0 16px 32px -22px rgba(245, 158, 11, 0.85), inset 0 1px 0 var(--sheen-strong);
       animation: runningPulse 1.5s ease-in-out infinite;
       color: #1f1300;
     }
@@ -976,7 +997,7 @@
       top: 50%;
       transform: translateY(-50%);
       opacity: 0;
-      transition: opacity var(--t-fast);
+      transition: opacity var(--t-fast) var(--ease);
       z-index: 2;
       font-size: 11px;
       color: rgba(4, 24, 29, 0.6);
@@ -990,7 +1011,7 @@
       padding: 2px 6px;
       border-radius: 6px;
       background: rgba(6, 9, 15, 0.35);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--hairline-strong);
       font-size: 11px;
       font-family: var(--font-mono);
       color: rgba(226, 232, 240, 0.8);
@@ -1000,12 +1021,12 @@
     .progress-bar {
       width: 100%;
       height: 6px;
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--hairline-strong);
       border-radius: var(--r-pill);
       overflow: hidden;
       margin-top: 10px;
       display: none;
-      border: 1px solid rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--hairline);
     }
     .progress-bar.show { display: block; }
 
@@ -1015,7 +1036,7 @@
       background: linear-gradient(90deg, var(--primary), #22d3ee, #34d399);
       background-size: 200% 100%;
       animation: shimmer 2s linear infinite;
-      transition: width var(--t-slow);
+      transition: width var(--t-slow) var(--ease);
       border-radius: var(--r-pill);
       will-change: width;
     }
@@ -1032,18 +1053,18 @@
     .quick-action-btn {
       border-radius: var(--r-pill);
       border: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--wash-strong);
       color: var(--muted);
       font-family: inherit;
       font-size: 11px;
       font-weight: 700;
       padding: 7px 13px;
       cursor: pointer;
-      transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+      transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
       touch-action: manipulation;
     }
     .quick-action-btn:hover {
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--wash-strong);
       border-color: var(--border2);
       color: var(--text);
     }
@@ -1062,7 +1083,7 @@
       text-align: center;
       font-weight: 700;
       color: var(--muted);
-      transition: color 0.3s ease, opacity 0.3s ease;
+      transition: color var(--t-4) var(--ease), opacity var(--t-4) var(--ease);
       word-break: break-word;
       overflow-wrap: anywhere;
     }
@@ -1076,7 +1097,7 @@
       0% { transform: scale(0.97); opacity: 0.5; }
       100% { transform: scale(1); opacity: 1; }
     }
-    .status:not(:empty) { animation: statusPop 0.2s var(--ease); }
+    .status:not(:empty) { animation: statusPop var(--t-3) var(--ease-spring); }
 
     /* Whitelist suggestions */
     .wl-suggestions {
@@ -1096,7 +1117,7 @@
       border: 1px solid rgba(16, 185, 129, 0.25);
       color: #10b981;
       cursor: pointer;
-      transition: background var(--t-fast);
+      transition: background var(--t-fast) var(--ease);
     }
     .wl-suggest-chip:hover { background: rgba(16, 185, 129, 0.22); }
 
@@ -1109,7 +1130,7 @@
       background: linear-gradient(135deg, rgba(16, 185, 129, 0.13), rgba(6, 9, 15, 0.12));
       border: 1px solid rgba(16, 185, 129, 0.26);
       text-align: center;
-      animation: slideDown 0.22s var(--ease);
+      animation: gccDropIn var(--t-3) var(--ease-out);
     }
     .result-summary.show { display: block; }
 
@@ -1118,7 +1139,7 @@
       50% { transform: scale(1.15) rotate(4deg); }
       100% { transform: scale(1) rotate(0deg); }
     }
-    .result-summary-icon { color: #6ee7b7; margin: 0 auto 8px; display: block; animation: celebrateIcon 0.45s var(--ease) both; }
+    .result-summary-icon { color: #6ee7b7; margin: 0 auto 8px; display: block; animation: celebrateIcon var(--t-5) var(--ease-spring) both; }
     .result-summary-title { font-size: 15px; font-weight: 700; color: #6ee7b7; margin-bottom: 5px; }
     .result-summary-stats { font-size: 12px; color: #a7f3d0; margin-bottom: 8px; line-height: 1.5; }
     .result-summary-stats strong { color: #fff; font-family: var(--font-mono); font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -1170,7 +1191,7 @@
       gap: 8px;
       margin-top: 10px;
     }
-    .success-ctas.show { display: flex; animation: slideDown 0.22s var(--ease) 0.05s both; }
+    .success-ctas.show { display: flex; animation: gccDropIn var(--t-3) var(--ease-out) 60ms both; }
 
     .cta-btn {
       flex: 1;
@@ -1181,19 +1202,19 @@
       padding: 9px 10px;
       border-radius: var(--r-pill);
       border: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--wash-strong);
       color: var(--muted);
       font-family: inherit;
       font-size: 11px;
       font-weight: 700;
       cursor: pointer;
       text-decoration: none;
-      transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+      transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
       touch-action: manipulation;
     }
     .cta-btn svg { flex: 0 0 auto; }
     .cta-btn:hover {
-      background: rgba(255, 255, 255, 0.1);
+      background: var(--wash-strong);
       border-color: var(--border2);
       color: var(--text);
     }
@@ -1214,7 +1235,7 @@
       background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(6, 9, 15, 0.12));
       border: 1px solid rgba(251, 191, 36, 0.22);
       text-align: center;
-      animation: slideDown 0.22s var(--ease);
+      animation: gccDropIn var(--t-3) var(--ease-out);
     }
     .rating-prompt.show { display: block; }
 
@@ -1236,7 +1257,7 @@
       display: inline-flex;
       cursor: pointer;
       user-select: none;
-      transition: transform var(--t-fast);
+      transition: transform var(--t-fast) var(--ease);
       filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.25));
     }
     .rating-star:hover { transform: scale(1.15); }
@@ -1257,7 +1278,7 @@
       font-weight: 700;
       cursor: pointer;
       text-decoration: none;
-      transition: transform var(--t-fast);
+      transition: transform var(--t-fast) var(--ease);
       box-shadow: 0 14px 26px -22px rgba(251, 191, 36, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.22);
       touch-action: manipulation;
     }
@@ -1285,9 +1306,9 @@
       cursor: pointer;
       padding: 5px 10px;
       border-radius: 9px;
-      transition: color var(--t-fast), background var(--t-fast);
+      transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
     }
-    .rating-dismiss:hover { color: var(--muted); background: rgba(255, 255, 255, 0.05); }
+    .rating-dismiss:hover { color: var(--muted); background: var(--wash-strong); }
 
     /* Back to the form from the post-run result state */
     .result-back-btn {
@@ -1306,7 +1327,7 @@
       font-size: 11px;
       font-weight: 700;
       cursor: pointer;
-      transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+      transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
       touch-action: manipulation;
     }
     .result-back-btn:hover {
@@ -1331,17 +1352,17 @@
       width: 100%;
       padding: 9px 12px;
       border-radius: var(--r-md);
-      border: 1px solid rgba(34, 211, 238, 0.35);
-      background: rgba(34, 211, 238, 0.09);
+      border: 1px solid var(--edge-brand);
+      background: var(--tint-brand);
       color: var(--text);
       cursor: pointer;
       font: inherit;
       text-align: left;
-      transition: border-color var(--t-fast), background var(--t-fast), transform var(--t-fast);
+      transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
       touch-action: manipulation;
     }
     .subs-scan-btn:hover,
-    .subs-unsub-btn:hover { border-color: rgba(34, 211, 238, 0.6); background: rgba(34, 211, 238, 0.15); }
+    .subs-unsub-btn:hover { border-color: var(--edge-brand-strong); background: var(--tint-brand-strong); }
     .subs-scan-btn:active,
     .subs-unsub-btn:active { transform: scale(0.99); }
     .subs-scan-btn:disabled,
@@ -1368,11 +1389,11 @@
       color: var(--muted);
     }
     .subs-selectall { display: flex; align-items: center; gap: 6px; cursor: pointer; }
-    .subs-list { margin-top: 6px; max-height: 230px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; scrollbar-width: thin; scrollbar-color: rgba(148, 163, 184, 0.32) transparent; }
+    .subs-list { margin-top: 6px; max-height: 230px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
     .subs-list::-webkit-scrollbar { width: 8px; }
     .subs-list::-webkit-scrollbar-track { background: transparent; }
     .subs-list::-webkit-scrollbar-thumb {
-      background: rgba(148, 163, 184, 0.28);
+      background: var(--scroll-thumb);
       border-radius: var(--r-pill);
       border: 2px solid transparent;
       background-clip: content-box;
@@ -1383,8 +1404,8 @@
       gap: 8px;
       padding: 6px 8px;
       border-radius: 8px;
-      border: 1px solid rgba(148, 163, 184, 0.14);
-      background: rgba(148, 163, 184, 0.05);
+      border: 1px solid var(--row-edge);
+      background: var(--row-bg);
     }
     .subs-row-label { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; cursor: pointer; }
 
@@ -1415,7 +1436,7 @@
       flex-shrink: 0;
       font-size: 11px;
       color: var(--muted);
-      border: 1px solid rgba(148, 163, 184, 0.28);
+      border: 1px solid var(--scroll-thumb);
       border-radius: var(--r-pill);
       padding: 1px 7px;
     }
@@ -1613,7 +1634,7 @@
       font-size: 11px;
       font-weight: 700;
       cursor: pointer;
-      transition: background var(--t-fast), color var(--t-fast);
+      transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
     }
     .report-row-btn:hover { background: var(--primary); color: var(--on-primary); }
     .report-row-btn.is-locked {
@@ -1697,7 +1718,7 @@
       border-radius: var(--r-xl);
       padding: 16px;
       overflow-y: auto;
-      animation: fadeInUp 190ms var(--ease);
+      animation: gccScaleIn var(--t-3) var(--ease-out);
     }
     .pro-panel[hidden] { display: none; }
     @media (prefers-reduced-motion: reduce) { .pro-panel { animation: none; } }
@@ -1786,7 +1807,7 @@
       font-size: 13px;
       font-weight: 700;
       cursor: pointer;
-      transition: filter var(--t-fast);
+      transition: filter var(--t-fast) var(--ease);
     }
     .pro-panel-buy:hover { filter: brightness(1.06); }
     .pro-panel-alt {
@@ -1801,6 +1822,13 @@
        --dim token used by .linkish elsewhere lands at 4.36:1 here. */
     .pro-panel .linkish { color: var(--muted); }
 
+    /* 8.18: the two assurance lines are deliberate and stay visible
+       (8.7 moved them out from behind a chevron on purpose, and they
+       are the safety and privacy claims the whole product rests on).
+       What changed is that they were two floating paragraphs reading
+       as two more blocks in the stack. Bounded together they are one
+       block of fine print attached to the button above, which is what
+       they are. Same words, same order, same links. */
     .run-assurance {
       display: flex;
       gap: 8px;
@@ -1817,8 +1845,26 @@
       color: var(--muted);
     }
     .run-assurance > span { min-width: 0; }
-    .run-assurance svg { flex: 0 0 auto; margin-top: 1px; color: var(--good); }
+    .run-assurance svg { flex: 0 0 auto; margin-top: 1px; color: var(--ink-good); }
     .run-assurance--privacy svg { color: var(--accent); }
+
+    /* The pair reads as one note under the button. The first line
+       opens the box and the second closes it, so no wrapper element
+       is needed and no id or handler moves. */
+    .run-assurance {
+      padding: 8px 10px;
+      background: var(--surface3);
+      border: 1px solid var(--border);
+      border-bottom: 0;
+      border-radius: var(--r-md) var(--r-md) 0 0;
+      margin-top: 8px;
+    }
+    .run-assurance--privacy {
+      border-bottom: 1px solid var(--border);
+      border-radius: 0 0 var(--r-md) var(--r-md);
+      margin-top: 0;
+      padding-top: 6px;
+    }
     /* 8.6: sits on the end of the privacy line rather than in the
        footer, which already carries four links and is the thing that
        makes this popup feel busy. */
@@ -1867,7 +1913,7 @@
       padding: 9px 12px;
       margin-top: 4px;
       border-radius: var(--r-md);
-      border: 1px dashed rgba(34, 211, 238, 0.35);
+      border: 1px dashed var(--edge-brand);
       color: var(--muted);
       font-size: 11px;
       line-height: 1.4;
@@ -1885,7 +1931,7 @@
     .xray-age.show { display: flex; }
     .xray-age select {
       width: auto;
-      background-color: rgba(255, 255, 255, 0.05);
+      background-color: var(--wash-strong);
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 4px 26px 4px 8px;
@@ -1916,8 +1962,8 @@
       font-size: 11px;
       font-weight: 700;
       color: var(--primary-strong);
-      background: rgba(34, 211, 238, 0.09);
-      border: 1px solid rgba(34, 211, 238, 0.35);
+      background: var(--tint-brand);
+      border: 1px solid var(--edge-brand);
       border-radius: var(--r-pill);
       padding: 3px 10px;
       cursor: pointer;
@@ -1966,7 +2012,7 @@
     .footer {
       margin-top: 8px;
       padding-top: 8px;
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      border-top: 1px solid var(--hairline);
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -2014,8 +2060,8 @@
     .footer .badge.has-update { color: var(--text); }
 
     .linkish {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: var(--wash);
+      border: 1px solid var(--hairline-strong);
       color: var(--dim);
       font-size: 11px;
       font-weight: 700;
@@ -2023,7 +2069,7 @@
       cursor: pointer;
       padding: 5px 6px;
       border-radius: 9px;
-      transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+      transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
       text-decoration: none;
       display: inline-flex;
       align-items: center;
@@ -2033,8 +2079,8 @@
     }
     .linkish svg { flex: 0 0 auto; }
     .linkish:hover {
-      background: rgba(255, 255, 255, 0.06);
-      border-color: rgba(255, 255, 255, 0.1);
+      background: var(--wash-strong);
+      border-color: var(--hairline-strong);
       color: var(--text);
     }
 
@@ -2109,14 +2155,14 @@
       padding: 10px 12px;
       border-radius: var(--r-md);
       background: rgba(22, 32, 42, 0.94);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--wash-strong);
       box-shadow: 0 22px 40px -28px rgba(0, 0, 0, 0.9);
       color: var(--text);
       font-size: 12px;
 
       transform: translateY(100%);
       opacity: 0;
-      transition: transform var(--t), opacity var(--t);
+      transition: transform var(--t) var(--ease), opacity var(--t) var(--ease);
       will-change: transform, opacity;
     }
 
@@ -2144,12 +2190,12 @@
       max-width: 320px;
       width: 100%;
       background: linear-gradient(180deg, rgba(17, 26, 36, 0.94), rgba(17, 26, 36, 0.86));
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--hairline-strong);
       border-radius: var(--r-lg);
       padding: 20px;
       color: var(--text);
       box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.6);
-      animation: fadeInUp 0.3s var(--ease);
+      animation: gccFadeUp var(--t-4) var(--ease-out);
     }
     .onboarding-title {
       font-size: 15px;
@@ -2180,7 +2226,7 @@
       width: 6px;
       height: 6px;
       border-radius: var(--r-pill);
-      background: rgba(255, 255, 255, 0.15);
+      background: var(--sheen-strong);
     }
     .onboarding-dot.active { background: var(--primary); }
     .onboarding-btn {
@@ -2223,7 +2269,7 @@
       max-width: 320px;
       width: 100%;
       background: rgba(17, 26, 36, 0.94);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--hairline-strong);
       border-radius: var(--r-lg);
       padding: 18px;
       color: var(--text);
@@ -2257,13 +2303,204 @@
       width: 100%;
       border: none;
       border-radius: var(--r-pill);
-      background: rgba(255, 255, 255, 0.08);
+      background: var(--wash-strong);
       color: var(--text);
       font-family: inherit;
       font-size: 12px;
       font-weight: 700;
       cursor: pointer;
     }
+
+    /* =========================================================
+       8.18 motion layer
+
+       The popup had motion on the things that ARRIVE ONCE (the card,
+       a banner, the result card) and none at all on the things the
+       user actually drives: switching tabs, a scan filling a list, a
+       count landing, pressing a button. So the parts that felt alive
+       were the parts nobody interacts with.
+
+       Everything here is CSS. The stagger and the panel transition
+       need no JS at all, because toggling the [hidden] attribute
+       already restarts a CSS animation, and that is exactly the
+       moment we want to animate. The one JS addition is the count
+       roll, which is opt-in per call site.
+
+       All of it is disabled by the shared prefers-reduced-motion
+       block, including the stagger delays.
+       ========================================================= */
+
+    /* --- Tab bar: a single ink pill that slides ---------------- */
+
+    /* Behind the four tabs rather than on the selected one, so the
+       selection travels instead of blinking out and in somewhere else.
+       Guarded on :has() support: without it the pill cannot know which
+       tab is live, so we leave the original per-tab background alone
+       and nothing is lost. */
+    @supports selector(:has(*)) {
+      .tab-bar { position: relative; isolation: isolate; }
+      .tab-bar::after {
+        content: "";
+        position: absolute;
+        z-index: 0;
+        top: 4px;
+        bottom: 4px;
+        left: 4px;
+        width: calc((100% - 8px) / 4);
+        border-radius: var(--r-sm);
+        background: var(--primary);
+        box-shadow: 0 8px 18px -14px var(--primary-glow);
+        transition: transform var(--t-4) var(--ease-spring);
+      }
+      .tab-bar [role="tab"] { position: relative; z-index: 1; }
+      /* The pill is the fill now. */
+      .tab-bar [role="tab"][aria-selected="true"] {
+        background: transparent;
+        box-shadow: none;
+      }
+      .tab-bar:has(#tabReport[aria-selected="true"])::after { transform: translateX(0); }
+      .tab-bar:has(#tabClean[aria-selected="true"])::after { transform: translateX(100%); }
+      .tab-bar:has(#tabUnsubscribe[aria-selected="true"])::after { transform: translateX(200%); }
+      .tab-bar:has(#tabStorage[aria-selected="true"])::after { transform: translateX(300%); }
+      /* A tab being hovered while another is selected should not look
+         like a second selection sitting next to the pill. */
+      .tab-bar [role="tab"]:hover:not([aria-selected="true"]) { background: var(--wash-strong); }
+    }
+
+    /* --- Tab panels: content arrives, it does not blink -------- */
+
+    /* [hidden] is display:none, and leaving display:none restarts a CSS
+       animation, so switching tabs animates with no JS involved. */
+    .tab-panel:not([hidden]) {
+      animation: gccFadeUp var(--t-3) var(--ease-out) both;
+    }
+
+    /* --- Lists: rows arrive one after another ------------------ */
+
+    /* A scan that returns 30 senders used to paint all 30 in one
+       frame, which reads as a flash rather than as a result. The
+       delay is per row and caps at 12: past that the user is reading
+       the top of the list anyway, and a 30-row cascade would run
+       840ms, which is long enough to feel like waiting. */
+    .subs-list > *,
+    .report-list > * {
+      animation: gccFadeUp var(--t-3) var(--ease-out) both;
+    }
+    .subs-list > *:nth-child(1),  .report-list > *:nth-child(1)  { animation-delay: calc(var(--stagger) * 0); }
+    .subs-list > *:nth-child(2),  .report-list > *:nth-child(2)  { animation-delay: calc(var(--stagger) * 1); }
+    .subs-list > *:nth-child(3),  .report-list > *:nth-child(3)  { animation-delay: calc(var(--stagger) * 2); }
+    .subs-list > *:nth-child(4),  .report-list > *:nth-child(4)  { animation-delay: calc(var(--stagger) * 3); }
+    .subs-list > *:nth-child(5),  .report-list > *:nth-child(5)  { animation-delay: calc(var(--stagger) * 4); }
+    .subs-list > *:nth-child(6),  .report-list > *:nth-child(6)  { animation-delay: calc(var(--stagger) * 5); }
+    .subs-list > *:nth-child(7),  .report-list > *:nth-child(7)  { animation-delay: calc(var(--stagger) * 6); }
+    .subs-list > *:nth-child(8),  .report-list > *:nth-child(8)  { animation-delay: calc(var(--stagger) * 7); }
+    .subs-list > *:nth-child(9),  .report-list > *:nth-child(9)  { animation-delay: calc(var(--stagger) * 8); }
+    .subs-list > *:nth-child(10), .report-list > *:nth-child(10) { animation-delay: calc(var(--stagger) * 9); }
+    .subs-list > *:nth-child(11), .report-list > *:nth-child(11) { animation-delay: calc(var(--stagger) * 10); }
+    .subs-list > *:nth-child(n+12), .report-list > *:nth-child(n+12) { animation-delay: calc(var(--stagger) * 11); }
+
+    /* Rows are interactive, so they get a hover state too. */
+    .subs-row { transition: background var(--t-2) var(--ease), border-color var(--t-2) var(--ease); }
+    .subs-row:hover { background: var(--row-bg-hover); border-color: var(--hairline-strong); }
+
+    /* --- Press physics ----------------------------------------- */
+
+    /* Press is fast and linear (the finger is already down, the UI
+       should already be there); release springs back. Applied by
+       overriding only the timing, so each button keeps its own
+       transform. */
+    .primary,
+    .monthly-clean-btn,
+    .subs-scan-btn,
+    .subs-unsub-btn,
+    .cta-btn,
+    .quick-action-btn,
+    .target-chip,
+    .smart-apply-btn {
+      transition-duration: var(--t-3);
+      transition-timing-function: var(--ease-spring);
+    }
+    .primary:active:not(:disabled),
+    .monthly-clean-btn:active:not(:disabled),
+    .subs-scan-btn:active:not(:disabled),
+    .subs-unsub-btn:active:not(:disabled),
+    .cta-btn:active:not(:disabled),
+    .quick-action-btn:active:not(:disabled),
+    .target-chip:active,
+    .smart-apply-btn:active:not(:disabled) {
+      transition-duration: var(--t-1);
+      transition-timing-function: var(--ease-in);
+    }
+    /* The scan buttons only had a scale; a 1px settle sells the press. */
+    .subs-scan-btn:active:not(:disabled),
+    .subs-unsub-btn:active:not(:disabled) { transform: translateY(1px) scale(0.99); }
+
+    /* --- Numbers that land -------------------------------------- */
+
+    /* The hero count is the payoff of the whole Report tab, so it
+       arrives with weight rather than simply being there. Keyed off
+       the hero losing [hidden], which is exactly when a scan lands. */
+    .report-hero:not([hidden]) .report-hero-num {
+      animation: gccPop var(--t-5) var(--ease-spring) both;
+    }
+    /* Mid-roll digits change width; tabular figures stop the number
+       from jittering while it counts. */
+    .report-hero-num,
+    #resultCount,
+    #resultSize,
+    .subs-row-count,
+    .xray-mb {
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum" 1;
+    }
+
+    /* --- Toggles, chips and small state ------------------------ */
+
+    .toggle input[type="checkbox"] { transition: background-color var(--t-2) var(--ease), border-color var(--t-2) var(--ease), box-shadow var(--t-2) var(--ease); }
+    .toggle input[type="checkbox"]::after { transition: transform var(--t-3) var(--ease-spring); }
+    .target-chip.active { animation: gccPop var(--t-3) var(--ease-spring); }
+
+    /* The Pro pill is the one gold thing on screen; let it arrive. */
+    .pro-pill:not([hidden]) { animation: gccPop var(--t-4) var(--ease-spring) both; }
+
+    /* --- Progress: never a dead bar ---------------------------- */
+
+    /* A determinate bar that has not been given a width yet reads as
+       "nothing is happening". The indeterminate band says the run is
+       alive before the first count arrives. */
+    .progress-bar-inner.indeterminate {
+      width: 100% !important;
+      background: transparent;
+      overflow: hidden;
+      position: relative;
+    }
+    .progress-bar-inner.indeterminate::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      width: 25%;
+      border-radius: var(--r-pill);
+      background: linear-gradient(90deg, transparent, var(--primary), transparent);
+      animation: gccTravel 1.4s var(--ease) infinite;
+    }
+
+    /* --- Banners and disclosures ------------------------------- */
+
+    .guard-note:not([hidden]),
+    .autopilot-confirm:not([hidden]),
+    .recap-note:not([hidden]),
+    .subs-upsell:not([hidden]) {
+      animation: gccDropIn var(--t-3) var(--ease-out) both;
+    }
+    .subs-toolbar:not([hidden]) { animation: gccFade var(--t-3) var(--ease-out) both; }
+
+    /* --- Focus ring: visible, and it arrives ------------------- */
+
+    /* A ring that pops into existence at full size is easy to miss on
+       a dense surface; growing it 2px draws the eye to where focus
+       went. outline-offset is animatable, outline-width is not. */
+    :focus-visible { transition: outline-offset var(--t-1) var(--ease-out); }
+    .tab-bar [role="tab"]:focus-visible { outline-offset: 3px; }
 
     /* ===== popup light-theme visuals =====
        Token values flow from shared.css [data-theme="light"] through the
@@ -2303,10 +2540,12 @@
       background: #f2f7f9;
       border-color: rgba(13, 30, 40, 0.1);
     }
-    html[data-theme="light"] summary.section-title:hover { background: rgba(13, 30, 40, 0.05); }
-    html[data-theme="light"] details[open] .section-content { border-top-color: rgba(13, 30, 40, 0.08); }
-    html[data-theme="light"] .section--reassurance > summary .section-emoji { color: #047857; }
-    html[data-theme="light"] .reassurance-copy strong { color: #047857; }
+    /* 8.18: the section-title hover and the open-section divider used
+       to be restated here. Both base rules now name their role
+       (--wash, --hairline) instead of a dark literal, so they resolve
+       correctly on white without an override. */
+    html[data-theme="light"] .section--reassurance > summary .section-emoji { color: var(--ink-good); }
+    html[data-theme="light"] .reassurance-copy strong { color: var(--ink-good); }
     html[data-theme="light"] .tab-bar {
       background: rgba(13, 30, 40, 0.05);
       border-color: rgba(13, 30, 40, 0.1);
@@ -2342,10 +2581,6 @@
     html[data-theme="light"] .toggle:hover {
       background: rgba(13, 30, 40, 0.06);
       border-color: rgba(13, 30, 40, 0.08);
-    }
-    html[data-theme="light"] .subs-row {
-      background: #ffffff;
-      border-color: rgba(13, 30, 40, 0.12);
     }
     /* The swatch itself is theme-independent (every palette entry keeps
        white above 4.5:1); only the hairline that separates it from the
@@ -2400,7 +2635,6 @@
       background: rgba(13, 30, 40, 0.04);
       border-color: rgba(13, 30, 40, 0.1);
     }
-    html[data-theme="light"] .linkish:hover { background: rgba(13, 30, 40, 0.08); }
     html[data-theme="light"] .linkish.pro {
       background: rgba(5, 150, 105, 0.08);
       border-color: rgba(5, 150, 105, 0.26);
@@ -3223,10 +3457,10 @@
             class="badge"
             id="versionBadge"
             type="button"
-            aria-label="Version 8.17.0, see what's new"
+            aria-label="Version 8.18.0, see what's new"
             title="What's new in this version"
             data-i18n-title="whatsNewTitle"
-          >v8.17.0</button>
+          >v8.18.0</button>
           <button id="kbdHelpBtn" class="linkish" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" data-i18n-label="kbdTitle" data-i18n-title="kbdBtnTitle">
             <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/></svg>
           </button>

@@ -54,7 +54,13 @@
       left: 50%;
       transform: translateX(-50%);
       background: var(--primary);
-      color: white;
+      /* 8.18: was literal white. --primary is #22d3ee on the default
+         dark theme, and white on that measures 1.81:1, so the one
+         control that exists for keyboard and screen-reader users was
+         the least readable thing on the page. --on-primary is the
+         token that already means "text that sits on a --primary
+         fill"; it flips with the theme and measures 10.07:1 here. */
+      color: var(--on-primary);
       padding: 8px 16px;
       border-radius: var(--radius-sm);
       text-decoration: none;
@@ -243,8 +249,13 @@
       font-weight: 600;
       letter-spacing: 0.02em;
       text-transform: uppercase;
-      background: linear-gradient(135deg, var(--danger), var(--danger-hover));
-      color: white;
+      /* 8.18: the gradient used to start at --danger, which is #f87171
+         on the dark theme, and white on that is 2.77:1. Half of the
+         one button that STOPS a destructive run failed to be readable.
+         Both stops now clear 4.5:1 with white (4.83 and 6.47), and the
+         button still reads as the same red. */
+      background: linear-gradient(135deg, var(--danger-hover), #b91c1c);
+      color: #ffffff;
       cursor: pointer;
       box-shadow: 0 4px 12px var(--danger-glow);
       transition:
@@ -1055,6 +1066,55 @@
       .done-actions .done-btn { flex: 1 1 100%; justify-content: center; }
     }
 
+    /* =========================================================
+       8.18 motion
+
+       This is the page a user watches while a run they cannot undo is
+       happening, so the motion here has one job: make it obvious the
+       run is alive. Everything that ARRIVES arrives visibly; nothing
+       loops except the indicators that mean "still working".
+       ========================================================= */
+
+    /* Log lines are the heartbeat of the page. They appended with no
+       transition at all, so a burst of six looked identical to one. */
+    .log-entry { animation: gccDropIn var(--t-2) var(--ease-out) both; }
+
+    /* Summary rows land as the run resolves each rule. */
+    #summaryTable tbody tr { animation: gccFadeUp var(--t-3) var(--ease-out) both; }
+    #summaryTable tbody tr:nth-child(1) { animation-delay: calc(var(--stagger) * 0); }
+    #summaryTable tbody tr:nth-child(2) { animation-delay: calc(var(--stagger) * 1); }
+    #summaryTable tbody tr:nth-child(3) { animation-delay: calc(var(--stagger) * 2); }
+    #summaryTable tbody tr:nth-child(4) { animation-delay: calc(var(--stagger) * 3); }
+    #summaryTable tbody tr:nth-child(5) { animation-delay: calc(var(--stagger) * 4); }
+    #summaryTable tbody tr:nth-child(n+6) { animation-delay: calc(var(--stagger) * 5); }
+
+    /* Tags and pills arrive rather than blink. */
+    .tag, .pill { animation: gccPop var(--t-3) var(--ease-spring) both; }
+
+    /* The progress bar keeps its width transition; this is the state
+       BEFORE a first count exists, where the bar was simply empty and
+       indistinguishable from a run that had stalled. */
+    .inner.indeterminate {
+      width: 100% !important;
+      background: transparent;
+      position: relative;
+      overflow: hidden;
+      animation: none;
+    }
+    .inner.indeterminate::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      width: 25%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, transparent, var(--primary), transparent);
+      animation: gccTravel 1.4s var(--ease) infinite;
+    }
+
+    /* Numbers in the table shift width as they grow; tabular figures
+       stop the column from twitching on every update. */
+    #summaryTable td { font-variant-numeric: tabular-nums; }
+
     @media print {
       body { background: white; color: black; }
       .panel { background: white; border: 1px solid #ccc; box-shadow: none; }
@@ -1083,7 +1143,7 @@
           </p>
         </div>
         <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
-          <span class="pill" id="versionPill" aria-label="Status: Live progress">v8.17.0</span>
+          <span class="pill" id="versionPill" aria-label="Status: Live progress">v8.18.0</span>
           <div class="theme-switcher" id="themeSwitcher" role="group" aria-label="Color theme">
             <button type="button" data-theme-value="system" aria-pressed="true">Auto</button>
             <button type="button" data-theme-value="light" aria-pressed="false">Light</button>
