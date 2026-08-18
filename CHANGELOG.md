@@ -3,6 +3,57 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.18.0 - A calmer popup, and motion that means something
+
+The Clean tab showed thirteen things at once while every other tab
+showed three or four, and the six controls at the middle of it were one
+decision pretending to be six. They are drawn as one group now. Nothing
+was removed and nothing was hidden: the safety and privacy lines still
+sit right under the button they describe, where they have been since
+8.7.
+
+The rest is motion, and the point of it is that the parts you drive now
+respond. Switching tabs, a scan filling a list, a count landing, a button
+being pressed: all of those used to happen between one frame and the
+next. The parts that already animated were mostly the parts nobody
+touches.
+
+### Added
+- **The tab bar has one indicator that slides between tabs**, so the
+  selection travels instead of blinking out on one tab and in on
+  another.
+- **Scan results arrive a row at a time.** Thirty senders appearing in a
+  single frame reads as a flash; the same thirty arriving over a third
+  of a second reads as a result.
+- **The Mailbox Report's headline count rolls up to its total**, as do
+  the four figures on the Stats page.
+- **Buttons press.** They compress quickly under the pointer and spring
+  back, rather than changing colour and nothing else.
+- **A run with no count yet shows a moving bar** instead of an empty
+  one. An empty bar and a stalled run looked the same.
+- **The daily-activity chart animates.** It always carried the
+  instruction to and never once obeyed it: the bars were sized before
+  they were on the page, so there was nothing to animate from.
+
+### Fixed
+- **The skip link on the progress page was almost invisible.** White
+  text on the cyan background measured 1.81:1, and that link exists
+  only for people navigating by keyboard or screen reader.
+- **Half of the Cancel button was unreadable.** Its background faded
+  from a light red where the white label measured 2.77:1. Both ends
+  clear 4.5:1 now. It is the button that stops a run, so it should be
+  the easiest one to read.
+- **The scan buttons were the wrong blue in the light theme.** They
+  hardcoded the dark theme's bright cyan, so on the light theme three
+  of the four tabs had a neon edge on a white card.
+- **Chart bars can be read without a mouse.** They are focusable and
+  announce their date and count, instead of showing it only on hover.
+- **Settings had one panel with a border that never drew**, because it
+  named a colour that does not exist.
+- **Reduced motion now also switches off the row-by-row timing.**
+  Without that the new stagger would have survived as a flicker for
+  exactly the people who asked for less movement.
+
 ## 8.17.0 - Three free unsubscribes so you can see it work
 
 Bulk unsubscribe is the one paid feature you cannot try with a Clean-tab

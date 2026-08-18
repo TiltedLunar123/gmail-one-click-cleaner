@@ -5,6 +5,32 @@
 "use strict";
 
 // =========================
+// Bar growth (8.18)
+// =========================
+
+// Three places on this page set an element's size and then rely on a CSS
+// transition to animate it. None of them ever animated: the size was
+// written before the element was in the document, so there was no previous
+// value to move from and every bar painted at its final size. The fix is
+// to give the transition a start, which means writing the size, inserting,
+// and only then writing it again on a later frame.
+//
+// The REAL size is written first and unconditionally. If rAF is missing,
+// or the user asked for reduced motion, or anything below throws, the page
+// still shows the correct chart rather than an empty one.
+const growBar = (el, dimension, finalValue, index = 0) => {
+  if (!el) return;
+  el.style[dimension] = finalValue;
+  if (typeof requestAnimationFrame !== "function") return;
+  if (GCC.prefersReducedMotion()) return;
+  el.style[dimension] = "0%";
+  el.style.transitionDelay = Math.min(index, 29) * 12 + "ms";
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => { el.style[dimension] = finalValue; });
+  });
+};
+
+// =========================
 // DOM Refs
 // =========================
 
@@ -47,11 +73,16 @@ async function loadStats() {
     return;
   }
 
-  // Overview cards
-  if (ui.totalRuns) ui.totalRuns.textContent = GCC.formatNumber(stats.totalRuns);
-  if (ui.totalDeleted) ui.totalDeleted.textContent = GCC.formatNumber(stats.totalDeleted);
+  // Overview cards. countUp writes the final text first and only then
+  // animates, so these four read exactly as they did if anything about
+  // the animation is unavailable or switched off.
+  GCC.countUp(ui.totalRuns, stats.totalRuns, GCC.formatNumber(stats.totalRuns));
+  GCC.countUp(ui.totalDeleted, stats.totalDeleted, GCC.formatNumber(stats.totalDeleted));
+  GCC.countUp(ui.totalArchived, stats.totalArchived, GCC.formatNumber(stats.totalArchived));
+  // Freed is a formatted size ("1.4 GB"), not a count, so it lands
+  // rather than rolls: counting through "0.1 MB ... 0.9 MB" on the way
+  // to a GB figure would be showing numbers that were never true.
   if (ui.totalFreed) ui.totalFreed.textContent = GCC.formatMb(stats.totalFreedMb);
-  if (ui.totalArchived) ui.totalArchived.textContent = GCC.formatNumber(stats.totalArchived);
 
   // Daily activity chart
   renderDailyChart(stats.dailyStats || {});
@@ -193,10 +224,11 @@ function renderTopSenders(senders) {
   const max = Math.max(...senders.map((s) => s.count || 0), 1);
   const wrapper = GCC.createEl("div", { className: "top-senders-list" });
 
+  let barIndex = 0;
   for (const entry of senders.slice(0, 15)) {
     const pct = Math.round(((entry.count || 0) / max) * 100);
     const fill = GCC.createEl("div", { className: "category-bar-fill" });
-    fill.style.width = pct + "%";
+    growBar(fill, "width", pct + "%", barIndex++);
 
     const findUrl = "https://mail.google.com/mail/u/0/#search/from:" + encodeURIComponent(entry.sender || "");
     const findLink = GCC.createEl("a", {
@@ -296,9 +328,28 @@ function renderDailyChart(dailyStats) {
       className: "tooltip",
       textContent: day.slice(5) + ": " + GCC.formatNumber(values[i])
     });
-    const bar = GCC.createEl("div", { className: "chart-bar" }, [tooltip]);
-    bar.style.height = pct + "%";
+    // 8.18: the count was reachable only by hovering, so keyboard and
+    // touch users could see 30 bars and read none of them. The tooltip
+    // text is the accessible name, so the figure is announced rather
+    // than merely revealed.
+    const barLabel = day + ": " + GCC.formatNumber(values[i]);
+    const bar = GCC.createEl("div", {
+      className: "chart-bar",
+      tabIndex: 0,
+      role: "img"
+    }, [tooltip]);
+    bar.setAttribute("aria-label", barLabel);
+    // 8.18: .chart-bar has carried "transition: height" since the page
+    // shipped and it has never once run. The height was set BEFORE the
+    // bar was in the document, so there was no previous value to
+    // animate from and every bar painted at its final size. Setting the
+    // final height on the next frame gives the transition a start and
+    // an end, which is all it ever needed. The stagger is a per-bar
+    // delay so 30 days read left to right instead of all at once.
+    // If rAF never fires the bar is simply already correct, because the
+    // real height is written here first.
     ui.chartBars.appendChild(bar);
+    growBar(bar, "height", pct + "%", i);
 
     const label = GCC.createEl("span", {
       textContent: i % 5 === 0 ? day.slice(5) : ""
@@ -328,10 +379,11 @@ function renderCategories(breakdown) {
 
   const maxCount = Math.max(...entries.map(e => e[1].count), 1);
 
+  let barIndex = 0;
   for (const [name, data] of entries) {
     const pct = Math.round((data.count / maxCount) * 100);
     const fill = GCC.createEl("div", { className: "category-bar-fill" });
-    fill.style.width = pct + "%";
+    growBar(fill, "width", pct + "%", barIndex++);
 
     const item = GCC.createEl("div", { className: "category-item" }, [
       GCC.createEl("span", { className: "category-name", textContent: name }),

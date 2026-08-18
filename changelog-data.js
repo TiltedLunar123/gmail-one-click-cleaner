@@ -6,13 +6,177 @@
 // even of a file inside the package, would end the extension's
 // no-network-calls promise.
 //
-// Carries the newest 12 of 72 releases; the page says so
+// Carries the newest 12 of 73 releases; the page says so
 // and links the full log on GitHub.
 
 // eslint-disable-next-line no-unused-vars
 var GCC_CHANGELOG = {
-  "total": 72,
+  "total": 73,
   "entries": [
+    {
+      "version": "8.18.0",
+      "title": "A calmer popup, and motion that means something",
+      "intro": [
+        "The Clean tab showed thirteen things at once while every other tab showed three or four, and the six controls at the middle of it were one decision pretending to be six. They are drawn as one group now. Nothing was removed and nothing was hidden: the safety and privacy lines still sit right under the button they describe, where they have been since 8.7.",
+        "The rest is motion, and the point of it is that the parts you drive now respond. Switching tabs, a scan filling a list, a count landing, a button being pressed: all of those used to happen between one frame and the next. The parts that already animated were mostly the parts nobody touches."
+      ],
+      "sections": [
+        {
+          "name": "Added",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "The tab bar has one indicator that slides between tabs"
+                ],
+                [
+                  "",
+                  ", so the selection travels instead of blinking out on one tab and in on another."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Scan results arrive a row at a time."
+                ],
+                [
+                  "",
+                  " Thirty senders appearing in a single frame reads as a flash; the same thirty arriving over a third of a second reads as a result."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The Mailbox Report's headline count rolls up to its total"
+                ],
+                [
+                  "",
+                  ", as do the four figures on the Stats page."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Buttons press."
+                ],
+                [
+                  "",
+                  " They compress quickly under the pointer and spring back, rather than changing colour and nothing else."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "A run with no count yet shows a moving bar"
+                ],
+                [
+                  "",
+                  " instead of an empty one. An empty bar and a stalled run looked the same."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The daily-activity chart animates."
+                ],
+                [
+                  "",
+                  " It always carried the instruction to and never once obeyed it: the bars were sized before they were on the page, so there was nothing to animate from."
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Fixed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "The skip link on the progress page was almost invisible."
+                ],
+                [
+                  "",
+                  " White text on the cyan background measured 1.81:1, and that link exists only for people navigating by keyboard or screen reader."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Half of the Cancel button was unreadable."
+                ],
+                [
+                  "",
+                  " Its background faded from a light red where the white label measured 2.77:1. Both ends clear 4.5:1 now. It is the button that stops a run, so it should be the easiest one to read."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The scan buttons were the wrong blue in the light theme."
+                ],
+                [
+                  "",
+                  " They hardcoded the dark theme's bright cyan, so on the light theme three of the four tabs had a neon edge on a white card."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Chart bars can be read without a mouse."
+                ],
+                [
+                  "",
+                  " They are focusable and announce their date and count, instead of showing it only on hover."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Settings had one panel with a border that never drew"
+                ],
+                [
+                  "",
+                  ", because it named a colour that does not exist."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Reduced motion now also switches off the row-by-row timing."
+                ],
+                [
+                  "",
+                  " Without that the new stagger would have survived as a flicker for exactly the people who asked for less movement."
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "8.17.0",
       "title": "Three free unsubscribes so you can see it work",
@@ -1678,229 +1842,6 @@ var GCC_CHANGELOG = {
                   " When the suggestions it was about to run were archive suggestions, it archived them, which is what the individual cards said all along. Now the button says so too."
                 ]
               ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "version": "8.7.0",
-      "title": "Bulk actions do what the card says",
-      "sections": [
-        {
-          "name": "Fixed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "Apply checked suggestions ignored what each card promised."
-                ],
-                [
-                  "",
-                  " Every suggestion leads with one action and states the number that action will reach. The bulk button underneath ran one Delete old mail over all of them, so a card reading \"Archives 200 now\" sent that mail to Trash instead, and a card reading \"Deletes 40 large emails now\" lost its own size filter and took every old message from that sender. Bulk apply now runs the action the cards were measured for. If you check a mix, it runs one group and says to apply again for the rest."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Run the whole plan archived the steps it was selling in megabytes."
-                ],
-                [
-                  "",
-                  " A run has one setting for delete or archive, and a plan holding both kinds took the gentler one, so the large-attachment steps were archived. Archiving a 25 MB email frees no storage at all, under a button whose own subtitle said Trash. The plan now runs one kind at a time and the subtitle says which."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Picking Maximum ran Normal."
-                ],
-                [
-                  "",
-                  " Unless you had opened Settings and saved at least once, the engine had no Maximum rule list to load and quietly fell back to Normal, while the progress page announced Maximum. The most aggressive preset in the product was not the one running."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Dry Run could quote one page for a run that would clear thousands."
-                ],
-                [
-                  "",
-                  " A preview acts on a single page; a real run keeps going until the rule is empty. When Gmail's \"select all conversations that match\" link was not available, the preview reported the page it had selected rather than the size of the match, so a rule Gmail itself described as 3,000 results previewed as 50."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Restore counted a whole-mailbox move as one page"
-                ],
-                [
-                  "",
-                  " on any Gmail that is not in English. The mail all came back; the number you were shown did not describe it."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The mailbox report treated a search that timed out as a zero."
-                ],
-                [
-                  "",
-                  " A step whose search failed was stored as empty, which looks exactly like a step with nothing in it, and a failed headline search printed \"Nothing older than 6 months turned up\" over a mailbox full of it. The report now says how much of it completed."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Scans stopped hiding their own warnings."
-                ],
-                [
-                  "",
-                  " The engine has always said when a scan was incomplete; every screen showed the count and dropped the sentence explaining it."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The report goes stale when you change a safety switch, and now says so."
-                ],
-                [
-                  "",
-                  " Every number in it is measured through the switches as they were set when you scanned. Turning one off afterwards means the buttons would reach more mail than the counts beside them."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Safe Mode silently refused two of the report's own steps."
-                ],
-                [
-                  "",
-                  " It skips Updates and Forums, and the report counted them anyway and offered a button that could only end in \"no rules to run\"."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Storage sizes count large mail of any age; the purge defaults to six months."
-                ],
-                [
-                  "",
-                  " The rows and the button disagreed by design and nothing said so. It does now."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Protect could quietly protect nothing."
-                ],
-                [
-                  "",
-                  " When Gmail gives a display name and no address, that name was saved to your whitelist, where the cleaner cannot match it. The button reported success. It now explains what to do instead."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A sender could aim your unsubscribe at somebody else's mailing list"
-                ],
-                [
-                  "",
-                  " by starting its address with a dash, which Gmail reads as \"not this\". Two other places in the code already refused it."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Auto-Pilot could be handed a scan you started."
-                ],
-                [
-                  "",
-                  " It waited for a scan in a particular tab, and any suggestion scan in that tab would do, including one you ran yourself, which started an unattended sweep you had not asked for. It now waits for its own."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A weekly sweep or scheduled run that never started could lock out every manual run for two hours"
-                ],
-                [
-                  "",
-                  " and, for schedules, mark the week as done. Starting the cleaner into a tab that already has one running is ignored by design, and nothing checked whether that had happened."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Auto-Pilot could quietly switch itself off for good."
-                ],
-                [
-                  "",
-                  " It read your Pro key from one place and gave up if what it found there did not verify, even when a valid key sat in the other. The rest of the extension has read both since 8.6."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The run history filed an archive run that moved nothing as a deletion"
-                ],
-                [
-                  "",
-                  ", in red, permanently."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A failed unsubscribe from a suggestion card jammed the panel."
-                ],
-                [
-                  "",
-                  " Scans and unsubscribes afterwards did nothing, silently, under a status line that still said it was working."
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "name": "Changed",
-          "items": [
-            {
-              "text": "The safety line under Run no longer says unread mail is \"never\" touched. It is skipped while the switch is on, and the switch is yours to turn off."
             }
           ]
         }

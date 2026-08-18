@@ -284,6 +284,74 @@ const GCC = (() => {
     return n.toLocaleString();
   };
 
+  // =========================
+  // Motion (8.18)
+  // =========================
+
+  // Read at the moment of use, never cached: a user can flip the OS
+  // setting while the popup is open, and a cached "false" would keep
+  // animating at someone who just asked it to stop. Answers TRUE when
+  // matchMedia is missing, because the safe default for "should I
+  // animate" is no.
+  const prefersReducedMotion = () => {
+    try {
+      const mq = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)");
+      return mq ? !!mq.matches : true;
+    } catch {
+      return true;
+    }
+  };
+
+  // Rolls a number up to its final value for effect.
+  //
+  // The whole contract is in the first line of the body: the FINAL
+  // TEXT IS WRITTEN BEFORE ANY ANIMATION STARTS. Every early return
+  // below it, and every environment without rAF, therefore leaves the
+  // true value in the DOM. This matters more here than the effect
+  // does: this project's recurring bug is a number beside an action
+  // disagreeing with what the action does, and an animated number that
+  // could strand a wrong value would be that bug with a timer on it.
+  //
+  // `finalText` is used verbatim at the end rather than re-formatted,
+  // so the value the caller computed is the value that lands.
+  const countUp = (el, to, finalText, { duration = 620 } = {}) => {
+    if (!el) return;
+    const end = Number(to);
+    const text = String(finalText);
+    el.textContent = text;
+    if (!Number.isFinite(end) || end <= 0) return;
+    if (prefersReducedMotion()) return;
+    if (typeof requestAnimationFrame !== "function" || typeof performance === "undefined") return;
+
+    // A second call must not race the first: the newer value wins.
+    const token = (el.__gccCountToken || 0) + 1;
+    el.__gccCountToken = token;
+
+    const start = performance.now();
+    const fmt = typeof el.dataset?.countFormat === "string" && el.dataset.countFormat === "plain"
+      ? (v) => String(v)
+      : (v) => formatNumber(v);
+
+    const step = (now) => {
+      if (el.__gccCountToken !== token) return;
+      // requestAnimationFrame is specified to hand the callback a
+      // timestamp, but if anything ever calls it without one the
+      // arithmetic below goes NaN, Math.min(1, NaN) is NaN, the t >= 1
+      // exit never fires and the element is left reading "0" forever.
+      // That is precisely the stranded-wrong-value failure this whole
+      // function is written to make impossible, so it does not get to
+      // depend on a caller being well behaved.
+      const ts = typeof now === "number" && Number.isFinite(now) ? now : performance.now();
+      const t = Math.min(1, (ts - start) / duration);
+      // Ease out cubic: fast first, settles rather than stops dead.
+      const eased = 1 - Math.pow(1 - t, 3);
+      if (t >= 1) { el.textContent = text; return; }
+      el.textContent = fmt(Math.round(end * eased));
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  };
+
   const formatMb = (mb) => {
     if (!mb || mb < 0.01) return "0 MB";
     if (mb >= 1024) return (mb / 1024).toFixed(1) + " GB";
@@ -2611,6 +2679,8 @@ const GCC = (() => {
 
     // Formatting
     formatNumber,
+    prefersReducedMotion,
+    countUp,
     formatMb,
     formatBytes,
     formatDuration,

@@ -13,7 +13,7 @@
   // Opening this page is also what clears the dot on the popup's version
   // button, so the marker is written even if the data fails to render.
 
-  const CHANGELOG_VERSION = "8.17.0";
+  const CHANGELOG_VERSION = "8.18.0";
 
   // Local, not sync. It describes this installation ("you have read the
   // notes for 8.9.0 in this browser"), and sync would have another
