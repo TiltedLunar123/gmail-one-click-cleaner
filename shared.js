@@ -1362,8 +1362,16 @@ const GCC = (() => {
   const CWS_LISTING = "https://chromewebstore.google.com/detail/bmcfpljakkpcbinhgiahncpcbhmihgpc";
   const AMO_LISTING = "https://addons.mozilla.org/firefox/addon/gmail-one-click-cleaner@gmail-cleaner-pro.netlify.app/";
 
-  // The published policy. 8.18.1 moved it off secplusmastery.com and
+  // The published policy. 8.18.1 moved it out of the marketing site and
   // into this repo; that site no longer carries it.
+  //
+  // The old host is deliberately NOT named here. A shipped file that
+  // greps positive for the retired domain reads as a stale link to
+  // anyone auditing it, including a store reviewer, and this comment
+  // already caused that false positive twice: once in the test that
+  // checks for surviving links, and once in the release check over the
+  // built zips. Prose about a link is indistinguishable from a link to
+  // every tool that looks.
   //
   // The two properties the old hosted copy was chosen for both survive
   // the move. It is still not BUNDLED, so it is not frozen at whatever
