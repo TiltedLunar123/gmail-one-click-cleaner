@@ -93,10 +93,17 @@
   --row-bg-hover: rgba(148, 163, 184, 0.09);
   --row-edge: rgba(148, 163, 184, 0.14);
 
-  /* Ink that has to darken on white to stay readable as TEXT.
-     --success itself is a fill colour and stays as it is. */
+  /* Ink that has to darken on white to stay readable as TEXT. The
+     fills themselves stay exactly as they are: a chip's background is
+     the fill, its label is the ink, and on a dark ground the two are
+     the same colour, which is why every entry here resolves to the
+     fill it always was and dark renders identically. */
   --ink-good: var(--success);
-  --ink-brand: var(--primary);
+  --ink-warn: var(--warning);
+  --ink-info: var(--info);
+  /* --primary-strong, not --primary: it is what the brand-coloured
+     labels already used, so this token adopts them without moving. */
+  --ink-brand: var(--primary-strong);
 
   --scroll-thumb: rgba(148, 163, 184, 0.28);
   --scroll-thumb-hover: rgba(148, 163, 184, 0.45);
@@ -245,10 +252,25 @@
   --row-bg-hover: #f2f7f9;
   --row-edge: rgba(13, 30, 40, 0.12);
 
-  /* #047857 is the emerald that clears 4.5:1 on white; --success
-     (#059669) is a fill and measures 3.9:1 as text. */
+  /* Every semantic colour needs a darker twin to be written WITH on
+     light. The rule that makes a chip legible on a dark ground is the
+     opposite of the one that makes it legible on a pale one: the fill
+     is a tint of itself, so the label lands on a near-white surface and
+     a mid-tone green, amber or sky reads as a smudge on it.
+     Measured in a browser against each colour's own 10% chip over the
+     card, which is the ground these are actually painted on:
+       --success  #059669 -> 3.19:1   --ink-good  #047857 -> 4.64:1
+       --warning  #b45309 -> 4.17:1   --ink-warn  #8a3f07 -> 6.35:1
+       --info     #0284c7 -> 3.44:1   --ink-info  #075985 -> 6.39:1
+       --primary-strong #0891b2 -> 3.14:1  --ink-brand #155e75 -> 6.14:1
+     8.18 worked this out for green and stopped there; amber, sky and
+     the brand had no ink at all, so the whole tag family, both Run
+     buttons, the licence pill and the Cleared chip were still writing
+     in the fill. */
   --ink-good: #047857;
-  --ink-brand: var(--primary);
+  --ink-warn: #8a3f07;
+  --ink-info: #075985;
+  --ink-brand: #155e75;
 
   --scroll-thumb: rgba(13, 30, 40, 0.2);
   --scroll-thumb-hover: rgba(13, 30, 40, 0.34);
@@ -419,7 +441,7 @@
 .btn-success {
   background: var(--success-bg);
   border-color: var(--success-border);
-  color: var(--success);
+  color: var(--ink-good);
 }
 
 .btn-sm {
@@ -445,11 +467,11 @@
 }
 
 .tag-primary { background: rgba(34, 211, 238, 0.14); color: var(--primary); }
-.tag-success { background: var(--success-bg); color: var(--success); }
+.tag-success { background: var(--success-bg); color: var(--ink-good); }
 .tag-pro { background: var(--pro-bg); color: var(--pro); }
-.tag-warning { background: var(--warning-bg); color: var(--warning); }
+.tag-warning { background: var(--warning-bg); color: var(--ink-warn); }
 .tag-danger { background: var(--danger-bg); color: var(--danger); }
-.tag-info { background: var(--info-bg); color: var(--info); }
+.tag-info { background: var(--info-bg); color: var(--ink-info); }
 
 /* Card component */
 .shared-card {

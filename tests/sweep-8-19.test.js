@@ -367,6 +367,51 @@ describe("every chip that is text uses the ink", () => {
     expect(PROGRESS_HTML).toContain(".done-card.dry .done-safety .ico { color: var(--ink-info); }");
   });
 
+  test("the diagnostics page's own copy of the tag palette", () => {
+    // This page carries hardcoded light overrides of the shared tag
+    // colours, so the fix in shared.css does not reach it. Its warning
+    // override was the fill again, at the same 4.17:1.
+    const DIAG = stripComments(read("diagnostics.html"));
+    expect(DIAG).toContain('html[data-theme="light"] .text-warning { color: var(--ink-warn); }');
+    expect(DIAG).not.toContain('.text-warning { color: #b45309; }');
+  });
+
+  test("no chip anywhere writes its label in its own fill", () => {
+    // The exact defect shape, and the only one worth pinning: a rule
+    // that paints `var(--X-bg)` behind text and then writes that text in
+    // `var(--X)`. The tint darkens the ground the label has to clear, so
+    // this pairing is under 4.5:1 on light by construction.
+    //
+    // Deliberately narrow, twice over. The same fill hex used as text on
+    // a PLAIN card is fine and measures 4.77:1 or better, so a blanket
+    // ban on the literal would fail against working code. And `danger`
+    // is left out on purpose: measured, it is 5.29:1 on light and 5.76:1
+    // on dark, because red is the one semantic colour whose fill was
+    // already dark enough to write with. Adding an --ink-danger would
+    // change nothing and this pin would then be asserting a habit
+    // rather than a contrast rule.
+    const SEMANTIC = ["success", "warning", "info", "primary"];
+    for (const file of ["shared.css", "popup.html", "options.html", "progress.html", "diagnostics.html", "stats.html", "changelog.html"]) {
+      const src = stripComments(read(file));
+      for (const name of SEMANTIC) {
+        const re = new RegExp(
+          `background:\\s*var\\(--${name}-bg\\)[^{}]*?color:\\s*var\\(--${name}\\)|color:\\s*var\\(--${name}\\)[^{}]*?background:\\s*var\\(--${name}-bg\\)`,
+          "g"
+        );
+        const hits = src.match(re) || [];
+        expect({ file, name, hits }).toEqual({ file, name, hits: [] });
+      }
+    }
+  });
+
+  test("that pin can still catch one", () => {
+    // A matcher that cannot fail is worse than no matcher. This is the
+    // shape it is hunting, written out.
+    const bad = ".x { background: var(--success-bg); color: var(--success); }";
+    const re = /background:\s*var\(--success-bg\)[^{}]*?color:\s*var\(--success\)/g;
+    expect(bad.match(re)).toHaveLength(1);
+  });
+
   test("dark theme is untouched: every ink still resolves to the fill it always was", () => {
     // The whole point of routing through a token: light gets a darker
     // ink, dark keeps exactly the colour it shipped with.
