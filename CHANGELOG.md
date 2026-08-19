@@ -3,6 +3,50 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.19.0 - Things that happened while nobody was watching
+
+Four fixes, and three of them are the same problem: the extension worked
+out something true and then wrote it down somewhere that stops existing
+the moment you look away.
+
+### Fixed
+- **Your three free unsubscribes are counted properly now.** They used
+  to be counted by the popup, and a popup closes the instant you click
+  anything else. An unsubscribe run opens one message per sender, so
+  most runs finished with the popup already gone and the count never
+  moved. If you clicked into Gmail to watch it work, you kept getting
+  three. The count is kept by the background worker now, which is still
+  there when the run ends. Nothing else changed: only senders that
+  really came back unsubscribed cost anything, and a sender with no
+  one-click link is still free.
+- **Stopping an unsubscribe run no longer throws away what it already
+  did.** Cancel at the eighth of ten senders and the seven that were
+  genuinely unsubscribed went unrecorded: no marks on the list, nothing
+  in your totals. You cannot un-unsubscribe from a mailing list, so
+  those are worth keeping, and they are kept now. They do count against
+  the free three, because they happened.
+- **A rule that Gmail throttled for too long is reported as unfinished.**
+  The cleaner gives up on a rule after five minutes of rate limiting and
+  moves to the next one, which is the right call, but the run then
+  reported itself as complete. That let the Mailbox Report mark the step
+  Cleared and take away its Run button, the Storage X-ray mark a sender
+  Purged, and a suggestion stop being suggested, all over mail that was
+  still there. Two of the three ways a rule can stop early already said
+  so. The third does now.
+- **Small text on coloured chips is readable in the light theme.** A
+  chip tints its own background, so its label was landing on a ground
+  its own colour had already darkened. Every tag, the PRO badge on an
+  active licence, the Cleared mark on a report step and the Apply button
+  on a suggestion were below the readable-contrast bar. They are all
+  above it now, in both themes, and the dark theme looks exactly as it
+  did.
+
+### Internal
+- The check that keeps Trash, Spam and starred mail out of a bulk delete
+  had a broken escape in it. Nothing was getting through, because none
+  of the terms it guards needs escaping, but the first one that did
+  would have slipped past in silence.
+
 ## 8.18.1 - The privacy policy lives with the source now
 
 ### Changed

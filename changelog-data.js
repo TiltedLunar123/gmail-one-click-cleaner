@@ -6,13 +6,83 @@
 // even of a file inside the package, would end the extension's
 // no-network-calls promise.
 //
-// Carries the newest 12 of 74 releases; the page says so
+// Carries the newest 12 of 75 releases; the page says so
 // and links the full log on GitHub.
 
 // eslint-disable-next-line no-unused-vars
 var GCC_CHANGELOG = {
-  "total": 74,
+  "total": 75,
   "entries": [
+    {
+      "version": "8.19.0",
+      "title": "Things that happened while nobody was watching",
+      "intro": [
+        "Four fixes, and three of them are the same problem: the extension worked out something true and then wrote it down somewhere that stops existing the moment you look away."
+      ],
+      "sections": [
+        {
+          "name": "Fixed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "Your three free unsubscribes are counted properly now."
+                ],
+                [
+                  "",
+                  " They used to be counted by the popup, and a popup closes the instant you click anything else. An unsubscribe run opens one message per sender, so most runs finished with the popup already gone and the count never moved. If you clicked into Gmail to watch it work, you kept getting three. The count is kept by the background worker now, which is still there when the run ends. Nothing else changed: only senders that really came back unsubscribed cost anything, and a sender with no one-click link is still free."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Stopping an unsubscribe run no longer throws away what it already did."
+                ],
+                [
+                  "",
+                  " Cancel at the eighth of ten senders and the seven that were genuinely unsubscribed went unrecorded: no marks on the list, nothing in your totals. You cannot un-unsubscribe from a mailing list, so those are worth keeping, and they are kept now. They do count against the free three, because they happened."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "A rule that Gmail throttled for too long is reported as unfinished."
+                ],
+                [
+                  "",
+                  " The cleaner gives up on a rule after five minutes of rate limiting and moves to the next one, which is the right call, but the run then reported itself as complete. That let the Mailbox Report mark the step Cleared and take away its Run button, the Storage X-ray mark a sender Purged, and a suggestion stop being suggested, all over mail that was still there. Two of the three ways a rule can stop early already said so. The third does now."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Small text on coloured chips is readable in the light theme."
+                ],
+                [
+                  "",
+                  " A chip tints its own background, so its label was landing on a ground its own colour had already darkened. Every tag, the PRO badge on an active licence, the Cleared mark on a report step and the Apply button on a suggestion were below the readable-contrast bar. They are all above it now, in both themes, and the dark theme looks exactly as it did."
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Internal",
+          "items": [
+            {
+              "text": "The check that keeps Trash, Spam and starred mail out of a bulk delete had a broken escape in it. Nothing was getting through, because none of the terms it guards needs escaping, but the first one that did would have slipped past in silence."
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "8.18.1",
       "title": "The privacy policy lives with the source now",
@@ -1538,227 +1608,6 @@ var GCC_CHANGELOG = {
                 [
                   "",
                   " The description used to spell out which languages the cleaner can drive Gmail in, twice over, in all seven listing languages. The Chrome Web Store read that list as keyword spam and turned the update down, so the listing now makes the same point without the roll call. The extension itself is unchanged: this release exists to carry the corrected listing."
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "version": "8.9.0",
-      "title": "Release notes, a proper goodbye, and honest storage numbers",
-      "sections": [
-        {
-          "name": "Added",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "A What's new page inside the extension."
-                ],
-                [
-                  "",
-                  " The version number in the popup footer is now a button: press it and you get the release notes for this version and the eleven before it, written for people who use the extension rather than people who read the code. There is also a link on the Settings page. A small dot sits on the version after an update until you have read them once. The notes ship inside the package, so opening them makes no network request, same as everything else here."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "An uninstall page."
-                ],
-                [
-                  "",
-                  " Removing the extension now opens a short page that covers the four things people actually leave over, and tells anyone who bought Pro that their lifetime key survived the uninstall and where to have it reissued. The address it opens carries no identifier, no version and nothing from your mailbox."
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "name": "Changed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "Pro is $9.99 again, down from $19.99."
-                ],
-                [
-                  "",
-                  " Existing keys are unaffected: a lifetime licence does not re-price, and nothing about it is checked against a server. Anyone who bought at $19.99 keeps exactly what they paid for. The older checkout links stay open for activation and key recovery, so no past purchase can be stranded by the change."
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "name": "Fixed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "Archive runs claimed to have freed storage."
-                ],
-                [
-                  "",
-                  " Archiving moves mail to All Mail, where it still belongs to your account and still counts against your Google storage. Every run that archived anything reported megabytes freed anyway, on the progress card, the run receipt, the popup summary, the recap and the lifetime total on the Stats page. Only the one line at the end of the run had it right. Archive runs no longer report a storage figure at all, and old archive runs already in your history stop showing one too."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "On some languages a bulk delete of thousands was recorded as about fifty."
-                ],
-                [
-                  "",
-                  " When a rule matches more mail than one page, the extension asks Gmail to select the whole match set, and it proves the click worked by checking that Gmail withdrew the offer. Gmail replaces that offer with a Clear selection control, and in Dutch, Swedish and several other languages that control was mistaken for the offer still being there. The run went ahead and deleted everything, but the receipt, the Stats row, the undo entry and the safety limit that stops runaway runs were all sized against one page. The check now looks at what the control says, not merely whether one is present."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A step the report could not measure looked like an empty one."
-                ],
-                [
-                  "",
-                  " If a search timed out while the mailbox report was running, that step was filed as zero, disappeared from the plan and read as \"nothing here\" for a part of your mailbox that was never actually looked at. Those steps now say \"not measured\"."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A cleanup started from the popup could overwrite the scope of a different run."
-                ],
-                [
-                  "",
-                  " If a narrow run was already working in that Gmail tab (a storage purge, a suggestion, a report step) and you pressed Run Cleaner, the second run was correctly refused, but it had already recorded itself as the run to resume. Reconnecting from the progress page then restarted the full cleanup instead of the narrow one."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A finished scheduled cleanup could undo edits made while it ran."
-                ],
-                [
-                  "",
-                  " Stamping the schedule as done wrote back every schedule as they had been when the run started, so a schedule deleted or edited in the meantime reverted, and another schedule that had just finished could be re-armed and run a second time."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Two unattended runs could both believe they had the mailbox."
-                ],
-                [
-                  "",
-                  " A scheduled cleanup and an Auto-Pilot sweep due in the same minute could each claim the run marker, and the one that lost the race carried on as though it had won. Both now check that the claim they wrote is still theirs."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Auto-Pilot could be knocked off course by an unrelated run."
-                ],
-                [
-                  "",
-                  " Its scan stage has checked since 8.7 that the run reporting in is the one it started; its apply stage only checked which tab the message came from, so any cleanup finishing in that tab could clear its state."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Applying a suggestion said it was applied before anything had moved."
-                ],
-                [
-                  "",
-                  " The confirmation appeared the instant the run was handed to Gmail, then the popup closed on it, so a run that was cancelled or matched nothing still ended on a success message. It now says the run started, which is what every other button here already said."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Settings saved rules the cleaner would refuse."
-                ],
-                [
-                  "",
-                  " Typing a rule aimed at starred, sent, trashed or spam mail into one of the intensity boxes showed a warning and then saved anyway under \"Settings saved successfully\", and the next run skipped that intensity without explaining why. Those rules now block the save and say which one is the problem."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The Storage purge could apply a stricter age than its own note promised."
-                ],
-                [
-                  "",
-                  " The Minimum Age set on the Clean tab also applies to a purge, so with Minimum Age at 1 year and the purge set to 6 months, the note under the sizes named the wrong filter. It now names whichever one the run will really use."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Safe Mode's refusal only arrived after the click."
-                ],
-                [
-                  "",
-                  " Safe Mode skips Updates and Forums, and for a free user whose one unlocked report step was one of those, pressing Run did nothing but raise a toast. The row now says so up front."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Restore blamed the wrong thing when it ran out of passes."
-                ],
-                [
-                  "",
-                  " A very large restore that reached its page limit reported \"Selection failed\", which sends you looking for a problem that is not there. It now says it hit the limit and that running Restore again continues from where it stopped."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "An age limit written inside Gmail's curly-brace groups was not seen."
-                ],
-                [
-                  "",
-                  " A custom rule like "
-                ],
-                [
-                  "c",
-                  "{older_than:2y category:promotions}"
-                ],
-                [
-                  "",
-                  " did not register as carrying its own age floor, so a redundant one could be added on top."
                 ]
               ]
             }
