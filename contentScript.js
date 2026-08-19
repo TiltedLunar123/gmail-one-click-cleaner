@@ -128,8 +128,8 @@
       // 7.15: `{` opens Gmail's documented OR group, so `{is:starred
       // is:unread}` was the same escape hatch one character over. Every
       // grouping character Gmail accepts belongs in this class.
-      const negated = new RegExp(`(^|[\\s({])-\\s*${token.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
-      const positive = new RegExp(`(^|[\\s({])${token.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
+      const negated = new RegExp(`(^|[\\s({])-\\s*${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+      const positive = new RegExp(`(^|[\\s({])${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
       return positive.test(lower) && !negated.test(lower);
     });
   }

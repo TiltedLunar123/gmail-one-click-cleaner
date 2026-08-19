@@ -201,7 +201,12 @@ describe("every surface that reports a run says when it left mail behind", () =>
     const css = between(POPUP_HTML, ".recap-note--partial {", "}");
     expect(css).toContain("var(--warning-border)");
     expect(css).toContain("var(--warning-bg)");
-    expect(css).toContain("var(--warning)");
+    // 8.19: the border and the fill stay on the fill tokens; the LABEL
+    // asks for the ink, which is --warning itself in dark and a darker
+    // amber in light. Before that this rule said var(--warning) and a
+    // separate light override put the darker value back, which is the
+    // same thing said twice.
+    expect(css).toContain("var(--ink-warn)");
   });
 
   // 8.16's own review caught this one: the amber tokens alone measured
@@ -209,7 +214,10 @@ describe("every surface that reports a run says when it left mail behind", () =>
   // enough that looking at it would have passed. Computed rather than
   // eyeballed, the way 7.8.1's contrast pass had to be, and read out of the
   // file so it measures what ships.
-  test("the light theme override clears WCAG AA, and the dark theme still does", () => {
+  // 8.19: the value is read out of shared.css's --ink-warn now rather
+  // than out of a per-rule override in popup.html. Same number, same
+  // arithmetic, one source instead of one per instance.
+  test("the light ink clears WCAG AA on this pill, and the dark theme still does", () => {
     const parse = (c) => {
       const n = parseInt(c.slice(1), 16);
       return [(n >> 16) & 255, (n >> 8) & 255, n & 255, 1];
@@ -227,9 +235,9 @@ describe("every surface that reports a run says when it left mail behind", () =>
       return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
     };
 
-    const m = POPUP_HTML.match(
-      /html\[data-theme="light"\] \.recap-note--partial \{ color: (#[0-9a-f]{6}); \}/i
-    );
+    const SHARED_CSS = read("shared.css");
+    const lightBlock = between(SHARED_CSS, '[data-theme="light"] {', "\n}");
+    const m = lightBlock.match(/--ink-warn:\s*(#[0-9a-f]{6});/i);
     expect(m).not.toBeNull();
 
     // Light: page #d9e6ec, card rgba(255,255,255,0.86), tint rgba(180,83,9,0.1).

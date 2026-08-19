@@ -449,16 +449,42 @@ describe("the query-guard regex escape", () => {
     }
   });
 
-  test("an escaped token is still matched by the guard it feeds", () => {
-    // The end-to-end property: a token carrying a metacharacter must
-    // still be refused, which is what a broken escape silently ends.
+  test("an escaped token matches itself and nothing else", () => {
+    // The end-to-end property, in the guard's own shape. A token with a
+    // metacharacter has to match its own literal text and refuse to
+    // stand in for anything else, which is exactly what a broken escape
+    // gives up: `.` would match any character, so `in:a.b` would also
+    // refuse the innocent `in:axb`.
+    //
+    // The token ends in a word character on purpose. The guard anchors
+    // with \b, so a token ending in `)` or `.` cannot be matched at the
+    // end of a query at all, escape or no escape, and testing one would
+    // be measuring the anchor rather than the escape.
+    for (const [file, src] of [["shared.js", SHARED_SRC], ["contentScript.js", ENGINE_SRC]]) {
+      const literal = escapersIn(src)[0];
+      // eslint-disable-next-line no-new-func
+      const re = new Function(`return ${literal};`)();
+      const token = "in:a.b";
+      const positive = new RegExp(`(^|[\\s({])${token.replace(re, "\\$&")}\\b`, "i");
+      expect({ file, own: positive.test("older_than:1y in:a.b") }).toEqual({ file, own: true });
+      expect({ file, other: positive.test("older_than:1y in:axb") }).toEqual({ file, other: false });
+      // And the grouping forms 7.15 and 8.12 added still work through it.
+      expect({ file, paren: positive.test("(in:a.b)") }).toEqual({ file, paren: true });
+      expect({ file, brace: positive.test("{in:a.b is:unread}") }).toEqual({ file, brace: true });
+    }
+  });
+
+  test("the negation form still exempts a token the query already excludes", () => {
+    // The other half of queryHasDangerousToken: `-in:a.b` must read as
+    // excluded rather than targeted.
     for (const src of [SHARED_SRC, ENGINE_SRC]) {
       const literal = escapersIn(src)[0];
       // eslint-disable-next-line no-new-func
       const re = new Function(`return ${literal};`)();
-      const token = "in:any(where)";
-      const positive = new RegExp(`(^|[\\s({])${token.replace(re, "\\$&")}\\b`, "i");
-      expect(positive.test("older_than:1y in:any(where)")).toBe(true);
+      const esc = "in:a.b".replace(re, "\\$&");
+      const negated = new RegExp(`(^|[\\s({])-\\s*${esc}\\b`, "i");
+      expect(negated.test("older_than:1y -in:a.b")).toBe(true);
+      expect(negated.test("older_than:1y in:a.b")).toBe(false);
     }
   });
 });
