@@ -7,6 +7,15 @@
  * senders that actually came back `unsubscribed`. A read that failed
  * is not a read that said zero-used: remaining(null) is 0 so a broken
  * store cannot mint a fresh three on every open.
+ *
+ * 8.19 moved the SPEND to the service worker. This file covers the popup
+ * half: the gate, the copy, and the painted number. The charge itself,
+ * including the cases where it must refuse, is in
+ * free-unsubscribe-worker.test.js, driven through the real worker.
+ *
+ * The popup half is now a read: it never writes the counter, because it
+ * is the surface that disappears the moment the user clicks away, and
+ * charging from here is what let the allowance reset on every open.
  */
 const fs = require("fs");
 const path = require("path");
@@ -348,90 +357,77 @@ describe("the Lists tab, unlicensed at 0", () => {
   });
 });
 
-describe("a finished unsubscribe run charges only real unsubscribes", () => {
-  test("a cancelled run charges nothing", async () => {
-    await boot({ pro: false });
-    tickAll();
-    document.getElementById("unsubBtn").click();
-    await settle(40);
-
+// 8.19: the popup is a reader now. It must not write the counter from
+// any terminal path, because a popup that is still open is the lucky
+// case rather than the normal one, and a writer here plus a writer in
+// the worker would charge twice. The spend, and every case where it has
+// to refuse, is covered behaviourally in free-unsubscribe-worker.test.js.
+describe("a finished unsubscribe run leaves the counter to the worker", () => {
+  const runReport = (phase, unsubResults) => {
     fireProgress({
       type: "gmailCleanerProgress",
       runKind: "unsubscribe",
-      phase: "cancelled",
+      phase,
       done: true,
-      unsubResults: [{ sender: "a@list.example", status: "unsubscribed" }]
+      detail: phase === "error" ? "tab closed" : "",
+      unsubResults
     });
-    await settle(20);
+  };
 
-    expect(localStore.freeUnsubUsed).toBeUndefined();
-  });
+  test.each([["done"], ["cancelled"], ["error"]])(
+    "a %s run writes nothing from the popup",
+    async (phase) => {
+      await boot({ pro: false });
+      tickAll();
+      document.getElementById("unsubBtn").click();
+      await settle(40);
 
-  test("an errored run charges nothing", async () => {
-    await boot({ pro: false });
-    tickAll();
-    document.getElementById("unsubBtn").click();
-    await settle(40);
-
-    fireProgress({
-      type: "gmailCleanerProgress",
-      runKind: "unsubscribe",
-      phase: "error",
-      done: true,
-      detail: "tab closed",
-      unsubResults: [{ sender: "a@list.example", status: "unsubscribed" }]
-    });
-    await settle(20);
-
-    expect(localStore.freeUnsubUsed).toBeUndefined();
-  });
-
-  test("a run where 2 of 3 come back manual charges only 1", async () => {
-    await boot({ pro: false });
-    tickAll();
-    document.getElementById("unsubBtn").click();
-    await settle(40);
-
-    fireProgress({
-      type: "gmailCleanerProgress",
-      runKind: "unsubscribe",
-      phase: "done",
-      done: true,
-      unsubResults: [
+      runReport(phase, [
         { sender: "a@list.example", status: "unsubscribed" },
-        { sender: "b@list.example", status: "manual" },
-        { sender: "c@list.example", status: "no_button" }
-      ]
-    });
-    await settle(20);
+        { sender: "b@list.example", status: "manual" }
+      ]);
+      await settle(20);
 
-    expect(localStore.freeUnsubUsed).toBe(1);
+      expect(localStore.freeUnsubUsed).toBeUndefined();
+    }
+  );
+
+  test("the painted number follows storage once the worker has spent it", async () => {
+    await boot({ pro: false });
+    tickAll();
+    document.getElementById("unsubBtn").click();
+    await settle(40);
+
+    // Stand in for the worker: the engine posted its results there too,
+    // and it charged one.
+    localStore.freeUnsubUsed = 1;
+    runReport("done", [
+      { sender: "a@list.example", status: "unsubscribed" },
+      { sender: "b@list.example", status: "manual" }
+    ]);
+    // The re-read is deliberately a beat behind the write it is reading.
+    await new Promise((r) => setTimeout(r, 800));
+    await settle(30);
+
     expect(document.getElementById("unsubBtnSub").textContent).toMatch(/2 free unsubscribes left/i);
   });
 
-  // The gate reads unreadable as fully used so it refuses, which is
-  // right. Writing that same number back is not: it would spend all
-  // three on one storage hiccup, and nothing ever gives them back.
-  // Same shape as the four write-side reads 8.16 fixed.
-  test("a read that fails at spend time leaves the counter alone", async () => {
-    await boot({ pro: false, used: 1 });
+  test("a stopped run still marks the senders it really unsubscribed", async () => {
+    // Unsubscribing cannot be undone, so a cancelled run's outcomes are
+    // facts. Before 8.19 the engine only reported them on a clean finish
+    // and the popup only merged them there, so those rows sat unmarked.
+    await boot({ pro: false });
     tickAll();
     document.getElementById("unsubBtn").click();
     await settle(40);
 
-    // The run went out under a good read; the store breaks before it lands.
-    failLocalKeys.add("freeUnsubUsed");
-
-    fireProgress({
-      type: "gmailCleanerProgress",
-      runKind: "unsubscribe",
-      phase: "done",
-      done: true,
-      unsubResults: [{ sender: "a@list.example", status: "unsubscribed" }]
-    });
+    runReport("cancelled", [{ sender: "a@list.example", status: "unsubscribed" }]);
     await settle(20);
 
-    expect(localStore.freeUnsubUsed).toBe(1);
+    const row = [...document.querySelectorAll("#subsList .subs-row")].find((r) =>
+      r.textContent.includes("a@list.example"));
+    expect(row).toBeTruthy();
+    expect(row.textContent.toLowerCase()).toContain("unsubscribed");
   });
 });
 
@@ -477,15 +473,17 @@ describe("a Smart card spends the same three", () => {
     expect(document.getElementById("proPanel").hidden).toBe(false);
   });
 
-  test("a Smart unsubscribe costs exactly 1 and the Lists tab agrees", async () => {
+  test("a Smart unsubscribe spends through the same worker, and the Lists tab agrees", async () => {
     await boot({ pro: false });
     const before = unsubConfigs().length;
     smartUnsubBtn().click();
     await settle(40);
-    // Without this the done message alone would satisfy the charge and
-    // the test would pass against a Smart button that never ran.
+    // Without this the done message alone would satisfy the assertions
+    // and the test would pass against a Smart button that never ran.
     expect(unsubConfigs().length).toBe(before + 1);
 
+    // The worker charges it; this popup only re-reads.
+    localStore.freeUnsubUsed = 1;
     fireProgress({
       type: "gmailCleanerProgress",
       runKind: "unsubscribe",
@@ -493,15 +491,15 @@ describe("a Smart card spends the same three", () => {
       done: true,
       unsubResults: [{ sender: "a@list.example", status: "unsubscribed" }]
     });
-    await settle(20);
+    await new Promise((r) => setTimeout(r, 800));
+    await settle(30);
 
-    expect(localStore.freeUnsubUsed).toBe(1);
     // The count the other button advertises has to move with it.
     expect(document.getElementById("unsubBtnSub").textContent)
       .toMatch(/2 free unsubscribes left/i);
   });
 
-  test("a Smart run that comes back manual costs nothing", async () => {
+  test("a Smart run writes nothing from the popup either", async () => {
     await boot({ pro: false });
     const before = unsubConfigs().length;
     smartUnsubBtn().click();
@@ -517,7 +515,7 @@ describe("a Smart card spends the same three", () => {
     });
     await settle(20);
 
-    expect(localStore.freeUnsubUsed).toBe(0);
+    expect(localStore.freeUnsubUsed).toBeUndefined();
   });
 });
 
@@ -580,10 +578,32 @@ describe("the allowance never widens anything else", () => {
     expect(smart).not.toMatch(/\.slice\(0,/);
   });
 
-  test("the counter is spent in exactly one place", () => {
-    const popup = read("popup.js");
-    expect(popup.match(/GCC\.freeUnsub\.spend\(/g)).toHaveLength(1);
+  test("the counter is spent in exactly one place, and it is not the popup", () => {
+    // 8.19: this pin used to say the popup spent it once. The scope
+    // moved, so the pin inverts rather than shifting: the popup spends
+    // it nowhere and the worker spends it once. Two writers would charge
+    // the same run twice.
+    // Comments are stripped first. Prose about a call is indistinguishable
+    // from the call to a regex, and this project has been caught by that
+    // more than once, twice inside tests written to prevent it.
+    const strip = (src) =>
+      src.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^[ \t]*\/\/.*$/gm, " ");
+
+    const popup = strip(read("popup.js"));
+    expect(popup.match(/GCC\.freeUnsub\.spend\(/g)).toBeNull();
     expect(popup.match(/await allowedUnsubCount\(/g)).toHaveLength(2);
+
+    const sw = strip(read("background.js"));
+    // The write itself, not the helper's own signature.
+    expect(sw.match(/\[STORAGE_KEYS\.FREE_UNSUB_USED\]: freeUnsubSpend\(/g)).toHaveLength(1);
+    // One definition, one call site.
+    expect(sw.match(/chargeFreeUnsubscribes\(/g)).toHaveLength(2);
+  });
+
+  test("the popup still reads the counter, so the gate and the copy stay honest", () => {
+    const popup = read("popup.js");
+    expect(popup).toContain("GCC.freeUnsub.readOrNull()");
+    expect(popup).toContain("GCC.freeUnsub.remaining(stored)");
   });
 
   test("X-ray and Smart bulk apply still gate on the licence alone", () => {

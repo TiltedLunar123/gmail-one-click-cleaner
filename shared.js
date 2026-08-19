@@ -764,15 +764,15 @@ const GCC = (() => {
     // "starred cleanup" that silently never ran. The brace form was worse
     // and is fixed on both sides here: nothing refused it at all.
     for (const token of DANGEROUS_QUERY_TOKENS) {
-      const negated = new RegExp(`(^|[\\s({])-\\s*${token.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
-      const positive = new RegExp(`(^|[\\s({])${token.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
+      const negated = new RegExp(`(^|[\\s({])-\\s*${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+      const positive = new RegExp(`(^|[\\s({])${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
       if (positive.test(lower) && !negated.test(lower)) {
         errors.push(`Query targets protected mail: "${token}". Add "-${token}" to exclude.`);
       }
     }
 
     for (const token of AGE_REQUIRED_TOKENS) {
-      const re = new RegExp(`(^|\\s)${token.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
+      const re = new RegExp(`(^|\\s)${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
       if (re.test(lower) && !AGE_QUALIFIERS.test(lower)) {
         warnings.push(`Query uses "${token}" with no age filter; consider adding "older_than:" so recent mail is protected.`);
       }

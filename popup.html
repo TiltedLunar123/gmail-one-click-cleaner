@@ -1170,20 +1170,19 @@
        define, so the dark theme needs nothing: #fbbf24 on its own tint over
        the surface measures 7.66:1.
 
-       Light needs one override, and this is the second time the amber tokens
-       have wanted one (7.8.1 moved light --danger from #dc2626 to #b91c1c for
-       the same reason). --warning #b45309 on its 10% tint, composited over
-       the card and the #d9e6ec page beneath it, comes to 4.25:1: under the
-       4.5 that 11px bold text needs, and close enough that eyeballing it
-       would have passed. #8a3f07 measures 6.36:1 on the same stack.
-       Border and background stay on the tokens; only the text moves. */
+       8.16 worked out that light needed a darker text colour here (--warning
+       #b45309 on its own 10% tint comes to 4.25:1, under the 4.5 that 11px
+       bold text needs) and wrote #8a3f07 into a one-off override. 8.19 found
+       the same arithmetic true of every amber, sky and green chip in the
+       product and gave it a name, so the override is gone and this rule asks
+       for the ink directly. Border and background stay on the fill tokens;
+       only the text moves, and in dark --ink-warn IS --warning. */
     .recap-note--partial {
       border-color: var(--warning-border);
       background: var(--warning-bg);
-      color: var(--warning);
+      color: var(--ink-warn);
       max-width: 100%;
     }
-    html[data-theme="light"] .recap-note--partial { color: #8a3f07; }
 
     /* Success CTAs */
     .success-ctas {
@@ -1509,7 +1508,7 @@
       flex: 0 0 auto;
     }
     .pro-pill.is-active {
-      color: var(--good);
+      color: var(--ink-good);
       background: var(--success-bg);
       border-color: var(--success-border);
     }
@@ -1652,7 +1651,7 @@
       flex: 0 0 auto;
       font-size: 11px;
       font-weight: 700;
-      color: var(--good);
+      color: var(--ink-good);
     }
     .report-note {
       font-size: 11px;
@@ -1961,7 +1960,7 @@
     .smart-apply-btn {
       font-size: 11px;
       font-weight: 700;
-      color: var(--primary-strong);
+      color: var(--ink-brand);
       background: var(--tint-brand);
       border: 1px solid var(--edge-brand);
       border-radius: var(--r-pill);
@@ -3457,10 +3456,10 @@
             class="badge"
             id="versionBadge"
             type="button"
-            aria-label="Version 8.18.1, see what's new"
+            aria-label="Version 8.19.0, see what's new"
             title="What's new in this version"
             data-i18n-title="whatsNewTitle"
-          >v8.18.1</button>
+          >v8.19.0</button>
           <button id="kbdHelpBtn" class="linkish" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" data-i18n-label="kbdTitle" data-i18n-title="kbdBtnTitle">
             <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/></svg>
           </button>

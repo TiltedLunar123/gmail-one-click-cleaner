@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "8.18.1";
+  const GCC_CONTENT_VERSION = "8.19.0";
 
   // =========================
   // Timing & behavior constants
@@ -128,8 +128,8 @@
       // 7.15: `{` opens Gmail's documented OR group, so `{is:starred
       // is:unread}` was the same escape hatch one character over. Every
       // grouping character Gmail accepts belongs in this class.
-      const negated = new RegExp(`(^|[\\s({])-\\s*${token.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
-      const positive = new RegExp(`(^|[\\s({])${token.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
+      const negated = new RegExp(`(^|[\\s({])-\\s*${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+      const positive = new RegExp(`(^|[\\s({])${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
       return positive.test(lower) && !negated.test(lower);
     });
   }
@@ -4199,6 +4199,19 @@
           // query so the run as a whole keeps moving.
           const elapsedMs = Date.now() - start;
           if ((isRL || isTO) && elapsedMs > GUARDRAILS.QUERY_WALL_TIME_BUDGET_MS) {
+            // 8.19: this rule was abandoned, not finished, exactly like
+            // the retry-budget bail below and the pass cap at the bottom.
+            // 8.16 added the counter for "a rule with mail still behind
+            // it" and reached two of the three exits, and its own test
+            // pinned the total at two, which is what kept this one out.
+            // Without it runFinishedClean() calls the run clean, and the
+            // Mailbox Report stamps a Cleared chip, the X-ray stamps
+            // Purged, Smart books applied feedback and Auto-Pilot writes
+            // a partial preview as the week's tally -- all over mail that
+            // is still there. The message below reaches an open extension
+            // page and nothing else; the counter is the half that
+            // survives a closed popup and an unattended sweep.
+            stats.stoppedShort++;
             safeSend({
               phase: "warning",
               status: `Skipping ${label} after ${Math.round(elapsedMs / 1000)}s`,
@@ -4848,6 +4861,34 @@
     const senders = sanitizeSenderList(rawSenders);
     const results = [];
 
+    // 8.19: every terminal path reports, and it reports once.
+    //
+    // This send used to sit after the loop, inside the try, so only a run
+    // that finished cleanly ever made it. Cancel at sender eight of ten
+    // and the seven that really did unsubscribe were recorded nowhere:
+    // no status on the Lists tab, nothing in the lifetime total, and
+    // (since 8.19) no charge against the three free unsubscribes. Being
+    // unsubscribed is not a state that can be taken back, so unlike a
+    // half-finished cleanup these are facts worth keeping. 8.16's rule is
+    // the other way round and still holds: a stopped run must not claim
+    // to have FINISHED something, and nothing here says it did.
+    let reported = false;
+    const reportResults = () => {
+      if (reported) return;
+      reported = true;
+      if (!results.length) return;
+      try {
+        if (hasChromeRuntime()) {
+          chrome.runtime.sendMessage({
+            type: "gmailCleanerRecordUnsubscribes",
+            results
+          });
+        }
+      } catch (e) {
+        debugLog("Failed to send unsubscribe results to background", { error: e?.message });
+      }
+    };
+
     try {
       if (!isGmailTab()) {
         alert("Gmail Cleaner: please run this from a Gmail tab.");
@@ -4906,16 +4947,7 @@
         await sleep(SUBSCRIPTIONS.BETWEEN_SENDERS_MS);
       }
 
-      try {
-        if (hasChromeRuntime()) {
-          chrome.runtime.sendMessage({
-            type: "gmailCleanerRecordUnsubscribes",
-            results
-          });
-        }
-      } catch (e) {
-        debugLog("Failed to send unsubscribe results to background", { error: e?.message });
-      }
+      reportResults();
 
       const okCount = results.filter((r) => r.status === "unsubscribed").length;
       safeSendImmediate({
@@ -4931,6 +4963,7 @@
       });
     } catch (e) {
       if (e instanceof CancellationError) {
+        reportResults();
         safeSendImmediate({
           runKind: "unsubscribe",
           phase: "cancelled",
@@ -4942,6 +4975,7 @@
         });
       } else {
         logError(e, "unsubscribe run");
+        reportResults();
         safeSendImmediate({
           runKind: "unsubscribe",
           phase: "error",

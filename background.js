@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "8.18.1";
+  const SW_VERSION = "8.19.0";
 
   // =========================
   // Storage Keys
@@ -55,7 +55,12 @@
     // 8.14: how many times the completion notification has carried the
     // Pro line, and when it last did. Local: an ad allowance is not a
     // preference and has no business replicating to other machines.
-    PRO_PITCH: "proPitchNotice"
+    PRO_PITCH: "proPitchNotice",
+
+    // 8.17's three free unsubscribes. Local, no clock, no server. 8.19
+    // moved the SPEND here from the popup: see chargeFreeUnsubscribes.
+    // The spelling is pinned equal to GCC.freeUnsub.KEY by a test.
+    FREE_UNSUB_USED: "freeUnsubUsed"
   });
 
   // =========================
@@ -1478,8 +1483,76 @@
         stats.totalUnsubscribed = (Number(stats.totalUnsubscribed) || 0) + unsubscribedNow;
         await chrome.storage.local.set({ [STORAGE_KEYS.STATS]: stats });
       }
+
+      // 8.19: and the free allowance, from the same count, in the same
+      // locked step. See chargeFreeUnsubscribes.
+      await chargeFreeUnsubscribes(unsubscribedNow);
     } catch (e) {
       console.error("[GCC SW] recordUnsubscribeResults failed:", e);
+    }
+  }
+
+  // 8.19: three free unsubscribes are spent HERE, not in the popup.
+  //
+  // 8.17 charged them from the popup's own progress handler. A browser
+  // action popup is destroyed the moment the user clicks anything outside
+  // it, and an unsubscribe run opens one message per sender for up to
+  // twenty-five senders, so the popup is usually gone long before the run
+  // ends. Nothing charged the counter and the three came back on every
+  // open, from either entry point. This is the same fact
+  // storageXrayPendingPurge and smartPendingApply were built around, said
+  // in their own comments: the popup closes long before the run finishes,
+  // so anything that has to be recorded belongs on the worker, which the
+  // engine reaches whether or not anybody is watching.
+  //
+  // Charged off `unsubscribedNow`, which counts only senders that came
+  // back `unsubscribed`. A sender with no one-click link, one left for
+  // manual follow-up, or one the run never reached costs nothing.
+  //
+  // The worker keeps its own copy of the arithmetic because it cannot
+  // load shared.js; a test pins both against GCC.freeUnsub.
+  const FREE_UNSUB_LIMIT = 3;
+
+  function freeUnsubUsedOf(stored) {
+    if (stored === null) return FREE_UNSUB_LIMIT;
+    if (stored === undefined) return 0;
+    const n = Number(stored);
+    if (!Number.isFinite(n) || n < 0) return FREE_UNSUB_LIMIT;
+    return Math.min(FREE_UNSUB_LIMIT, Math.floor(n));
+  }
+
+  function freeUnsubSpend(stored, okCount) {
+    const n = Number(okCount);
+    const add = Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+    return Math.min(FREE_UNSUB_LIMIT, freeUnsubUsedOf(stored) + add);
+  }
+
+  async function chargeFreeUnsubscribes(okCount) {
+    if (!(Number(okCount) > 0)) return;
+    // "pro" has no allowance to spend and "unknown" is a guess this must
+    // not make: readLicenseState only says unknown when BOTH storage
+    // areas are unreachable, and spending somebody's allowance off a
+    // failed read is the exact write-side mistake 8.16 found four times.
+    const state = await readLicenseState();
+    if (state !== "free") return;
+
+    let stored;
+    try {
+      const r = await chrome.storage.local.get(STORAGE_KEYS.FREE_UNSUB_USED);
+      stored = r?.[STORAGE_KEYS.FREE_UNSUB_USED];
+    } catch {
+      // Same rule the popup's writer follows: a read that failed is not a
+      // licence to write "all three used". Leave the counter alone and
+      // let the next good read settle it. The run already happened.
+      return;
+    }
+
+    try {
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.FREE_UNSUB_USED]: freeUnsubSpend(stored, okCount)
+      });
+    } catch (e) {
+      console.warn("[GCC SW] free unsubscribe spend failed:", e?.message || e);
     }
   }
 
