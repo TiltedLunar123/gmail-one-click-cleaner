@@ -4199,6 +4199,19 @@
           // query so the run as a whole keeps moving.
           const elapsedMs = Date.now() - start;
           if ((isRL || isTO) && elapsedMs > GUARDRAILS.QUERY_WALL_TIME_BUDGET_MS) {
+            // 8.19: this rule was abandoned, not finished, exactly like
+            // the retry-budget bail below and the pass cap at the bottom.
+            // 8.16 added the counter for "a rule with mail still behind
+            // it" and reached two of the three exits, and its own test
+            // pinned the total at two, which is what kept this one out.
+            // Without it runFinishedClean() calls the run clean, and the
+            // Mailbox Report stamps a Cleared chip, the X-ray stamps
+            // Purged, Smart books applied feedback and Auto-Pilot writes
+            // a partial preview as the week's tally -- all over mail that
+            // is still there. The message below reaches an open extension
+            // page and nothing else; the counter is the half that
+            // survives a closed popup and an unattended sweep.
+            stats.stoppedShort++;
             safeSend({
               phase: "warning",
               status: `Skipping ${label} after ${Math.round(elapsedMs / 1000)}s`,

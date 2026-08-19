@@ -88,10 +88,18 @@ describe("the engine says whether the run actually finished", () => {
     expect(summary).toContain("stoppedShort: Number(stats.stoppedShort) || 0");
   });
 
-  test("both short exits in processQuery are counted, not just described in a message", () => {
+  test("every short exit in processQuery is counted, not just described in a message", () => {
     const q = between(ENGINE_SRC, "async function processQuery(", "function buildFinalStats(");
-    // The pass cap, and giving up on a rule that kept rate limiting.
-    expect(q.match(/stats\.stoppedShort\+\+;/g) || []).toHaveLength(2);
+    // The pass cap, giving up after the retry budget, and the per-query
+    // wall-time budget.
+    //
+    // 8.19 moved this number from 2 to 3. There were always three exits;
+    // the note above this test named the wall-time bail as one of the two
+    // it was fixing and the counter went to the retry-budget bail
+    // instead, so the pin froze the miss in place. A count is a weak pin
+    // for "all of them" -- the sibling test in sweep-8-19 names each exit
+    // by its own condition, which is the pin that would have caught this.
+    expect(q.match(/stats\.stoppedShort\+\+;/g) || []).toHaveLength(3);
     // Still says so out loud as well; the counter is the part that survives
     // a closed popup.
     expect(q).toContain("stopped at the pass limit");
