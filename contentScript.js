@@ -4861,6 +4861,34 @@
     const senders = sanitizeSenderList(rawSenders);
     const results = [];
 
+    // 8.19: every terminal path reports, and it reports once.
+    //
+    // This send used to sit after the loop, inside the try, so only a run
+    // that finished cleanly ever made it. Cancel at sender eight of ten
+    // and the seven that really did unsubscribe were recorded nowhere:
+    // no status on the Lists tab, nothing in the lifetime total, and
+    // (since 8.19) no charge against the three free unsubscribes. Being
+    // unsubscribed is not a state that can be taken back, so unlike a
+    // half-finished cleanup these are facts worth keeping. 8.16's rule is
+    // the other way round and still holds: a stopped run must not claim
+    // to have FINISHED something, and nothing here says it did.
+    let reported = false;
+    const reportResults = () => {
+      if (reported) return;
+      reported = true;
+      if (!results.length) return;
+      try {
+        if (hasChromeRuntime()) {
+          chrome.runtime.sendMessage({
+            type: "gmailCleanerRecordUnsubscribes",
+            results
+          });
+        }
+      } catch (e) {
+        debugLog("Failed to send unsubscribe results to background", { error: e?.message });
+      }
+    };
+
     try {
       if (!isGmailTab()) {
         alert("Gmail Cleaner: please run this from a Gmail tab.");
@@ -4919,16 +4947,7 @@
         await sleep(SUBSCRIPTIONS.BETWEEN_SENDERS_MS);
       }
 
-      try {
-        if (hasChromeRuntime()) {
-          chrome.runtime.sendMessage({
-            type: "gmailCleanerRecordUnsubscribes",
-            results
-          });
-        }
-      } catch (e) {
-        debugLog("Failed to send unsubscribe results to background", { error: e?.message });
-      }
+      reportResults();
 
       const okCount = results.filter((r) => r.status === "unsubscribed").length;
       safeSendImmediate({
@@ -4944,6 +4963,7 @@
       });
     } catch (e) {
       if (e instanceof CancellationError) {
+        reportResults();
         safeSendImmediate({
           runKind: "unsubscribe",
           phase: "cancelled",
@@ -4955,6 +4975,7 @@
         });
       } else {
         logError(e, "unsubscribe run");
+        reportResults();
         safeSendImmediate({
           runKind: "unsubscribe",
           phase: "error",

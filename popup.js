@@ -2160,19 +2160,29 @@ document.addEventListener("DOMContentLoaded", () => {
     return Math.min(asked, state.subs.freeLeft);
   };
 
-  const persistFreeUnsubSpend = async (okCount) => {
-    const stored = await GCC.freeUnsub.readOrNull();
-    // 8.16 found this same shape four times, and every one of them did
-    // its damage on the WRITE. Reading unreadable as "fully used" is
-    // right for the gate, because it refuses; writing that number back
-    // is not, because it spends all three on one storage hiccup and the
-    // user never gets them back. Leave the counter untouched and let
-    // the next good read settle it. The run already happened either way.
-    if (stored === null) return;
-    const next = GCC.freeUnsub.spend(stored, okCount);
-    await storageSet("local", { [STORAGE_KEYS.FREE_UNSUB_USED]: next });
-    state.subs.freeLeft = GCC.freeUnsub.remaining(next);
-    paintSubsAllowance();
+  // 8.19: the popup no longer SPENDS the allowance, it only re-reads it.
+  //
+  // 8.17 charged the counter from the done handler below, which only
+  // runs while this popup is still open. A popup dies the moment the
+  // user clicks anything outside it, and an unsubscribe run opens a
+  // message per sender, so most runs finished with nobody here: the
+  // counter was never charged and the three came back on the next open.
+  // The service worker charges it now, off the same per-sender results
+  // the engine has always sent it, because the worker is the surface
+  // that survives the popup (the same reason the X-ray purge and Smart
+  // apply markers live there).
+  //
+  // This is paint only. The gate is allowedUnsubCount, which re-reads
+  // storage on every click, so a number that lags by a moment can never
+  // let a run take more than is left.
+  const FREE_UNSUB_REFRESH_MS = 600;
+
+  const refreshFreeUnsubAfterRun = () => {
+    setTimeout(() => {
+      loadFreeUnsub()
+        .then(paintSubsAllowance)
+        .catch((e) => log("warn", "free unsub refresh failed", e));
+    }, FREE_UNSUB_REFRESH_MS);
   };
 
   // The number on the button is the cap the next click will apply.
@@ -2517,6 +2527,25 @@ document.addEventListener("DOMContentLoaded", () => {
   // status is the number, the detail is the caveat on it.
   const doneLine = (status, detail) => [status, detail].filter(Boolean).join(" ");
 
+  // 8.19: a stopped run still unsubscribed whoever it reached, and that
+  // cannot be taken back. The engine attaches the partial results to its
+  // cancelled and error messages and now posts them to the worker too, so
+  // the rows those senders own must show it here rather than sit unmarked
+  // until the next scan. Returns how many really came back unsubscribed.
+  const mergeUnsubStatuses = (msg) => {
+    if (msg?.runKind !== "unsubscribe" || !Array.isArray(msg.unsubResults)) return 0;
+    const byEmail = Object.create(null);
+    for (const r of msg.unsubResults) byEmail[r.sender] = r.status;
+    for (const sender of state.subs.senders) {
+      if (byEmail[sender.email]) sender.status = byEmail[sender.email];
+    }
+    renderSubsList();
+    // The worker spends the allowance off this same set, so re-read what
+    // this popup paints once that write has had a moment to land.
+    if (!state.subs.licenseActive) refreshFreeUnsubAfterRun();
+    return msg.unsubResults.filter((r) => r.status === "unsubscribed").length;
+  };
+
   const handleSubsProgress = (msg) => {
     const { runKind, phase, status, detail, done } = msg;
 
@@ -2527,6 +2556,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (phase === "error") {
+      mergeUnsubStatuses(msg);
       setSubsStatus(t("failedDetail", `Failed: ${detail || "unknown error"}`, [detail || "unknown error"]));
       showToast(
         runKind === "unsubscribe"
@@ -2538,6 +2568,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     if (phase === "cancelled") {
+      mergeUnsubStatuses(msg);
       setSubsStatus(t("stoppedStatus", "Stopped."));
       finishSubsRun();
       return;
@@ -2557,20 +2588,10 @@ document.addEventListener("DOMContentLoaded", () => {
       setTimeout(() => { loadStoredSubscriptions().catch(() => {}); }, 400);
       showToast(t("subsScanCompleteToast", "subscription scan complete"), "success");
     } else if (runKind === "unsubscribe" && Array.isArray(msg.unsubResults)) {
-      const byEmail = Object.create(null);
-      for (const r of msg.unsubResults) byEmail[r.sender] = r.status;
-      for (const sender of state.subs.senders) {
-        if (byEmail[sender.email]) sender.status = byEmail[sender.email];
-      }
-      renderSubsList();
+      // Same merge the cancelled and error branches make, and it is the
+      // one that re-reads the allowance the worker just spent.
+      const okCount = mergeUnsubStatuses(msg);
       setSubsStatus(doneLine(status, detail) || t("unsubRunComplete", "Unsubscribe run complete."));
-      const okCount = msg.unsubResults.filter((r) => r.status === "unsubscribed").length;
-      // Cancelled and errored runs return above this branch, so a
-      // terminal-but-not-finished message never charges the allowance.
-      // Only `unsubscribed` counts; manual / no-link / failed do not.
-      if (!state.subs.licenseActive) {
-        persistFreeUnsubSpend(okCount).catch((e) => log("warn", "free unsub spend failed", e));
-      }
       showToast(
         okCount === 1
           ? t("unsubbedFromOne", "unsubscribed from 1 sender")

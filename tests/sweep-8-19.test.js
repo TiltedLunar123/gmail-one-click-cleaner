@@ -139,8 +139,14 @@ describe("three free unsubscribes survive a closed popup", () => {
   });
 
   test("the popup still refreshes what it paints once a run lands", () => {
-    const handler = between(POPUP_SRC, "const handleSubsProgress = (msg) => {", "const handleReportProgress");
-    expect(handler).toContain("refreshFreeUnsubAfterRun()");
+    // The refresh rides on the merge helper, so every terminal path that
+    // merges statuses also re-reads the counter the worker just spent.
+    const merge = between(POPUP_SRC, "const mergeUnsubStatuses = (msg) => {", "const handleSubsProgress");
+    expect(merge).toContain("refreshFreeUnsubAfterRun()");
+    // And it is a re-read, not a second write.
+    const refresh = between(POPUP_SRC, "const refreshFreeUnsubAfterRun = () => {", "};");
+    expect(refresh).toContain("loadFreeUnsub()");
+    expect(refresh).toContain("paintSubsAllowance");
   });
 
   test("the gate still re-reads storage, so a stale paint cannot widen a run", () => {
@@ -179,14 +185,22 @@ describe("a cancelled or errored unsubscribe run still reports what it did", () 
   });
 
   test("the popup merges the partial statuses a stopped run carries", () => {
-    const handler = between(POPUP_SRC, "const handleSubsProgress = (msg) => {", "const handleReportProgress");
     // One merge helper, reachable from the cancelled and error branches
     // and not only from the done branch.
-    expect(handler).toContain("const mergeUnsubStatuses");
-    const cancelled = between(handler, 'if (phase === "cancelled") {', "}");
+    expect(POPUP_SRC).toContain("const mergeUnsubStatuses = (msg) => {");
+    const handler = between(POPUP_SRC, "const handleSubsProgress = (msg) => {", "const handleReportProgress");
+    const cancelled = between(handler, 'if (phase === "cancelled") {', "return;");
     expect(cancelled).toContain("mergeUnsubStatuses(msg)");
-    const errored = between(handler, 'if (phase === "error") {', "}");
+    const errored = between(handler, 'if (phase === "error") {', "return;");
     expect(errored).toContain("mergeUnsubStatuses(msg)");
+    // And the done branch goes through the same helper, so the three
+    // paths cannot drift.
+    expect(handler).toContain("const okCount = mergeUnsubStatuses(msg);");
+  });
+
+  test("the merge only ever acts on an unsubscribe run's own results", () => {
+    const merge = between(POPUP_SRC, "const mergeUnsubStatuses = (msg) => {", "const handleSubsProgress");
+    expect(merge).toContain('if (msg?.runKind !== "unsubscribe" || !Array.isArray(msg.unsubResults)) return 0;');
   });
 });
 
