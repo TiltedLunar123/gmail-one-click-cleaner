@@ -321,6 +321,23 @@ describe("pin: recommendation selection matches GCC.smart", () => {
     const many = Array.from({ length: 40 }, (_, i) => scanSender(`s${i}@bulk.com`, 50 + (i % 30)));
     expect(INTERNALS.autoPilotPickSenders(many, {}, [], []).length).toBe(25);
   });
+
+  // 8.20: the worker's own copy of the boost, pinned against the shared
+  // one. A sender shares a domain with itself, so an applied sender used
+  // to collect its own +6 for ever and hold the top of the list Auto-
+  // Pilot sweeps first, week after week.
+  test("an applied sender does not boost itself, here either", () => {
+    const applied = { bySender: { "news@shop.com": { action: "applied", at: Date.now() - 1000 } } };
+    expect(INTERNALS.autoPilotDomainBoost(applied, "news@shop.com")).toBe(0);
+    expect(GCC.smart.rankSenders(
+      [scanSender("news@shop.com", 50), scanSender("other@else.com", 50)], applied
+    ).map((s) => s.score)).toEqual([50, 50]);
+  });
+
+  test("a different sender at that domain still gets it, here too", () => {
+    const applied = { bySender: { "news@shop.com": { action: "applied", at: Date.now() - 1000 } } };
+    expect(INTERNALS.autoPilotDomainBoost(applied, "deals@shop.com")).toBeGreaterThan(0);
+  });
 });
 
 // 8.10: every assertion below fails against the 8.9.1 source.
@@ -660,6 +677,121 @@ describe("the sweep stage machine", () => {
     expect(state.lastRun).toMatchObject({ count: 14, dryRun: false });
     // The live apply also fed the smart feedback loop via the marker.
     expect(storageBacking.local.smartFeedback.bySender["news@shop.com"].action).toBe("applied");
+    // Nothing was refused, so there is nothing to warn about.
+    expect(state.lastRun.incomplete).toBe(false);
+  });
+
+  // 8.20: a rule the guardrails REFUSED is a rule with mail still behind
+  // it, exactly like one that ran out of passes. Nobody is there to
+  // answer the soft cap on a scheduled sweep, so the engine declines
+  // those rules rather than hanging the Gmail tab, counts them, and
+  // sends the total in the done summary. runFinishedClean read
+  // `outcome` and `stoppedShort` and not this, so the sweep called
+  // itself finished and the popup printed the partial tally as the
+  // week's work with no caveat beside it. The Auto-Pilot user is the one
+  // person who never sees the progress page, so this line is all they
+  // get.
+  test("a sweep whose rules were refused for being too large is not a finished sweep", async () => {
+    await enableWithSuggestions({ confirmed: true });
+    await fireAlarm();
+    executed.length = 0;
+    await scanDone();
+
+    const runId = storageBacking.local.autoPilotState.pending.runId;
+    await dispatch({
+      type: "gmailCleanerProgress", phase: "done", done: true,
+      stats: { mode: "live", runCount: 6 }
+    });
+    await dispatch({
+      type: "gmailCleanerDone",
+      summary: {
+        count: 6, freedMb: 1, action: "archive", dryRun: false, runId,
+        outcome: "completed", stoppedShort: 0, declined: 2
+      }
+    });
+
+    const state = storageBacking.local.autoPilotState;
+    expect(state.lastRun).toMatchObject({ count: 6, dryRun: false });
+    expect(state.lastRun.incomplete).toBe(true);
+  });
+
+  // The preview is consent given on a measurement, so a partial one is
+  // the worst kind to print. Same rule 8.16 wrote for a cancelled
+  // preview, now honoured for a declined one.
+  test("a preview whose rules were refused is not offered as the week's tally", async () => {
+    await enableWithSuggestions({ confirmed: false });
+    await fireAlarm();
+    await scanDone();
+    const runId = storageBacking.local.autoPilotState.pending.runId;
+
+    await dispatch({
+      type: "gmailCleanerProgress", phase: "done", done: true,
+      stats: { mode: "dry", runCount: 12 }
+    });
+    await dispatch({
+      type: "gmailCleanerDone",
+      summary: {
+        count: 0, freedMb: 0, action: "archive", dryRun: true, runId,
+        outcome: "completed", stoppedShort: 0, declined: 1
+      }
+    });
+
+    const state = storageBacking.local.autoPilotState;
+    expect(state.preview).toBeUndefined();
+    expect(state.lastRun.incomplete).toBe(true);
+  });
+
+  // 8.20: the engine sends its terminal PROGRESS first and
+  // gmailCleanerDone from its finally a moment later. The progress
+  // handler used to clear `pending` on error and cancelled, and
+  // resolveAutoPilotDone returns on its first line when there is no
+  // pending row, so the sweep that died was recorded nowhere: the popup
+  // kept quoting the previous sweep's tally as the latest one, and
+  // `incomplete` could never be set by the two outcomes 8.16 added it
+  // for.
+  const startedApply = async () => {
+    await enableWithSuggestions({ confirmed: true });
+    await fireAlarm();
+    executed.length = 0;
+    await scanDone();
+    return storageBacking.local.autoPilotState.pending.runId;
+  };
+
+  test("a sweep that errors is still recorded, and recorded as unfinished", async () => {
+    const runId = await startedApply();
+
+    await dispatch({ type: "gmailCleanerProgress", phase: "error", done: true, runId });
+    await dispatch({
+      type: "gmailCleanerDone",
+      summary: {
+        count: 9, freedMb: 2, action: "archive", dryRun: false, runId,
+        outcome: "error", stoppedShort: 0, declined: 0
+      }
+    });
+
+    const state = storageBacking.local.autoPilotState;
+    expect(state.pending).toBeNull();
+    expect(state.lastRun).toMatchObject({ count: 9, dryRun: false, incomplete: true });
+  });
+
+  test("a sweep the user stopped is recorded the same way", async () => {
+    const runId = await startedApply();
+
+    await dispatch({ type: "gmailCleanerProgress", phase: "cancelled", done: true, runId });
+    await dispatch({
+      type: "gmailCleanerDone",
+      summary: {
+        count: 4, freedMb: 1, action: "archive", dryRun: false, runId,
+        outcome: "cancelled", stoppedShort: 0, declined: 0
+      }
+    });
+
+    const state = storageBacking.local.autoPilotState;
+    expect(state.pending).toBeNull();
+    expect(state.lastRun).toMatchObject({ count: 4, incomplete: true });
+    // And the weekly cadence is re-anchored, so the alarm does not come
+    // back around a minute later off a lastRunAt nobody updated.
+    expect(storageBacking.sync.autoPilot.lastRunAt).toBeGreaterThan(0);
   });
 
   test("a sweep with nothing eligible records a zero run and stops", async () => {

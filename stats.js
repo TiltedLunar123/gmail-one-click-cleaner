@@ -839,8 +839,16 @@ async function init() {
 
   ui.clearUndoBtn?.addEventListener("click", async () => {
     if (!confirm("Clear all recovery log entries?")) return;
-    await GCC.sendMessage({ type: "gmailCleanerClearUndoLog" });
+    // 8.20: read the reply. GCC.sendMessage RESOLVES an error rather
+    // than rejecting, so awaiting it and toasting success on the next
+    // line said "Log cleared" whatever came back, over a list the reload
+    // below then redrew in full.
+    const resp = await GCC.sendMessage({ type: "gmailCleanerClearUndoLog" });
     await loadUndoLog();
+    if (!resp?.ok) {
+      GCC.showToast("Could not clear the log", "error");
+      return;
+    }
     GCC.showToast("Log cleared", "success");
   });
 

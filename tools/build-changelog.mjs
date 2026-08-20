@@ -220,7 +220,13 @@ function render(entries, total) {
     "",
     "if (typeof module !== \"undefined\" && module.exports) module.exports = GCC_CHANGELOG;",
     ""
-  ].join("\r\n");
+    // 8.20: EOL, not a hardcoded "\r\n". The comment above this function
+    // says the writer follows the host, and the JSON body already did,
+    // but these wrapper lines were joined with CRLF whatever the host
+    // was. Regenerate on Linux or macOS and the file came out with 15
+    // CRLF lines wrapped around 1,606 LF ones, which is a mixed-ending
+    // file in the shipped bundle and a diff nobody can read.
+  ].join(EOL);
 }
 
 function main() {

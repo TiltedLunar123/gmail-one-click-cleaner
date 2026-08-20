@@ -569,7 +569,12 @@
       left: 50%;
       transform: translateX(-50%) translateY(-4px);
       padding: 6px 10px;
-      background: #141d27;
+      /* 8.20: the third copy of the hardcoded-dark-panel bug, and the
+         one a live contrast scan could never see, because a tooltip only
+         exists while something is hovered. --text-main on #141d27
+         measures 1.07:1 in the light theme, so every tooltip on this
+         page was a blank box. Same surface tokens the toast uses. */
+      background: var(--bg-surface);
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-sm);
       font-size: 12px;
@@ -714,7 +719,7 @@
     <header class="page-header">
       <div class="title-row">
         <h1 id="main-content" tabindex="-1">Gmail One-Click Cleaner Diagnostics</h1>
-        <span class="badge" aria-label="Version 8.19.0">v8.19.0</span>
+        <span class="badge" aria-label="Version 8.20.0">v8.20.0</span>
         <span class="badge-secondary" id="diagVersionBadge" aria-label="Runtime snapshot">runtime snapshot</span>
         <div class="theme-switcher" id="themeSwitcher" role="group" aria-label="Color theme" style="margin-left:auto;">
           <button type="button" data-theme-value="system" aria-pressed="true">Auto</button>

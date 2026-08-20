@@ -3,6 +3,61 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.20.0 - Skip means skip, and done means done
+
+Eight fixes. Most are the same complaint wearing different clothes: a
+button, a message or a report told you something had happened when it
+had not.
+
+### Fixed
+- **"Skip This Rule" skips, even from the keyboard.** In Review Mode the
+  cleaner stops before a batch and offers you Proceed or Skip. Tab to
+  Skip, press Enter, and the batch got cleaned anyway. A keyboard
+  shortcut on the page was answering Enter before the button could, and
+  it always answered Proceed. The buttons speak for themselves now.
+  Pressing Enter without moving focus still proceeds, which is what the
+  shortcut was there for.
+- **A run that refused a rule no longer calls itself finished.** A
+  scheduled cleanup will not stop and ask you about a very large batch,
+  because there is nobody there to answer. It skips that rule and moves
+  on, which is right. What was wrong is that the run then reported
+  itself complete. That let the Mailbox Report mark a step Cleared and
+  take away its Run button, the Storage X-ray mark a sender Purged, and
+  Auto-Pilot print a partial tally as the week's work. A refused rule
+  leaves mail behind, and the run says so now.
+- **An Auto-Pilot sweep that stops or fails gets recorded.** Until now
+  it simply vanished. The panel went on quoting last week's number as
+  though it were the latest one, and the weekly timer lost its place and
+  could fire again a minute later. The sweep is recorded either way now,
+  and one that stopped early says so.
+- **Unsubscribes are saved as they happen.** They used to be held until
+  the run ended. Close the Gmail tab halfway through and you lost every
+  one of them: no marks on your list, nothing in your totals, no way to
+  tell which senders you had already done. The most a closed tab can
+  cost you now is the one in progress.
+- **A sender you have already cleaned stops pushing itself to the top.**
+  Cleaning a sender gives a small nudge to others at the same domain,
+  which is the point. It was also nudging that sender, for ever, above
+  senders nobody had touched. So the same handful sat at the top of your
+  suggestions and at the front of every weekly sweep.
+- **"Schedule removed" and "Log cleared" only appear when they are
+  true.** Both were shown whatever happened. A schedule that failed to
+  delete stayed where it was with its timer still running, and a
+  recovery log that failed to clear kept every entry. Both say plainly
+  now when the change did not go through.
+- **The cleaner tells you when it cannot read your saved rules.** If
+  Chrome will not hand over your stored settings, the run falls back to
+  the built-in rules for that level. That is the sensible thing to do,
+  and it used to do it in silence. It says so now, for your rules and
+  for your custom rules separately.
+- **Two more places are readable in the light theme.** The "Restore
+  Default Rules?" confirmation had a fixed dark panel behind
+  theme-coloured text, so Cancel was invisible and the only readable
+  choice was the destructive one. The tooltips on the Diagnostics page
+  had the same problem (they only appear on hover, which is how both
+  went unnoticed for so long). Both follow the theme now, and the dark
+  theme is unchanged.
+
 ## 8.19.0 - Things that happened while nobody was watching
 
 Four fixes, and three of them are the same problem: the extension worked

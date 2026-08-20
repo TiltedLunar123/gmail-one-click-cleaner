@@ -2288,10 +2288,21 @@ const GCC = (() => {
 
   // An applied suggestion boosts future senders from the same domain a
   // little: the user showed intent to clean that kind of mail.
+  //
+  // 8.20: OTHER senders, which is what "future senders from the same
+  // domain" always meant. A sender shares a domain with itself, so an
+  // applied one was collecting its own boost for ever: +6 on the sender
+  // the user had just dealt with, permanently, over senders nobody has
+  // touched. That is the top of the suggestions list and the first 25
+  // Auto-Pilot sweeps each week, handed to the one sender with the least
+  // left to clean. The address is compared whole, so two different
+  // people at the same company still boost each other exactly as before.
   const smartDomainBoost = (feedback, email) => {
-    const domain = String(email || "").toLowerCase().split("@")[1] || "";
+    const self = String(email || "").trim().toLowerCase();
+    const domain = self.split("@")[1] || "";
     if (!domain) return 0;
     for (const [addr, fb] of Object.entries(feedback?.bySender || {})) {
+      if (addr === self) continue;
       if (fb?.action === "applied" && (addr.split("@")[1] || "") === domain) {
         return SMART_LIMITS.DOMAIN_BOOST;
       }

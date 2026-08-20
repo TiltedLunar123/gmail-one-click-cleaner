@@ -560,8 +560,15 @@
     .toast-warning { border-left: 3px solid var(--warning); }
     .toast-info { border-left: 3px solid var(--info); }
 
+    /* 8.20: tokens, for the reason the progress page's own modal note
+       already gives. This panel was a hardcoded #141d27 with a #fff
+       title while its body and both buttons took their colour from the
+       theme, so in the light theme the Cancel label landed near-black on
+       near-black and the destructive choice was the only one anybody
+       could read. It is the last thing a user sees before every custom
+       rule they have written is replaced. */
     dialog#confirmDialog {
-      background: #141d27;
+      background: var(--bg-deep);
       color: var(--text-main);
       border: 1px solid var(--border-highlight);
       border-radius: var(--radius-lg);
@@ -589,7 +596,7 @@
       font-size: 18px;
       font-weight: 600;
       margin: 0 0 12px 0;
-      color: #fff;
+      color: var(--text-main);
     }
 
     .dialog-body {
@@ -604,7 +611,7 @@
       justify-content: flex-end;
       gap: 12px;
       padding: 16px 24px;
-      background: rgba(17, 26, 36, 0.3);
+      background: var(--bg-surface-2);
       border-top: 1px solid var(--border-subtle);
     }
 
@@ -620,15 +627,22 @@
       transition: all var(--transition-fast);
     }
 
+    /* 8.20, both of these for the same reason as the panel above. A
+       white wash cannot be a hover state on a pale surface (the 8.18
+       hairline lesson), and #fca5a5 was a pale red chosen to sit on a
+       dark panel: once the panel follows the theme it measures 1.6:1 in
+       light, which would have left the destructive button as the
+       unreadable one. var(--danger) is what every other danger surface
+       in this product uses and it clears 4.5 in both themes. */
     .dialog-btn:hover {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--bg-surface-hover);
       border-color: var(--border-highlight);
     }
 
     .dialog-btn.danger {
       background: var(--danger-bg);
       border-color: var(--danger-border);
-      color: #fca5a5;
+      color: var(--danger);
     }
 
     .dialog-btn.danger:hover { background: rgba(239, 68, 68, 0.25); }

@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const OPTIONS_VERSION = "8.19.0";
+  const OPTIONS_VERSION = "8.20.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -1677,7 +1677,12 @@
       deleteBtn.textContent = "\u00D7";
       deleteBtn.title = "Remove schedule";
       deleteBtn.setAttribute("aria-label", "Remove the " + scheduleName);
-      deleteBtn.style.cssText = "background:none; border:none; color:#ef4444; font-size:18px; cursor:pointer; padding:0 4px; line-height:1;";
+      // 8.20: var(--danger), not a fixed #ef4444. A schedule row only
+      // exists once the user has made a schedule, so this glyph is
+      // another surface a live contrast pass never had on screen: at
+      // 18px on a light card the fixed red measures 3.76:1, under the
+      // 4.5 this size needs. The token clears it in both themes.
+      deleteBtn.style.cssText = "background:none; border:none; color:var(--danger); font-size:18px; cursor:pointer; padding:0 4px; line-height:1;";
       deleteBtn.addEventListener("click", async () => {
         const resp = await sendSwMessage({ type: "gmailCleanerDeleteSchedule", scheduleId: schedule.id });
         renderSchedules();

@@ -19,6 +19,30 @@ const grab = (text, re) => {
   return m ? m[0] : "";
 };
 
+/**
+ * 8.20: slice between two anchors, and FAIL when either has moved.
+ *
+ * The two "scoped runs keep the user's Minimum Age" tests below used
+ * bare indexOf chains. The purge anchor was `config.rulesOverride =
+ * [purgeQuery];` and the purge learned to chunk its addresses, so the
+ * line became `config.rulesOverride = purgeQueries;`. indexOf answered
+ * -1, `slice(-1)` handed back the last character of popup.js, the second
+ * indexOf answered -1 too and `slice(0, -1)` reduced that to the empty
+ * string. `expect("").not.toMatch(...)` passes, so the test went on
+ * reporting green while asserting nothing at all, and nothing was
+ * guarding the line it was written for.
+ *
+ * This is 8.16's own lesson about vanished end anchors, which was
+ * recorded and then not applied to the tests that already had it.
+ */
+const between = (text, startNeedle, endNeedle) => {
+  const start = text.indexOf(startNeedle);
+  if (start < 0) throw new Error(`anchor moved, nothing asserted: ${startNeedle}`);
+  const end = text.indexOf(endNeedle, start);
+  if (end < 0) throw new Error(`end anchor moved, nothing asserted: ${endNeedle}`);
+  return text.slice(start, end);
+};
+
 /** Load the real shared library so the validator can be exercised. */
 const buildShared = () => {
   // eslint-disable-next-line no-new-func
@@ -194,16 +218,20 @@ describe("7.15: autosave cannot rewrite a live run's config", () => {
 
 describe("7.15: scoped runs keep the user's Minimum Age", () => {
   test("the storage purge no longer nulls it", () => {
-    const purge = popup.slice(popup.indexOf("config.rulesOverride = [purgeQuery];"));
-    const head = purge.slice(0, purge.indexOf('files: ["contentScript.js"]'));
+    // 8.20: the anchor is `purgeQueries` now. It became plural when the
+    // purge learned to chunk its addresses across several queries, and
+    // this test spent those releases asserting against an empty string.
+    const head = between(popup, "config.rulesOverride = purgeQueries;", 'files: ["contentScript.js"]');
     expect(head).not.toMatch(/config\.minAge\s*=\s*null;/);
+    // A slice with nothing in it is what let the above pass for free, so
+    // pin that the region really is the purge starter.
+    expect(head).toMatch(/config\.archiveInsteadOfDelete\s*=\s*false;/);
   });
 
   test("the smart apply no longer nulls it", () => {
     // Sliced from rulesOverride, not from the action override: the null
     // used to sit between the two.
-    const smart = popup.slice(popup.indexOf("config.rulesOverride = queries;"));
-    const head = smart.slice(0, smart.indexOf('files: ["contentScript.js"]'));
+    const head = between(popup, "config.rulesOverride = queries;", 'files: ["contentScript.js"]');
     expect(head).toMatch(/config\.archiveInsteadOfDelete\s*=\s*Boolean\(archive\);/);
     expect(head).not.toMatch(/config\.minAge\s*=\s*null;/);
   });
