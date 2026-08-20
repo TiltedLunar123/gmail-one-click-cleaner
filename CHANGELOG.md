@@ -21,10 +21,10 @@ had not.
   scheduled cleanup will not stop and ask you about a very large batch,
   because there is nobody there to answer. It skips that rule and moves
   on, which is right. What was wrong is that the run then reported
-  itself complete. That let the Mailbox Report mark a step Cleared and
-  take away its Run button, the Storage X-ray mark a sender Purged, and
-  Auto-Pilot print a partial tally as the week's work. A refused rule
-  leaves mail behind, and the run says so now.
+  itself complete. Auto-Pilot printed a partial tally as the week's work
+  with nothing to say it had skipped anything, and the senders it never
+  got to were booked as dealt with, so they stopped being suggested. A
+  refused rule leaves mail behind, and the run says so now.
 - **An Auto-Pilot sweep that stops or fails gets recorded.** Until now
   it simply vanished. The panel went on quoting last week's number as
   though it were the latest one, and the weekly timer lost its place and
@@ -55,8 +55,9 @@ had not.
   theme-coloured text, so Cancel was invisible and the only readable
   choice was the destructive one. The tooltips on the Diagnostics page
   had the same problem (they only appear on hover, which is how both
-  went unnoticed for so long). Both follow the theme now, and the dark
-  theme is unchanged.
+  went unnoticed for so long). Both follow the theme now. They shift a
+  little in the dark theme too, because they use the shared surface
+  colours instead of their own.
 
 ## 8.19.0 - Things that happened while nobody was watching
 
