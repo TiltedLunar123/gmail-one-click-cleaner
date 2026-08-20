@@ -43,7 +43,7 @@ var GCC_CHANGELOG = {
                 ],
                 [
                   "",
-                  " A scheduled cleanup will not stop and ask you about a very large batch, because there is nobody there to answer. It skips that rule and moves on, which is right. What was wrong is that the run then reported itself complete. That let the Mailbox Report mark a step Cleared and take away its Run button, the Storage X-ray mark a sender Purged, and Auto-Pilot print a partial tally as the week's work. A refused rule leaves mail behind, and the run says so now."
+                  " A scheduled cleanup will not stop and ask you about a very large batch, because there is nobody there to answer. It skips that rule and moves on, which is right. What was wrong is that the run then reported itself complete. Auto-Pilot printed a partial tally as the week's work with nothing to say it had skipped anything, and the senders it never got to were booked as dealt with, so they stopped being suggested. A refused rule leaves mail behind, and the run says so now."
                 ]
               ]
             },
@@ -115,7 +115,7 @@ var GCC_CHANGELOG = {
                 ],
                 [
                   "",
-                  " The \"Restore Default Rules?\" confirmation had a fixed dark panel behind theme-coloured text, so Cancel was invisible and the only readable choice was the destructive one. The tooltips on the Diagnostics page had the same problem (they only appear on hover, which is how both went unnoticed for so long). Both follow the theme now, and the dark theme is unchanged."
+                  " The \"Restore Default Rules?\" confirmation had a fixed dark panel behind theme-coloured text, so Cancel was invisible and the only readable choice was the destructive one. The tooltips on the Diagnostics page had the same problem (they only appear on hover, which is how both went unnoticed for so long). Both follow the theme now. They shift a little in the dark theme too, because they use the shared surface colours instead of their own."
                 ]
               ]
             }
