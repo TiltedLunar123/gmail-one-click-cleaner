@@ -168,20 +168,42 @@ describe("a cancelled or errored unsubscribe run still reports what it did", () 
     expect(RUN).toContain('type: "gmailCleanerRecordUnsubscribes"');
   });
 
-  test("it is sent at most once however many terminal paths run", () => {
-    expect(RUN).toMatch(/let reported = false;/);
-    expect(RUN).toContain("if (reported) return;");
-    // Exactly one send site now, inside the helper.
+  // 8.20 rewrote these two. The property 8.19 wanted is "no outcome is
+  // ever sent twice", because the worker charges the free allowance off
+  // each batch it receives. 8.19 bought that with a once-only flag,
+  // which also capped the run at ONE send and made the tab being torn
+  // down mid-loop cost every outcome so far. The property is now bought
+  // by a high-water mark instead, so the helper can be called as often
+  // as it likes and still never repeat a result. Pinned as the property,
+  // not as the shape, and not as a call count: counting the call sites
+  // is exactly what kept processQuery's third short exit out for three
+  // releases.
+  test("no outcome is ever sent twice", () => {
+    expect(RUN).toMatch(/let flushedUpTo = 0;/);
+    expect(RUN).toContain("const pending = results.slice(flushedUpTo);");
+    expect(RUN).toContain("if (!pending.length) return;");
+    // The high-water mark moves BEFORE the send, so a throw inside the
+    // send cannot leave the same batch queued to go again.
+    const helper = between(RUN, "const reportResults = () => {", "};");
+    expect(helper.indexOf("flushedUpTo = results.length;"))
+      .toBeLessThan(helper.indexOf('type: "gmailCleanerRecordUnsubscribes"'));
+    // And what goes out is the unsent tail, never the whole list again.
+    expect(helper).toContain("results: pending");
+    // Exactly one send site, inside the helper.
     expect(RUN.match(/type: "gmailCleanerRecordUnsubscribes"/g) || []).toHaveLength(1);
   });
 
-  test("every terminal path reports before it announces", () => {
-    // done, cancelled and error each call the helper.
-    expect(RUN.match(/reportResults\(\);/g) || []).toHaveLength(3);
+  test("every terminal path reports before it announces, and so does every sender", () => {
     const cancelled = between(RUN, "if (e instanceof CancellationError) {", 'phase: "cancelled"');
     expect(cancelled).toContain("reportResults();");
     const errored = between(RUN, 'logError(e, "unsubscribe run");', 'phase: "error"');
     expect(errored).toContain("reportResults();");
+    const done = between(RUN, "const okCount = results.filter", 'phase: "done"');
+    expect(done).not.toBeNull();
+    // 8.20: and the loop itself, so a tab closed mid-run loses at most
+    // the sender in flight rather than all of them.
+    const loop = between(RUN, "results.push({ sender: email, status });", "await sleep(");
+    expect(loop).toContain("reportResults();");
   });
 
   test("the popup merges the partial statuses a stopped run carries", () => {

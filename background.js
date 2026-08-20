@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "8.19.0";
+  const SW_VERSION = "8.20.0";
 
   // =========================
   // Storage Keys
@@ -1012,7 +1012,9 @@
 
       case "gmailCleanerClearUndoLog":
         // 8.16: locked, like recordUndoEntry above it. See clearUndoLog.
-        withStorageLock(() => clearUndoLog()).then(() => sendResponse({ ok: true }));
+        withStorageLock(() => clearUndoLog())
+          .then(() => sendResponse({ ok: true }))
+          .catch((err) => sendResponse({ ok: false, error: err?.message || "clear failed" }));
         return true;
 
       // Stats retrieval
@@ -1035,7 +1037,11 @@
       case "gmailCleanerDeleteSchedule":
         deleteSchedule(msg.scheduleId)
           .then(() => restoreScheduledAlarms())
-          .then(() => sendResponse({ ok: true }));
+          .then(() => sendResponse({ ok: true }))
+          // 8.20: the missing half. Without it a rejection also left
+          // sendResponse uncalled, so the Options page waited on a reply
+          // that was never coming.
+          .catch((err) => sendResponse({ ok: false, error: err?.message || "delete failed" }));
         return true;
 
       // 8.15: an import writes the schedules key straight to sync
@@ -1643,9 +1649,23 @@
   // finished, so it does not get the mark. The cost of being wrong that
   // way is one rescan; the cost the other way is the button the user
   // needed to finish the job.
+  // 8.20: and `declined` is the third way a run ends with mail still
+  // behind it. The soft cap and the huge-run gate raise a dialog nobody
+  // is there to answer on a scheduled run, so the engine refuses those
+  // rules rather than hanging the tab, counts them in `declinedRules`
+  // and rides the total here. It is the same fact `stoppedShort`
+  // carries, arrived at by a different road, and it was the only one of
+  // the three this helper did not read: an Auto-Pilot sweep that
+  // declined every rule for being too large reported "Last sweep
+  // archived N emails" with no "it stopped before finishing" beside it,
+  // and N was the tally of the rules it did get to. The decline does not
+  // even need a big mailbox: a bulk selection whose size Gmail will not
+  // state reads as over-cap too, and an unreadable toolbar count is this
+  // project's most familiar kind of breakage.
   function runFinishedClean(summary) {
     if (!summary || typeof summary !== "object") return false;
     if (summary.outcome !== "completed") return false;
+    if (Number(summary.declined) > 0) return false;
     return !(Number(summary.stoppedShort) > 0);
   }
 
@@ -2453,10 +2473,14 @@
     return (now - (Number(fb.at) || 0)) < AUTOPILOT_DISMISS_TTL_MS;
   }
 
+  // 8.20: a sender no longer boosts itself. See GCC.smart.domainBoost,
+  // which this is the worker's pinned copy of.
   function autoPilotDomainBoost(feedback, email) {
-    const domain = String(email || "").toLowerCase().split("@")[1] || "";
+    const self = String(email || "").trim().toLowerCase();
+    const domain = self.split("@")[1] || "";
     if (!domain) return 0;
     for (const [addr, fb] of Object.entries(feedback?.bySender || {})) {
+      if (addr === self) continue;
       if (fb?.action === "applied" && (addr.split("@")[1] || "") === domain) {
         return AUTOPILOT_DOMAIN_BOOST;
       }
@@ -3282,9 +3306,27 @@
               pending: { ...pending, observedCount: Math.max(0, Number(msg.stats.runCount) || 0) }
             });
           }
-        } else if (msg.phase === "error" || msg.phase === "cancelled") {
-          await setAutoPilotState({ pending: null });
         }
+        // 8.20: an errored or cancelled apply used to clear `pending`
+        // right here, and clearing it is what stopped the sweep being
+        // recorded at all. The engine sends the terminal PROGRESS first
+        // and `gmailCleanerDone` from its finally a moment later, and
+        // the worker handles them in that order, so by the time the
+        // authoritative close-out arrived there was no pending row left
+        // and resolveAutoPilotDone returned on its first line. Nothing
+        // wrote lastRun, so the popup went on quoting the PREVIOUS
+        // sweep's tally for one that had just died, and `incomplete`
+        // -- the flag 8.16 added for exactly this -- could never be set
+        // by the two outcomes it was written for. Nothing re-anchored
+        // the sync-side lastRunAt either, so the next
+        // restoreAutoPilotAlarm found the old one already past and
+        // re-armed a live unattended sweep about a minute out, days
+        // early. This is the same failure the 8.12 note on the toggle-
+        // off path describes; it was fixed there and left standing
+        // here. The pending row is left for the done handler to consume,
+        // and if that message never arrives at all the two-hour TTL
+        // above still clears it. The scan stage keeps its own clear:
+        // a scan that died moved no mail, so there is nothing to record.
       }
     } catch (e) {
       console.warn("[GCC SW] handleAutoPilotProgress failed:", e?.message || e);
@@ -3966,7 +4008,13 @@
     try {
       await chrome.storage.local.set({ [STORAGE_KEYS.UNDO_LOG]: [] });
     } catch (e) {
+      // 8.20: rethrow, same reason as deleteSchedule. The Stats page
+      // toasted "Log cleared" whatever happened here, so a write that
+      // failed left every entry in place under a message saying they
+      // were gone. This log is the record of what was deleted and how to
+      // get it back, and clearing it is something people do on purpose.
       console.error("[GCC SW] clearUndoLog failed:", e);
+      throw e;
     }
   }
 
@@ -4067,7 +4115,17 @@
         // Clear alarm
         await chrome.alarms.clear(ALARM_PREFIX + scheduleId);
       } catch (e) {
+        // 8.20: rethrow, exactly as saveSchedule above does and for the
+        // same reason. This used to swallow, and its router had no catch
+        // either, so a delete that failed answered { ok: true } and the
+        // Options page toasted "Schedule removed" over a schedule that
+        // was still in sync storage with its alarm still armed. The next
+        // unattended cleanup then ran on a schedule the user had watched
+        // themselves delete. The Options page has always had the error
+        // branch for this (scheduleError -> "Could not remove the
+        // schedule"); nothing could ever reach it.
         console.error("[GCC SW] deleteSchedule failed:", e);
+        throw e;
       }
     });
   }

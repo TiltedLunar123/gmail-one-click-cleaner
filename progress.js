@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const PROGRESS_VERSION = "8.19.0";
+  const PROGRESS_VERSION = "8.20.0";
 
   const CONFIG = Object.freeze({
     MAX_LOG_ENTRIES: 300,
@@ -1593,11 +1593,29 @@
         copyLogs();
       }
 
-      // Enter in review modal -> proceed
+      // Enter in review modal -> proceed, but ONLY from neutral focus.
+      //
+      // 8.20: this listener sits on `document`, so a keydown from a
+      // focused button inside the dialog bubbles up to it, and the
+      // preventDefault below cancels the activation the browser was
+      // about to perform. Tab to "Skip This Rule", press Enter, and the
+      // engine was told to RESUME: the batch the user had just asked to
+      // skip was cleaned instead, which is the one thing Review Mode
+      // exists to prevent. The popup learned this in 8.12 and the guard
+      // there is the same one: anything with its own Enter behaviour
+      // keeps it. Proceed carries `autofocus`, so the shortcut still
+      // answers Enter for everyone who has not moved focus, which is the
+      // case it was written for.
       if (e.key === "Enter" && ui.reviewModal?.open) {
-        e.preventDefault();
-        closeReviewModal();
-        sendReviewSignal("resume");
+        const ownsEnter = e.target?.closest?.(
+          'a[href], button, select, input, textarea, summary, ' +
+          '[role="button"], [role="link"], [contenteditable="true"]'
+        );
+        if (!ownsEnter) {
+          e.preventDefault();
+          closeReviewModal();
+          sendReviewSignal("resume");
+        }
       }
     });
   };

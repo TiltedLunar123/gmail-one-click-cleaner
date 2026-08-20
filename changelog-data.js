@@ -6,13 +6,123 @@
 // even of a file inside the package, would end the extension's
 // no-network-calls promise.
 //
-// Carries the newest 12 of 75 releases; the page says so
+// Carries the newest 12 of 76 releases; the page says so
 // and links the full log on GitHub.
 
 // eslint-disable-next-line no-unused-vars
 var GCC_CHANGELOG = {
-  "total": 75,
+  "total": 76,
   "entries": [
+    {
+      "version": "8.20.0",
+      "title": "Skip means skip, and done means done",
+      "intro": [
+        "Eight fixes. Most are the same complaint wearing different clothes: a button, a message or a report told you something had happened when it had not."
+      ],
+      "sections": [
+        {
+          "name": "Fixed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "\"Skip This Rule\" skips, even from the keyboard."
+                ],
+                [
+                  "",
+                  " In Review Mode the cleaner stops before a batch and offers you Proceed or Skip. Tab to Skip, press Enter, and the batch got cleaned anyway. A keyboard shortcut on the page was answering Enter before the button could, and it always answered Proceed. The buttons speak for themselves now. Pressing Enter without moving focus still proceeds, which is what the shortcut was there for."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "A run that refused a rule no longer calls itself finished."
+                ],
+                [
+                  "",
+                  " A scheduled cleanup will not stop and ask you about a very large batch, because there is nobody there to answer. It skips that rule and moves on, which is right. What was wrong is that the run then reported itself complete. That let the Mailbox Report mark a step Cleared and take away its Run button, the Storage X-ray mark a sender Purged, and Auto-Pilot print a partial tally as the week's work. A refused rule leaves mail behind, and the run says so now."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "An Auto-Pilot sweep that stops or fails gets recorded."
+                ],
+                [
+                  "",
+                  " Until now it simply vanished. The panel went on quoting last week's number as though it were the latest one, and the weekly timer lost its place and could fire again a minute later. The sweep is recorded either way now, and one that stopped early says so."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Unsubscribes are saved as they happen."
+                ],
+                [
+                  "",
+                  " They used to be held until the run ended. Close the Gmail tab halfway through and you lost every one of them: no marks on your list, nothing in your totals, no way to tell which senders you had already done. The most a closed tab can cost you now is the one in progress."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "A sender you have already cleaned stops pushing itself to the top."
+                ],
+                [
+                  "",
+                  " Cleaning a sender gives a small nudge to others at the same domain, which is the point. It was also nudging that sender, for ever, above senders nobody had touched. So the same handful sat at the top of your suggestions and at the front of every weekly sweep."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "\"Schedule removed\" and \"Log cleared\" only appear when they are true."
+                ],
+                [
+                  "",
+                  " Both were shown whatever happened. A schedule that failed to delete stayed where it was with its timer still running, and a recovery log that failed to clear kept every entry. Both say plainly now when the change did not go through."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The cleaner tells you when it cannot read your saved rules."
+                ],
+                [
+                  "",
+                  " If Chrome will not hand over your stored settings, the run falls back to the built-in rules for that level. That is the sensible thing to do, and it used to do it in silence. It says so now, for your rules and for your custom rules separately."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Two more places are readable in the light theme."
+                ],
+                [
+                  "",
+                  " The \"Restore Default Rules?\" confirmation had a fixed dark panel behind theme-coloured text, so Cancel was invisible and the only readable choice was the destructive one. The tooltips on the Diagnostics page had the same problem (they only appear on hover, which is how both went unnoticed for so long). Both follow the theme now, and the dark theme is unchanged."
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "8.19.0",
       "title": "Things that happened while nobody was watching",
@@ -1585,29 +1695,6 @@ var GCC_CHANGELOG = {
                 [
                   "",
                   " The progress page has a Freed MB column beside each rule, and the run never sent it a figure, so every row of every run showed zero while the total at the end was correct. Each rule now reports its own share, and archive runs and dry runs correctly report none."
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "version": "8.9.1",
-      "title": "Store listing wording",
-      "sections": [
-        {
-          "name": "Changed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "The store listing no longer names languages one by one."
-                ],
-                [
-                  "",
-                  " The description used to spell out which languages the cleaner can drive Gmail in, twice over, in all seven listing languages. The Chrome Web Store read that list as keyword spam and turned the update down, so the listing now makes the same point without the roll call. The extension itself is unchanged: this release exists to carry the corrected listing."
                 ]
               ]
             }

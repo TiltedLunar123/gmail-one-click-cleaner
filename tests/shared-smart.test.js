@@ -149,6 +149,36 @@ describe("GCC.smart feedback: decay, boost and the bound", () => {
     expect(ranked[0].score).toBeGreaterThan(ranked[1].score);
   });
 
+  // 8.20: "future senders from the same domain" never meant the sender
+  // itself, but a sender shares a domain with itself, so an applied one
+  // collected its own +6 for ever. That is the top of the suggestions
+  // list and the first 25 Auto-Pilot sweeps each week, handed to the one
+  // sender the user has already dealt with.
+  test("an applied sender does not boost itself over senders nobody has touched", () => {
+    const cleaned = mkSender({ email: "news@shop.com", signals: { count: 100, unreadRatio: 0.5 }, estCount: 100 });
+    const untouched = mkSender({ email: "deals@other.com", signals: { count: 100, unreadRatio: 0.5 }, estCount: 100 });
+
+    const tied = S.rankSenders([cleaned, untouched], null, NOW).map((s) => s.score);
+    expect(tied[0]).toBe(tied[1]);
+
+    const fb = S.recordFeedback(null, "news@shop.com", "applied", NOW);
+    const ranked = S.rankSenders([cleaned, untouched], fb, NOW);
+    const scoreOf = (email) => ranked.find((s) => s.email === email).score;
+    expect(scoreOf("news@shop.com")).toBe(scoreOf("deals@other.com"));
+  });
+
+  test("a colleague at the same domain still gets the boost", () => {
+    // The half of the rule that was always wanted: the user showed
+    // intent to clean that kind of mail, so its neighbours rank up.
+    const sibling = mkSender({ email: "deals@shop.com", signals: { count: 100, unreadRatio: 0.5 }, estCount: 100 });
+    const stranger = mkSender({ email: "deals@other.com", signals: { count: 100, unreadRatio: 0.5 }, estCount: 100 });
+    const fb = S.recordFeedback(null, "news@shop.com", "applied", NOW);
+
+    const ranked = S.rankSenders([stranger, sibling], fb, NOW);
+    expect(ranked[0].email).toBe("deals@shop.com");
+    expect(ranked[0].score).toBeGreaterThan(ranked[1].score);
+  });
+
   test("the map is bounded: past the cap the oldest entries evict first", () => {
     let fb = { bySender: {} };
     for (let i = 0; i < S.LIMITS.MAX_FEEDBACK; i++) {

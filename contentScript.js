@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "8.19.0";
+  const GCC_CONTENT_VERSION = "8.20.0";
 
   // =========================
   // Timing & behavior constants
@@ -2316,6 +2316,31 @@
     return kept;
   }
 
+  // 8.20: three answers from a sync read, not two.
+  //
+  // `chrome.storage.sync.get(key, cb)` calls back with `undefined` and
+  // sets runtime.lastError when the read fails, which is the same shape
+  // an install that has never opened Options produces. Both then landed
+  // on `result?.rules ?? DEFAULT_RULES`, so a failed read was
+  // indistinguishable from an unconfigured one and the run quietly used
+  // a rule set the user had not chosen while reporting ordinary
+  // success. `null` here means the read failed; `{}` means it worked and
+  // there is nothing stored, which is a real answer and keeps the
+  // defaults it always had. Same three-answer shape as 8.15's
+  // readSafetyList and 8.14's readLicenseState.
+  async function syncReadOrNull(key) {
+    try {
+      return await new Promise((resolve) => {
+        chrome.storage.sync.get(key, (value) => {
+          const failed = typeof chrome !== "undefined" && chrome.runtime?.lastError;
+          resolve(failed || value === undefined ? null : value);
+        });
+      });
+    } catch {
+      return null;
+    }
+  }
+
   async function getRules(intensity) {
     const riskyCategories = ["category:updates", "category:forums"];
 
@@ -2336,9 +2361,19 @@
 
     try {
       if (hasChromeStorage("sync")) {
-        const result = await new Promise((resolve) => {
-          chrome.storage.sync.get("rules", resolve);
-        });
+        const result = await syncReadOrNull("rules");
+        if (result === null) {
+          // The run still goes ahead on the engine's own table, because
+          // refusing every cleanup over a transient storage hiccup is
+          // the worse trade and this function's outer catch has always
+          // said so. What changes is that it is no longer silent: the
+          // rules about to run are not the ones this install saved.
+          safeSend({
+            phase: "warning",
+            status: "Could not read your saved rules",
+            detail: "Chrome would not hand over your stored rule set, so this run uses the built-in rules for this level. Open Options to check them, or run again later."
+          });
+        }
 
         const allRules = result?.rules ?? DEFAULT_RULES;
         // Make a mutable copy of the rule set.
@@ -2366,9 +2401,17 @@
 
         // Load and merge custom rules BEFORE applying safe mode filter
         try {
-          const customResult = await new Promise((resolve) => {
-            chrome.storage.sync.get("customRules", resolve);
-          });
+          const customResult = await syncReadOrNull("customRules");
+          if (customResult === null) {
+            // The mirror image of the read above: here a failed read
+            // means rules the user WROTE are missing from this run, and
+            // the old code could not tell that from having none.
+            safeSend({
+              phase: "warning",
+              status: "Could not read your custom rules",
+              detail: "Chrome would not hand over your custom rules, so this run skipped them. The built-in rules for this level still ran."
+            });
+          }
           const customRules = customResult?.customRules || [];
           for (const cr of customRules) {
             if (!cr.query || typeof cr.query !== "string") continue;
@@ -4872,16 +4915,30 @@
     // half-finished cleanup these are facts worth keeping. 8.16's rule is
     // the other way round and still holds: a stopped run must not claim
     // to have FINISHED something, and nothing here says it did.
-    let reported = false;
+    // 8.20: and it reports as it goes, not once at the end.
+    //
+    // 8.19 reached every terminal path this run can take, and the tab
+    // being torn down is not one of them. Closing the Gmail tab, or
+    // navigating it, kills the page mid-loop with no terminal path left
+    // to run, and twenty-five senders at a message apiece is minutes of
+    // sitting there: the outcomes already achieved went nowhere. An
+    // unsubscribe cannot be undone, so that record is the only evidence
+    // it happened, and without it the Lists tab still shows those
+    // senders as subscribed and invites the user to do it all again.
+    // Flushing after each sender means the most a closed tab can lose is
+    // the one in flight. `flushedUpTo` is what keeps a result from being
+    // sent twice, which matters because the worker CHARGES the free
+    // allowance off each batch it receives.
+    let flushedUpTo = 0;
     const reportResults = () => {
-      if (reported) return;
-      reported = true;
-      if (!results.length) return;
+      const pending = results.slice(flushedUpTo);
+      if (!pending.length) return;
+      flushedUpTo = results.length;
       try {
         if (hasChromeRuntime()) {
           chrome.runtime.sendMessage({
             type: "gmailCleanerRecordUnsubscribes",
-            results
+            results: pending
           });
         }
       } catch (e) {
@@ -4944,6 +5001,9 @@
         }
 
         results.push({ sender: email, status });
+        // Recorded before the pause, so the gap between senders is not a
+        // window where a closed tab costs the user this outcome.
+        reportResults();
         await sleep(SUBSCRIPTIONS.BETWEEN_SENDERS_MS);
       }
 
@@ -6791,7 +6851,12 @@
       // 8.10: the per-rule row the progress table reads, and the dry-run
       // sentence, so both can be driven rather than pinned as source.
       recordQueryStats,
-      buildHumanSummary
+      buildHumanSummary,
+      // 8.20: the rule loader and the three-answer sync read under it,
+      // so "a failed read is not an unconfigured install" can be driven
+      // rather than pinned as source.
+      getRules,
+      syncReadOrNull
     };
   }
 
