@@ -157,7 +157,43 @@ describe("Smart Suggestions count what their own button acts on (8.6)", () => {
     // no measured count. Saying nothing beats a number nothing honours.
     expect(helper).toContain('if (typeof raw !== "number" || !Number.isFinite(raw)) return "";');
     expect(helper).toContain('if (action === "unsubscribe") return "";');
-    expect(popupSrc).toContain("const willTake = GCC.smart.actionCountText(sender);");
+    // 8.21: the card still takes its number from this one helper, and now
+    // has a SECOND reason to say nothing: the guards it was measured
+    // through have moved since the scan, so the button beside it would
+    // reach different mail. Pinned as "the helper is the only source, and
+    // the stale case suppresses it", not as one exact line.
+    expect(popupSrc).toContain("GCC.smart.actionCountText(sender)");
+    expect(popupSrc).toContain('smartGuardsChanged() ? "" : GCC.smart.actionCountText(sender)');
+    expect(popupSrc.split("GCC.smart.actionCountText(").length - 1).toBe(1);
+  });
+
+  // 8.21: the same invariant this file exists for, on the surface where a
+  // single press acts on one sender's entire history. `reachable` is
+  // measured once at scan time through applyGlobalGuards; the button
+  // reads the Clean tab checkboxes live. The scan now records what it
+  // measured through, and the popup compares before it promises.
+  test("a smart scan records the guards its counts were measured through", () => {
+    const send = fnBody(engineSrc, 'type: "gmailCleanerSmartScanResult"', "safeSendImmediate({");
+    for (const field of [
+      "safeMode:", "minAge:", "guardSkipStarred:", "guardSkipImportant:",
+      "guardSkipUnread:", "guardSkipUserLabels:"
+    ]) {
+      expect(send).toContain(field);
+    }
+
+    // The worker persists them through the same sanitiser the report uses,
+    // so the two cannot drift into disagreeing about what a guard is.
+    const record = fnBody(bgSrc, "async function recordSmartScan(", "async function recordSmartFeedback");
+    expect(record).toContain("guards: sanitizeScanGuards(guards)");
+    expect(bgSrc).toContain("function sanitizeScanGuards(guards)");
+
+    // And the popup compares over the SAME field list the report uses.
+    const changed = fnBody(popupSrc, "const smartGuardsChanged = () => {", "const renderSmartGuardNote");
+    expect(changed).toContain("REPORT_GUARD_FIELDS.some(");
+    expect(changed).toContain("liveReportGuards()");
+    // A scan stored before 8.21 has no snapshot, and "cannot tell" must
+    // not blank a number that is probably still right.
+    expect(changed).toContain("if (!measured) return false;");
   });
 
   test("reachable survives the worker round trip, and missing is not zero", () => {

@@ -3,6 +3,120 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.21.0 - It reads the mailbox, not the mail
+
+Fourteen fixes. The one that matters most: on a Japanese, Korean,
+Chinese, Russian, Arabic, Swedish, Danish, Norwegian, Polish, Turkish,
+Dutch, Italian, Spanish or Portuguese Gmail, the cleaner could not use
+Gmail's "select all conversations that match" offer at all, so big
+cleanups crawled fifty at a time and gave up with most of the mail still
+there. That is fixed for every language the cleaner speaks.
+
+The rest are mostly the same shape twice over: a number read out of your
+mail instead of out of Gmail's own toolbar, and a guard that had been
+added in one place and not in the identical place next to it.
+
+### Fixed
+- **Bulk cleanup works in every language now.** When a rule matches
+  thousands of conversations, Gmail offers to select all of them at once,
+  and taking that offer is what turns an hour of paging into one action.
+  The cleaner only recognised that offer in English, German and French.
+  Everywhere else it never saw it, so it deleted a page at a time until
+  it hit its own pass limit and stopped, leaving most of the mail behind.
+  It now recognises the offer in all seventeen languages it drives Gmail
+  in. Spanish and Portuguese were doubly affected: the wording it looked
+  for did not allow for Gmail naming the number in the middle of the
+  sentence, which it always does.
+- **A subject line can no longer be mistaken for the results counter.**
+  When Gmail will not say how many conversations a search found, the
+  cleaner reads what it can off the page. It was willing to take that
+  number from an email in the list, so a promotional subject like "Sale
+  10-20% off: 5000 items left" could be read as the size of the job. That
+  number is what the "this will delete about N conversations" warning is
+  based on, so a wrong one meant no warning at all. It only reads Gmail's
+  own counter now, and it will not read one out of a message.
+- **Nor for a selection count.** The same shape, one step over: a subject
+  like "You have been selected for 3 free rewards" was read as "3
+  conversations are selected". That mattered because a count of zero is
+  how the cleaner notices Gmail has changed its layout and stops with a
+  clear explanation. With a number invented from a subject line it
+  carried on instead, clicking Delete on an empty selection and retrying
+  every rule until it ran out of attempts.
+- **Escape in the log filter no longer cancels the cleanup.** The
+  progress page has a "Filter logs" box. Typing in it and pressing Escape
+  to clear it, which is what Escape does in every search box, stopped the
+  run instead. Escape still closes a dialog and still cancels from
+  anywhere else on the page.
+- **A scheduled cleanup will not pick up your Chat window.** Gmail serves
+  Chat from the same address as your mail. An unattended cleanup chose
+  whichever of those tabs you were looking at, so if you were chatting
+  when the timer fired, it took that tab, navigated it away from your
+  conversation mid-sentence, and then could not finish. The run was
+  recorded as done, that week's cleanup never happened, and for the next
+  two hours every manual run was refused with "a cleanup is already
+  running". Only real mailbox tabs are used now, and the account picker
+  no longer offers a Chat window either.
+- **A preview says what it found.** The desktop notification after a dry
+  run was headlined "0 emails moved to Trash", because a preview does not
+  move anything. Auto-Pilot's first sweep is a preview by design, so this
+  was the first thing it ever said to a new Pro user. It reports what the
+  preview found.
+- **A cleanup that skipped some rules says so, even when it cleared
+  others.** An unattended run skips a rule too large to run without
+  asking, which is right. If it cleared nothing at all it said so, but if
+  it cleared some it just reported the total, and rules holding tens of
+  thousands of messages went unmentioned. The notification is the only
+  thing an unattended run can tell you, so it now says both.
+- **The Storage caveat is shown before you pay, not after.** The storage
+  scan measures large mail of any age. The purge only takes mail older
+  than six months, and the sentence explaining that difference was only
+  shown to people who had already bought Pro. Everyone else saw the big
+  reclaimable figure, the sender list, and the Purge button with nothing
+  to say the two numbers are not the same number.
+- **The Auto-Pilot pitch counts what Auto-Pilot can actually do.** It led
+  with the number of suggestions on screen and offered to sweep "them"
+  every week. It only ever sweeps the delete and archive suggestions, so
+  nine on screen could mean two swept. It now counts the ones it will
+  take.
+- **A suggestion stops promising a count once you change your safety
+  switches.** "Deletes 40 now" was measured when you ran the scan. Turn
+  off Skip Unread afterwards and the button would reach far more than 40.
+  The suggestions now notice, say your switches have changed, and stop
+  quoting a figure until you scan again, exactly as the Mailbox Report
+  already did.
+- **The "held back by your guards" note no longer exaggerates.** It
+  counted every message a sender had ever sent, when what the guards
+  actually held back was the smaller set the suggested action would have
+  touched.
+- **"Rate 5 stars" opens one store, and the right one.** On Firefox it
+  opened two tabs, one of them the Chrome Web Store.
+- **Six more things are readable in the light theme.** The "Show guards"
+  button on the Report tab was invisible. So was the confirmation on
+  "Force reset", the name of a second mailbox when you have two Gmail
+  tabs open, a step blocked by Safe Mode, a step you have already
+  cleared, and every scheduled cleanup row on the Options page, including
+  whether it is switched on. All of these only appear in situations a
+  quick look at the extension never reaches, which is why they lasted
+  this long.
+- **A notification setting that fails to save says so** instead of
+  looking as though it saved.
+
+### Changed
+- Norwegian mailboxes get Norwegian search terms whether Gmail reports
+  the language as `nb`, `nn` or `no`.
+- The privacy policy now describes the page your browser opens when you
+  uninstall. Nothing about that page changed: it carries no information
+  about you or your mail, and it has been described in the security notes
+  since 8.9. It should have been in the policy too.
+- The popup no longer allows a font server it never used in its content
+  security policy.
+- The Duration shown after a run is how long the run took. It used to be
+  how long the progress page had been open, so opening it late, or
+  reloading it, gave a smaller number.
+- The Stats page stops replaying its opening animation every thirty
+  seconds. The charts were collapsing and regrowing, and the totals were
+  counting up from zero again, twice a minute.
+
 ## 8.20.0 - Skip means skip, and done means done
 
 Eight fixes. Most are the same complaint wearing different clothes: a

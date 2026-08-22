@@ -15,7 +15,7 @@ const GCC = new Function("document", "window", "chrome",
     getElementById: () => null,
     querySelectorAll: () => [],
     querySelector: () => null,
-    createElement: (tag) => ({
+    createElement: (_tag) => ({
       className: "", setAttribute: () => {}, appendChild: () => {},
       style: {}, classList: { add: () => {}, remove: () => {} },
       remove: () => {}

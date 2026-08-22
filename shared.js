@@ -754,7 +754,15 @@ const GCC = (() => {
       errors.push(`Query is too long (${q.length} chars, max ${MAX_QUERY_CHARS})`);
     }
 
-    const lower = q.toLowerCase();
+    // 8.21: Gmail treats `label:"trash"` and `label:trash` as the same
+    // query, and the token match below is literal, so the quoted form
+    // walked past this refusal AND past the engine's copy of it. Unwrap
+    // the quotes around an operator's value before matching. Only the
+    // string used for THIS test changes; the query itself is saved and
+    // run exactly as the user wrote it. Kept identical to
+    // queryHasDangerousToken in contentScript.js, which is the whole
+    // point of the two copies being pinned against each other.
+    const lower = q.toLowerCase().replace(/([a-z]+:)\s*["']([^"']*)["']/g, "$1$2");
 
     // A leading "(" or "{" opens a group, so `(is:starred)` and Gmail's
     // OR-group `{is:starred is:unread}` are every bit as positive as the
@@ -2591,9 +2599,40 @@ const GCC = (() => {
     return t("smartWillDelete", `Deletes ${n} now`, [n]);
   };
 
+  // 8.21: how many of these suggestions Auto-Pilot can actually take.
+  //
+  // The locked Auto-Pilot row led with the number of VISIBLE suggestions
+  // and promised that Auto-Pilot sweeps "them" every week. The sweep only
+  // ever runs deleteOld and archiveAll: purgeLarge measures through
+  // `larger:` guards the rule would drop, and unsubscribe moves no mail
+  // at all, so both are deferred. Nine suggestions, six of them
+  // unsubscribe, meant the upsell said nine and the first sweep took two.
+  // The post-purchase line has told the truth since 8.10; this is the
+  // same fact before the money changes hands.
+  //
+  // Kept beside resolvedAction because the worker's autoPilotActionSweepable
+  // is a deliberate self-contained copy, and the two are pinned against
+  // each other. An entry with no action at all predates 8.6 and counts,
+  // exactly as the worker treats it.
+  const AUTOPILOT_SWEEPABLE = ["deleteOld", "archiveAll"];
+  const smartSweepable = (sender) => {
+    const action = sender?.action;
+    if (typeof action !== "string" || !action) return true;
+    return AUTOPILOT_SWEEPABLE.includes(action);
+  };
+  const smartSweepableCount = (senders, cap) => {
+    const list = Array.isArray(senders) ? senders : [];
+    const n = list.filter(smartSweepable).length;
+    const limit = Number(cap);
+    return Number.isFinite(limit) && limit > 0 ? Math.min(n, limit) : n;
+  };
+
   const smart = Object.freeze({
     LIMITS: SMART_LIMITS,
     ACTIONS: SMART_ACTIONS,
+    SWEEPABLE_ACTIONS: AUTOPILOT_SWEEPABLE,
+    sweepable: smartSweepable,
+    sweepableCount: smartSweepableCount,
     ACTION_LABELS: SMART_ACTION_LABELS,
     score: smartScore,
     vetoReasons: smartVetoReasons,

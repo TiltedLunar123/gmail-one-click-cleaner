@@ -456,8 +456,23 @@ describe("Auto-Pilot sweeps the mailbox it measured (Pro)", () => {
     // mail.google.com also serves /chat/, which the tab query matches and
     // which gmailAccountOf reads no account out of, so a host-only test
     // would let a Chat tab pass as "the mailbox we measured".
+    //
+    // 8.21: this used to pin the regex LITERAL inside this one function,
+    // and 8.21 found the same test was missing from the two functions that
+    // CHOOSE the tab. Moving the check into a shared isMailboxTab broke
+    // this pin without breaking the guard, which is the wrong way round.
+    // Pinned as behaviour now, on the helper every caller shares.
     const fn = fnBody(BG_SRC, "async function getAutoPilotMeasuredTab(pending)", "async function runAutoPilot");
-    expect(fn).toContain("mail\\.google\\.com\\/mail\\/");
+    expect(fn).toContain("isMailboxTab(tab?.url)");
+
+    const decl = fnBody(BG_SRC, "const isMailboxTab =", ";") + ";";
+    const isMailboxTab = new Function(`${decl}\nreturn isMailboxTab;`)();
+    expect(isMailboxTab("https://mail.google.com/mail/u/0/#inbox")).toBe(true);
+    expect(isMailboxTab("https://mail.google.com/mail/u/2/#search/x")).toBe(true);
+    expect(isMailboxTab("https://mail.google.com/chat/u/0/#chat/home")).toBe(false);
+    expect(isMailboxTab("https://mail.google.com/")).toBe(false);
+    expect(isMailboxTab("")).toBe(false);
+    expect(isMailboxTab(undefined)).toBe(false);
   });
 
   test("a pending row written before 8.11 is not stranded by the new check", () => {

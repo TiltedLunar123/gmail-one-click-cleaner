@@ -57,7 +57,17 @@ describe("the privacy policy is reachable from inside the extension", () => {
     expect(policy).toMatch(/\*\*Effective \d{4}-\d{2}-\d{2}\.\*\*/);
     expect(policy.length).toBeGreaterThan(2000);
     // The claim the whole document rests on.
-    expect(policy).toMatch(/no network requests of its own/);
+    //
+    // 8.21 narrowed the wording from "makes no network requests of its
+    // own at all" to "the extension itself issues no network requests at
+    // all", because the sentence promised the list below it was
+    // exhaustive and the list did not mention the uninstall page the
+    // BROWSER opens after the extension is gone. README.md and
+    // SECURITY.md had described it since 8.9; the store-facing document
+    // was the only one that did not.
+    expect(policy).toMatch(/the extension itself issues no network requests/);
+    expect(policy).toMatch(/runtime\.setUninstallURL/);
+    expect(policy).toMatch(/uninstall\.html/);
   });
 
   test("nothing still LINKS to the retired secplusmastery policy", () => {
@@ -115,16 +125,71 @@ describe("the privacy policy is reachable from inside the extension", () => {
     // A link is the browser navigating on a click. A request would be
     // the extension reaching out, which would break the one claim the
     // listings, SECURITY.md and the AMO reviewer notes all rest on.
-    const SHIPPED = [
-      "shared.js", "popup.js", "options.js", "background.js",
-      "contentScript.js", "progress.js", "stats.js", "diagnostics.js",
-      "browser-polyfill.js"
-    ];
-    const NETWORK = /\bfetch\s*\(|XMLHttpRequest|sendBeacon|new\s+WebSocket|new\s+EventSource|\.ajax\s*\(/;
-    for (const file of SHIPPED) {
-      const hit = read(file).split(/\r?\n/).findIndex((line) => NETWORK.test(line));
+    //
+    // 8.21: the file list was written out by hand here and had fallen
+    // behind what ships: changelog.js and changelog-data.js were both
+    // missing, and no HTML was scanned at all, while PRIVACY.md publishes
+    // a verification command over `*.js *.html` and promises this test
+    // enforces it. Read the list from build.js instead, so "what ships"
+    // and "what is checked" cannot drift again.
+    const { FILES } = require("../build.js");
+    const scanned = FILES.filter((f) => f.endsWith(".js") || f.endsWith(".html"));
+    // If a future build drops most of the package this must not quietly
+    // become a test of nothing.
+    expect(scanned.length).toBeGreaterThanOrEqual(15);
+    expect(scanned).toContain("changelog.js");
+    expect(scanned).toContain("changelog-data.js");
+    expect(scanned).toContain("popup.html");
+
+    const NETWORK = /\bfetch\s*\(|XMLHttpRequest|sendBeacon|new\s+WebSocket|new\s+EventSource|\.ajax\s*\(|importScripts\s*\(/;
+    for (const file of scanned) {
+      // Comments describing the claim are not the claim. This repo has
+      // been caught by that six times, including by its own tooling.
+      const lines = read(file)
+        .replace(/<!--[\s\S]*?-->/g, "")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .split(/\r?\n/)
+        .map((l) => l.replace(/^\s*\/\/.*$/, ""));
+      const hit = lines.findIndex((line) => NETWORK.test(line));
       if (hit !== -1) {
-        throw new Error(`${file}:${hit + 1} introduces a network call: ${read(file).split(/\r?\n/)[hit].trim()}`);
+        throw new Error(`${file}:${hit + 1} introduces a network call: ${lines[hit].trim()}`);
+      }
+    }
+  });
+
+  test("and no shipped file names a remote origin at runtime", () => {
+    // The uninstall page is a fixed navigation the BROWSER performs after
+    // the extension is gone (background.js sets it via setUninstallURL and
+    // tests/uninstall-page.test.js pins that it carries no parameters), and
+    // the purchase host is reached by the user clicking a link. Anything
+    // else pointing off-device in a shipped file would be new, and would
+    // contradict the policy.
+    const { FILES } = require("../build.js");
+    // Exact hosts. Every one is either a link the USER clicks or a
+    // namespace string the browser never fetches; none is requested by
+    // the extension. A host not on this list is a new outbound
+    // destination and needs a line in PRIVACY.md before it ships.
+    const ALLOWED = new Set([
+      "gmail-cleaner-pro.netlify.app",  // purchase, activation, uninstall page
+      "buy.stripe.com",                 // the checkout link itself
+      "github.com",                     // issues, policy and terms
+      "mail.google.com",                // the mailbox this runs against
+      "chromewebstore.google.com",      // resolved through GCC.storeLinks()
+      "addons.mozilla.org",
+      "www.w3.org"                      // SVG xmlns, never fetched
+    ]);
+    for (const file of FILES.filter((f) => f.endsWith(".js") || f.endsWith(".html") || f.endsWith(".css"))) {
+      const src = read(file)
+        .replace(/<!--[\s\S]*?-->/g, "")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .split(/\r?\n/)
+        .map((l) => l.replace(/^\s*\/\/.*$/, ""))
+        .join("\n");
+      for (const m of src.matchAll(/https?:\/\/([a-z0-9.-]+)/gi)) {
+        const host = m[1].toLowerCase().replace(/\.$/, "");
+        if (!ALLOWED.has(host)) {
+          throw new Error(`${file} names an unexpected remote origin: ${m[0]}`);
+        }
       }
     }
   });

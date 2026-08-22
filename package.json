@@ -1,6 +1,6 @@
 {
   "name": "gmail-one-click-cleaner",
-  "version": "8.20.0",
+  "version": "8.21.0",
   "private": true,
   "description": "Free up Gmail storage fast. Bulk delete old emails, large attachments, & promotions.",
   "scripts": {
@@ -8,7 +8,7 @@
     "build:firefox": "node build.js --target=firefox",
     "build:all": "node build.js --target=all",
     "build:prod": "node build.js --minify",
-    "lint": "eslint *.js",
+    "lint": "eslint --ext .js,.mjs .",
     "lint:firefox": "node build.js --target=firefox && addons-linter dist-firefox",
     "watch": "node build.js && echo Watching... && node -e \"require('fs').watch('.',{recursive:false},(e,f)=>{if(f&&!f.startsWith('dist')){console.log('Changed:',f);require('child_process').execFileSync('node',['build.js'],{stdio:'inherit'})}});setInterval(()=>{},86400000)\"",
     "zip": "node build.js --zip",

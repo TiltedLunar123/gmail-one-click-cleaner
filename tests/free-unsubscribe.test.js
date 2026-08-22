@@ -295,7 +295,7 @@ describe("GCC.freeUnsub.readOrNull", () => {
   test("a rejected local read is null, not missing", async () => {
     const stub = {
       runtime: { lastError: null },
-      storage: { local: { get: (_keys, cb) => {} } }
+      storage: { local: { get: (_keys, _cb) => {} } }
     };
     stub.storage.local.get = (_keys, cb) => {
       stub.runtime.lastError = { message: "storage unavailable" };

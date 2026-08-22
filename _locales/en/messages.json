@@ -391,6 +391,10 @@
   "notifDeclinedBody": {
     "message": "Some rules were too large to run without asking. Open the extension and run it yourself to confirm."
   },
+  "notifTitleDryOne": { "message": "Gmail Cleaner - preview found 1 email" },
+  "notifTitleDryMany": { "message": "Gmail Cleaner - preview found $1 emails" },
+  "notifDeclinedOne": { "message": "1 rule was too large to run unattended, so that mail is still there." },
+  "notifDeclinedMany": { "message": "$1 rules were too large to run unattended, so that mail is still there." },
   "notifTitleOne": { "message": "Gmail Cleaner - 1 email $1" },
   "notifTitleMany": { "message": "Gmail Cleaner - $1 emails $2" },
   "notifDryBody": { "message": "Dry run finished. No mail was touched." },
@@ -543,8 +547,9 @@
   "smartWillDelete": { "message": "Deletes $1 now" },
   "smartWillArchive": { "message": "Archives $1 now" },
   "smartWillPurge": { "message": "Deletes $1 large emails now" },
-  "smartGuardNoteOne": { "message": "1 more sender was found, but your guards ($1) hold back all $2 of its emails, so it is not suggested." },
-  "smartGuardNoteMany": { "message": "$1 more senders were found, but your guards ($2) hold back all $3 of their emails, so they are not suggested." },
+  "smartGuardNoteOne": { "message": "1 more sender was found, but your guards ($1) hold back everything there was to clean, so it is not suggested." },
+  "smartGuardNoteMany": { "message": "$1 more senders were found, but your guards ($2) hold back everything there was to clean, so they are not suggested." },
+  "smartGuardsChangedNote": { "message": "Your safety switches have changed since this scan, so these suggestions no longer match what a run would do. Scan again." },
 
   "privacyPolicyLink": { "message": "Privacy policy" },
   "privacyPolicyAria": { "message": "Read the full privacy policy (opens in a new tab)" },

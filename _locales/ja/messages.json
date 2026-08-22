@@ -391,6 +391,10 @@
   "notifDeclinedBody": {
     "message": "確認なしで実行するには大きすぎるルールがありました。拡張機能を開いて手動で実行してください。"
   },
+  "notifTitleDryOne": { "message": "Gmail Cleaner - プレビューでメール1件が見つかりました" },
+  "notifTitleDryMany": { "message": "Gmail Cleaner - プレビューでメール$1件が見つかりました" },
+  "notifDeclinedOne": { "message": "1 つのルールは自動実行するには大きすぎたため、そのメールは残っています。" },
+  "notifDeclinedMany": { "message": "$1 個のルールは自動実行するには大きすぎたため、そのメールは残っています。" },
   "notifTitleOne": { "message": "Gmail Cleaner - メール1件を$1" },
   "notifTitleMany": { "message": "Gmail Cleaner - メール$1件を$2" },
   "notifDryBody": { "message": "シミュレーション終了。メールには触れていません。" },
@@ -543,8 +547,9 @@
   "smartWillDelete": { "message": "今すぐ $1 件を削除" },
   "smartWillArchive": { "message": "今すぐ $1 件をアーカイブ" },
   "smartWillPurge": { "message": "今すぐ $1 件の大きなメールを削除" },
-  "smartGuardNoteOne": { "message": "他に 1 件の送信者が見つかりましたが、保護設定（$1）がそのメール $2 件すべてを守るため、候補には出ません。" },
-  "smartGuardNoteMany": { "message": "他に $1 件の送信者が見つかりましたが、保護設定（$2）がそのメール $3 件すべてを守るため、候補には出ません。" },
+  "smartGuardNoteOne": { "message": "他に1件の送信者が見つかりましたが、保護スイッチ($1)が整理対象をすべて除外しているため、提案されません。" },
+  "smartGuardNoteMany": { "message": "他に$1件の送信者が見つかりましたが、保護スイッチ($2)が整理対象をすべて除外しているため、提案されません。" },
+  "smartGuardsChangedNote": { "message": "このスキャン以降に保護スイッチが変更されたため、これらの提案は実際の実行内容と一致しません。もう一度スキャンしてください。" },
 
   "privacyPolicyLink": { "message": "プライバシーポリシー" },
   "privacyPolicyAria": { "message": "プライバシーポリシー全文を読む（新しいタブで開きます）" },

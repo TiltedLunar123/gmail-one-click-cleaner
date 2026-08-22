@@ -391,6 +391,10 @@
   "notifDeclinedBody": {
     "message": "Certaines règles étaient trop volumineuses pour s'exécuter sans confirmation. Ouvrez l'extension et lancez-la vous-même."
   },
+  "notifTitleDryOne": { "message": "Gmail Cleaner - l'aperçu a trouvé 1 e-mail" },
+  "notifTitleDryMany": { "message": "Gmail Cleaner - l'aperçu a trouvé $1 e-mails" },
+  "notifDeclinedOne": { "message": "1 règle était trop volumineuse pour s'exécuter sans surveillance, ces messages sont toujours là." },
+  "notifDeclinedMany": { "message": "$1 règles étaient trop volumineuses pour s'exécuter sans surveillance, ces messages sont toujours là." },
   "notifTitleOne": { "message": "Gmail Cleaner - 1 e-mail $1" },
   "notifTitleMany": { "message": "Gmail Cleaner - $1 e-mails $2" },
   "notifDryBody": { "message": "Simulation terminée. Aucun courrier touché." },
@@ -543,8 +547,9 @@
   "smartWillDelete": { "message": "Supprime $1 maintenant" },
   "smartWillArchive": { "message": "Archive $1 maintenant" },
   "smartWillPurge": { "message": "Supprime $1 e-mails volumineux maintenant" },
-  "smartGuardNoteOne": { "message": "1 autre expéditeur a été trouvé, mais vos filtres ($1) retiennent ses $2 e-mails, il n'est donc pas proposé." },
-  "smartGuardNoteMany": { "message": "$1 autres expéditeurs ont été trouvés, mais vos filtres ($2) retiennent leurs $3 e-mails, ils ne sont donc pas proposés." },
+  "smartGuardNoteOne": { "message": "1 autre expéditeur a été trouvé, mais vos protections ($1) retiennent tout ce qu'il y avait à nettoyer, il n'est donc pas suggéré." },
+  "smartGuardNoteMany": { "message": "$1 autres expéditeurs ont été trouvés, mais vos protections ($2) retiennent tout ce qu'il y avait à nettoyer, ils ne sont donc pas suggérés." },
+  "smartGuardsChangedNote": { "message": "Vos interrupteurs de sécurité ont changé depuis cette analyse, ces suggestions ne correspondent donc plus à ce qu'une exécution ferait. Relancez l'analyse." },
 
   "privacyPolicyLink": { "message": "Politique de confidentialité" },
   "privacyPolicyAria": { "message": "Lire la politique de confidentialité complète (s’ouvre dans un nouvel onglet)" },

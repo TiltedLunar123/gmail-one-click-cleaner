@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "8.20.0";
+  const SW_VERSION = "8.21.0";
 
   // =========================
   // Storage Keys
@@ -144,6 +144,30 @@
       console.warn("[GCC SW] uninstall page not set:", e?.message || e);
     }
   }
+
+  // =========================
+  // Which tabs are actually a mailbox (8.21)
+  // =========================
+  // `/mail/`, not just the host. mail.google.com also serves Chat at
+  // /chat/, and chrome.tabs.query's "https://mail.google.com/*" matches
+  // it. 8.11 worked this out and guarded getAutoPilotMeasuredTab, but the
+  // two functions that CHOOSE the tab -- runScheduledCleanup and
+  // findGmailTabForAutoPilot -- kept the bare query, and both prefer the
+  // ACTIVE tab, which is exactly the Chat tab if the user is chatting.
+  //
+  // What followed was worse than picking the wrong tab. The engine's own
+  // isGmailTab() tested the host alone, so it booted and answered the
+  // confirmation ping; the run was recorded as started and the schedule
+  // stamped lastRun; then openSearch found it was not under /mail/ and
+  // navigated the tab, which tore the user's conversation away and killed
+  // the content script mid-run. Nothing terminal was ever sent, so the
+  // run claim was never released and every manual run was refused with "a
+  // cleanup is already running" for the whole two-hour TTL, while that
+  // week's cleanup had touched nothing.
+  //
+  // listGmailTabs gets it too: the popup's account picker was offering a
+  // Chat tab as a mailbox to run against.
+  const isMailboxTab = (url) => /^https:\/\/mail\.google\.com\/mail\//.test(String(url || ""));
 
   // 8.9: see STORAGE_KEYS.CHANGELOG_SEEN.
   async function markChangelogSeen() {
@@ -817,8 +841,12 @@
         const scheduleWhitelist = Array.isArray(schedule.whitelist) ? schedule.whitelist : [];
         const whitelist = [...new Set([...globalWhitelist, ...scheduleWhitelist])];
 
-        // Find a Gmail tab
-        const gmailTabs = await chrome.tabs.query({ url: "https://mail.google.com/*" });
+        // Find a Gmail tab. A Chat tab on the same host is not one; see
+        // isMailboxTab. Treated exactly like "no Gmail tab at all", which
+        // means the schedule is skipped and lastRun is NOT stamped, so it
+        // runs at the next opportunity instead of being booked as done.
+        const gmailTabs = (await chrome.tabs.query({ url: "https://mail.google.com/*" }))
+          .filter((t) => isMailboxTab(t.url));
         if (!gmailTabs.length) {
           console.log("[GCC SW] No Gmail tab found for scheduled cleanup, skipping");
           return;
@@ -1165,7 +1193,7 @@
       // scan, union-merged so senders measured on earlier scans keep
       // their place while new ones join.
       case "gmailCleanerSmartScanResult":
-        withStorageLock(() => recordSmartScan(msg.senders, msg.heldBackSenders, msg.heldBackCount))
+        withStorageLock(() => recordSmartScan(msg.senders, msg.heldBackSenders, msg.heldBackCount, msg.guards))
           .then(() => sendResponse({ ok: true }));
         return true;
 
@@ -1850,16 +1878,7 @@
           // the popup can tell whether they still describe what a Run
           // would do. Booleans only; nothing here is a query or an
           // address, and the whole object is local like the rest.
-          guards: {
-            safeMode: Boolean(msg?.guards?.safeMode),
-            minAge: typeof msg?.guards?.minAge === "string" && /^\d+[dwmy]$/i.test(msg.guards.minAge)
-              ? msg.guards.minAge
-              : null,
-            guardSkipStarred: Boolean(msg?.guards?.guardSkipStarred),
-            guardSkipImportant: Boolean(msg?.guards?.guardSkipImportant),
-            guardSkipUnread: Boolean(msg?.guards?.guardSkipUnread),
-            guardSkipUserLabels: Boolean(msg?.guards?.guardSkipUserLabels)
-          },
+          guards: sanitizeScanGuards(msg?.guards),
           topSenders
         }
       });
@@ -1968,7 +1987,29 @@
   // not zero, and treated as unknown everywhere downstream.
   const SMART_ACTION_NAMES = ["deleteOld", "archiveAll", "purgeLarge", "unsubscribe"];
 
-  async function recordSmartScan(senders, heldBackSenders, heldBackCount) {
+  // 8.7 for the Mailbox Report, 8.21 for Smart Suggestions: the guard
+  // settings a set of counts was measured through, so the popup can tell
+  // whether they still describe what a Run button would do. Booleans and
+  // one age token; nothing here is a query or an address, and the whole
+  // object stays local like the rest.
+  //
+  // Extracted in 8.21 rather than copied: the smart scan needed the same
+  // object, and this file has learned more than once that the second copy
+  // is the one that drifts.
+  function sanitizeScanGuards(guards) {
+    return {
+      safeMode: Boolean(guards?.safeMode),
+      minAge: typeof guards?.minAge === "string" && /^\d+[dwmy]$/i.test(guards.minAge)
+        ? guards.minAge
+        : null,
+      guardSkipStarred: Boolean(guards?.guardSkipStarred),
+      guardSkipImportant: Boolean(guards?.guardSkipImportant),
+      guardSkipUnread: Boolean(guards?.guardSkipUnread),
+      guardSkipUserLabels: Boolean(guards?.guardSkipUserLabels)
+    };
+  }
+
+  async function recordSmartScan(senders, heldBackSenders, heldBackCount, guards) {
     if (!Array.isArray(senders)) return;
     try {
       const result = await chrome.storage.local.get(STORAGE_KEYS.SMART_SCAN);
@@ -2001,7 +2042,9 @@
           updatedAt: Date.now(),
           senders: merged,
           heldBackSenders: Math.max(0, Math.min(999999, Math.round(Number(heldBackSenders) || 0))),
-          heldBackCount: Math.max(0, Math.min(9999999, Math.round(Number(heldBackCount) || 0)))
+          heldBackCount: Math.max(0, Math.min(9999999, Math.round(Number(heldBackCount) || 0))),
+          // 8.21: what every `reachable` above was measured through.
+          guards: sanitizeScanGuards(guards)
         }
       });
     } catch (e) {
@@ -2626,7 +2669,9 @@
   // cleanup's gmailCleanerDone (which carries runId) closes it out.
 
   async function findGmailTabForAutoPilot() {
-    const gmailTabs = await chrome.tabs.query({ url: "https://mail.google.com/*" });
+    // Mailbox tabs only; see isMailboxTab.
+    const gmailTabs = (await chrome.tabs.query({ url: "https://mail.google.com/*" }))
+      .filter((t) => isMailboxTab(t.url));
     if (!gmailTabs.length) return null;
     const gmailTab = gmailTabs.find((t) => t.active) || gmailTabs[0];
     try {
@@ -2824,6 +2869,8 @@
   // exists to stop, and a sweep that does not run is a sweep that runs
   // correctly next week.
   async function getAutoPilotMeasuredTab(pending) {
+    // 8.21: the test below used to live inline here and nowhere else.
+    // See isMailboxTab.
     const tabId = Number(pending?.tabId) || 0;
     if (!tabId) return null;
     let tab;
@@ -2832,12 +2879,7 @@
     } catch {
       return null;
     }
-    // `/mail/`, not just the host. mail.google.com also serves Chat at
-    // /chat/, which chrome.tabs.query's "https://mail.google.com/*"
-    // matches and which gmailAccountOf cannot read an account out of, so
-    // without this a scan pinned to account 0 would accept a Chat tab as
-    // the mailbox it measured.
-    if (!tab || !/^https:\/\/mail\.google\.com\/mail\//.test(String(tab.url || ""))) return null;
+    if (!isMailboxTab(tab?.url)) return null;
     // A tab id survives the user switching accounts inside that same
     // tab, which would put the sweep on a mailbox nothing measured.
     // Pre-8.11 pendings carry no `acct`; treat those as matching so an
@@ -3580,13 +3622,24 @@
         ? bgT("notifActionArchived", "archived")
         : bgT("notifActionTrashed", "moved to Trash");
       const declinedCount = Number(summary?.declined || 0);
+      // 8.21: a preview deletes nothing, so `count` is 0 for every dry
+      // run and the headline read "0 emails moved to Trash" over a body
+      // saying the preview had finished. Auto-Pilot's first sweep is a
+      // preview by design, so the very first thing the feature ever said
+      // to a new Pro user was that it had found nothing. The preview's
+      // own figure now rides on the summary as `wouldCount`.
+      const wouldCount = Number(summary?.wouldCount || 0);
       // "0 emails moved to Trash" over a run that was refused reads as a
       // clean mailbox, which is the opposite of what happened.
-      const title = (declinedCount > 0 && count === 0 && !summary?.dryRun)
-        ? bgT("notifTitleDeclined", "Gmail Cleaner - nothing was cleaned")
-        : count === 1
-          ? bgT("notifTitleOne", `Gmail Cleaner - 1 email ${action}`, [action])
-          : bgT("notifTitleMany", `Gmail Cleaner - ${count} emails ${action}`, [String(count), action]);
+      const title = summary?.dryRun
+        ? (wouldCount === 1
+          ? bgT("notifTitleDryOne", "Gmail Cleaner - preview found 1 email")
+          : bgT("notifTitleDryMany", `Gmail Cleaner - preview found ${wouldCount} emails`, [String(wouldCount)]))
+        : (declinedCount > 0 && count === 0)
+          ? bgT("notifTitleDeclined", "Gmail Cleaner - nothing was cleaned")
+          : count === 1
+            ? bgT("notifTitleOne", `Gmail Cleaner - 1 email ${action}`, [action])
+            : bgT("notifTitleMany", `Gmail Cleaner - ${count} emails ${action}`, [String(count), action]);
       const freedText = String(summary?.freedMb || 0);
       // 8.10: archiving moves mail to All Mail, where it still counts
       // against the quota, so there is no storage figure to report. The
@@ -3632,6 +3685,23 @@
         msg += " " + (shortRules === 1
           ? bgT("notifStoppedShortOne", "1 rule stopped before it finished, so some mail is still there. Run it again to continue.")
           : bgT("notifStoppedShortMany", `${shortRules} rules stopped before they finished, so some mail is still there. Run it again to continue.`, [String(shortRules)]));
+      }
+
+      // 8.21: the same sentence for the sibling fact, which had none.
+      // `stoppedShort` was appended whatever the run cleared, while
+      // `declined` was only ever mentioned when the run cleared NOTHING.
+      // So a weekly sweep that refused two enormous rules and cleared 320
+      // messages from the other nine announced "320 emails moved to
+      // Trash" and stopped there: two rules still holding 60,000 messages,
+      // and nothing on the only surface that run reaches said so. Both
+      // are the same fact -- a rule that ran and left its mail behind.
+      // Skipped when the body above is already the declined body, which
+      // says it at more length.
+      const declinedSaidAlready = declinedCount > 0 && count === 0 && !summary?.dryRun;
+      if (declinedCount > 0 && !declinedSaidAlready) {
+        msg += " " + (declinedCount === 1
+          ? bgT("notifDeclinedOne", "1 rule was too large to run unattended, so that mail is still there.")
+          : bgT("notifDeclinedMany", `${declinedCount} rules were too large to run unattended, so that mail is still there.`, [String(declinedCount)]));
       }
 
       // 8.13: one Pro line, here, because this notification is the only
@@ -4140,7 +4210,11 @@
 
   async function listGmailTabs() {
     try {
-      const tabs = await chrome.tabs.query({ url: "https://mail.google.com/*" });
+      // Mailbox tabs only; see isMailboxTab. A Chat tab has no account in
+      // its URL, so it was being offered to the popup's account picker as
+      // "Account 0" beside the real mailbox.
+      const tabs = (await chrome.tabs.query({ url: "https://mail.google.com/*" }))
+        .filter((t) => isMailboxTab(t.url));
       return tabs.map(t => ({
         id: t.id,
         url: t.url,

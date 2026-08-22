@@ -33,7 +33,13 @@ const HTML_BADGES = [
   ["popup.html", /id="versionBadge"[^>]*>v([0-9.]+)</],
   // 8.9: the What's new page. Its badge is filled from the manifest at
   // runtime like the popup's, so this pins the static fallback.
-  ["changelog.html", /id="versionBadge"[^>]*>v([0-9.]+)</]
+  ["changelog.html", /id="versionBadge"[^>]*>v([0-9.]+)</],
+  // 8.21: diagnostics.html was pinned by its aria-label alone, so its
+  // VISIBLE badge was free to drift, and it did: the 8.21 bump left it
+  // reading v8.20.0 next to an aria-label that said 8.21.0 -- the exact
+  // inverse of the 8.14 bug that put this file's announced-version block
+  // here in the first place. Both halves of every badge now.
+  ["diagnostics.html", /class="badge"[^>]*>v([0-9.]+)</]
 ];
 
 describe("version consistency", () => {

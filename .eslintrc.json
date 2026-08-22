@@ -52,14 +52,53 @@
         "no-implicit-globals": "off",
         "no-undef": "off"
       }
+    },
+    {
+      "files": [
+        "tests/**/*.js",
+        "build.js",
+        "jest.config.js"
+      ],
+      "env": {
+        "node": true,
+        "browser": true,
+        "jest": true,
+        "commonjs": true
+      },
+      "globals": {
+        "__resetChromeStorage": "readonly",
+        "GCC_INTERNALS": "readonly"
+      },
+      "rules": {
+        "no-implicit-globals": "off",
+        "eqeqeq": "off",
+        "no-new-func": "off",
+        "no-template-curly-in-string": "off"
+      }
+    },
+    {
+      "files": [
+        "netlify/**/*.js",
+        "tools/**/*.mjs"
+      ],
+      "env": {
+        "node": true,
+        "browser": false,
+        "commonjs": true
+      },
+      "parserOptions": {
+        "sourceType": "module"
+      },
+      "rules": {
+        "no-implicit-globals": "off"
+      }
     }
   ],
   "ignorePatterns": [
-    "build.js",
     "browser-polyfill.js",
-    "jest.config.js",
     "dist/",
-    "tests/",
-    "netlify/"
+    "dist-firefox/",
+    "node_modules/",
+    "netlify/site/"
   ]
 }

@@ -68,6 +68,25 @@ function bodyOf(src, name, span = 6000) {
   return src.slice(start, start + span);
 }
 
+/**
+ * One function, bounded by the next one rather than by a byte budget.
+ *
+ * 8.21: three pins here sliced maybeNotifyDone with `span = 8000`. Adding
+ * a branch to it pushed chrome.notifications.create past 8000, the
+ * options-object regex matched nothing, and the test died on
+ * `null[1]` -- a crash rather than a useful failure, and one that says
+ * nothing about the property it was guarding. A byte budget is the same
+ * weak anchor as a call count: it pins where the code sits, not what it
+ * does. Both ends throw when they go missing.
+ */
+function fnBetween(src, startName, endName) {
+  const start = src.indexOf(startName);
+  if (start === -1) throw new Error(`not found: ${startName}`);
+  const end = src.indexOf(endName, start + startName.length);
+  if (end === -1) throw new Error(`end not found: ${endName} (after ${startName})`);
+  return src.slice(start, end);
+}
+
 /** Markup with its line wrapping flattened, so a pin is about the
  *  sentence rather than about where the editor broke the line. */
 const flat = (html) => html.replace(/\s+/g, " ");
@@ -215,13 +234,13 @@ describe("Rating ask: every qualifying run, with a real backstop", () => {
 
 describe("Completion notification: one Pro line, on the right runs", () => {
   test("the pitch is gated on a real run that cleaned something, by a non-buyer", () => {
-    const fn = bodyOf(BG_SRC, "async function maybeNotifyDone", 8000);
+    const fn = fnBetween(BG_SRC, "async function maybeNotifyDone", "async function recordStats");
     expect(fn).toMatch(/bgT\(\s*"notifProPitch"/);
     expect(fn).toMatch(/if \(count > 0 && !summary\?\.dryRun && !\(await hasProLicense\(\)\)\)/);
   });
 
   test("the pitch is appended to message, not to an option Firefox rejects", () => {
-    const fn = bodyOf(BG_SRC, "async function maybeNotifyDone", 8000);
+    const fn = fnBetween(BG_SRC, "async function maybeNotifyDone", "async function recordStats");
     expect(fn).toContain("msg += ");
 
     // Pinned on the options object itself rather than on the whole
@@ -235,7 +254,7 @@ describe("Completion notification: one Pro line, on the right runs", () => {
 
   test("a refusal and a dry run are still reported as themselves", () => {
     // Invariant pins from 8.12 that the new branch sits after.
-    const fn = bodyOf(BG_SRC, "async function maybeNotifyDone", 8000);
+    const fn = fnBetween(BG_SRC, "async function maybeNotifyDone", "async function recordStats");
     expect(fn).toContain("notifDeclinedBody");
     expect(fn).toContain("notifDryBody");
   });

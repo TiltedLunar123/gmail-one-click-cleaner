@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const OPTIONS_VERSION = "8.20.0";
+  const OPTIONS_VERSION = "8.21.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -1569,9 +1569,26 @@
     if (!el) return;
     const r = await GCC.storageGet("local", "notifyOnComplete");
     el.checked = Boolean(r?.notifyOnComplete);
+    // 8.21: the write was awaited bare. GCC.storageSet does not swallow a
+    // rejection, so a failed write threw straight out of the handler:
+    // the toast never ran, nothing was stored, and the checkbox kept its
+    // new look. The user came away believing unattended runs would
+    // notify them, and they never would. Verbatim the shape v8.16 fixed
+    // two functions up in this same file, and the one wireSnoozeControls
+    // and the schedule toggle already handle. Put the control back and
+    // say so: a control that silently does nothing is worse than one
+    // that says no.
     el.addEventListener("change", async () => {
-      await GCC.storageSet("local", { notifyOnComplete: el.checked });
-      GCC.showToast(el.checked ? "Notifications on" : "Notifications off", "info");
+      const wanted = el.checked;
+      try {
+        await GCC.storageSet("local", { notifyOnComplete: wanted });
+      } catch (e) {
+        el.checked = !wanted;
+        console.warn("[Options] notification preference not saved:", e?.message || e);
+        GCC.showToast("Could not save that preference. Nothing was changed.", "error");
+        return;
+      }
+      GCC.showToast(wanted ? "Notifications on" : "Notifications off", "info");
     });
   }
 
@@ -1607,11 +1624,16 @@
     const freqLabels = { "1440": "Daily", "10080": "Weekly", "43200": "Monthly" };
 
     schedules.forEach((schedule) => {
+      // 8.21: classes, not inline styles. A style attribute cannot be
+      // reached by [data-theme="light"], so this whole list rendered as
+      // a dark slab on the light theme with theme-coloured text on top
+      // of it: "Enabled" at 1.04:1. See .schedule-row in options.html,
+      // which mirrors the .custom-rule-row list on the same page.
       const row = document.createElement("div");
-      row.style.cssText = "display:flex; align-items:center; gap:8px; padding:10px 12px; background:rgba(15,23,42,0.4); border:1px solid rgba(255,255,255,0.06); border-radius:8px;";
+      row.className = "schedule-row";
 
       const info = document.createElement("div");
-      info.style.cssText = "flex:1;";
+      info.className = "schedule-row-info";
 
       // 8.15: both row controls name the action AND the schedule they
       // act on. Their visible text is a state word and a multiplication
@@ -1624,11 +1646,11 @@
         " " + schedule.intensity + " clean";
 
       const title = document.createElement("div");
-      title.style.cssText = "font-size:13px; font-weight:500; color:var(--text-main);";
+      title.className = "schedule-row-title";
       title.textContent = scheduleName;
 
       const meta = document.createElement("div");
-      meta.style.cssText = "font-size:11px; color:var(--text-muted); margin-top:2px;";
+      meta.className = "schedule-row-meta";
       meta.textContent = "Min age: " + (schedule.minAge || "3m") +
         (schedule.lastRun ? " \u00B7 Last: " + new Date(schedule.lastRun).toLocaleDateString() : "");
 
@@ -1643,16 +1665,10 @@
         "aria-label",
         (schedule.enabled ? "Disable" : "Enable") + " the " + scheduleName
       );
-      toggle.style.cssText = "padding:4px 10px; border-radius:9999px; font-size:11px; font-weight:600; border:1px solid; cursor:pointer;";
-      if (schedule.enabled) {
-        toggle.style.background = "rgba(16,185,129,0.15)";
-        toggle.style.borderColor = "rgba(16,185,129,0.3)";
-        toggle.style.color = "#10b981";
-      } else {
-        toggle.style.background = "rgba(100,116,139,0.15)";
-        toggle.style.borderColor = "rgba(100,116,139,0.3)";
-        toggle.style.color = "#64748b";
-      }
+      // The enabled/disabled colours ride on [aria-pressed], which is
+      // already set above and is the accessible truth of this control,
+      // so the state cannot be styled one way and announced another.
+      toggle.className = "schedule-row-toggle";
       toggle.addEventListener("click", async () => {
         schedule.enabled = !schedule.enabled;
         // 8.12: saveSchedule rethrows on purpose (the worker's own
@@ -1682,7 +1698,12 @@
       // another surface a live contrast pass never had on screen: at
       // 18px on a light card the fixed red measures 3.76:1, under the
       // 4.5 this size needs. The token clears it in both themes.
-      deleteBtn.style.cssText = "background:none; border:none; color:var(--danger); font-size:18px; cursor:pointer; padding:0 4px; line-height:1;";
+      //
+      // 8.21: and it was measured against a bare light card, which is
+      // not where it sits. The row underneath it was a hardcoded dark
+      // slab, on which the token still only reached 2.52:1. Fixing the
+      // row is what finally makes this measurement true.
+      deleteBtn.className = "schedule-row-delete";
       deleteBtn.addEventListener("click", async () => {
         const resp = await sendSwMessage({ type: "gmailCleanerDeleteSchedule", scheduleId: schedule.id });
         renderSchedules();

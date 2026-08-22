@@ -391,6 +391,10 @@
   "notifDeclinedBody": {
     "message": "Einige Regeln waren zu umfangreich, um ohne Rückfrage zu laufen. Öffnen Sie die Erweiterung und starten Sie sie selbst."
   },
+  "notifTitleDryOne": { "message": "Gmail Cleaner - Vorschau fand 1 E-Mail" },
+  "notifTitleDryMany": { "message": "Gmail Cleaner - Vorschau fand $1 E-Mails" },
+  "notifDeclinedOne": { "message": "1 Regel war zu groß für einen unbeaufsichtigten Lauf, diese Mails sind noch da." },
+  "notifDeclinedMany": { "message": "$1 Regeln waren zu groß für einen unbeaufsichtigten Lauf, diese Mails sind noch da." },
   "notifTitleOne": { "message": "Gmail Cleaner - 1 E-Mail $1" },
   "notifTitleMany": { "message": "Gmail Cleaner - $1 E-Mails $2" },
   "notifDryBody": { "message": "Testlauf beendet. Keine Mail wurde angefasst." },
@@ -543,8 +547,9 @@
   "smartWillDelete": { "message": "Löscht $1 jetzt" },
   "smartWillArchive": { "message": "Archiviert $1 jetzt" },
   "smartWillPurge": { "message": "Löscht $1 große E-Mails jetzt" },
-  "smartGuardNoteOne": { "message": "1 weiterer Absender wurde gefunden, aber deine Filter ($1) halten alle $2 E-Mails zurück, deshalb wird er nicht vorgeschlagen." },
-  "smartGuardNoteMany": { "message": "$1 weitere Absender wurden gefunden, aber deine Filter ($2) halten alle $3 E-Mails zurück, deshalb werden sie nicht vorgeschlagen." },
+  "smartGuardNoteOne": { "message": "1 weiterer Absender wurde gefunden, aber deine Schutzschalter ($1) halten alles zurück, was es zu bereinigen gab, also wird er nicht vorgeschlagen." },
+  "smartGuardNoteMany": { "message": "$1 weitere Absender wurden gefunden, aber deine Schutzschalter ($2) halten alles zurück, was es zu bereinigen gab, also werden sie nicht vorgeschlagen." },
+  "smartGuardsChangedNote": { "message": "Deine Sicherheitsschalter haben sich seit diesem Scan geändert, daher passen diese Vorschläge nicht mehr zu dem, was ein Lauf tun würde. Scanne erneut." },
 
   "privacyPolicyLink": { "message": "Datenschutzerklärung" },
   "privacyPolicyAria": { "message": "Die vollständige Datenschutzerklärung lesen (öffnet in einem neuen Tab)" },
