@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const PROGRESS_VERSION = "8.20.0";
+  const PROGRESS_VERSION = "8.21.0";
 
   const CONFIG = Object.freeze({
     MAX_LOG_ENTRIES: 300,
@@ -463,8 +463,16 @@
     const freedMb = freedMbOf(stats);
     if (freedMb > 0) chips.push(["Freed", `${formatMB(freedMb)} MB`]);
 
-    const duration = Date.now() - state.startTime;
-    if (duration > 1000) chips.push(["Duration", formatDuration(duration)]);
+    // 8.21: the run's own elapsed time, not this page's. state.startTime
+    // is when the dashboard loaded, so "View progress" opened ten minutes
+    // into a sweep under-reported by ten minutes and a tab reload reset
+    // the figure to zero. The engine measures it and sends it; when it
+    // does not (an older engine, or a run that never started the clock)
+    // the chip is left off rather than filled with the page clock.
+    const duration = Number(stats.elapsedMs);
+    if (Number.isFinite(duration) && duration > 1000) {
+      chips.push(["Duration", formatDuration(duration)]);
+    }
 
     for (const [label, value] of chips) {
       const pill = document.createElement("span");
@@ -1146,10 +1154,6 @@
   const handleProgressMessage = (message) => {
     if (!message) return;
 
-    // Anything that got past the ownership check came from the engine
-    // in this page's Gmail tab, so a run demonstrably existed here.
-    state.sawRunEvidence = true;
-
     // Review request
     if (message.type === "gmailCleanerRequestReview") {
       appendLog(`Review requested for: ${message.label || message.query || "(unknown)"}`, LOG_LEVELS.INFO);
@@ -1187,6 +1191,21 @@
     // 7.0: subscriptions engine messages (runKind set) belong to the
     // popup's subscriptions panel, not this cleanup dashboard.
     if (message.runKind) return;
+
+    // A CLEANUP run demonstrably reported to this page.
+    //
+    // 8.21: this used to be set at the top of the handler, one line
+    // before the two filters above, so ANY engine message from that Gmail
+    // tab satisfied it: a Smart scan, an unsubscribe run, a storage scan.
+    // The 8.15 guard it feeds exists to stop auto-reconnect re-injecting
+    // a cleanup nobody asked for, and it is meant to refuse when no
+    // cleanup ever reported here. Open "View progress" off a stale
+    // marker, then run a Smart scan in that tab, and the guard was
+    // satisfied by the scan; reload Gmail and the page re-injected the
+    // engine with the last stored config, which is a full unattended
+    // sweep of the mailbox. The one thing this flag must mean is the one
+    // thing it did not check.
+    state.sawRunEvidence = true;
 
     // Track last message time for auto-reconnect
     state.lastMessageTime = Date.now();
@@ -1581,7 +1600,21 @@
           sendReviewSignal("skip");
           return;
         }
-        if (!state.done && ui.cancel && !ui.cancel.disabled) {
+        // 8.21: the same bug 8.20 fixed one branch down, on the key
+        // people press without thinking. Escape in a text field means
+        // "clear this field" to every user of every search box, and the
+        // progress page has one: "Filter logs...". Type a rule name to
+        // watch it, press Escape, and this fell through to handleCancel
+        // and aborted a live sweep of 40,000 conversations, with no
+        // confirmation and no way to resume.
+        //
+        // Only the cancel fallthrough is guarded. The dialog branches
+        // above keep Escape from anywhere inside them, because there it
+        // really does mean "dismiss this".
+        const inField = e.target?.closest?.(
+          'input, textarea, select, [contenteditable="true"]'
+        );
+        if (!inField && !state.done && ui.cancel && !ui.cancel.disabled) {
           handleCancel();
           return;
         }

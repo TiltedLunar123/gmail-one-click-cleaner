@@ -3,8 +3,8 @@
 **Effective 2026-07-28.**
 
 The extension has no analytics, no telemetry, no error reporting, no account system, and
-no ability to send your mail anywhere: it makes no network requests of its own at all.
-Below is the precise version, including the few places where information does move and
+no ability to send your mail anywhere: the extension itself issues no network requests at
+all. Below is the precise version, including the few places where information does move and
 exactly why.
 
 - **The extension sends nothing.** Cleanup, scanning, suggestion ranking and unsubscribing
@@ -57,6 +57,16 @@ exactly why.
   and it is recorded only if you complete a purchase. Nothing at all is recorded for anyone
   who does not buy. We use it to decide which features are worth building on.
 
+- **Removing the extension opens one page.** When you uninstall, your browser opens
+  `gmail-cleaner-pro.netlify.app/uninstall.html`. This is the browser's own
+  `runtime.setUninstallURL` mechanism, and the extension is already gone by the time it
+  happens, so the extension sends nothing. The address is fixed: no query string, no
+  identifier, no version, and nothing derived from your mailbox. The site therefore learns
+  only what any web request tells any server, which is that a browser at your IP address
+  loaded a page at that moment. Nothing is stored, and that site has no database. The page
+  exists to tell Pro buyers their lifetime key still works if they reinstall. It is pinned
+  in `tests/uninstall-page.test.js` so a parameter cannot be added to it quietly later.
+
 - **Nothing is sold, rented or shared.** The only third parties involved anywhere in this
   product are Stripe, for payments, and your own browser vendor, for sync, each under their
   own privacy policy. There is nobody else, and there is no advertising.
@@ -67,7 +77,7 @@ exactly why.
 
 ## Verifying the first claim yourself
 
-The claim this whole policy rests on is that the extension makes no network requests. The
+The claim this whole policy rests on is that the extension issues no network requests. The
 source is public and you do not have to take our word for it:
 
 ```bash
@@ -75,7 +85,8 @@ grep -rE 'fetch\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource' *.js *.html
 ```
 
 That returns nothing, and a test in the suite fails the build if it ever stops returning
-nothing.
+nothing. As of 8.21 that test reads its file list from `build.js`, so it covers every file
+that actually ships, including the HTML, rather than a list kept by hand beside it.
 
 ## Contact
 

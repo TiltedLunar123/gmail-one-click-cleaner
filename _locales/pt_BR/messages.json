@@ -391,6 +391,10 @@
   "notifDeclinedBody": {
     "message": "Algumas regras eram grandes demais para rodar sem confirmação. Abra a extensão e execute você mesmo."
   },
+  "notifTitleDryOne": { "message": "Gmail Cleaner - a prévia encontrou 1 e-mail" },
+  "notifTitleDryMany": { "message": "Gmail Cleaner - a prévia encontrou $1 e-mails" },
+  "notifDeclinedOne": { "message": "1 regra era grande demais para rodar sem supervisão, então esse e-mail continua aí." },
+  "notifDeclinedMany": { "message": "$1 regras eram grandes demais para rodar sem supervisão, então esse e-mail continua aí." },
   "notifTitleOne": { "message": "Gmail Cleaner - 1 e-mail $1" },
   "notifTitleMany": { "message": "Gmail Cleaner - $1 e-mails $2" },
   "notifDryBody": { "message": "Simulação concluída. Nenhum e-mail foi tocado." },
@@ -543,8 +547,9 @@
   "smartWillDelete": { "message": "Exclui $1 agora" },
   "smartWillArchive": { "message": "Arquiva $1 agora" },
   "smartWillPurge": { "message": "Exclui $1 e-mails grandes agora" },
-  "smartGuardNoteOne": { "message": "Mais 1 remetente foi encontrado, mas seus filtros ($1) seguram todos os $2 e-mails dele, então ele não é sugerido." },
-  "smartGuardNoteMany": { "message": "Mais $1 remetentes foram encontrados, mas seus filtros ($2) seguram todos os $3 e-mails deles, então eles não são sugeridos." },
+  "smartGuardNoteOne": { "message": "Mais 1 remetente foi encontrado, mas suas proteções ($1) seguram tudo o que havia para limpar, então ele não é sugerido." },
+  "smartGuardNoteMany": { "message": "Mais $1 remetentes foram encontrados, mas suas proteções ($2) seguram tudo o que havia para limpar, então eles não são sugeridos." },
+  "smartGuardsChangedNote": { "message": "Seus interruptores de segurança mudaram desde esta análise, então estas sugestões não correspondem mais ao que uma execução faria. Analise de novo." },
 
   "privacyPolicyLink": { "message": "Política de privacidade" },
   "privacyPolicyAria": { "message": "Leia a política de privacidade completa (abre em uma nova aba)" },

@@ -45,9 +45,7 @@ const REPORT = {
   ]
 };
 
-let sent;
 let created;
-let executed;
 let localStore;
 let syncStore;
 
@@ -62,9 +60,7 @@ function installChrome() {
   const thisSent = [];
   const thisCreated = [];
   const thisExecuted = [];
-  sent = thisSent;
   created = thisCreated;
-  executed = thisExecuted;
   localStore = { onboardedAt: Date.now(), pinHintDismissed: true, runSuccessCount: 2 };
   syncStore = {};
 

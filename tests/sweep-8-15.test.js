@@ -318,9 +318,27 @@ describe("auto-reconnect will not start a run this page never saw", () => {
     expect(inject).toBeGreaterThan(guard);
   });
 
-  test("an accepted engine message is what sets the evidence", () => {
-    const fn = bodyOf(PROGRESS_SRC, "const handleProgressMessage =", "// Review request");
-    expect(fn).toContain("state.sawRunEvidence = true;");
+  test("a CLEANUP progress message is what sets the evidence, nothing else", () => {
+    // 8.21: this used to slice the handler up to "// Review request" and
+    // assert the flag was set inside that opening region, which pinned
+    // the flag as being set BEFORE the two filters -- which was the bug.
+    // Any engine message from that Gmail tab satisfied the guard: a Smart
+    // scan, an unsubscribe, a storage scan. The guard exists to answer
+    // "did a cleanup report here", so it is pinned as an ORDERING now:
+    // the assignment must sit after both filters, whatever the comments
+    // around it say.
+    const fn = bodyOf(PROGRESS_SRC, "const handleProgressMessage =", "const handleCancel =");
+    const typeFilter = fn.indexOf('if (message.type !== "gmailCleanerProgress") return;');
+    const kindFilter = fn.indexOf("if (message.runKind) return;");
+    const set = fn.indexOf("state.sawRunEvidence = true;");
+    expect(typeFilter).toBeGreaterThan(-1);
+    expect(kindFilter).toBeGreaterThan(-1);
+    expect(set).toBeGreaterThan(-1);
+    expect(set).toBeGreaterThan(typeFilter);
+    expect(set).toBeGreaterThan(kindFilter);
+    // And set exactly once, so a second assignment cannot creep back in
+    // above the filters and quietly restore the old behaviour.
+    expect(fn.split("state.sawRunEvidence = true;").length - 1).toBe(1);
   });
 
   test("every successful reset stops the poller and marks the run over", () => {

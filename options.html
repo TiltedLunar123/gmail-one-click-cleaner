@@ -849,6 +849,59 @@
     .custom-rule-row.dragging { opacity: 0.4; }
     .custom-rule-row.drop-target { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.18); }
 
+    /* 8.21: the schedule list, which is the same shape as the rule list
+       above and was built entirely from inline styles in options.js, so
+       no [data-theme="light"] rule could reach it. On a light theme the
+       row painted rgba(15,23,42,0.4) over a near-white card, giving a
+       mid-grey slab carrying theme-coloured text: "Enabled" measured
+       1.04:1 (effectively blank), "Disabled" 1.70:1, and the "Min age /
+       Last run" line 2.60:1. A user could not read whether an unattended
+       cleanup was armed. A row only exists once you have made a
+       schedule, which is why no live contrast pass ever had it on
+       screen.
+       Note this also fixes 8.20's delete glyph, which was tokenised to
+       var(--danger) but measured against a bare card rather than against
+       this slab, where it was still only 2.52:1. */
+    .schedule-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: 10px 12px;
+      background: rgba(17, 26, 36, 0.4);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+    }
+    [data-theme="light"] .schedule-row { background: rgba(255, 255, 255, 0.6); }
+    .schedule-row-info { flex: 1; }
+    .schedule-row-title { font-size: 13px; font-weight: 500; color: var(--text-main); }
+    .schedule-row-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .schedule-row-toggle {
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: inherit;
+      border: 1px solid var(--border-medium);
+      background: var(--wash);
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .schedule-row-toggle[aria-pressed="true"] {
+      border-color: var(--success-border);
+      background: var(--success-bg);
+      color: var(--ink-good);
+    }
+    .schedule-row-delete {
+      background: none;
+      border: none;
+      color: var(--danger);
+      font-size: 18px;
+      font-family: inherit;
+      cursor: pointer;
+      padding: 0 4px;
+      line-height: 1;
+    }
+
     .drag-handle {
       color: var(--text-dim);
       cursor: grab;

@@ -18,9 +18,27 @@
 // The REAL size is written first and unconditionally. If rAF is missing,
 // or the user asked for reduced motion, or anything below throws, the page
 // still shows the correct chart rather than an empty one.
+// 8.21: loadStats is BOTH the first paint and the 30s poll callback, and
+// GCC.pollingInterval also fires it immediately on visibilitychange. So
+// every bar collapsed to 0% and grew back, and every headline total
+// rolled up from zero again, roughly twice a minute and every time the
+// user came back to the tab. For about 600ms of each of those the page
+// displayed figures that were never true, which is the house bug with a
+// timer on it. An intro plays once; a refresh lands.
+let introPlayed = false;
+const animateIntro = () => !introPlayed;
+
+// A total that rolls on the first paint and simply lands afterwards.
+const setTotal = (el, value, text) => {
+  if (!el) return;
+  if (animateIntro()) GCC.countUp(el, value, text);
+  else el.textContent = text;
+};
+
 const growBar = (el, dimension, finalValue, index = 0) => {
   if (!el) return;
   el.style[dimension] = finalValue;
+  if (!animateIntro()) return;
   if (typeof requestAnimationFrame !== "function") return;
   if (GCC.prefersReducedMotion()) return;
   el.style[dimension] = "0%";
@@ -76,9 +94,9 @@ async function loadStats() {
   // Overview cards. countUp writes the final text first and only then
   // animates, so these four read exactly as they did if anything about
   // the animation is unavailable or switched off.
-  GCC.countUp(ui.totalRuns, stats.totalRuns, GCC.formatNumber(stats.totalRuns));
-  GCC.countUp(ui.totalDeleted, stats.totalDeleted, GCC.formatNumber(stats.totalDeleted));
-  GCC.countUp(ui.totalArchived, stats.totalArchived, GCC.formatNumber(stats.totalArchived));
+  setTotal(ui.totalRuns, stats.totalRuns, GCC.formatNumber(stats.totalRuns));
+  setTotal(ui.totalDeleted, stats.totalDeleted, GCC.formatNumber(stats.totalDeleted));
+  setTotal(ui.totalArchived, stats.totalArchived, GCC.formatNumber(stats.totalArchived));
   // Freed is a formatted size ("1.4 GB"), not a count, so it lands
   // rather than rolls: counting through "0.1 MB ... 0.9 MB" on the way
   // to a GB figure would be showing numbers that were never true.
@@ -99,6 +117,11 @@ async function loadStats() {
   // 8.13: the pitch is fed by the same totals the cards just showed, so
   // it can only ever quote a number this page is already displaying.
   renderProPitch(stats).catch((e) => console.warn("[Stats] pro pitch failed:", e));
+
+  // Set LAST, and only after a render that had real stats to draw: an
+  // early return above (no data, or a failed read) is not the intro, and
+  // the first real paint should still get one. See introPlayed.
+  introPlayed = true;
 }
 
 // =========================

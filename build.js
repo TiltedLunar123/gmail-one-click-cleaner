@@ -268,7 +268,7 @@ function createZip(distDir, zipPath) {
 // file headers, locate every filename byte range, and replace 0x5C
 // with 0x2F. Filename lengths never change so offsets stay valid.
 function normalizeZipPathSeparators(zipPath) {
-  let buf = fs.readFileSync(zipPath);
+  const buf = fs.readFileSync(zipPath);
   let touched = 0;
 
   // End of central directory record (EOCD) signature: PK\x05\x06

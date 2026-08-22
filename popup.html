@@ -8,7 +8,16 @@
   <meta name="theme-color" content="#06090f" />
   <meta name="color-scheme" content="dark" />
   <meta name="referrer" content="no-referrer" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; script-src 'self'" />
+  <!-- 8.21: font-src used to allowlist a Google font CDN. Nothing in the
+       package has ever loaded a remote font: there is no @font-face
+       anywhere, both type stacks are system fonts, and the five sibling
+       pages carry no font-src at all. The whole product rests on the
+       claim that it makes no network requests, and that was the only
+       third-party host in any shipped file, sitting in the one place a
+       store reviewer greps first. The host is deliberately not named
+       here: 8.18.1 learned that a comment explaining why a string is
+       gone still puts the string in the shipped package. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; script-src 'self'" />
   <link rel="stylesheet" href="shared.css" />
 
   <style>
@@ -404,18 +413,27 @@
       transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
     }
     .run-banner-btn:hover { background: rgba(148, 163, 184, 0.2); }
+    /* 8.21: --primary-strong is the bright neon core of the icon and is
+       meant for a dark ground; in light it resolves to #0891b2 and
+       measured 3.35:1 on this tint. --primary is the token that is
+       legible as text in both themes (4.88:1 light, 7.30:1 dark). */
     .run-banner-btn.primary {
       background: rgba(34, 211, 238, 0.14);
       border-color: rgba(34, 211, 238, 0.4);
-      color: var(--primary-strong);
+      color: var(--primary);
     }
     .run-banner-btn.primary:hover { background: rgba(34, 211, 238, 0.24); }
     /* Armed state: the second click is the one that resets a live
        engine, so it stops looking like a neutral option. */
+    /* 8.21: #fda4af is a pale pink for a dark ground. Over this tint on
+       a white card it measured 1.53:1, so the ARMED state of the control
+       that force-resets a live engine was the least readable thing on
+       screen at the moment it mattered most. --danger clears 4.5 in both
+       themes (5.24 light, 5.43 dark). */
     .run-banner-btn.armed {
       background: rgba(244, 63, 94, 0.16);
       border-color: rgba(244, 63, 94, 0.45);
-      color: #fda4af;
+      color: var(--danger);
     }
     .run-banner-btn.armed:hover { background: rgba(244, 63, 94, 0.26); }
     .run-banner-btn[disabled] { opacity: 0.55; cursor: default; }
@@ -451,8 +469,15 @@
       border-radius: var(--r-pill);
       font-size: 11px;
       font-weight: 500;
-      background: rgba(17, 26, 36, 0.56);
-      border: 1px solid var(--wash-strong);
+      /* 8.21: a dark literal fill under themed ink. On a white card the
+         pill composited to a mid-grey slab and its --muted label read at
+         1.65:1, so with two mailboxes open you could not read which other
+         account you were about to run a delete against. Same
+         rgba(17,26,36,x)-on-white bug already patched for .char-count,
+         kbd, .bar, .log-filter and #summaryTable th; --wash is the role
+         token those use. 6.06:1 light, 5.83:1 dark. */
+      background: var(--wash);
+      border: 1px solid var(--border-medium);
       color: var(--muted);
       cursor: pointer;
       transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
@@ -1459,14 +1484,23 @@
       line-height: 1.4;
       color: var(--muted);
     }
-    .guard-note svg { color: #fbbf24; flex: 0 0 auto; margin-top: 1px; }
+    /* 8.21: #fbbf24 and #fde68a were picked for a dark panel. On the
+       light theme this note sits on a near-white card, where the icon
+       measured 1.59:1 and the button label 1.19:1 -- the button was
+       simply not there. It is the control that explains why the numbers
+       beside the Clean buttons are lower than expected, on the popup's
+       landing tab, so it is one of the more consequential things to be
+       invisible. --warning is the role token and resolves per theme:
+       4.79:1 light, 8.84:1 dark. Border matches the ink, which is the
+       same pattern .report-row-btn already uses. */
+    .guard-note svg { color: var(--warning); flex: 0 0 auto; margin-top: 1px; }
     .guard-note span { flex: 1; min-width: 0; }
     .guard-note-btn {
       flex: 0 0 auto;
       align-self: center;
       background: transparent;
-      border: 1px solid rgba(251, 191, 36, 0.4);
-      color: #fde68a;
+      border: 1px solid var(--warning);
+      color: var(--warning);
       font-family: inherit;
       font-size: 10px;
       font-weight: 700;
@@ -1594,7 +1628,19 @@
       color: var(--warning, #fbbf24);
       margin-top: 2px;
     }
-    .report-row-btn.is-blocked { opacity: 0.6; }
+    /* 8.21: this button stays ENABLED and clickable (renderReport only
+       adds a title), so the WCAG exception for inactive controls does
+       not apply, and opacity:.6 dropped its label and its border to
+       2.54:1 in light and 4.27:1 in dark. Safe Mode blocking a step is
+       information, not a disabled state, so it gets the warning colour
+       the caption under it already uses rather than a dimming that makes
+       the one piece of free proof the product offers the hardest text on
+       the tab to read. 5.02:1 light, 10.63:1 dark. */
+    .report-row-btn.is-blocked {
+      color: var(--warning);
+      border-color: var(--warning);
+    }
+    .report-row-btn.is-blocked:hover { background: var(--warning); color: var(--on-pro); }
     .report-row-figures {
       flex: 0 0 auto;
       display: flex;
@@ -1646,7 +1692,13 @@
     }
     .report-row-btn.is-locked:hover { background: var(--pro); color: var(--on-pro); }
     .report-row.is-free { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary-glow) inset; }
-    .report-row.is-done { opacity: 0.6; }
+    /* 8.21: opacity on the whole row took its meta line to 2.45:1 and
+       its "Cleared" chip to 2.59:1, in both themes. A cleared step is
+       still a step the user reads: the size it freed and the date are
+       the receipt. The row already says it is done with the chip, so the
+       recede is carried by the border alone now and every figure stays
+       readable (5.39/4.55 meta, 5.48/9.23 chip). */
+    .report-row.is-done { border-color: var(--border-subtle); }
     .report-row-done {
       flex: 0 0 auto;
       font-size: 11px;
@@ -3284,17 +3336,24 @@
           <span class="rating-star" role="button" tabindex="0" data-rating="5" aria-label="Rate 5 stars"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.6l2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.1l6.1-.9L12 2.6Z"/></svg></span>
         </div>
 
-        <a
-          href="https://chromewebstore.google.com/detail/bmcfpljakkpcbinhgiahncpcbhmihgpc?utm_source=item-share-cb"
-          target="_blank"
-          rel="noopener noreferrer"
-          referrerpolicy="no-referrer"
+        <!-- 8.21: this was the anchor the 8.0 note above says was already
+             fixed. It was not. It kept the hardcoded Chrome Web Store
+             href, and popup.js added a handler that opens the correct
+             store WITHOUT calling preventDefault, so both fired: a
+             Firefox user pressing "Rate 5 stars" got the AMO listing in
+             one tab and the Chrome Web Store in another. The star row
+             made it worse, because a synthetic .click() on an anchor
+             performs the default navigation too. A button has no default
+             navigation to suppress, so the store is resolved in exactly
+             one place, GCC.storeLinks(). -->
+        <button
+          type="button"
           class="rating-prompt-btn"
           id="ratingBtn"
         >
           <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.6l2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.1l6.1-.9L12 2.6Z"/></svg>
           <span data-i18n="rate5">Rate 5 stars</span>
-        </a>
+        </button>
 
         <div class="rating-dismiss-row">
           <button type="button" class="rating-dismiss" id="ratingDismiss" data-i18n="maybeLater">Maybe later</button>
@@ -3456,10 +3515,10 @@
             class="badge"
             id="versionBadge"
             type="button"
-            aria-label="Version 8.20.0, see what's new"
+            aria-label="Version 8.21.0, see what's new"
             title="What's new in this version"
             data-i18n-title="whatsNewTitle"
-          >v8.20.0</button>
+          >v8.21.0</button>
           <button id="kbdHelpBtn" class="linkish" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" data-i18n-label="kbdTitle" data-i18n-title="kbdBtnTitle">
             <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/></svg>
           </button>

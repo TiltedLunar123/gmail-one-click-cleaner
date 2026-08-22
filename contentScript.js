@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "8.20.0";
+  const GCC_CONTENT_VERSION = "8.21.0";
 
   // =========================
   // Timing & behavior constants
@@ -117,7 +117,16 @@
   ];
 
   function queryHasDangerousToken(rawQuery) {
-    const lower = String(rawQuery || "").toLowerCase();
+    // 8.21: Gmail accepts `label:"trash"` as a synonym for `label:trash`,
+    // and the refusal below matches the token literally, so the quoted
+    // form walked straight past it and put a delete run in the Trash
+    // view. Same shape as the 7.15 `{` escape: a form Gmail treats as
+    // identical that this list did not. Unwrap the quotes around an
+    // operator's value before testing; nothing else about the query
+    // changes, and applyGlobalGuards reads the raw string as before.
+    const lower = String(rawQuery || "")
+      .toLowerCase()
+      .replace(/([a-z]+:)\s*["']([^"']*)["']/g, "$1$2");
     return DANGEROUS_QUERY_TOKENS.some((token) => {
       // A leading "(" opens a group, so `(is:starred)` is every bit as
       // positive as a bare `is:starred`. Anchoring on whitespace alone let
@@ -726,16 +735,63 @@
     "Выбрать все", "تحديد الكل", "すべて選択", "모두 선택", "全选"
   ]);
 
+  // 8.21: the noun Gmail prints beside the offer, in every language
+  // SELECT_ALL_TOKENS covers.
+  //
+  // This gate used to be `/conversation|message|correo|nachricht|messag/i`
+  // ANDed with the localized token, and all eight patterns below are Latin
+  // literals, so no Japanese, Korean, Chinese, Russian or Arabic banner
+  // could satisfy it and neither could Swedish, Danish, Norwegian, Polish,
+  // Turkish, Dutch or Italian: "konversationer" and "gesprekken" do not
+  // contain "conversation". Twelve of the seventeen locales in the token
+  // table were unreachable, so bulk-all select never fired there and a
+  // 12,000-message rule that clears in one action on an English Gmail
+  // crawled 50 at a time until it hit the pass cap and left the rest
+  // behind. The token entries for those languages were dead code.
+  //
+  // Same standard as SAFE_MODE_SUBJECT_TERMS: the noun each locale
+  // actually prints, plus the message-word variants Gmail uses
+  // interchangeably with it. Over-matching here is harmless (the
+  // localized select-all token still has to be present, and the
+  // clear-selection control that replaces this banner shares no token
+  // with it); under-matching costs the whole bulk path.
+  const SELECT_ALL_NOUN_RE = new RegExp([
+    // Romance + English: conversation/conversaciones/conversazioni/conversas
+    "conversa", "conversation", "discussion", "correo", "mensaj", "messag",
+    // Germanic
+    "konversation", "unterhaltung", "nachricht", "gesprek", "bericht",
+    // Nordic
+    "meddeland", "samtale", "samtaler", "beskeder", "melding", "tråd", "trad",
+    // Slavic + Turkish
+    "wątk", "watk", "wiadomo", "görüşme", "gorusme", "ileti", "mesaj",
+    "цепочк", "письм", "сообщени", "разговор",
+    // Arabic
+    "محادث", "رسائل", "رسالة",
+    // CJK
+    "スレッド", "メール", "会話", "대화", "메일", "스레드",
+    "会话", "會話", "郵件", "邮件", "对话", "對話", "邮件", "封邮件",
+    // English fallback
+    "thread"
+  ].join("|"), "i");
+
   // Extended patterns for "Select all conversations that match this search"
   const SELECT_ALL_CONVERSATIONS_PATTERNS = Object.freeze([
     /select\s+all\s+.*conversations/i,
     /select\s+all\s+.*that\s+match/i,
     /select\s+all\s+.*matching/i,
     /all\s+\d+\s+conversations/i,
-    /seleccionar\s+todas?\s+las?\s+conversacion/i,
+    // 8.21: the es and pt patterns required the noun IMMEDIATELY after
+    // the article, but Gmail names the count in between ("Seleccionar
+    // todas las 12.000 conversaciones"), so neither could match a real
+    // banner. The en and de patterns next to them have always carried a
+    // `.*` for exactly this. The Spanish and Portuguese tokens in
+    // SELECT_ALL_TOKENS are "todo"/"tudo" and the banner says
+    // "todas"/"todas", so the token half could not rescue them either:
+    // two of the five locales that looked covered were not.
+    /seleccionar\s+todas?\s+las?\s+.*conversacion/i,
     /tout\s+sélectionner/i,
     /alle\s+.*\s+auswählen/i,
-    /selecionar\s+todas?\s+as?\s+conversa/i
+    /selecionar\s+todas?\s+as?\s+.*conversa/i
   ]);
 
   const CONFIRM_TOKENS = Object.freeze([
@@ -990,13 +1046,32 @@
       // Fall through to English.
     }
     if (lang === "zh-tw" || lang === "zh-hk") return "取消訂閱";
-    const base = lang.split("-")[0];
+    // 8.21: SAFE_MODE_LANG_ALIASES maps nb/nn to "no" and Gmail can stamp
+    // either, but this lookup did its own bare split and fell through to
+    // English. The Safe Mode shield twelve lines up got Norwegian and this
+    // discovery term did not, on the same page load. Recall-only failure
+    // (a wrong term just finds less), so sharing the alias is safe.
+    const raw = lang.split("-")[0];
+    const base = SAFE_MODE_LANG_ALIASES[raw] || raw;
     return SUBSCRIPTION_SEARCH_TERMS[base] || SUBSCRIPTION_SEARCH_TERMS.en;
   }
 
+  // 8.21: the host alone is not a mailbox. mail.google.com also serves
+  // Chat at /chat/, and this gate is what every run kind checks before it
+  // starts. On a Chat tab the engine used to boot, answer the injection
+  // ping, and only discover the problem inside openSearch -- which
+  // "fixes" it by navigating the tab to /mail/u/0/, tearing away the
+  // conversation the user was in and killing the content script mid-run,
+  // with no terminal message to release the run claim.
+  //
+  // The background pickers now filter to /mail/ before injecting, so this
+  // is the second lock on the same door: refuse plainly instead of
+  // navigating. The bare "/" is allowed because mail.google.com/ is the
+  // pre-redirect form of the mailbox itself, not a different product.
   const isGmailTab = () => {
     try {
-      return location.host === "mail.google.com";
+      if (location.host !== "mail.google.com") return false;
+      return location.pathname === "/" || location.pathname.startsWith("/mail/");
     } catch {
       return false;
     }
@@ -1664,6 +1739,12 @@
     }
     // Brief settle so x7 class lands on all clicked rows.
     if (clicked > 0) await sleep(TIMING.CHECKBOX_SETTLE_DELAY);
+    // 8.21: a pass that clicked nothing cannot have selected anything, and
+    // re-reading the page for the answer let a stray "selected" in a
+    // subject line report success for a pass that found no checkboxes at
+    // all. Missing checkboxes is precisely the layout change the caller's
+    // GmailLayoutError exists to catch, so this must answer 0.
+    if (clicked === 0) return 0;
     return extractSelectedCount() ?? 0;
   }
 
@@ -1794,7 +1875,7 @@
     if (SELECT_ALL_CONVERSATIONS_PATTERNS.some((pattern) => pattern.test(value))) return true;
     const lower = value.toLowerCase();
     const hasSelectAll = SELECT_ALL_TOKENS.some((token) => lower.includes(token.toLowerCase()));
-    const hasConversations = /conversation|message|correo|nachricht|messag/i.test(lower);
+    const hasConversations = SELECT_ALL_NOUN_RE.test(lower);
     return hasSelectAll && hasConversations;
   }
 
@@ -3166,6 +3247,20 @@
   // Anything longer than a short label is a container's concatenated
   // text, not the counter.
   const MAX_COUNTER_TEXT_LENGTH = 60;
+  // 8.21: what is allowed to sit BETWEEN the range and the total. Real
+  // counters put a connector there and nothing else: "of" (2), "von" (3),
+  // "sur" (3), "\u4ef6\u4e2d" (2), "\u0438\u0437" (2). Prose puts punctuation and words there
+  // ("10-20% off: 5000"), and a counter never carries any of these marks
+  // between its own two numbers.
+  const MAX_COUNTER_GLUE_LENGTH = 14;
+  // "/" is deliberately absent: several locales separate the range from
+  // the total with it, and two numbers around a slash read as a counter,
+  // not as prose. The marks that ARE here never appear between a
+  // counter's own two numbers.
+  const COUNTER_PROSE_RE = /[%!?:;,.#$\u20ac\u00a3\u00a5+*=@()[\]{}<>|"']/;
+  // A counter tolerates one leading verb or one trailing noun, not both.
+  const MAX_COUNTER_OUTSIDE_WORDS = 2;
+  const COUNTER_WORD_RE = /\p{L}/u;
   const COUNT_RANGE_RE = /(\d[\d,.\s]*?)\s*[-\u2013\u2014~\uff5e]\s*(\d[\d,.\s]*)/;
   const COUNT_NUMBER_RE = /\d[\d,.\s]*/g;
 
@@ -3227,7 +3322,11 @@
       if (n !== null) return n;
     }
 
-    const aboutMatch = text.match(/\babout\s+([\d,.\s]+)\s+results/i);
+    // 8.21: this used to accept "about N results" anywhere in a short
+    // string, so "Read about 500 results from our study" was a match
+    // total. Gmail prints this form as the WHOLE counter, never as a
+    // clause inside a sentence, so it has to start the text.
+    const aboutMatch = text.match(/^\s*(?:~\s*)?about\s+([\d,.\s]+)\s+results?\b/i);
     if (aboutMatch) {
       const n = digitsToCount(aboutMatch[1]);
       if (n !== null) return n;
@@ -3247,12 +3346,61 @@
     // to carry a dash and some digits.
     const rest = text.slice(0, range.index) + " " + text.slice(range.index + range[0].length);
     let best = null;
+    let bestStart = -1;
+    let bestEnd = -1;
     let m;
     COUNT_NUMBER_RE.lastIndex = 0;
     while ((m = COUNT_NUMBER_RE.exec(rest)) !== null) {
       const n = digitsToCount(m[0]);
-      if (n !== null && n >= rangeEnd && (best === null || n > best)) best = n;
+      if (n !== null && n >= rangeEnd && (best === null || n > best)) {
+        best = n;
+        bestStart = m.index;
+        bestEnd = m.index + m[0].length;
+      }
     }
+    if (best === null) return null;
+
+    // 8.21: 8.16 gave the "of" branch two structural conditions and left
+    // this one taking any range plus any larger number in the same short
+    // string. "Sale 10-20% off: 5000 items left" is a promotional subject
+    // that satisfies both, and estimateTotalResults reads the conversation
+    // list, so an ordinary subject line became the match total exactly
+    // when the toolbar read "1-50 of many" and this branch was the last
+    // thing standing. That is the case the unknown-total confirmation
+    // exists for, so a wrong answer here does not merely misreport a
+    // number: it disarms the guardrail.
+    //
+    // The condition that separates a counter from prose in every locale
+    // is what sits BETWEEN the range and the total. In a counter it is a
+    // connector and nothing else: "of", "von", "sur", "из", "件中", "中的".
+    // In prose it is punctuation and words. Deliberately NOT a rule about
+    // what comes after the total, because several locales append the noun
+    // ("1-50 von 5.000 Konversationen") and end-anchoring would start
+    // returning null on real toolbars -- which reads as an unknown total
+    // and makes every scheduled run on those locales decline.
+    // Measured in `rest`, where the range has already been collapsed to a
+    // single space at range.index. Doing it in `text` would need indexOf,
+    // and indexOf finds the total's own digits inside the range whenever
+    // the two share a prefix ("1-50 of 50").
+    const totalFirst = bestStart < range.index;
+    const connector = totalFirst
+      ? rest.slice(bestEnd, range.index)
+      : rest.slice(range.index + 1, bestStart);
+    const connectorInk = connector.replace(/\s+/g, "");
+    if (connectorInk.length > MAX_COUNTER_GLUE_LENGTH) return null;
+    if (COUNTER_PROSE_RE.test(connectorInk)) return null;
+
+    // And what sits OUTSIDE the two numbers. A counter is allowed a
+    // leading verb ("Showing 1-50 of 12,438") or a trailing noun
+    // ("1-50 von 5.000 Konversationen", "12,438 件中 1～50 件"), never
+    // both ends full of prose. "Your order 1-2 of 3000 shipped today"
+    // has a clean " of " connector and is still a sentence.
+    const outside = totalFirst
+      ? rest.slice(0, bestStart) + " " + rest.slice(range.index + 1)
+      : rest.slice(0, range.index) + " " + rest.slice(bestEnd);
+    const outsideWords = outside.split(/\s+/).filter((w) => COUNTER_WORD_RE.test(w));
+    if (outsideWords.length > MAX_COUNTER_OUTSIDE_WORDS) return null;
+
     return best;
   }
 
@@ -3303,11 +3451,19 @@
     if (main) scopes.push(main);
     scopes.push(document);
 
+    // 8.21: the second half of the same fix. Hardening parseCountFromText
+    // makes a subject line hard to misread; refusing to look at subject
+    // lines at all makes it impossible. Gmail's counter lives in the
+    // toolbar, never inside the conversation grid, so no row can supply
+    // the number the guardrails are sized against.
+    const grid = qs(SELECTORS.grid);
+
     const seen = new Set();
     for (const scope of scopes) {
       if (!scope || seen.has(scope)) continue;
       seen.add(scope);
       for (const el of qsa("span, div", scope)) {
+        if (grid && grid.contains(el)) continue;
         const count = parseCountFromText(getTextContent(el));
         if (count !== null) return count;
       }
@@ -3342,19 +3498,40 @@
 
     // Legacy fallback: scrape "N selected" text. Older Gmail layouts
     // and a few locale variations still emit this so we keep the path.
-    const spans = qsa("span", mainRoot);
-    for (const el of spans) {
-      const text = getTextContent(el);
-      if (!text || !/selected/i.test(text)) continue;
-      const allMatch = text.match(/all\s+([\d,.\s]+)\s+conversations?\s+.*selected/i);
-      if (allMatch) {
-        const n = parseInt(allMatch[1].replace(/[,.\s]/g, ""), 10);
-        if (Number.isFinite(n) && n > 0) return n;
-      }
-      const firstMatch = text.match(/([\d,]+)/);
-      if (firstMatch) {
-        const n = parseInt(firstMatch[1].replace(/[,.\s]/g, ""), 10);
-        if (Number.isFinite(n) && n > 0) return n;
+    //
+    // 8.21: this used to walk EVERY span in div[role="main"] -- the
+    // conversation list -- and return the first digits in any text
+    // containing the word "selected". "You have been selected for 3 free
+    // rewards" is an ordinary promotional subject and it answered 3 with
+    // nothing selected. That is worse than a wrong number: clickMasterCheckbox
+    // reads a non-zero answer as "per-row selection worked", so the
+    // GmailLayoutError that should stop the run and point at Diagnostics
+    // never throws, and the run instead clicks Delete on an empty
+    // selection and burns its whole retry budget on every rule.
+    //
+    // Two changes. Look only inside the selection banner, which is where
+    // this text has always lived, and require the number to actually
+    // belong to the word rather than merely share a sentence with it.
+    const bannerRoots = [];
+    for (const selector of SELECTORS.selectionInfoBar) {
+      bannerRoots.push(...qsa(selector, mainRoot));
+    }
+    for (const root of bannerRoots) {
+      for (const el of [root, ...qsa("span", root)]) {
+        const text = getTextContent(el);
+        if (!text || !/selected/i.test(text)) continue;
+        const allMatch = text.match(/all\s+([\d,.\s]+)\s+conversations?\s+.*selected/i);
+        if (allMatch) {
+          const n = parseInt(allMatch[1].replace(/[,.\s]/g, ""), 10);
+          if (Number.isFinite(n) && n > 0) return n;
+        }
+        // "2 selected" and "selected 2", not "selected for 3 rewards".
+        const adjacent = text.match(/([\d][\d,.\s]*)\s*selected\b/i)
+          || text.match(/\bselected\s*([\d][\d,.\s]*)/i);
+        if (adjacent) {
+          const n = parseInt(adjacent[1].replace(/[,.\s]/g, ""), 10);
+          if (Number.isFinite(n) && n > 0) return n;
+        }
       }
     }
 
@@ -3825,7 +4002,14 @@
     // marks "you have cleared this" off the terminal summary, so it needs
     // the fact here, where it survives a closed popup and an unattended
     // run.
-    stoppedShort: 0
+    stoppedShort: 0,
+    // 8.21: when the RUN started. The progress page's "Duration" chip was
+    // `Date.now() - state.startTime`, where state.startTime is when that
+    // PAGE loaded. Open "View progress" ten minutes into a sweep and it
+    // reported ten minutes less than the run had taken; reload the tab
+    // and the figure restarted from zero. Neither number is the run's.
+    // The engine is the only thing that knows, so it says.
+    startedAt: 0
   };
 
   function resetStats() {
@@ -3835,6 +4019,7 @@
     stats.perQuery = [];
     stats.tagLabels = [];
     stats.stoppedShort = 0;
+    stats.startedAt = Date.now();
   }
 
   // 8.0: the two big-run guardrails used to be native confirm() calls
@@ -4457,6 +4642,10 @@
       // done progress message so the popup's result screen can stop
       // calling a half-finished sweep "Cleanup Complete!".
       stoppedShort: Number(stats.stoppedShort) || 0,
+      // 8.21: how long the RUN took, measured by the only thing that was
+      // there for all of it. Null when the run never started the clock,
+      // so the page can leave the chip off rather than invent one.
+      elapsedMs: stats.startedAt ? Date.now() - stats.startedAt : null,
       isHugeRun: runCount >= 5000,
       finishedAt: Date.now(),
       version: GCC_CONTENT_VERSION,
@@ -5944,7 +6133,26 @@
             type: "gmailCleanerSmartScanResult",
             senders,
             heldBackSenders,
-            heldBackCount
+            heldBackCount,
+            // 8.21: the settings every `reachable` below was measured
+            // through, exactly as the Mailbox Report has carried since
+            // 8.7 and for exactly the same reason. A card says "Deletes
+            // 40 now" beside a button, and that 40 was counted through
+            // applyGlobalGuards with the guards set at SCAN time, while
+            // the button reads the Clean tab checkboxes LIVE. Untick
+            // Skip Unread between the scan and the press and the run
+            // reaches every old unread message from that sender, which
+            // can be a hundred times the number on the card. The report
+            // could already say "your safety switches have changed"; the
+            // suggestions had no way to know.
+            guards: {
+              safeMode: Boolean(CONFIG.safeMode),
+              minAge: CONFIG.minAge || null,
+              guardSkipStarred: Boolean(CONFIG.guardSkipStarred),
+              guardSkipImportant: Boolean(CONFIG.guardSkipImportant),
+              guardSkipUnread: Boolean(CONFIG.guardSkipUnread),
+              guardSkipUserLabels: Boolean(CONFIG.guardSkipUserLabels)
+            }
           });
         }
       } catch (e) {
@@ -6721,6 +6929,14 @@
             type: "gmailCleanerDone",
             summary: {
               count: stats.totalDeleted || 0,
+              // 8.21: what a PREVIEW found. `count` is totalDeleted, which
+              // a dry run never increments, so the desktop notification --
+              // the only surface an unattended preview reaches -- was
+              // titled "0 emails moved to Trash" over a body saying the
+              // preview had finished. The figure the preview actually
+              // produced was measured and then thrown away. Additive, so
+              // an older worker ignores it.
+              wouldCount: stats.totalWouldDelete || 0,
               freedMb: Math.round((stats.totalFreedMb || 0) * 10) / 10,
               action: CONFIG.archiveInsteadOfDelete ? "archive" : "delete",
               dryRun: Boolean(CONFIG.dryRun),
@@ -6856,7 +7072,25 @@
       // so "a failed read is not an unconfigured install" can be driven
       // rather than pinned as source.
       getRules,
-      syncReadOrNull
+      syncReadOrNull,
+      // 8.21: five guards a coverage audit found were deletable with a
+      // fully green suite, because each was reachable only through a
+      // source-text pin or not at all. A guard nothing asserts is a
+      // guard that vanishes in the release it matters most.
+      //   isGmailTab                     refuses to run outside a mailbox
+      //   selectAllVisibleRowsIndividually  must answer 0 when it clicked 0
+      //   isValidWhitelistEntry          both engine-side sanitisers
+      //   restoreCandidates              row and message-body exclusions
+      //
+      // Review Mode's gate is the fifth, and is deliberately NOT here:
+      // it sits inside processQuery past openSearch, which waits 20s for
+      // a search box no fake page has, and TIMING/GUARDRAILS are frozen
+      // so a test cannot shrink that. It is pinned on its properties
+      // instead. See tests/sweep-8-21-coverage.test.js.
+      isGmailTab,
+      selectAllVisibleRowsIndividually,
+      isValidWhitelistEntry,
+      restoreCandidates
     };
   }
 

@@ -65,7 +65,7 @@ describe("GCC.license", () => {
 
     test("rejects a tampered payload", async () => {
       const key = mintKey(TEST_PRIV_PEM, SESSION_ID, 1751500000);
-      const [prefix, payload, sig] = key.split(".");
+      const [prefix, , sig] = key.split(".");
       const forgedPayload = Buffer.from(
         JSON.stringify({ v: 1, plan: "pro", sid: "FORGED0000", iat: 1 })
       ).toString("base64url");

@@ -391,6 +391,10 @@
   "notifDeclinedBody": {
     "message": "Algunas reglas eran demasiado grandes para ejecutarse sin preguntar. Abre la extensión y ejecútala tú."
   },
+  "notifTitleDryOne": { "message": "Gmail Cleaner - la vista previa encontró 1 correo" },
+  "notifTitleDryMany": { "message": "Gmail Cleaner - la vista previa encontró $1 correos" },
+  "notifDeclinedOne": { "message": "1 regla era demasiado grande para ejecutarse sin supervisión, así que ese correo sigue ahí." },
+  "notifDeclinedMany": { "message": "$1 reglas eran demasiado grandes para ejecutarse sin supervisión, así que ese correo sigue ahí." },
   "notifTitleOne": { "message": "Gmail Cleaner - 1 correo $1" },
   "notifTitleMany": { "message": "Gmail Cleaner - $1 correos $2" },
   "notifDryBody": { "message": "Simulación terminada. No se tocó ningún correo." },
@@ -543,8 +547,9 @@
   "smartWillDelete": { "message": "Elimina $1 ahora" },
   "smartWillArchive": { "message": "Archiva $1 ahora" },
   "smartWillPurge": { "message": "Elimina $1 correos grandes ahora" },
-  "smartGuardNoteOne": { "message": "Se encontró 1 remitente más, pero tus filtros ($1) retienen sus $2 correos, así que no se sugiere." },
-  "smartGuardNoteMany": { "message": "Se encontraron $1 remitentes más, pero tus filtros ($2) retienen sus $3 correos, así que no se sugieren." },
+  "smartGuardNoteOne": { "message": "Se encontró 1 remitente más, pero tus protecciones ($1) retienen todo lo que había que limpiar, así que no se sugiere." },
+  "smartGuardNoteMany": { "message": "Se encontraron $1 remitentes más, pero tus protecciones ($2) retienen todo lo que había que limpiar, así que no se sugieren." },
+  "smartGuardsChangedNote": { "message": "Tus interruptores de seguridad han cambiado desde este análisis, así que estas sugerencias ya no coinciden con lo que haría una ejecución. Analiza de nuevo." },
 
   "privacyPolicyLink": { "message": "Política de privacidad" },
   "privacyPolicyAria": { "message": "Lee la política de privacidad completa (se abre en una pestaña nueva)" },

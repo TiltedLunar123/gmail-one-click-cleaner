@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "8.20.0";
+  const POPUP_VERSION = "8.21.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -202,10 +202,16 @@ document.addEventListener("DOMContentLoaded", () => {
       whitelist: [],
       protectKeywords: [],
       visibleCount: 0,
+      // 8.21: the subset Auto-Pilot can actually sweep. See
+      // GCC.smart.sweepableCount.
+      sweepableCount: 0,
       // 8.6: senders the scan found and the guards then emptied. Kept
       // so a list that got shorter can explain itself.
       heldBackSenders: 0,
       heldBackCount: 0,
+      // 8.21: the guard settings the scan measured through, so a card
+      // can stop promising a count the button will no longer honour.
+      guards: null,
       scanned: false,
       running: null,
       // 8.11: as xray.checked, for the same reason.
@@ -3398,7 +3404,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const note = elements.xrayAgeNote;
     if (!note) return;
     const age = effectiveXrayAge();
-    const show = Boolean(age) && state.xray.senders.length > 0 && state.subs.licenseActive;
+    // 8.21: this used to require a licence, so the one sentence that
+    // reconciles the headline figure with what the purge actually does
+    // was shown only to people who had already paid. A free user saw
+    // "at least 4.2 GB reclaimable", the per-sender rows, the upsell
+    // quoting the same 4.2 GB and the Purge button, and nothing saying
+    // the tiers are measured at ANY age while the purge only takes mail
+    // older than six months. They bought on a number the purge was never
+    // going to reach. effectiveXrayAge() resolves for a free user
+    // already: #xrayAge is in the DOM at its 6m default whether or not
+    // its row is on screen.
+    const show = Boolean(age) && state.xray.senders.length > 0;
     if (!show) {
       note.hidden = true;
       note.textContent = "";
@@ -3937,7 +3953,17 @@ document.addEventListener("DOMContentLoaded", () => {
     // measured through the same guards the button applies, so it is
     // what the button will take. Absent when the scan did not measure
     // it, rather than filled in with a guess.
-    const willTake = GCC.smart.actionCountText(sender);
+    //
+    // 8.21: and only while the guards it was measured through are still
+    // the ones set. `reachable` is counted once, at scan time, through
+    // applyGlobalGuards, then union-merged into storage and rendered as
+    // an exact promise; the button beside it reads the Clean tab
+    // checkboxes live. Untick Skip Unread after a scan and "Deletes 40
+    // now" sat next to a button that would trash every old unread
+    // message from that sender. The Mailbox Report has said "your safety
+    // switches have changed" since 8.7; this is the same fact on the
+    // surface where a single press acts on one sender's whole history.
+    const willTake = smartGuardsChanged() ? "" : GCC.smart.actionCountText(sender);
     if (willTake) {
       const promise = document.createElement("div");
       promise.className = "smart-will-take";
@@ -3953,11 +3979,47 @@ document.addEventListener("DOMContentLoaded", () => {
   // Silently returning a shorter list is what "the scan found nothing"
   // looked like, and the cause was a switch the user could have turned
   // off in two clicks.
+  // 8.21: have the safety switches moved since the Smart scan measured
+  // its counts? Mirrors the Mailbox Report's check (renderGuardNote) over
+  // the same REPORT_GUARD_FIELDS, so the two surfaces cannot disagree
+  // about what "changed" means.
+  //
+  // A scan stored before 8.21 has no snapshot. That answers FALSE, not
+  // TRUE: "cannot tell" must not blank a number that is very likely
+  // still correct, and the next scan supplies the snapshot anyway.
+  const smartGuardsChanged = () => {
+    const measured = state.smart.guards;
+    if (!measured) return false;
+    const live = liveReportGuards();
+    return REPORT_GUARD_FIELDS.some((k) => (measured[k] ?? null) !== (live[k] ?? null));
+  };
+
   const renderSmartGuardNote = () => {
     const note = elements.smartGuardNote;
     if (!note) return;
+    if (!state.smart.scanned) {
+      note.hidden = true;
+      return;
+    }
+
+    // 8.21: the stale-scan line comes FIRST, because it is the one that
+    // is about to cost the user mail. buildSmartCard drops its promised
+    // count while this is true, and a number that disappears with no
+    // explanation is its own small mystery. Same wording as the Mailbox
+    // Report's, because it is the same fact.
+    if (smartGuardsChanged()) {
+      if (elements.smartGuardNoteText) {
+        elements.smartGuardNoteText.textContent = t(
+          "smartGuardsChangedNote",
+          "Your safety switches have changed since this scan, so these suggestions no longer match what a run would do. Scan again."
+        );
+      }
+      note.hidden = false;
+      return;
+    }
+
     const heldSenders = Number(state.smart.heldBackSenders || 0);
-    if (!state.smart.scanned || heldSenders < 1) {
+    if (heldSenders < 1) {
       note.hidden = true;
       return;
     }
@@ -3973,18 +4035,27 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     const s = heldSenders.toLocaleString();
-    const mail = Math.max(0, Number(state.smart.heldBackCount) || 0).toLocaleString();
+    // 8.21: the mail total is gone from this sentence. heldBackCount
+    // accumulates estCount, which is the sender's ENTIRE from:() volume,
+    // while the thing the guards were shown to empty is the ACTION query.
+    // A sender with 4,000 messages of which 300 are old and unread was
+    // reported as the guards holding back all 4,000, when turning Skip
+    // Unread off (which is what the button next to this sentence invites)
+    // would expose 300. Measuring the real figure costs a search per
+    // held-back sender during a scan that is already budgeted; the sender
+    // count is measured correctly and is the part that matters, so the
+    // sentence keeps that and stops asserting the rest.
     if (elements.smartGuardNoteText) {
       elements.smartGuardNoteText.textContent = heldSenders === 1
         ? t(
           "smartGuardNoteOne",
-          `1 more sender was found, but your guards (${which.join(", ")}) hold back all ${mail} of its emails, so it is not suggested.`,
-          [which.join(", "), mail]
+          `1 more sender was found, but your guards (${which.join(", ")}) hold back everything there was to clean, so it is not suggested.`,
+          [which.join(", ")]
         )
         : t(
           "smartGuardNoteMany",
-          `${s} more senders were found, but your guards (${which.join(", ")}) hold back all ${mail} of their emails, so they are not suggested.`,
-          [s, which.join(", "), mail]
+          `${s} more senders were found, but your guards (${which.join(", ")}) hold back everything there was to clean, so they are not suggested.`,
+          [s, which.join(", ")]
         );
     }
     note.hidden = false;
@@ -4004,6 +4075,20 @@ document.addEventListener("DOMContentLoaded", () => {
     );
     const hasAny = eligible.length > 0;
     state.smart.visibleCount = eligible.length;
+    // 8.21: the subset Auto-Pilot can actually sweep, capped at what one
+    // sweep will take. visibleCount is the right number for "how many
+    // suggestions are there"; it is the wrong number for "how many of
+    // these will Auto-Pilot do for you". See GCC.smart.sweepableCount.
+    //
+    // Capped at the FREE effective limit on purpose: this line is only
+    // ever shown to someone who has not paid, so they cannot have
+    // changed the setting, and the default is what their first sweep
+    // will honour. Read through proSettings.effective rather than
+    // hardcoded, so raising the default moves both together.
+    state.smart.sweepableCount = GCC.smart.sweepableCount(
+      eligible,
+      GCC.proSettings.effective(null, false).autoPilotMaxSenders
+    );
 
     if (elements.smartToolbar) elements.smartToolbar.hidden = !hasAny || !active;
     if (elements.smartBulkBtn) elements.smartBulkBtn.hidden = !hasAny || !active;
@@ -4053,6 +4138,11 @@ document.addEventListener("DOMContentLoaded", () => {
         state.smart.senders = Array.isArray(resp.scan?.senders) ? resp.scan.senders : [];
         state.smart.heldBackSenders = Number(resp.scan?.heldBackSenders) || 0;
         state.smart.heldBackCount = Number(resp.scan?.heldBackCount) || 0;
+        // 8.21: the guards every `reachable` was measured through. Null
+        // for a scan stored before 8.21, which smartGuardsChanged reads
+        // as "cannot tell", and cannot-tell must not suppress a number
+        // that is probably fine.
+        state.smart.guards = resp.scan?.guards || null;
         state.smart.scanned = Boolean(resp.scan?.updatedAt);
         state.smart.feedback = resp.feedback && typeof resp.feedback === "object"
           ? resp.feedback
@@ -4453,7 +4543,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.autoPilotUpsell) elements.autoPilotUpsell.hidden = active;
     if (elements.autoPilotUpsellText && !active) {
       elements.autoPilotUpsellText.textContent =
-        GCC.popupUi.autoPilotUpsellLine(state.smart.visibleCount);
+        GCC.popupUi.autoPilotUpsellLine(state.smart.sweepableCount);
     }
     if (elements.autoPilotBuyLink) elements.autoPilotBuyLink.href = GCC.license.buyUrl("autopilot");
 
@@ -4518,7 +4608,7 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.autoPilotToggle.checked = false;
       syncSwitchAria(elements.autoPilotToggle);
       openProPanel("autopilot_locked", {
-        lead: GCC.popupUi.autoPilotUpsellLine(state.smart.visibleCount),
+        lead: GCC.popupUi.autoPilotUpsellLine(state.smart.sweepableCount),
         fallbackUpsell: elements.autoPilotUpsell
       });
       return;
@@ -5503,7 +5593,7 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.autoPilotToggle?.closest("label")?.addEventListener("click", () => {
       if (state.subs.licenseActive) return;
       openProPanel("autopilot_toggle_locked", {
-        lead: GCC.popupUi.autoPilotUpsellLine(state.smart.visibleCount),
+        lead: GCC.popupUi.autoPilotUpsellLine(state.smart.sweepableCount),
         fallbackUpsell: elements.autoPilotUpsell
       });
     });
