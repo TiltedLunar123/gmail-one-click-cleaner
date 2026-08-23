@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "8.22.0";
+  const SW_VERSION = "8.23.0";
 
   // =========================
   // Storage Keys
@@ -539,6 +539,31 @@
       // or the engine never attached. Either way nothing is running.
       return { reachable: false, running: false };
     }
+  }
+
+  // 8.23: which mailbox tab, if any, has an engine working in it right
+  // now. This is the only way to see the five run kinds that attach
+  // without claiming ACTIVE_RUN, and it is deliberately a live question
+  // rather than a marker: a marker for a read-only scan would be one more
+  // thing that can strand, and a stranded one books the mailbox for the
+  // full two-hour TTL. A ping cannot strand.
+  //
+  // Probed together rather than one after another, so the wait is the
+  // slowest single tab and not the sum of them; the popup awaits this
+  // during its own init. Selection is still by tab order, so the same
+  // browser state always produces the same answer.
+  async function findRunningEngineTab() {
+    const tabs = await listGmailTabs();
+    const candidates = tabs.filter((t) => typeof t.id === "number");
+    if (!candidates.length) return null;
+
+    const probes = await Promise.all(
+      candidates.map((t) => probeEngine(t.id).catch(() => ({ reachable: false, running: false })))
+    );
+    for (let i = 0; i < candidates.length; i++) {
+      if (probes[i]?.running) return { tabId: candidates[i].id, probe: probes[i] };
+    }
+    return null;
   }
 
   // 8.7: did the injection we just made actually produce OUR engine?
@@ -1089,15 +1114,43 @@
         break;
 
       // 8.4: is anything actually running, and can it be cleared?
+      //
+      // 8.23: and if nothing CLAIMED, is anything running anyway. Five run
+      // kinds attach without ever taking ACTIVE_RUN, so a question asked
+      // of the claim alone answers "idle" while the user's Gmail tab is
+      // working through fifteen searches. Answering from the tabs instead
+      // costs one ping per mailbox tab and is the only way this can be
+      // true, because there is deliberately no durable marker to read.
       case "gmailCleanerRunState":
         hasActiveRun()
           .then(async (run) => {
-            const probe = await probeEngine(run?.gmailTabId ?? msg.tabId ?? null);
+            const claimedTab = run?.gmailTabId ?? msg.tabId ?? null;
+            let probe = await probeEngine(claimedTab);
+            let engineTabId = probe.running ? claimedTab : null;
+
+            // Only when nothing claimed. A claimed run's tab is the
+            // authoritative one and a sweep could only ever find somebody
+            // else's, which would paper a stranded claim over with an
+            // unrelated tab's scan and hide the stuck state the reset
+            // button exists for.
+            if (!run && !probe.running) {
+              const found = await findRunningEngineTab();
+              if (found) {
+                probe = found.probe;
+                engineTabId = found.tabId;
+              }
+            }
+
             sendResponse({
               ok: true,
               run: run || null,
               engineReachable: probe.reachable,
-              engineRunning: probe.running
+              engineRunning: probe.running,
+              // Null rather than absent: the popup targets its reset at
+              // this, and an undefined tab id would send the reset at
+              // whatever the popup last happened to be looking at.
+              engineTabId: typeof engineTabId === "number" ? engineTabId : null,
+              engineRunKind: probe.runKind || ""
             });
           })
           .catch(() => sendResponse({ ok: false }));

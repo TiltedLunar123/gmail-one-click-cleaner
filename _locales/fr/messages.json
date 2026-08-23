@@ -528,6 +528,11 @@
 
   "runTitleRunning": { "message": "Un nettoyage est en cours" },
   "runTitleStuck": { "message": "Un nettoyage est bloqué" },
+  "runTitleScanning": { "message": "Lecture de votre boîte mail" },
+  "runTitleUnsubscribing": { "message": "Désabonnement en cours" },
+  "runTitleRestoring": { "message": "Restauration des messages" },
+  "runTitleWorking": { "message": "En cours dans votre onglet Gmail" },
+  "runTextScan": { "message": "Cela s'exécute dans votre onglet Gmail. Vous pouvez fermer cette fenêtre, le résultat sera ici à la fin." },
   "runTextRunning": { "message": "Le nettoyeur travaille dans votre onglet Gmail, commencé à $1. Afficher ouvre sa page de progression." },
   "runTextStuck": { "message": "Rien ne tourne réellement. L'enregistrement a commencé à $1. Réinitialiser l'efface pour que vous puissiez recommencer." },
   "runTextStillRunning": { "message": "Le nettoyeur a répondu : il tourne bel et bien, et il vient de recevoir l'ordre de s'arrêter. Cliquez encore pour effacer le nettoyage malgré tout." },

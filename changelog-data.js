@@ -6,13 +6,66 @@
 // even of a file inside the package, would end the extension's
 // no-network-calls promise.
 //
-// Carries the newest 12 of 78 releases; the page says so
+// Carries the newest 12 of 79 releases; the page says so
 // and links the full log on GitHub.
 
 // eslint-disable-next-line no-unused-vars
 var GCC_CHANGELOG = {
-  "total": 78,
+  "total": 79,
   "entries": [
+    {
+      "version": "8.23.0",
+      "title": "It says what it is doing",
+      "intro": [
+        "The Mailbox Report, the Storage X-ray scan, the subscription scan, the suggestion scan and bulk unsubscribe all work inside your Gmail tab, and the popup closes the moment you click anything outside it. So the natural thing to do, click into Gmail to watch, took away the only thing telling you a scan was running. Reopening the popup showed a window with nothing happening in it while your mailbox was visibly being searched."
+      ],
+      "sections": [
+        {
+          "name": "Fixed",
+          "intro": [
+            "The progress dashboard is deliberately not offered for these runs. It is built for cleanups, and the recovery button on it re-injects the last cleanup settings, which is not a thing that should ever be one click away from a read-only scan."
+          ],
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "The popup now says a scan is still going."
+                ],
+                [
+                  "",
+                  " It asks your Gmail tabs directly rather than looking for a marker, because these runs deliberately never book your mailbox the way a cleanup does. The banner names what is running, so a scan that is only reading is not confused with an unsubscribe that is changing things, and it says the part that matters: you can close the popup, the run keeps going, and the result will be waiting when it finishes."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The banner clears itself when the run ends"
+                ],
+                [
+                  "",
+                  ", instead of sitting there claiming to be reading a mailbox it already finished reading."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Reset now aims at the run that is actually going"
+                ],
+                [
+                  "",
+                  ", in whichever Gmail tab it is in. With more than one account open the button had nothing to aim at, so there was no way to stop a scan short of reloading the tab."
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "8.22.0",
       "title": "It counts the list it is looking at",
@@ -1372,313 +1425,6 @@ var GCC_CHANGELOG = {
                 [
                   "",
                   ", for people without a key. It quotes the totals already on that page and disappears once a key is activated."
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "version": "8.12.0",
-      "title": "The views mail does not come back from, and settings for Pro",
-      "intro": [
-        "Two halves. The first closes the ways a cleanup could reach Trash and Spam, which are the only two places in Gmail where deleting is permanent and where nothing this extension does can get your mail back. The second is a new Pro Settings card: three things buyers have asked to control, none of which take anything away from the free version."
-      ],
-      "sections": [
-        {
-          "name": "Fixed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "Trash and Spam could be reached by a spelling the refusal missed."
-                ],
-                [
-                  "",
-                  " A rule scoped to Trash or Spam has been refused since 8.8, because in those two views Gmail's delete button means Delete forever and the recovery label this extension writes cannot help you. That refusal only ever covered one way of writing it. Gmail also accepts "
-                ],
-                [
-                  "c",
-                  "label:trash"
-                ],
-                [
-                  "",
-                  " and "
-                ],
-                [
-                  "c",
-                  "label:spam"
-                ],
-                [
-                  "",
-                  ", which sailed through, and "
-                ],
-                [
-                  "c",
-                  "in:anywhere"
-                ],
-                [
-                  "",
-                  ", which covers both and needed nothing but a date to pass every check. All three are refused now. If you have a rule using one of them it will be refused with a message rather than run; plain "
-                ],
-                [
-                  "c",
-                  "older_than:"
-                ],
-                [
-                  "",
-                  " searches already leave Trash and Spam alone, so that is the rule to use instead."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The button the cleaner presses could have been Delete forever."
-                ],
-                [
-                  "",
-                  " Every part of this extension that restores mail has refused a control labelled Delete forever since 7.6, before it even scores the candidates. The part that deletes had no such check, and its own pattern matches the words \"Delete forever\" perfectly well. It now refuses it too, in all twenty-one languages the restore side already covered, so even a Gmail redesign nobody predicted cannot hand it that button."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The biggest cleanups were the ones measured at a single page."
-                ],
-                [
-                  "",
-                  " When a search matches more than fits on screen, Gmail offers to select every match, and this extension takes that offer. To size the confirmation you get, it then reads Gmail's \"1-50 of 3,200\" counter. On very large result sets Gmail does not print a number there at all, it prints \"of many\", so the count came back empty and everything fell back to the fifty rows on screen: no large-run confirmation, a Dry Run quoting fifty for a sweep of forty thousand, and a receipt to match. It now also reads the total out of Gmail's own \"Select all 9,000 conversations\" offer, which names it in every language. If neither can be read, the run is treated as too large to do quietly, and asks."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Safe Mode only protected receipts written in English."
-                ],
-                [
-                  "",
-                  " Safe Mode skips receipts, invoices, orders and shipping notices, and the popup offers it in seven languages. The list of words it looked for was English only, so on a German, Japanese or Spanish mailbox Safe Mode was on, said it was protecting your receipts, and matched none of them. It now looks for the equivalent words in eleven languages and keeps the English ones as well, since a lot of commercial mail is in English whatever your Gmail is set to."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "An unattended cleanup that skipped everything said nothing matched."
-                ],
-                [
-                  "",
-                  " Scheduled cleanups and Auto-Pilot decline anything large enough to need a confirmation, because there is nobody there to give one. That decline looked exactly like finding no mail, so the notification said your rules matched nothing, and a schedule could quietly stop doing anything for weeks. It now says how many rules were skipped and why."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Gmail's \"all 50 on this page are selected\" was read as \"all of them\"."
-                ],
-                [
-                  "",
-                  " The sentence Gmail shows to tell you only the visible page is selected contains the words \"all\" and \"selected\", which is exactly what the check was looking for. If the select-everything click did not take, the run then recorded the full match total against an action that touched fifty. The check now treats Gmail still offering to select everything as proof that it has not happened."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Auto-Pilot swept further back than it measured."
-                ],
-                [
-                  "",
-                  " If your minimum age was set to a year, the weekly scan counted your mail through that floor and the sweep that followed ignored it and went back six months. The two now use the same floor. This can only ever narrow a sweep."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Never Delete quietly held 100 addresses."
-                ],
-                [
-                  "",
-                  " Paste 150 protected senders in, press Save, and the page said \"Settings saved successfully!\", the counter said 150, and 100 were stored. The rest were not protected. Over-long lists are refused now, with a message saying how many to remove, and nothing is written until they are. The same was true of "
-                ],
-                [
-                  "b",
-                  "Protected Keywords"
-                ],
-                [
-                  "",
-                  " at 25 entries, and of the per-intensity rule boxes at 50 rules each."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Restore defaults said it worked even when the save failed."
-                ],
-                [
-                  "",
-                  " It never checked, so a refusal showed a red message and then a green one, and left the page displaying settings that had not been stored."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Schedules reported success when the extension had refused them."
-                ],
-                [
-                  "",
-                  " Adding, enabling, disabling and removing a scheduled cleanup all ignored the answer and always said it worked."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Enter ran a cleanup from any button in the popup."
-                ],
-                [
-                  "",
-                  " Focus anything that was not a dropdown or a tab, press Enter, and a real cleanup started instead of the button doing its job. Opening the Pro panel puts focus on Get Pro, so pressing Enter to buy started a cleanup. Enter now only starts a run when nothing else has a use for it."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Buyers saw the Pro padlocks on every popup open."
-                ],
-                [
-                  "",
-                  " Checking a licence takes a fraction of a second, and until it finished the popup showed the padlocks and the gold Pro badge meant for people who have not bought it. It now remembers the answer and shows the right thing immediately."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The storage purge forgot which age you picked."
-                ],
-                [
-                  "",
-                  " It remembers which senders you ticked so you can run it again for the rest, but the age reset to six months every time the popup closed, which is wider than anything else the menu offers."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A storage purge that failed part way marked every sender done."
-                ],
-                [
-                  "",
-                  " A purge of ten senders that cleared one and then stopped ticked all ten as purged, so the ones still to do looked finished."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Turning Auto-Pilot off during a sweep did not stop the sweep."
-                ],
-                [
-                  "",
-                  " It cleared the paperwork, and the sweep carried on archiving in the background without recording anything it did. The stop checks that the sweep it is stopping is still the one running in that tab, so it can never interrupt a cleanup you started yourself."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "An unattended run that was refused now says so in the notification."
-                ],
-                [
-                  "",
-                  " The notification is the only thing an unattended run can show you, and it was reporting \"0 emails moved to Trash\", which reads as a clean mailbox."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Diagnostics reported a size band as megabytes freed"
-                ],
-                [
-                  "",
-                  ", still counted storage freed for archive runs, which move mail without freeing anything, and probed eight settings that have never existed. The Gmail-layout warning can also be dismissed now, instead of staying on the page forever after one bad run."
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "name": "Added",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "Pro Settings."
-                ],
-                [
-                  "",
-                  " A new card on the Options page, for people with a licence. Everything on it defaults to what the extension already did, so nothing changes unless you change it, and nothing that used to be free has moved behind it."
-                ]
-              ],
-              "sub": [
-                [
-                  [
-                    "b",
-                    "Recovery label."
-                  ],
-                  [
-                    "",
-                    " The label put on mail before it is cleaned, so you can find it again. It has always been \"GmailCleaner\"; now it can be whatever you like. Older cleanups keep the label they were tagged with, so this never breaks a Restore you could do yesterday."
-                  ]
-                ],
-                [
-                  [
-                    "b",
-                    "Auto-Pilot interval."
-                  ],
-                  [
-                    "",
-                    " Weekly, every two weeks, or every 30 days."
-                  ]
-                ],
-                [
-                  [
-                    "b",
-                    "Smart Suggestions scan depth."
-                  ],
-                  [
-                    "",
-                    " The standard scan measures your ten heaviest senders. Deep measures twenty, finds more, and takes about twice as long."
-                  ]
                 ]
               ]
             }

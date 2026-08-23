@@ -528,6 +528,11 @@
 
   "runTitleRunning": { "message": "Há uma limpeza em andamento" },
   "runTitleStuck": { "message": "Há uma limpeza travada" },
+  "runTitleScanning": { "message": "Lendo sua caixa de entrada" },
+  "runTitleUnsubscribing": { "message": "Cancelando inscrições" },
+  "runTitleRestoring": { "message": "Devolvendo as mensagens" },
+  "runTitleWorking": { "message": "Trabalhando na sua aba do Gmail" },
+  "runTextScan": { "message": "Isto roda na sua aba do Gmail. Você pode fechar esta janela e o resultado estará aqui ao terminar." },
   "runTextRunning": { "message": "O limpador está trabalhando na sua aba do Gmail, começou às $1. Ver abre a página de progresso." },
   "runTextStuck": { "message": "Não há nada rodando de verdade. O registro começou às $1. Redefinir apaga isso para você começar de novo." },
   "runTextStillRunning": { "message": "O limpador respondeu: ele está mesmo rodando, e já foi avisado para parar. Clique de novo para apagar a limpeza mesmo assim." },

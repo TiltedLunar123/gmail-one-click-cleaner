@@ -528,6 +528,11 @@
 
   "runTitleRunning": { "message": "Ein Durchlauf läuft gerade" },
   "runTitleStuck": { "message": "Ein Durchlauf hängt fest" },
+  "runTitleScanning": { "message": "Postfach wird gelesen" },
+  "runTitleUnsubscribing": { "message": "Abmeldung läuft" },
+  "runTitleRestoring": { "message": "E-Mails werden zurückgelegt" },
+  "runTitleWorking": { "message": "Arbeitet in Ihrem Gmail-Tab" },
+  "runTextScan": { "message": "Das läuft in Ihrem Gmail-Tab. Sie können dieses Fenster schließen, das Ergebnis ist danach hier." },
   "runTextRunning": { "message": "Der Cleaner arbeitet in deinem Gmail-Tab, gestartet um $1. Anzeigen öffnet seine Fortschrittsseite." },
   "runTextStuck": { "message": "Es läuft in Wirklichkeit nichts. Der Eintrag begann um $1. Zurücksetzen löscht ihn, damit du neu starten kannst." },
   "runTextStillRunning": { "message": "Der Cleaner hat geantwortet: er läuft wirklich, und er wurde gerade zum Anhalten aufgefordert. Klicke noch einmal, um den Durchlauf trotzdem zu löschen." },
