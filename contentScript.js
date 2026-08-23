@@ -3519,13 +3519,27 @@
   // Layout answers only mean something where there is a layout engine.
   // jsdom performs none, so every element there reports a zero box and a
   // null offsetParent; gating on that would make the render test above
-  // reject every counter in the entire suite. Asking once whether the
-  // page has any measurable box at all keeps headless callers measuring
-  // exactly what they always measured, and applies the gate only where
-  // its answer carries information.
+  // reject every counter in the entire suite. Asking whether the page has
+  // any measurable box at all keeps headless callers measuring exactly
+  // what they always measured, and applies the gate only where its answer
+  // carries information.
+  //
+  // Three probes rather than one, because the render test is the WHOLE
+  // defence against the leftover pager: that pager sits beside the stale
+  // list rather than inside it, so no grid rule reaches it, and a gate
+  // that answers "no layout" in a real browser hands back the 8.21 bug
+  // in full. div[role="main"] is missing while Gmail boots and body can
+  // be given a zero box by a layout, but documentElement has one in every
+  // rendering browser and none of the three has one in jsdom. For the
+  // gate to switch itself off where it matters, the entire document would
+  // have to be unrendered, and then there is no visible counter to read
+  // either.
   function layoutIsKnown() {
-    const probe = qs(SELECTORS.main) || document.body;
-    return isRenderedElement(probe);
+    return (
+      isRenderedElement(qs(SELECTORS.main)) ||
+      isRenderedElement(document.body) ||
+      isRenderedElement(document.documentElement)
+    );
   }
 
   function isRenderedElement(el) {

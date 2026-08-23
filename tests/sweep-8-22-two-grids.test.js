@@ -126,6 +126,28 @@ describe("a leftover list cannot supply the total", () => {
     expect(I.estimateTotalResults()).toBeNull();
   });
 
+  test("the gate stays on when only the document element reports a box", () => {
+    // The render test is the only thing standing between the walk and the
+    // leftover pager: that pager sits BESIDE the stale list, not inside
+    // it, so no grid rule reaches it. A gate that switches itself off
+    // because one probe happens to have no box hands the bug straight
+    // back, so it asks main, then body, then documentElement.
+    document.body.innerHTML = twoGridPage({
+      stalePager: "1-50 of 426",
+      livePager: "Showing most relevant1-50 of many"
+    });
+    // ONLY <html> reports a box. main and body both report nothing, which
+    // is the exact shape that switched the old single-probe gate off, and
+    // with the gate off the leftover pager is eligible again: it sits
+    // beside the stale list rather than inside it, so no grid rule
+    // touches it. Probing main alone here returns 426.
+    Element.prototype.checkVisibility = function checkVisibility() {
+      return this === document.documentElement;
+    };
+    const I = load();
+    expect(I.estimateTotalResults()).toBeNull();
+  });
+
   test("the render gate stays inert where there is no layout to read", () => {
     // No checkVisibility stub: this is plain jsdom, and every counter the
     // rest of the suite relies on must keep resolving exactly as before.
