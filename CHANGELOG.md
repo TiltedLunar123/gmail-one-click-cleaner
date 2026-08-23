@@ -3,6 +3,40 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.22.0 - It counts the list it is looking at
+
+Gmail changed how it draws search results, and it stopped clearing the
+previous list away. The list you were looking at before the search stays
+in the page, invisible, with its own counter still attached to it. The
+cleaner was reading that counter.
+
+### Fixed
+- **The Mailbox Report was counting your Inbox instead of the mail it was
+  reporting on.** When Gmail declines to say how many conversations a
+  search found, and on the current Gmail it usually declines, the cleaner
+  looks further down the page for a number. What it found was the
+  leftover counter belonging to the list that had been on screen a moment
+  earlier. Checked against a real mailbox: five of the six report steps
+  came back with the same figure, the size of the Inbox, and two of those
+  five had no matching mail at all. A report like that is worse than no
+  report, and it is the first thing most people run. Every count now
+  comes from the search it belongs to, or it is reported as unknown.
+- **The "this will delete about N conversations" warning works again.**
+  That warning is there for the case where Gmail will not state a total.
+  A number borrowed from another list looked like a perfectly good total,
+  so the warning had nothing left to fire on.
+- **A subject line still cannot be mistaken for the results counter.**
+  8.21 stopped the cleaner taking a number out of the message list. That
+  protection was written around one list, and the page holds two now, so
+  it was guarding the wrong one. It covers both lists and the container
+  around them.
+- **Selecting row by row no longer ticks the wrong list.** When the
+  select-all checkbox does not take, the cleaner falls back to ticking
+  each row itself. It was ticking rows in the leftover invisible list, so
+  nothing on screen ended up selected, which the cleaner reads as "Gmail
+  has changed underneath me" and stops. The fallback that exists to
+  rescue a run was making sure it failed.
+
 ## 8.21.0 - It reads the mailbox, not the mail
 
 Fourteen fixes. The one that matters most: on a Japanese, Korean,

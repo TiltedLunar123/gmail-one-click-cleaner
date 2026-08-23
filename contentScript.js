@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "8.21.0";
+  const GCC_CONTENT_VERSION = "8.22.0";
 
   // =========================
   // Timing & behavior constants
@@ -1722,7 +1722,16 @@
   // internal selection model. Iterates every visible row checkbox and
   // clicks the unchecked ones. Returns the post-action selected count.
   async function selectAllVisibleRowsIndividually() {
-    const grid = qs(SELECTORS.grid);
+    // 8.22: scoped to main, like every other grid lookup in this file and
+    // like the extractSelectedCount below that grades this pass. Unscoped,
+    // it picked up the stale grid Gmail leaves behind a search -- the list
+    // the user was looking at BEFORE the query -- and clicked 50 checkboxes
+    // belonging to it. extractSelectedCount reads main, so it saw nothing
+    // selected and this returned 0, which is the GmailLayoutError the
+    // caller raises: the fallback that exists to rescue a run instead
+    // guaranteed it stopped. Selecting rows from a list the query never
+    // matched is the worse half, and scoping ends both.
+    const grid = qs(SELECTORS.grid, getMainRoot());
     if (!grid) return 0;
     const rows = qsa('tr[role="row"]', grid);
     let clicked = 0;
@@ -3456,20 +3465,80 @@
     // lines at all makes it impossible. Gmail's counter lives in the
     // toolbar, never inside the conversation grid, so no row can supply
     // the number the guardrails are sized against.
-    const grid = qs(SELECTORS.grid);
+    //
+    // 8.22: `qs` answers with the FIRST grid in the document, and Gmail
+    // now keeps more than one. Opening a search leaves the list that was
+    // on screen before it behind, complete with its own grid, OUTSIDE
+    // div[role="main"] and ahead of the results in document order. So the
+    // single grid this excluded was the stale one, and every row of the
+    // list actually being counted was back in scope: the exact hole 8.21
+    // closed, re-opened by a layout change rather than by an edit. Every
+    // grid is excluded now, because "not a conversation row" is the
+    // property wanted and no count of them is part of it.
+    //
+    // And a WRAPPER of a grid is refused for the same reason a row is.
+    // `contains` only looked downward, so div[gh="tl"] -- the list
+    // container -- was fair game, and its concatenated text is exactly its
+    // rows' text. On a search matching one or two conversations that lands
+    // under the length guard and an ordinary subject was read as the
+    // total again, through the ancestor instead of through the row.
+    // Gmail's counter never wraps the list, so nothing is lost by saying
+    // so: a node that holds a grid is not a counter.
+    const grids = qsa(SELECTORS.grid);
+    const touchesGrid = (el) => grids.some((g) => g.contains(el) || el.contains(g));
+    const gateOnRender = layoutIsKnown();
 
     const seen = new Set();
     for (const scope of scopes) {
       if (!scope || seen.has(scope)) continue;
       seen.add(scope);
       for (const el of qsa("span, div", scope)) {
-        if (grid && grid.contains(el)) continue;
+        if (touchesGrid(el)) continue;
         const count = parseCountFromText(getTextContent(el));
-        if (count !== null) return count;
+        if (count === null) continue;
+        // 8.22: and the counter has to be one the user can actually see.
+        // The `document` scope exists as a fallback for layouts that put
+        // the counter somewhere unexpected, but it searches the whole
+        // page, and the leftover list above brings its own pager with it.
+        // Measured on live Gmail: a search reading "1-50 of many" (no
+        // total, which is what raises the unknown-total confirmation) fell
+        // through the toolbar and through main, and the document scope
+        // answered with the previous list's "1-50 of 426". Four of five
+        // Mailbox Report bands were sized against the INBOX, including two
+        // bands with no matching mail at all. A counter that is not
+        // rendered belongs to a list that is not on screen, so it can
+        // never be the total for the query just opened.
+        if (gateOnRender && !isRenderedElement(el)) continue;
+        return count;
       }
     }
 
     return null;
+  }
+
+  // Layout answers only mean something where there is a layout engine.
+  // jsdom performs none, so every element there reports a zero box and a
+  // null offsetParent; gating on that would make the render test above
+  // reject every counter in the entire suite. Asking once whether the
+  // page has any measurable box at all keeps headless callers measuring
+  // exactly what they always measured, and applies the gate only where
+  // its answer carries information.
+  function layoutIsKnown() {
+    const probe = qs(SELECTORS.main) || document.body;
+    return isRenderedElement(probe);
+  }
+
+  function isRenderedElement(el) {
+    if (!el) return false;
+    // checkVisibility also catches visibility:hidden and content-visibility,
+    // and is available across the whole supported range (Chrome 105,
+    // Firefox 125; the manifest floor is Chrome 110 / Firefox 140).
+    if (typeof el.checkVisibility === "function") return el.checkVisibility();
+    return !!(
+      el.offsetWidth ||
+      el.offsetHeight ||
+      (typeof el.getClientRects === "function" && el.getClientRects().length)
+    );
   }
 
   /**

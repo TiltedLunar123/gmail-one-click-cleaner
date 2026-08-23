@@ -6,13 +6,75 @@
 // even of a file inside the package, would end the extension's
 // no-network-calls promise.
 //
-// Carries the newest 12 of 77 releases; the page says so
+// Carries the newest 12 of 78 releases; the page says so
 // and links the full log on GitHub.
 
 // eslint-disable-next-line no-unused-vars
 var GCC_CHANGELOG = {
-  "total": 77,
+  "total": 78,
   "entries": [
+    {
+      "version": "8.22.0",
+      "title": "It counts the list it is looking at",
+      "intro": [
+        "Gmail changed how it draws search results, and it stopped clearing the previous list away. The list you were looking at before the search stays in the page, invisible, with its own counter still attached to it. The cleaner was reading that counter."
+      ],
+      "sections": [
+        {
+          "name": "Fixed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "The Mailbox Report was counting your Inbox instead of the mail it was reporting on."
+                ],
+                [
+                  "",
+                  " When Gmail declines to say how many conversations a search found, and on the current Gmail it usually declines, the cleaner looks further down the page for a number. What it found was the leftover counter belonging to the list that had been on screen a moment earlier. Checked against a real mailbox: five of the six report steps came back with the same figure, the size of the Inbox, and two of those five had no matching mail at all. A report like that is worse than no report, and it is the first thing most people run. Every count now comes from the search it belongs to, or it is reported as unknown."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The \"this will delete about N conversations\" warning works again."
+                ],
+                [
+                  "",
+                  " That warning is there for the case where Gmail will not state a total. A number borrowed from another list looked like a perfectly good total, so the warning had nothing left to fire on."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "A subject line still cannot be mistaken for the results counter."
+                ],
+                [
+                  "",
+                  " 8.21 stopped the cleaner taking a number out of the message list. That protection was written around one list, and the page holds two now, so it was guarding the wrong one. It covers both lists and the container around them."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Selecting row by row no longer ticks the wrong list."
+                ],
+                [
+                  "",
+                  " When the select-all checkbox does not take, the cleaner falls back to ticking each row itself. It was ticking rows in the leftover invisible list, so nothing on screen ended up selected, which the cleaner reads as \"Gmail has changed underneath me\" and stops. The fallback that exists to rescue a run was making sure it failed."
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "8.21.0",
       "title": "It reads the mailbox, not the mail",
@@ -1617,193 +1679,6 @@ var GCC_CHANGELOG = {
                     "",
                     " The standard scan measures your ten heaviest senders. Deep measures twenty, finds more, and takes about twice as long."
                   ]
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "version": "8.11.0",
-      "title": "The paid half, and previews that say they were previews",
-      "intro": [
-        "Most of this release is on the parts of the extension you only see after you have paid for it. Five of the fixes are on Pro controls, three of them are the same problem in three places: a button that quietly did less than you asked it to and never said so."
-      ],
-      "sections": [
-        {
-          "name": "Fixed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "Apply selected threw away your Unsubscribe suggestions."
-                ],
-                [
-                  "",
-                  " Suggestion cards come in two kinds. Most of them build a cleanup rule, and one of them, Unsubscribe, drives Gmail's own unsubscribe control instead. Bulk apply can only run the first kind, and rather than say so it dropped the others on the floor. Tick three Unsubscribe cards and two Archive cards, press Apply selected, and two ran while nothing on screen mentioned the other three. Unsubscribe cards no longer offer a tick box they cannot honour, Select all skips them, and if any do reach the button it now names the one that will actually run them."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The storage purge stopped at 25 senders without a word."
-                ],
-                [
-                  "",
-                  " One purge takes at most 25 senders, and the list above it holds up to 100 with a Select all sitting on top. So the ordinary way to use the feature, tick everything and press Purge, cleaned the biggest 25 and abandoned the rest in silence. It now tells you how many of your selection it is taking and to run it again for the remainder, which is what the Unsubscribe tab has said about its own identical limit since Pro launched."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Auto-Pilot could sweep a different Google account than it measured."
-                ],
-                [
-                  "",
-                  " The weekly scan takes a few minutes and pins the mailbox it is looking at. The sweep that follows went and found a Gmail tab of its own instead, preferring whichever one you happened to be looking at. If you are signed in to two accounts and switched to the other one mid-scan, the sweep archived that mailbox using suggestions measured in the first, unattended. It now runs in the mailbox it measured, or waits for next week."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Auto-Pilot's scan measured your suggestions against settings you had turned off."
-                ],
-                [
-                  "",
-                  " Every suggestion card promises a number, and the promise is only honest if it was counted through the same filters the button applies. The three scans you start yourself send your safety switches along for exactly that reason. The weekly background scan never did, so it counted everything as though Skip Unread, Skip Starred, Skip Important and Skip Labeled were all on, and then wrote those numbers over the ones your own scan had measured. If you had turned Skip Unread off, a card reading \"Deletes 200 now\" sat above a button that would take every unread message too. The background scan now uses your switches. The sweep itself is unchanged and still runs with every guard on, so it can only ever take less than it counted."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Closing the Gmail tab stopped Auto-Pilot for two hours."
-                ],
-                [
-                  "",
-                  " If the tab went away mid-sweep, nothing was left to report that the sweep had ended, so the next weekly run skipped, and the one after that, until the record aged out. The popup meanwhile said a sweep was running right now. Closing the tab now ends the sweep properly, and the popup stops believing in one that died."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Dry runs were counted as cleanups."
-                ],
-                [
-                  "",
-                  " A dry run moves nothing, and it was still adding its projections to the lifetime totals on the Stats page. Preview five thousand old promotions to check a rule before you trust it, which is what the feature is for, and the chart claimed five thousand promotions cleaned, permanently. Previews are kept out of the totals now and still appear in the run history with their dry run tag, which is the one place they belong."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The finish screen described work that had not happened."
-                ],
-                [
-                  "",
-                  " A dry run that ended while the popup was open said \"Cleanup Complete!\", counted the mail as cleaned, said it had gone to Trash, and offered you the recovery log to undo it. It now says a dry run finished and that nothing was moved, which is what the progress page has said all along. Archive runs had a smaller version of the same problem: the note under the result promised Gmail's 30 day Trash window, and archived mail never goes to Trash. It now says where the mail actually is."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Safe Mode's receipt protection could switch itself off."
-                ],
-                [
-                  "",
-                  " Safe Mode keeps receipts, invoices, orders, shipping and refund mail out of a cleanup by excluding those words from the subject. If your own rule already excluded any subject at all, for any reason, the whole protection was skipped while Safe Mode carried on showing as on. Gmail is perfectly happy to apply both exclusions, and the protected keywords feature has relied on that for years. Both apply now."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A Never Delete entry could be rejected and reported as saved."
-                ],
-                [
-                  "",
-                  " If a line in the Never Delete list was not in a form the extension can use, a name and address pasted together, or an address with an apostrophe in it, it was dropped before it was stored, and Settings still said \"Settings saved successfully!\". You would leave believing a sender was protected. Settings now tells you which line it could not use."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Buying Pro did not stop the extension asking you to buy Pro."
-                ],
-                [
-                  "",
-                  " The strip offering somewhere to paste a key kept appearing for people whose key was already stored and verified, because it was drawn before the check finished. The Storage tab's upgrade pitch had the same problem from the other direction: it could be shown but never hidden again, so it stayed up for the rest of the session after a key was entered. Both are gone the moment a licence verifies."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Settings said Pro unlocked one feature."
-                ],
-                [
-                  "",
-                  " That was true when the only paid feature was bulk unsubscribe. Four more have been added since and the sentence never changed, so anyone opening Settings after paying was told they had bought a fifth of what they had bought. Settings now lists all five."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The What's new page flashed an empty jump bar"
-                ],
-                [
-                  "",
-                  " before its contents loaded."
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "name": "Improved",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "The Storage and Suggestions lists remember what you ticked, minus what already ran."
-                ],
-                [
-                  "",
-                  " Both cap one run at 25 senders out of a list that can hold a hundred, and the popup closes when a run starts, so working through a long list means going back and forth. Every trip back used to start from an empty selection with no record of where you had got to. They now come back with your selection intact and the senders that just ran taken off it, so \"run it again for the rest\" reaches the rest instead of the same twenty-five. A dry run keeps the whole selection, because it did not take anything. Nothing about this leaves your browser."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Settings shows what a Pro key unlocks"
-                ],
-                [
-                  "",
-                  ", as a list, in one place, so it stays right the next time something is added to it."
                 ]
               ]
             }
