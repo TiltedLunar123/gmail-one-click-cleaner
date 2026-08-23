@@ -528,6 +528,11 @@
 
   "runTitleRunning": { "message": "実行中の処理があります" },
   "runTitleStuck": { "message": "処理が止まっています" },
+  "runTitleScanning": { "message": "メールボックスを読み取っています" },
+  "runTitleUnsubscribing": { "message": "配信停止しています" },
+  "runTitleRestoring": { "message": "メールを戻しています" },
+  "runTitleWorking": { "message": "Gmail タブで実行中です" },
+  "runTextScan": { "message": "これは Gmail タブで実行されます。このウィンドウは閉じてかまいません。完了後に結果がここに表示されます。" },
   "runTextRunning": { "message": "Gmail タブでクリーナーが動いています（開始 $1）。「表示」で進捗ページを開きます。" },
   "runTextStuck": { "message": "実際には何も動いていません。この記録は $1 に作られました。「リセット」で消せば、また開始できます。" },
   "runTextStillRunning": { "message": "クリーナーから応答がありました。本当に動いており、停止を指示済みです。それでも記録を消すには、もう一度クリックしてください。" },

@@ -3,6 +3,34 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.23.0 - It says what it is doing
+
+The Mailbox Report, the Storage X-ray scan, the subscription scan, the
+suggestion scan and bulk unsubscribe all work inside your Gmail tab, and
+the popup closes the moment you click anything outside it. So the natural
+thing to do, click into Gmail to watch, took away the only thing telling
+you a scan was running. Reopening the popup showed a window with nothing
+happening in it while your mailbox was visibly being searched.
+
+### Fixed
+- **The popup now says a scan is still going.** It asks your Gmail tabs
+  directly rather than looking for a marker, because these runs
+  deliberately never book your mailbox the way a cleanup does. The banner
+  names what is running, so a scan that is only reading is not confused
+  with an unsubscribe that is changing things, and it says the part that
+  matters: you can close the popup, the run keeps going, and the result
+  will be waiting when it finishes.
+- **The banner clears itself when the run ends**, instead of sitting there
+  claiming to be reading a mailbox it already finished reading.
+- **Reset now aims at the run that is actually going**, in whichever Gmail
+  tab it is in. With more than one account open the button had nothing to
+  aim at, so there was no way to stop a scan short of reloading the tab.
+
+The progress dashboard is deliberately not offered for these runs. It is
+built for cleanups, and the recovery button on it re-injects the last
+cleanup settings, which is not a thing that should ever be one click away
+from a read-only scan.
+
 ## 8.22.0 - It counts the list it is looking at
 
 Gmail changed how it draws search results, and it stopped clearing the

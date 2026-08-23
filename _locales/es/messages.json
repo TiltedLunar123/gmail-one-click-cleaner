@@ -528,6 +528,11 @@
 
   "runTitleRunning": { "message": "Hay una limpieza en curso" },
   "runTitleStuck": { "message": "Hay una limpieza atascada" },
+  "runTitleScanning": { "message": "Leyendo tu bandeja" },
+  "runTitleUnsubscribing": { "message": "Cancelando suscripciones" },
+  "runTitleRestoring": { "message": "Devolviendo los correos" },
+  "runTitleWorking": { "message": "Trabajando en tu pestaña de Gmail" },
+  "runTextScan": { "message": "Esto se ejecuta en tu pestaña de Gmail. Puedes cerrar esta ventana y el resultado estará aquí al terminar." },
   "runTextRunning": { "message": "El limpiador está trabajando en tu pestaña de Gmail, empezó a las $1. Ver abre su página de progreso." },
   "runTextStuck": { "message": "No hay nada ejecutándose de verdad. El registro empezó a las $1. Reiniciar lo borra para que puedas empezar otra vez." },
   "runTextStillRunning": { "message": "El limpiador ha respondido: sí está en marcha, y ya se le ha pedido que pare. Pulsa otra vez para borrar la limpieza igualmente." },

@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "8.22.0";
+  const POPUP_VERSION = "8.23.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -4895,6 +4895,21 @@ document.addEventListener("DOMContentLoaded", () => {
         // gmailCleanerDone/Canceled/Error types that are never sent.)
         if (msg.type !== "gmailCleanerProgress") return;
 
+        // 8.23: the banner for a claimless run is raised from a live
+        // probe of the Gmail tab, and a probe is only taken when this
+        // popup opens. Nothing else retracts it, so a scan that finishes
+        // while the popup is watching would leave "Reading your mailbox"
+        // sitting over a report that had already arrived. Any terminal
+        // message from one of those runs is the retraction, and asking
+        // the worker again is what makes it true rather than assumed.
+        if (
+          msg.runKind &&
+          state.runBannerVisible &&
+          (msg.done || msg.phase === "done" || msg.phase === "cancelled" || msg.phase === "error")
+        ) {
+          refreshRunBanner().catch(() => {});
+        }
+
         // 7.0/7.2: auxiliary engine messages carry runKind and have
         // their own UI; keep them out of the cleanup progress logic.
         if (msg.runKind === "storageScan") {
@@ -5100,39 +5115,92 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.runBanner?.classList.remove("show", "is-stuck");
   };
 
-  const showRunBanner = ({ run, engineReachable, engineRunning }) => {
+  // 8.23: what the five claimless run kinds are called, in words the user
+  // can act on. A read and a write do not share a sentence: unsubscribe
+  // and restore change the mailbox, and someone deciding whether to press
+  // Reset needs to know which of those they would be stopping. An
+  // unrecognised kind falls back to saying only what is certain.
+  // A Map rather than an object literal, because the key arrives in a
+  // message. `SCAN_RUN_TITLES["toString"]` on a literal answers with the
+  // inherited function, which is truthy and is not iterable, so the
+  // destructure below would throw and take the whole banner with it. A
+  // Map holds only what was put in it.
+  const SCAN_RUN_TITLES = new Map([
+    ["reportScan", ["runTitleScanning", "Reading your mailbox"]],
+    ["storageScan", ["runTitleScanning", "Reading your mailbox"]],
+    ["smartScan", ["runTitleScanning", "Reading your mailbox"]],
+    ["subscriptionScan", ["runTitleScanning", "Reading your mailbox"]],
+    ["unsubscribe", ["runTitleUnsubscribing", "Unsubscribing"]],
+    ["restoreRun", ["runTitleRestoring", "Putting mail back"]]
+  ]);
+
+  const showRunBanner = ({ run, engineReachable, engineRunning, engineTabId, engineRunKind }) => {
     if (!elements.runBanner) return;
     state.runBannerVisible = true;
-    state.runBannerTabId = run?.gmailTabId ?? null;
+
+    // A run the worker found by asking the tabs rather than by reading a
+    // claim. It is one of the kinds that never book the mailbox, so there
+    // is no claim to quote a start time from and no progress page behind
+    // it, and both halves of the cleanup copy would be wrong.
+    const claimless = !run && Boolean(engineRunning);
+    state.runBannerTabId = claimless
+      ? (typeof engineTabId === "number" ? engineTabId : null)
+      : (run?.gmailTabId ?? null);
 
     // "Stuck" is not a guess about elapsed time: it is the worker
     // failing to get an answer out of the engine that the claim says is
-    // working. That is the case the reset button exists for.
+    // working. That is the case the reset button exists for. A claimless
+    // run is never stuck by construction: it only exists here because an
+    // engine answered, so this needs no term of its own for it.
     const stuck = !engineRunning;
     elements.runBanner.classList.toggle("is-stuck", stuck);
     elements.runBanner.classList.add("show");
 
     const started = formatRunStart(run?.startedAt);
     if (elements.runBannerTitle) {
-      elements.runBannerTitle.textContent = stuck
-        ? t("runTitleStuck", "A run is stuck")
-        : t("runTitleRunning", "A run is in progress");
+      let titleText;
+      if (claimless) {
+        const [key, fallback] =
+          SCAN_RUN_TITLES.get(engineRunKind) || ["runTitleWorking", "Working in your Gmail tab"];
+        titleText = t(key, fallback);
+      } else if (stuck) {
+        titleText = t("runTitleStuck", "A run is stuck");
+      } else {
+        titleText = t("runTitleRunning", "A run is in progress");
+      }
+      elements.runBannerTitle.textContent = titleText;
     }
     if (elements.runBannerText) {
-      elements.runBannerText.textContent = stuck
-        ? t(
+      let bodyText;
+      if (claimless) {
+        // The whole point of the banner in this state: the popup dying is
+        // not the run dying, and the answer keeps.
+        bodyText = t(
+          "runTextScan",
+          "This runs in your Gmail tab. You can close this popup and the result will be here when it finishes."
+        );
+      } else if (stuck) {
+        bodyText = t(
           "runTextStuck",
           `Nothing is actually running. The claim started at ${started}. Reset clears it so you can start again.`,
           [started]
-        )
-        : t(
+        );
+      } else {
+        bodyText = t(
           "runTextRunning",
           `The cleaner is working in your Gmail tab, started at ${started}. Show opens its progress page.`,
           [started]
         );
+      }
+      elements.runBannerText.textContent = bodyText;
     }
     if (elements.runBannerShowBtn) {
-      elements.runBannerShowBtn.hidden = !state.runBannerTabId;
+      // Show opens the progress page, and that page exists for cleanup
+      // runs: its re-inject clears GCC_ATTACHED and injects `lastConfig`,
+      // which during a scan is the last full CLEANUP config, because the
+      // scan starters deliberately never write it. Offering it here would
+      // put a delete sweep one confirmation away from a read-only scan.
+      elements.runBannerShowBtn.hidden = claimless || !state.runBannerTabId;
     }
     // Not reachable means there is nothing to warn about, so the reset
     // goes straight through on the first click.
@@ -5158,6 +5226,16 @@ document.addEventListener("DOMContentLoaded", () => {
       return null;
     }
     if (!resp.run) {
+      // 8.23: no claim is not the same as nothing happening. Five run
+      // kinds attach without ever booking the mailbox, and this branch
+      // used to throw away the engineRunning the worker had already gone
+      // and asked the tabs for. A user who clicked into Gmail to watch a
+      // scan, which kills this popup, reopened it to a completely idle
+      // window while their Gmail tab worked through fifteen searches.
+      if (resp.engineRunning) {
+        showRunBanner(resp);
+        return resp;
+      }
       hideRunBanner();
       return null;
     }

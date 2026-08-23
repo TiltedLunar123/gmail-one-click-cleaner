@@ -30,6 +30,29 @@ let failSyncKeys;
 const flush = () => new Promise((r) => setTimeout(r, 0));
 const settle = async (n = 20) => { for (let i = 0; i < n; i++) await flush(); };
 
+// 8.23: `settle(40)` spent a fixed budget of macrotask turns waiting for
+// an event that does not arrive on that clock, so it was a race the suite
+// usually won. Measured, on one checkout with nothing changed between
+// runs: the injection landed after four turns once and five the next
+// time. On a loaded CI runner it went past the budget and the suite failed
+// on Node 20 while passing on Node 22, then passed on a re-run of the
+// identical commit.
+//
+// The mechanism is deliberately not named here, because the obvious
+// candidate is not it: lengthening tryClaimRun's real 40ms pause tenfold
+// changes nothing, since this harness answers gmailCleanerClaimRun from
+// the worker stub and never reaches that pause. Waiting for the condition
+// itself is correct whatever the cause, which is the point. The bound only
+// stops a genuine hang becoming a hung test, and sits far enough above the
+// real cost (single figures) to assert nothing about timing.
+const settleUntil = async (predicate, maxTurns = 400) => {
+  for (let i = 0; i < maxTurns; i++) {
+    if (predicate()) return true;
+    await flush();
+  }
+  return predicate();
+};
+
 function installChrome() {
   const thisExecuted = [];
   executed = thisExecuted;
@@ -167,7 +190,7 @@ describe("a cleanup will not run without the safety lists", () => {
     // the run.
     await boot();
     document.getElementById("runCleanup").click();
-    await settle(40);
+    await settleUntil(() => injectedEngine().length > 0);
 
     expect(injectedEngine()).toHaveLength(1);
     const configCall = executed.find((o) => Array.isArray(o?.args) && o.args[0]?.whitelist);
@@ -180,7 +203,10 @@ describe("a cleanup will not run without the safety lists", () => {
     failSyncKeys.add("whitelist");
 
     document.getElementById("runCleanup").click();
-    await settle(40);
+    // Anchored on the refusal itself. A fixed number of turns can elapse
+    // before the run reaches the point where it would inject, and then
+    // "nothing was injected" is true because nothing had happened yet.
+    await settleUntil(() => /could not be read/.test(statusText().toLowerCase()));
 
     expect(injectedEngine()).toHaveLength(0);
     expect(statusText().toLowerCase()).toMatch(/could not be read/);
@@ -194,7 +220,10 @@ describe("a cleanup will not run without the safety lists", () => {
     failSyncKeys.add("protectKeywords");
 
     document.getElementById("runCleanup").click();
-    await settle(40);
+    // Anchored on the refusal itself. A fixed number of turns can elapse
+    // before the run reaches the point where it would inject, and then
+    // "nothing was injected" is true because nothing had happened yet.
+    await settleUntil(() => /could not be read/.test(statusText().toLowerCase()));
 
     expect(injectedEngine()).toHaveLength(0);
     expect(statusText().toLowerCase()).toMatch(/could not be read/);

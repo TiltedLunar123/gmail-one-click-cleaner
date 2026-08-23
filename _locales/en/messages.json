@@ -528,6 +528,11 @@
 
   "runTitleRunning": { "message": "A run is in progress" },
   "runTitleStuck": { "message": "A run is stuck" },
+  "runTitleScanning": { "message": "Reading your mailbox" },
+  "runTitleUnsubscribing": { "message": "Unsubscribing" },
+  "runTitleRestoring": { "message": "Putting mail back" },
+  "runTitleWorking": { "message": "Working in your Gmail tab" },
+  "runTextScan": { "message": "This runs in your Gmail tab. You can close this popup and the result will be here when it finishes." },
   "runTextRunning": { "message": "The cleaner is working in your Gmail tab, started at $1. Show opens its progress page." },
   "runTextStuck": { "message": "Nothing is actually running. The claim started at $1. Reset clears it so you can start again." },
   "runTextStillRunning": { "message": "The cleaner answered: it really is running, and it has been told to stop. Click again to clear the run anyway." },
