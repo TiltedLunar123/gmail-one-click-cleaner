@@ -1644,6 +1644,12 @@ const GCC = (() => {
         action: band.action,
         query: band.query,
         count,
+        // 8.24: this builds bands from a bare id -> number map, which
+        // carries no provenance at all, so nothing here can be a floor.
+        // Stated rather than left off, because rankReportBands reads the
+        // field and an absent one would be a silent default instead of
+        // an answer.
+        atLeast: false,
         estMb: band.mbFloor ? count * band.mbFloor : 0
       };
     });
@@ -1681,6 +1687,19 @@ const GCC = (() => {
           // whole honesty fix has never once appeared on screen. Absent
           // still means true, the same reading the worker uses.
           measured: b.measured !== false,
+          // 8.24: carried for exactly the reason `measured` above had to
+          // be. Gmail states no total on a relevance-ranked search, so
+          // the engine marks those counts as floors -- and this function
+          // rebuilds every band from the field list, at ingest AND at
+          // render, so a flag left off it never reaches the branch
+          // written to read it. Absent means exact: only a scan that
+          // measured a floor says so.
+          //
+          // Guarded by the same clamped count the render uses. "At least
+          // 0" is not a claim about anything, and a stored report that
+          // came back with a floor mark on an empty band would otherwise
+          // print one.
+          atLeast: b.atLeast === true && count > 0,
           cleanedAt: Number(b.cleanedAt) || 0
         };
       })
@@ -1775,25 +1794,43 @@ const GCC = (() => {
     if (locked.length === 0) {
       return t("reportUpsellNone", "Pro is $9.99 once: it unlocks every step of the plan and one-click Run the whole plan.");
     }
-    // One band's own count is exact, so a single locked step can state
-    // it. More than one CANNOT be summed: the bands overlap by design
-    // (an old 6MB promo in the Inbox is in sizeBig, promotions,
-    // newsletters and inboxOld at once), so adding them counts the same
-    // message up to four times, and this line is read at the moment
-    // money changes hands. The rule is stated a few hundred lines up:
-    // band counts are never summed into a headline figure. The largest
-    // locked band is a measured number about one real band, so that is
-    // what gets shown.
+    // A single locked step can state its own count. More than one CANNOT
+    // be summed: the bands overlap by design (an old 6MB promo in the
+    // Inbox is in sizeBig, promotions, newsletters and inboxOld at
+    // once), so adding them counts the same message up to four times,
+    // and this line is read at the moment money changes hands. The rule
+    // is stated a few hundred lines up: band counts are never summed
+    // into a headline figure. The largest locked band is a measured
+    // number about one real band, so that is what gets shown.
+    //
+    // 8.24: and it is stated as "at least" when Gmail gave the scan no
+    // total. This sentence used to open "One band's own count is exact",
+    // which stopped being true when Gmail moved search to relevance
+    // ranking: the count behind it is then the fifty rows the scan could
+    // see. Understating the thing being sold is the mildest version of
+    // this bug and still the worst place to keep it.
     if (locked.length === 1) {
       const only = locked[0].count.toLocaleString();
-      return t("reportUpsellOne", `1 more step is holding ${only} emails. Pro clears it for $9.99.`, [only]);
+      return locked[0].atLeast
+        ? t("reportUpsellOneAtLeast", `1 more step is holding at least ${only} emails. Pro clears it for $9.99.`, [only])
+        : t("reportUpsellOne", `1 more step is holding ${only} emails. Pro clears it for $9.99.`, [only]);
     }
-    const biggest = locked.reduce((max, b) => Math.max(max, b.count), 0).toLocaleString();
-    return t(
-      "reportUpsellMany",
-      `${locked.length} more steps are locked, the largest holding ${biggest} emails. Pro clears them for $9.99.`,
-      [String(locked.length), biggest]
-    );
+    // The band that supplies the figure decides how it is worded, not
+    // "any of them was a floor": the largest is one specific band and
+    // the sentence is about that band's number.
+    const largest = locked.reduce((max, b) => (b.count > max.count ? b : max), locked[0]);
+    const biggest = largest.count.toLocaleString();
+    return largest.atLeast
+      ? t(
+        "reportUpsellManyAtLeast",
+        `${locked.length} more steps are locked, the largest holding at least ${biggest} emails. Pro clears them for $9.99.`,
+        [String(locked.length), biggest]
+      )
+      : t(
+        "reportUpsellMany",
+        `${locked.length} more steps are locked, the largest holding ${biggest} emails. Pro clears them for $9.99.`,
+        [String(locked.length), biggest]
+      );
   };
 
   const report = Object.freeze({
@@ -2541,6 +2578,14 @@ const GCC = (() => {
     if ((Number(sig.estMb) || 0) >= 100) return "purgeLarge";
     const oldShare = Number(sig.oldShare);
     if (
+      // 8.24: not on counts Gmail refused to total. See the engine's
+      // smartPrimaryActionFor, which this is pinned against: a
+      // relevance-ranked search answers "1-50 of many", so base and
+      // unread both come back as the one page the scan could see and
+      // every sender past a page reads as 100% unread. Unsubscribing is
+      // the only suggestion here that cannot be taken back, so it is
+      // the only one that insists on a real ratio.
+      !sig.approx &&
       (Number(sig.count) || 0) >= SMART_UNSUB_MIN_COUNT &&
       clamp01(sig.unreadRatio) >= SMART_UNSUB_MIN_UNREAD &&
       Number.isFinite(oldShare) &&
@@ -2558,17 +2603,28 @@ const GCC = (() => {
     const sig = sender?.signals || {};
     const count = Math.max(0, Number(sender?.estCount ?? sig.count) || 0);
     const countText = count.toLocaleString();
+    // 8.24: the scan could only see one page of this sender's mail,
+    // because Gmail answered "1-50 of many". Everything below is
+    // measured against that page.
+    const approx = sig.approx === true;
     const parts = [
       count === 1
         ? t("reasonOneEmail", "1 email")
-        : t("reasonManyEmails", `${countText} emails`, [countText])
+        : approx
+          ? t("reasonAtLeastEmails", `at least ${countText} emails`, [countText])
+          : t("reasonManyEmails", `${countText} emails`, [countText])
     ];
     const unread = Number(sig.unreadRatio);
-    if (Number.isFinite(unread) && unread > 0) {
+    // A percentage of a page is not a percentage of the sender. This
+    // clause read "100% unread" for any sender past one page, which is
+    // the most confident and least true thing on the card. Dropped
+    // rather than hedged: the count above still carries the finding,
+    // and there is no honest number to put here.
+    if (!approx && Number.isFinite(unread) && unread > 0) {
       const pct = String(Math.round(clamp01(unread) * 100));
       parts.push(t("reasonPctUnread", `${pct}% unread`, [pct]));
     }
-    if (clamp01(sig.oldShare) >= 0.5) parts.push(t("reasonMostlyOld", "mostly older than 6 months"));
+    if (!approx && clamp01(sig.oldShare) >= 0.5) parts.push(t("reasonMostlyOld", "mostly older than 6 months"));
     if (sig.shape) parts.push(t("reasonNoReply", "no-reply sender"));
     const mb = Number(sig.estMb) || 0;
     if (mb >= 50) parts.push(t("reasonAtLeastMb", `at least ${formatMb(mb)}`, [formatMb(mb)]));

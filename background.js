@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "8.23.0";
+  const SW_VERSION = "8.24.0";
 
   // =========================
   // Storage Keys
@@ -1862,6 +1862,14 @@
           // an older version carry no flag at all, and every band in
           // those WAS measured, so absent has to mean true.
           measured: raw?.measured !== false,
+          // 8.24: "at least this many". The opposite default to
+          // `measured` above, and for the same reason: absent has to
+          // mean the safe reading, and here the safe reading is that a
+          // number is only ever qualified when the engine that measured
+          // it says so. A stored report from an older version predates
+          // the flag and its counts are claimed as exact, which is what
+          // that version showed.
+          atLeast: raw?.atLeast === true,
           cleanedAt: 0
         });
       }
@@ -1916,6 +1924,10 @@
           updatedAt: Date.now(),
           bands: clean,
           cleanableCount: clampReportNumber(msg?.cleanableCount),
+          // 8.24: and whether Gmail stated a total for it. Same default
+          // as the per-band flag: absent means the number is claimed as
+          // exact, which is what every version before this one showed.
+          cleanableAtLeast: msg?.cleanableAtLeast === true,
           largeMb: clampReportNumber(msg?.largeMb),
           // 8.5: old mail the guards held back, so a report that reads
           // near zero can say why instead of looking like a dead
@@ -2030,6 +2042,14 @@
     };
     const estMb = Math.max(0, Math.min(1024 * 1024, Math.round(Number(raw?.estMb) || 0)));
     if (estMb > 0) signals.estMb = estMb;
+    // 8.24: the ratios above came out of counts Gmail stated no total
+    // for, so they are bounds rather than values. Set only when the
+    // engine says so, and only ever set: a suggestion stored before this
+    // version carries no flag and its ratios were real when it was
+    // measured. Kept here rather than derived in the popup because
+    // smartPrimaryAction reads it, and that runs on stored senders long
+    // after the scan that measured them.
+    if (raw?.approx === true) signals.approx = true;
     return signals;
   }
 
