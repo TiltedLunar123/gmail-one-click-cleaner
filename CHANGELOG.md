@@ -3,6 +3,48 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.24.0 - Fifty is not a total
+
+Gmail sorts most searches by relevance now, and when it does that it stops
+saying how many conversations matched. The pager reads "1-50 of many". The
+cleaner fell back to counting the rows it could see, which is fifty, and
+printed that as the answer.
+
+So the Mailbox Report, the screen the store listing tells you to run
+first, showed 50 beside a step holding thousands. Two mailboxes with
+wildly different amounts of old mail in them got the same report.
+
+### Fixed
+- **A count Gmail will not total is shown as a floor.** A step reading 50+
+  holds at least fifty and probably far more. Nothing is guessed and no
+  number went up: the plus sign is there because the cleaner can see one
+  page and will not pretend otherwise. Hover it and it says so.
+- **The headline says "at least" when it means at least**, instead of
+  quoting one page of your mailbox as the size of it.
+- **The Pro line stopped understating what Pro clears.** It names one
+  step's count, and that count was the same fifty.
+- **Suggestions stopped calling every sender 100% unread.** A suggestion
+  works out how much of a sender's mail you never open by dividing one
+  search by another, and both searches were coming back as one page, so
+  any sender past fifty messages looked untouched. Unsubscribing cannot be
+  undone, so it is no longer suggested off a figure the cleaner could not
+  measure. Deleting old mail and archiving still are, and Gmail keeps both
+  somewhere you can get them back from.
+- **Bulk delete works on Traditional Chinese Gmail.** Rather than clearing
+  fifty at a time, the cleaner takes Gmail's offer to select every match,
+  and it finds that offer by name. It knew the Simplified spelling of
+  "select all" and not the Traditional one, so on a zh-TW or zh-HK mailbox
+  it never found the offer and crawled the results a page at a time.
+- **Selecting everything now finds the list on screen.** Gmail leaves the
+  previous search results sitting in the page where you cannot see them.
+  When the cleaner's usual way of ticking rows does not work and it falls
+  back to Gmail's own select-all checkbox, it was finding the leftover
+  list's checkbox first, selecting nothing you could see, and then
+  reporting that Gmail's layout had changed.
+
+None of these numbers moved. The report counts what it always counted; it
+now tells you when what it counted was a page rather than a total.
+
 ## 8.23.0 - It says what it is doing
 
 The Mailbox Report, the Storage X-ray scan, the subscription scan, the

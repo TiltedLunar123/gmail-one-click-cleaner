@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "8.23.0";
+  const POPUP_VERSION = "8.24.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -223,6 +223,10 @@ document.addEventListener("DOMContentLoaded", () => {
     report: {
       bands: [],
       cleanableCount: 0,
+      // 8.24: whether Gmail stated a total for the headline search. A
+      // relevance-ranked search reports "1-50 of many", so the count is
+      // the page the scan could see rather than the match set.
+      cleanableAtLeast: false,
       // 8.5: old mail the global guards held back, measured by running
       // the headline query both with and without them.
       guardedOutCount: 0,
@@ -539,6 +543,7 @@ document.addEventListener("DOMContentLoaded", () => {
     reportStatus: $("reportStatus"),
     reportHero: $("reportHero"),
     reportHeroCount: $("reportHeroCount"),
+    reportHeroCountSr: $("reportHeroCountSr"),
     reportHeroLabel: $("reportHeroLabel"),
     reportHeroMb: $("reportHeroMb"),
     reportList: $("reportList"),
@@ -2806,7 +2811,24 @@ document.addEventListener("DOMContentLoaded", () => {
       // rAF or a second scan arriving mid-roll all end on this exact
       // string.
       const cleanable = Number(state.report.cleanableCount || 0);
-      GCC.countUp(elements.reportHeroCount, cleanable, cleanable.toLocaleString());
+      // 8.24: a headline Gmail gave no total for is a floor, and the
+      // hero number is the first thing anyone reads. countUp writes the
+      // final text before it animates anything, so the plus sign is
+      // there from the first frame and survives reduced motion, a
+      // missing rAF and a second scan arriving mid-roll.
+      const cleanableFloor = state.report.cleanableAtLeast === true && cleanable > 0;
+      const cleanableText = cleanable.toLocaleString();
+      GCC.countUp(
+        elements.reportHeroCount,
+        cleanable,
+        cleanableFloor ? t("reportHeroAtLeast", `${cleanableText}+`, [cleanableText]) : cleanableText
+      );
+      elements.reportHeroCount.setAttribute("aria-hidden", cleanableFloor ? "true" : "false");
+      if (elements.reportHeroCountSr) {
+        elements.reportHeroCountSr.textContent = cleanableFloor
+          ? t("reportHeroAtLeastSr", `at least ${cleanableText}`, [cleanableText])
+          : "";
+      }
     }
     if (elements.reportHeroMb) {
       elements.reportHeroMb.textContent = totals.largeMb
@@ -2851,12 +2873,23 @@ document.addEventListener("DOMContentLoaded", () => {
       // attachments and old Inbox mail, so old mail that is none of
       // those is real, is counted above, and simply has no step here.
       const held = Number(state.report.cleanableCount || 0);
+      // 8.24: "those N old emails" points straight back at the hero
+      // number above it, so when that one reads 50+ this one may not
+      // read 50. Same figure, same wording.
+      const heldText = held.toLocaleString();
+      const heldFloor = state.report.cleanableAtLeast === true && held > 0;
       text.textContent = held > 0
-        ? t(
-          "reportNoStepsButMail",
-          `None of those ${held.toLocaleString()} old emails are promotions, social, updates, forums, big attachments or old Inbox mail, so the plan has no step for them. The Clean tab reaches further: Deep and Maximum are not limited to these groups.`,
-          [held.toLocaleString()]
-        )
+        ? (heldFloor
+          ? t(
+            "reportNoStepsButMailAtLeast",
+            `None of those old emails (at least ${heldText} of them) are promotions, social, updates, forums, big attachments or old Inbox mail, so the plan has no step for them. The Clean tab reaches further: Deep and Maximum are not limited to these groups.`,
+            [heldText]
+          )
+          : t(
+            "reportNoStepsButMail",
+            `None of those ${heldText} old emails are promotions, social, updates, forums, big attachments or old Inbox mail, so the plan has no step for them. The Clean tab reaches further: Deep and Maximum are not limited to these groups.`,
+            [heldText]
+          ))
         : t("reportNothing", "Nothing matched the plan. Your mailbox is already clean.");
       empty.appendChild(text);
       elements.reportList.appendChild(empty);
@@ -2899,11 +2932,40 @@ document.addEventListener("DOMContentLoaded", () => {
       // the zero it used to fall back to told the user this part of
       // their mailbox was clean when it had never been looked at.
       const measured = band.measured !== false;
+      // 8.24: and a band Gmail gave no total for has a floor, not a
+      // number. "1-50 of many" is what a relevance-ranked search reports
+      // now, so the scan can see fifty rows and nothing more; printing
+      // 50 flat said "this step holds fifty emails" about a step holding
+      // thousands. The plus sign is the whole claim, and the row's own
+      // title spells it out for anyone who does not read it as one.
+      const atLeast = measured && band.atLeast === true && band.count > 0;
+      const countText = band.count.toLocaleString();
       count.textContent = measured
-        ? band.count.toLocaleString()
+        ? (atLeast ? t("reportBandAtLeast", `${countText}+`, [countText]) : countText)
         : t("reportBandUnmeasured", "not measured");
       if (!measured) count.classList.add("report-row-count--unmeasured");
+      if (atLeast) {
+        count.classList.add("report-row-count--floor");
+        count.title = t(
+          "reportBandAtLeastHint",
+          `Gmail did not report a total for this search, so this is what the scan could see. At least ${countText} match.`,
+          [countText]
+        );
+      }
       figures.appendChild(count);
+      if (atLeast) {
+        // A plus sign is a glyph, not a sentence: screen readers read
+        // "50+" as "fifty" or "fifty plus" depending on the reader, and
+        // neither carries the claim. aria-label on a bare span is not
+        // reliably announced without a role, so the phrase is real text
+        // in the accessibility tree instead, sitting beside a visual
+        // count that is hidden from it.
+        count.setAttribute("aria-hidden", "true");
+        const spoken = document.createElement("span");
+        spoken.className = "sr-only";
+        spoken.textContent = t("reportBandAtLeastSr", `at least ${countText}`, [countText]);
+        figures.appendChild(spoken);
+      }
       if (measured && band.estMb) {
         const mb = document.createElement("span");
         mb.className = "report-row-mb";
@@ -3005,6 +3067,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!stored?.bands) return;
       state.report.bands = GCC.report.rankBands(stored.bands);
       state.report.cleanableCount = Number(stored.cleanableCount) || 0;
+      state.report.cleanableAtLeast = stored.cleanableAtLeast === true;
       state.report.guardedOutCount = Number(stored.guardedOutCount) || 0;
       state.report.largeMb = Number(stored.largeMb) || 0;
       state.report.topSenders = Array.isArray(stored.topSenders) ? stored.topSenders : [];
@@ -3049,6 +3112,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (Array.isArray(msg.bands)) {
       state.report.bands = GCC.report.rankBands(msg.bands);
       state.report.cleanableCount = Number(msg.cleanableCount) || 0;
+      state.report.cleanableAtLeast = msg.cleanableAtLeast === true;
       state.report.guardedOutCount = Number(msg.guardedOutCount) || 0;
       state.report.largeMb = Number(msg.largeMb) || 0;
       state.report.topSenders = Array.isArray(msg.topSenders) ? msg.topSenders : [];

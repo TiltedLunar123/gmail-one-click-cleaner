@@ -1668,6 +1668,15 @@
       color: var(--dim);
       font-style: italic;
     }
+    /* 8.24: a band Gmail stated no total for. Deliberately no colour or
+       weight change: the number is a floor, not a doubt, and toning it
+       down would read as the unmeasured state above, which means the
+       opposite. The plus sign carries the claim on its own. `cursor:
+       help` is the only affordance a title attribute has, and without it
+       nobody finds the sentence explaining it. */
+    .report-row-count--floor {
+      cursor: help;
+    }
     .report-row-btn {
       flex: 0 0 auto;
       padding: 4px 12px;
@@ -2877,6 +2886,14 @@
              of the tab, and the pitch for the scan is no longer needed. -->
         <div class="report-hero" id="reportHero" hidden>
           <div class="report-hero-num" id="reportHeroCount">0</div>
+          <!-- 8.24: the spoken form of the number above, used only when
+               Gmail gave the scan no total and the figure is a floor.
+               "50+" is a glyph and reads as "fifty" on most screen
+               readers, so the claim goes in as words and the visual
+               number steps out of the accessibility tree. Empty and
+               untranslated here on purpose: renderReport fills it, and
+               a static string would be announced on every report. -->
+          <span class="sr-only" id="reportHeroCountSr"></span>
           <div class="report-hero-label" id="reportHeroLabel" data-i18n="reportHeroLabel">emails older than 6 months</div>
           <div class="report-hero-sub" id="reportHeroMb"></div>
         </div>
@@ -3515,10 +3532,10 @@
             class="badge"
             id="versionBadge"
             type="button"
-            aria-label="Version 8.23.0, see what's new"
+            aria-label="Version 8.24.0, see what's new"
             title="What's new in this version"
             data-i18n-title="whatsNewTitle"
-          >v8.23.0</button>
+          >v8.24.0</button>
           <button id="kbdHelpBtn" class="linkish" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" data-i18n-label="kbdTitle" data-i18n-title="kbdBtnTitle">
             <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/></svg>
           </button>

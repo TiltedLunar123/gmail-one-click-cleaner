@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "8.23.0";
+  const GCC_CONTENT_VERSION = "8.24.0";
 
   // =========================
   // Timing & behavior constants
@@ -727,12 +727,27 @@
     "Diğer seçenekler", "Ещё", "المزيد", "その他", "더보기", "更多"
   ]);
 
+  // 8.24: "全選" appended. This table carried only the Simplified 全选,
+  // and 选 and 選 are different code points, so a zh-TW or zh-HK banner
+  // could not match it -- the same gap 8.16 closed in DELETE_LABEL_TOKENS
+  // for 删除 / 刪除, and the last one left in this family. Both forms are
+  // already in ARCHIVE_LABEL_TOKENS, LABEL_BUTTON_TOKENS, CONFIRM_TOKENS
+  // and SELECT_ALL_NOUN_RE (which lists 会话/會話, 邮件/郵件, 对话/對話),
+  // so the noun half of looksLikeSelectAllOffer has been ready for a
+  // Traditional banner and the token half has been refusing every one.
+  //
+  // Both halves have to match, so the whole bulk-all path was dead on a
+  // Traditional Chinese Gmail: the run never took Gmail's offer to
+  // select every match and crawled the result set one page at a time
+  // until the pass cap stopped it, which is exactly the failure 8.21
+  // describes for the twelve locales the noun regex was widened for.
   const SELECT_ALL_TOKENS = Object.freeze([
     "Select all", "Seleccionar todo", "Tout sélectionner",
     "Alle auswählen", "Selecionar tudo", "Seleziona tutto",
     "Alles selecteren", "Välj alla", "Vælg alle",
     "Velg alle", "Zaznacz wszystko", "Tümünü seç",
-    "Выбрать все", "تحديد الكل", "すべて選択", "모두 선택", "全选"
+    "Выбрать все", "تحديد الكل", "すべて選択", "모두 선택",
+    "全选", "全選"
   ]);
 
   // 8.21: the noun Gmail prints beside the offer, in every language
@@ -1488,6 +1503,39 @@
       }
     } catch {
       // getBoundingClientRect can fail in some edge cases
+    }
+
+    // 8.24: and it has to be a checkbox that is actually on screen.
+    //
+    // 8.22 found that Gmail no longer clears the previous conversation
+    // list when it renders a search: the old list stays in the page,
+    // laid out but not rendered, OUTSIDE div[role="main"] and BEFORE the
+    // results in document order, with its own toolbar. Two lookups were
+    // fixed there. This one was not, because it is only reached when
+    // per-row selection finds nothing to click, which is the path that
+    // exists to rescue a run when Gmail's row markup changes.
+    //
+    // Every term above scored the leftover checkbox exactly as well as
+    // the live one, and `near-top` scored it BETTER: an unrendered
+    // element reports a zero rect, and a top of 0 is the most near-top
+    // value there is, while the real toolbar only earns the point when
+    // the viewport happens to be scrolled to it. Ties then go to
+    // document order, where the leftover comes first. So the rescue path
+    // ticked a checkbox nobody could see, extractSelectedCount reads
+    // main and saw nothing selected, and the run reported "Gmail's
+    // layout may have changed" about a page that was rendering fine.
+    // Same shape as the fallback 8.22 fixed: the thing that exists to
+    // save a run was guaranteeing it stopped.
+    //
+    // Weighted to outrank the whole positive side (10 + 5 + 4 + 2 = 21),
+    // because no amount of looking like a toolbar makes an invisible
+    // control the one the user is looking at. Conditional on the page
+    // having a layout at all, for the reason layoutIsKnown exists: jsdom
+    // measures nothing, and an unconditional test would reject every
+    // candidate in the suite and in any headless caller.
+    if (layoutIsKnown() && !isRenderedElement(el)) {
+      score -= 25;
+      reasons.push("not-rendered");
     }
 
     // Positive: has a dropdown sibling (the "Select" dropdown arrow)
@@ -5620,6 +5668,12 @@
       let failedQueries = 0;
       let headlineMeasured = false;
       let unguardedMeasured = false;
+      // 8.24: which of those counts Gmail actually stated a total for.
+      // See countCurrentResultsDetailed. A band whose search came back
+      // "1-50 of many" is measured -- the search ran and returned mail --
+      // and is still not a figure the report may print as exact.
+      const floors = Object.create(null);
+      let cleanableIsFloor = false;
 
       for (let i = 0; i < steps.length; i++) {
         if (CANCELLED) throw new CancellationError("Scan cancelled by user");
@@ -5647,15 +5701,17 @@
           continue;
         }
 
-        const count = countCurrentResults();
+        const { count, exact } = countCurrentResultsDetailed();
         if (steps[i].id === "__headlineRaw") {
           unguardedCount = count;
           unguardedMeasured = true;
         } else if (steps[i].id === "__headline") {
           cleanableCount = count;
           headlineMeasured = true;
+          cleanableIsFloor = !exact;
         } else {
           counts[steps[i].id] = count;
+          floors[steps[i].id] = !exact;
         }
       }
 
@@ -5686,6 +5742,11 @@
           action: band.action,
           count,
           measured,
+          // 8.24: "at least this many", because Gmail stated no total.
+          // Only ever true of a band that was measured and found mail;
+          // an unmeasured band has no number to qualify, and an empty
+          // one is exact.
+          atLeast: measured && count > 0 && floors[band.id] === true,
           estMb: band.mbFloor ? count * band.mbFloor : 0
         };
       });
@@ -5738,6 +5799,11 @@
             type: "gmailCleanerReportScanResult",
             bands,
             cleanableCount,
+            // 8.24: the headline is a floor on the same terms its bands
+            // are. Sent as its own field rather than inferred from the
+            // bands: they are separate searches and one can state a
+            // total while another does not.
+            cleanableAtLeast: cleanableIsFloor && cleanableCount > 0,
             largeMb,
             topSenders,
             guardedOutCount,
@@ -5774,7 +5840,12 @@
         phase: "done",
         status: headlineMeasured
           ? (cleanableCount
-            ? `${cleanableCount.toLocaleString()} emails are older than 6 months.`
+            // 8.24: "at least" when Gmail stated no total. The figure is
+            // the page in front of the scan, not the match set, and this
+            // line is the first sentence of the whole product.
+            ? (cleanableIsFloor
+              ? `At least ${cleanableCount.toLocaleString()} emails are older than 6 months.`
+              : `${cleanableCount.toLocaleString()} emails are older than 6 months.`)
             : "Nothing older than 6 months turned up.")
           // Not measured is not zero. Claiming an empty mailbox because
           // the one search that would have proved otherwise timed out is
@@ -5789,6 +5860,7 @@
         done: true,
         bands,
         cleanableCount,
+        cleanableAtLeast: cleanableIsFloor && cleanableCount > 0,
         largeMb,
         topSenders,
         failedQueries,
@@ -5938,11 +6010,36 @@
   // How many conversations the current result page represents: the
   // pagination total when Gmail shows one, else the visible row count,
   // zero once the empty state settled.
-  function countCurrentResults() {
-    if (hasNoResults()) return 0;
+  //
+  // 8.24: and whether that number is the match total or only a floor.
+  //
+  // Gmail ranks most searches by relevance now and prints "1-50 of many"
+  // instead of a figure, which parseCountFromText correctly refuses. The
+  // row count is then the honest thing to fall back on, but it is a
+  // FLOOR: fifty rows on screen with no total means at least fifty match,
+  // not exactly fifty. Every caller was reading it as exactly fifty.
+  //
+  // The Mailbox Report is where that surfaces. It is the landing tab, the
+  // screen the store listing tells every new user to run first, and after
+  // Gmail's change it printed a flat 50 against band after band on a
+  // mailbox holding tens of thousands -- the same shape as the 8.3 bug it
+  // was built to fix, arriving this time through Gmail rather than
+  // through an edit. The upsell line quotes one of those numbers at the
+  // moment money changes hands.
+  //
+  // `exact` is what separates the two. A stated total is exact; so is an
+  // empty result, because nothing matched is a complete answer. A page of
+  // rows with no total is not.
+  function countCurrentResultsDetailed() {
+    if (hasNoResults()) return { count: 0, exact: true };
     const total = estimateTotalResults();
-    if (Number.isFinite(total) && total > 0) return total;
-    return getGridRowCount() ?? 0;
+    if (Number.isFinite(total) && total > 0) return { count: total, exact: true };
+    const rows = getGridRowCount() ?? 0;
+    return { count: rows, exact: rows === 0 };
+  }
+
+  function countCurrentResults() {
+    return countCurrentResultsDetailed().count;
   }
 
   // Engine-local copy of GCC.smart.score: the content script runs
@@ -5974,6 +6071,18 @@
     if ((Number(sig.estMb) || 0) >= 100) return "purgeLarge";
     const oldShare = Number(sig.oldShare);
     if (
+      // 8.24: not on counts Gmail refused to total. Every ratio here is
+      // measured / base, and when Gmail answers a relevance-ranked
+      // search with "1-50 of many" the scan sees one page of each, so a
+      // sender with 5,000 messages and 200 unread reads as 50 of 50 --
+      // 100% unread, which is precisely the shape this branch is
+      // looking for. Deleting or archiving on a bad reading is
+      // recoverable; unsubscribing is not, and the standing rule in
+      // this codebase is that unsubscribing cannot be undone. So the
+      // one irreversible suggestion is the one that requires a real
+      // ratio, and an approximate sender falls through to the branches
+      // below, which propose actions the user can take back.
+      !sig.approx &&
       (Number(sig.count) || 0) >= SMART_UNSUB_MIN_COUNT &&
       clamp01(sig.unreadRatio) >= SMART_UNSUB_MIN_UNREAD &&
       Number.isFinite(oldShare) &&
@@ -6000,19 +6109,37 @@
   // injected so fixtures can drive this without Gmail navigation; the
   // live runner passes an openSearch wrapper. A sender whose base
   // query matches nothing short-circuits: no further queries.
+  // 8.24: a fetchCount may answer with a plain number or with the
+  // {count, exact} countCurrentResultsDetailed produces. Fixtures pass
+  // numbers and mean them exactly, which is what an inline count IS; the
+  // live runner passes the pair, because Gmail states no total on a
+  // relevance-ranked search and the answer is then the page the scan
+  // could see rather than the match set.
+  function readFetchedCount(answer) {
+    if (answer && typeof answer === "object") {
+      return { count: Math.max(0, Number(answer.count) || 0), exact: answer.exact !== false };
+    }
+    return { count: Math.max(0, Number(answer) || 0), exact: true };
+  }
+
   async function gatherSmartSignals(sender, fetchCount) {
     const queries = buildSmartSignalQueries(sender.email);
-    const total = await fetchCount(queries.base);
-    if (!total) return null;
-    const unread = await fetchCount(queries.unread);
-    const old = await fetchCount(queries.old);
+    const base = readFetchedCount(await fetchCount(queries.base));
+    if (!base.count) return null;
+    const unread = readFetchedCount(await fetchCount(queries.unread));
+    const old = readFetchedCount(await fetchCount(queries.old));
     const clamp01 = (n) => Math.max(0, Math.min(1, Number(n) || 0));
     const signals = {
-      count: total,
-      unreadRatio: clamp01(unread / total),
-      oldShare: clamp01(old / total),
+      count: base.count,
+      unreadRatio: clamp01(unread.count / base.count),
+      oldShare: clamp01(old.count / base.count),
       shape: smartSenderShape(sender.email)
     };
+    // Any one of the three being a floor is enough. A floor in the
+    // denominator overstates both ratios; a floor in a numerator
+    // understates its own. Which direction it went does not matter,
+    // because neither answer is the value, and the flag says only that.
+    if (!base.exact || !unread.exact || !old.exact) signals.approx = true;
     if (Number(sender.estMb) > 0) signals.estMb = Number(sender.estMb);
     return signals;
   }
@@ -6036,10 +6163,33 @@
     CANCELLED = false;
     const originHash = location.hash;
 
-    const fetchCount = async (query) => {
+    // Two fetchers over one search, and the split is load-bearing.
+    //
+    // 8.24: gatherSmartSignals divides these counts by each other, so it
+    // needs to know whether Gmail stated a total; a page count standing
+    // in for a match total makes every heavy sender read as 100% unread.
+    // Its caller therefore gets the pair.
+    //
+    // Everything else here asks a yes/no question of the same number and
+    // asks it by TRUTHINESS: runSmartVetoes returns vetoed on
+    // `if (await fetchCount(queries.starred))`, and the reach check drops
+    // a sender on `if (!reachable)`. An object is truthy whatever is in
+    // it, so handing those two the pair vetoes every sender in the
+    // mailbox as starred and the scan finishes with nothing to show. The
+    // bare number is the contract they were written against and it stays
+    // theirs. Pinned by a full-scan test, because an injected fetchCount
+    // never reaches either call site.
+    const runSearch = async (query) => {
       if (CANCELLED) throw new CancellationError("Scan cancelled by user");
       await openSearch(query);
+    };
+    const fetchCount = async (query) => {
+      await runSearch(query);
       return countCurrentResults();
+    };
+    const fetchCountDetailed = async (query) => {
+      await runSearch(query);
+      return countCurrentResultsDetailed();
     };
 
     try {
@@ -6122,7 +6272,7 @@
         });
         let signals = null;
         try {
-          signals = await gatherSmartSignals(candidates[i], fetchCount);
+          signals = await gatherSmartSignals(candidates[i], fetchCountDetailed);
         } catch (e) {
           if (e instanceof CancellationError) throw e;
           debugLog("Smart signal sampling failed, skipping sender", { email: candidates[i].email, error: e?.message });
@@ -7129,6 +7279,7 @@
       buildSmartSignalQueries,
       buildSmartVetoQueries,
       countCurrentResults,
+      countCurrentResultsDetailed,
       scoreSmartSignals,
       smartPrimaryActionFor,
       smartActionQuery,

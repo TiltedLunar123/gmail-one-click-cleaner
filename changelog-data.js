@@ -6,13 +6,103 @@
 // even of a file inside the package, would end the extension's
 // no-network-calls promise.
 //
-// Carries the newest 12 of 79 releases; the page says so
+// Carries the newest 12 of 80 releases; the page says so
 // and links the full log on GitHub.
 
 // eslint-disable-next-line no-unused-vars
 var GCC_CHANGELOG = {
-  "total": 79,
+  "total": 80,
   "entries": [
+    {
+      "version": "8.24.0",
+      "title": "Fifty is not a total",
+      "intro": [
+        "Gmail sorts most searches by relevance now, and when it does that it stops saying how many conversations matched. The pager reads \"1-50 of many\". The cleaner fell back to counting the rows it could see, which is fifty, and printed that as the answer.",
+        "So the Mailbox Report, the screen the store listing tells you to run first, showed 50 beside a step holding thousands. Two mailboxes with wildly different amounts of old mail in them got the same report."
+      ],
+      "sections": [
+        {
+          "name": "Fixed",
+          "intro": [
+            "None of these numbers moved. The report counts what it always counted; it now tells you when what it counted was a page rather than a total."
+          ],
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "A count Gmail will not total is shown as a floor."
+                ],
+                [
+                  "",
+                  " A step reading 50+ holds at least fifty and probably far more. Nothing is guessed and no number went up: the plus sign is there because the cleaner can see one page and will not pretend otherwise. Hover it and it says so."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The headline says \"at least\" when it means at least"
+                ],
+                [
+                  "",
+                  ", instead of quoting one page of your mailbox as the size of it."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The Pro line stopped understating what Pro clears."
+                ],
+                [
+                  "",
+                  " It names one step's count, and that count was the same fifty."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Suggestions stopped calling every sender 100% unread."
+                ],
+                [
+                  "",
+                  " A suggestion works out how much of a sender's mail you never open by dividing one search by another, and both searches were coming back as one page, so any sender past fifty messages looked untouched. Unsubscribing cannot be undone, so it is no longer suggested off a figure the cleaner could not measure. Deleting old mail and archiving still are, and Gmail keeps both somewhere you can get them back from."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Bulk delete works on Traditional Chinese Gmail."
+                ],
+                [
+                  "",
+                  " Rather than clearing fifty at a time, the cleaner takes Gmail's offer to select every match, and it finds that offer by name. It knew the Simplified spelling of \"select all\" and not the Traditional one, so on a zh-TW or zh-HK mailbox it never found the offer and crawled the results a page at a time."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Selecting everything now finds the list on screen."
+                ],
+                [
+                  "",
+                  " Gmail leaves the previous search results sitting in the page where you cannot see them. When the cleaner's usual way of ticking rows does not work and it falls back to Gmail's own select-all checkbox, it was finding the leftover list's checkbox first, selecting nothing you could see, and then reporting that Gmail's layout had changed."
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "8.23.0",
       "title": "It says what it is doing",
@@ -1322,109 +1412,6 @@ var GCC_CHANGELOG = {
                 [
                   "",
                   " It had been listing three of them since two more shipped."
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "version": "8.13.0",
-      "title": "The whole storage list, and one-click activation",
-      "intro": [
-        "A smaller release. The Storage X-ray stops hiding most of what it found, buying Pro no longer means copying a long key by hand, and the Pro Settings card gained three more knobs."
-      ],
-      "sections": [
-        {
-          "name": "Changed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "The Storage X-ray shows every sender it ranked."
-                ],
-                [
-                  "",
-                  " The free scan listed the top three and counted the rest behind a line about Pro. That scan is read-only and the numbers in it are your own mailbox, so there was never a good reason to hold most of it back. The whole ranked list is free now. The one-click purge underneath it is still the paid part."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The rating prompt asks more than once."
-                ],
-                [
-                  "",
-                  " It used to appear after one good cleanup and then stay quiet for 90 days if you picked \"Maybe later\", which in practice meant most people were asked exactly once ever. It now appears after any cleanup big enough to be worth asking about, with three limits: never on your first run, nothing for three days after you decline, and nothing ever again after three declines or one press of the new \"Don't ask again\"."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The completion notification mentions Pro if you do not have it."
-                ],
-                [
-                  "",
-                  " One line, appended only to a run that really cleared mail, and never shown to anyone with a key. Desktop notifications are off unless you turned them on, and turning them off again stops this too."
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "name": "Added",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "Activate Pro in one click."
-                ],
-                [
-                  "",
-                  " The page you land on after checkout, and the key recovery page, can now hand the key straight to the extension instead of asking you to paste it into Options. This works in Chrome and Edge; Firefox does not support the mechanism, so it still shows the key to copy, exactly as before. Two things make it safe to have at all: the extension accepts messages from gmail-cleaner-pro.netlify.app and from nowhere else, and any key that arrives is checked against the same public key built into the extension before it is stored, so a web page cannot grant itself Pro."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Three more Pro settings."
-                ],
-                [
-                  "",
-                  " How many senders one Auto-Pilot sweep clears (10, 25 or 50; it was fixed at 25). An age floor for unattended runs only, applied on top of everything else and only when it is stricter, so it can narrow a sweep and never widen one. And how many entries the recovery log keeps before the oldest fall off (60, 150 or 300; it was fixed at 60, and a bigger log means a run stays restorable for longer). All three default to exactly what 8.12 did."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A 30-day money-back guarantee on Pro."
-                ],
-                [
-                  "",
-                  " Worth saying plainly: a refunded key keeps working. Keys are verified on your device with no network call, so there is nothing to switch off remotely, and adding that would mean the extension phoning home."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A Pro card on the Stats page"
-                ],
-                [
-                  "",
-                  ", for people without a key. It quotes the totals already on that page and disappears once a key is activated."
                 ]
               ]
             }
