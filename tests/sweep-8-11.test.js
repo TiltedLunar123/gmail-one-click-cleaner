@@ -561,7 +561,7 @@ describe("the Options page tells a buyer what they actually bought", () => {
   // through silently.
   test("the shared list is the single answer, and covers every pillar", () => {
     expect(Array.isArray(GCC.license.FEATURES)).toBe(true);
-    expect(GCC.license.FEATURES).toHaveLength(6);
+    expect(GCC.license.FEATURES).toHaveLength(8);
     const joined = GCC.license.FEATURES.join(" ").toLowerCase();
     for (const pillar of [
       "unsubscribe",

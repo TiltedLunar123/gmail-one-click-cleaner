@@ -435,7 +435,7 @@
   "pillarSmartBody": { "message": "The full list, bulk apply, and a weekly archive sweep that runs itself." },
   "proFactOnce": { "message": "One payment of $$9.99. Not a subscription, and never will be." },
   "proFactOffline": { "message": "No OAuth, and no network code at all. Nothing here can send anything anywhere, and your key is checked on your device. Grep the zip and see." },
-  "proFactFuture": { "message": "Every feature added later is included. Buyers from the first version got all five that came after." },
+  "proFactFuture": { "message": "Every feature added later is included. Buyers from the first version got all seven that came after." },
   "proFactGuarantee": { "message": "30-day money-back guarantee. Not for you? Email within 30 days and get the full $$9.99 back." },
   "reportEyebrow": { "message": "Mailbox report" },
   "reportHint": { "message": "One read-only pass counts what is actually in your mailbox and turns it into a plan you can run a step at a time. Nothing is opened and nothing moves." },

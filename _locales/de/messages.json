@@ -435,7 +435,7 @@
   "pillarSmartBody": { "message": "Die volle Liste, Massen-Anwendung und ein wöchentlicher Archiv-Durchlauf, der von allein läuft." },
   "proFactOnce": { "message": "Eine Zahlung von $$9.99. Kein Abo, und wird auch nie eins." },
   "proFactOffline": { "message": "Kein OAuth und überhaupt kein Netzwerkcode. Hier kann nichts irgendetwas irgendwohin senden, und dein Schlüssel wird auf deinem Gerät geprüft. Sieh selbst ins Zip." },
-  "proFactFuture": { "message": "Jede später ergänzte Funktion ist enthalten. Käufer der ersten Version bekamen alle fuenf, die danach kamen." },
+  "proFactFuture": { "message": "Jede später ergänzte Funktion ist enthalten. Käufer der ersten Version bekamen alle sieben, die danach kamen." },
   "proFactGuarantee": { "message": "30 Tage Geld-zurück-Garantie. Nicht das Richtige? Schreib innerhalb von 30 Tagen und du bekommst die $$9,99 zurück." },
   "reportEyebrow": { "message": "Postfach-Bericht" },
   "reportHint": { "message": "Ein reiner Lesedurchlauf zählt, was wirklich in deinem Postfach liegt, und macht daraus einen Plan, den du Schritt für Schritt starten kannst. Nichts wird geöffnet, nichts bewegt sich." },

@@ -435,7 +435,7 @@
   "pillarSmartBody": { "message": "La liste complète, l'application groupée et un balayage d'archivage hebdomadaire qui tourne tout seul." },
   "proFactOnce": { "message": "Un paiement de $$9.99. Ce n'est pas un abonnement, et ça ne le sera jamais." },
   "proFactOffline": { "message": "Pas d'OAuth, et aucun code réseau. Rien ici ne peut envoyer quoi que ce soit où que ce soit, et votre clé est vérifiée sur votre appareil. Vérifiez le zip." },
-  "proFactFuture": { "message": "Toutes les fonctions ajoutées ensuite sont incluses. Les acheteurs de la première version ont reçu les cinq qui ont suivi." },
+  "proFactFuture": { "message": "Toutes les fonctions ajoutées ensuite sont incluses. Les acheteurs de la première version ont reçu les sept qui ont suivi." },
   "proFactGuarantee": { "message": "Garantie satisfait ou remboursé de 30 jours. Pas convaincu ? Écrivez sous 30 jours et vous récupérez vos $$9,99." },
   "reportEyebrow": { "message": "Rapport de boîte mail" },
   "reportHint": { "message": "Un passage en lecture seule compte ce qui se trouve vraiment dans votre boîte mail et en fait un plan que vous lancez étape par étape. Rien n'est ouvert et rien ne bouge." },

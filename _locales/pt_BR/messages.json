@@ -435,7 +435,7 @@
   "pillarSmartBody": { "message": "A lista completa, a aplicação em massa e uma varredura semanal de arquivamento que roda sozinha." },
   "proFactOnce": { "message": "Um pagamento de $$9.99. Não é assinatura e nunca será." },
   "proFactOffline": { "message": "Sem OAuth e sem nenhum código de rede. Nada aqui consegue enviar nada para lugar nenhum, e sua chave é verificada no seu dispositivo. Confira o zip." },
-  "proFactFuture": { "message": "Todo recurso adicionado depois já vem incluído. Quem comprou na primeira versão recebeu os cinco que vieram em seguida." },
+  "proFactFuture": { "message": "Todo recurso adicionado depois já vem incluído. Quem comprou na primeira versão recebeu os sete que vieram em seguida." },
   "proFactGuarantee": { "message": "Garantia de reembolso em 30 dias. Não gostou? Escreva em até 30 dias e receba os $$9,99 de volta." },
   "reportEyebrow": { "message": "Relatório da caixa" },
   "reportHint": { "message": "Uma passagem somente leitura conta o que existe de fato na sua caixa e transforma isso em um plano que você executa etapa por etapa. Nada é aberto e nada se move." },

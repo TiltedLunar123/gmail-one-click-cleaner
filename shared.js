@@ -944,7 +944,13 @@ const GCC = (() => {
     // without touching this line, which is the exact drift the comment
     // above this list exists to stop. Six now: label, interval, depth,
     // senders per sweep, Auto-Pilot age floor, recovery log size.
-    "Pro Settings: the recovery label, Auto-Pilot's interval, age floor and sweep size, a deeper Smart scan, and a longer recovery log"
+    "Pro Settings: the recovery label, Auto-Pilot's interval, age floor and sweep size, a deeper Smart scan, and a longer recovery log",
+    // 9.0: 8.26 shipped two paid features and did not touch this list,
+    // which is the drift the comment above it exists to stop, for the
+    // third release running. The census list and the receipts ledger are
+    // both FREE; what is named here is only the part a payment buys.
+    "Clearing the senders the mailbox census measured, in one run",
+    "Checking whether an unsubscribe was honoured, including the senders still mailing you into Spam and the ones that stopped and started again"
   ]);
 
   const LICENSE_PUBLIC_JWK = Object.freeze({

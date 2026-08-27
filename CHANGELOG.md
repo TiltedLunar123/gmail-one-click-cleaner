@@ -3,6 +3,81 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 9.0.0 - Count what the button clears
+
+The last release taught this extension to find the senders that actually
+fill a mailbox. It then printed the wrong number beside them. A sender
+would be listed with five emails, you would tick it, press Clear, and
+get nothing back.
+
+The count came from a plain search for that sender. The button ran a
+narrower one: mail older than six months, skipping anything starred,
+important, unread, or filed under a label of your own. On a newsletter
+sender, unread alone is most of it. Both numbers were true. They were
+answers to different questions, and only one of them was the question
+you were asking.
+
+Every count in this extension is now measured through the same filter as
+the button sitting next to it. That has been the rule here for a long
+time and the two features added last release were never held to it.
+
+### Added
+- **Every census row says what clearing it would take.** The count still
+  answers who fills your mailbox, because that is what the list is for.
+  Underneath it now sits the other number: what the Clear button would
+  actually remove from that sender today. When those two differ, the row
+  says so, and when clearing would take nothing, the row says that too
+  instead of letting you find out by pressing it.
+- **Senders who kept mailing you from the Spam folder.** A Gmail search
+  does not look in Spam, so a sender who ignored your unsubscribe but
+  landed in the spam filter answered the check with a flat zero and the
+  receipt read "Stopped". They had not stopped. There is a third answer
+  now, and it is the one no other tool will give you, because it means
+  saying the unsubscribe failed quietly. Nothing is deleted for this
+  one: the extension will not point a delete at the Spam folder, where
+  Gmail's own control means gone for good.
+- **Senders who stopped and started again.** A list that goes quiet for
+  a month and then comes back is the one you will never think to check,
+  because you watched it stop. It used to be recorded as though it had
+  never stopped at all. It gets its own line now.
+- **The census total, on screen.** It was measured, it was saved, and
+  nothing ever drew it.
+
+### Fixed
+- **Clearing a census sender does what the row promised.** The count and
+  the button ask Gmail the same question now. This is the bug above, and
+  it is the reason for the version number.
+- **Your Never Delete list applies to the census.** Neither of last
+  release's two scans passed your whitelist or your protected keywords
+  to the engine, so a sender you had explicitly protected was still
+  ranked, still measured, and still offered with a tick box. Pro's
+  deeper scan setting could not be reached from those screens either.
+- **The Storage X-ray stops rounding small senders down to nothing.**
+  The smaller size bands added last release credit about a tenth of a
+  megabyte per message, and sizes were rounded to whole megabytes, so a
+  real sender holding real mail was listed as "at least 0 MB". It keeps
+  a tenth now, and rounds down rather than up, because the page says at
+  least.
+- **A Google Chat tab is no longer mistaken for your mailbox.** Chat
+  lives on the same address as Gmail. With it open in front, Run and
+  every scan quietly resolved to it, did nothing, and left a progress
+  screen waiting on a run that never began.
+- **Buying Pro no longer leaves the census and the receipts locked.**
+  Whichever finished first decided what you saw, so a licence that
+  verified a moment late left a paying user looking at the free version
+  of both until they reopened the popup.
+- **Scheduled sweeps use the senders you ticked.** They were described
+  as extra rules on your ordinary runs, and the weekly unattended run,
+  which is the one that matters most, was the only one not carrying
+  them.
+- **A check that could not reach Gmail is retried, not shelved.** If the
+  very first check of a sender failed to get an answer, that sender was
+  set aside for a month, while one that had already been answered was
+  retried on the next sweep. Exactly backwards.
+- **The clear button on the receipts counts what it clears.** It said
+  how many senders had ignored you and then acted on the first
+  twenty-five, without mentioning the rest.
+
 ## 8.26.0 - Find the bulk, not the buckets
 
 Every scan in this extension used to describe your mailbox with a Gmail

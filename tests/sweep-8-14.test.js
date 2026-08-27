@@ -680,13 +680,29 @@ describe("inline English, the catalogue and the JS fallback all say the same thi
     }
   });
 
-  test("the Pro feature list still names six things, and Pro Settings names its six knobs", () => {
+  test("the Pro feature list names every paid surface, and Pro Settings names its six knobs", () => {
     const sharedSrc = read("shared.js");
     const list = sharedSrc.slice(
       sharedSrc.indexOf("const PRO_FEATURES = Object.freeze(["),
       sharedSrc.indexOf("const LICENSE_PUBLIC_JWK")
     );
-    expect((list.match(/^\s{4}"/gm) || [])).toHaveLength(6);
+    // 9.0: eight, because 8.26 added two paid features and left this at
+    // six. The count alone never caught that, so each surface is named
+    // as well: a count says the list is the length someone expected,
+    // never that it describes what the product sells.
+    expect((list.match(/^\s{4}"/gm) || [])).toHaveLength(8);
+    for (const surface of [
+      "unsubscribe",
+      "Storage X-ray",
+      "Smart Suggestions",
+      "Mailbox Report",
+      "Auto-Pilot",
+      "Pro Settings",
+      "census",
+      "honoured"
+    ]) {
+      expect([surface, list.includes(surface)]).toEqual([surface, true]);
+    }
     for (const knob of ["recovery label", "interval", "age floor", "sweep size", "Smart scan", "recovery log"]) {
       expect(list).toContain(knob);
     }

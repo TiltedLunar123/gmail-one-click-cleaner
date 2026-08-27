@@ -435,7 +435,7 @@
   "pillarSmartBody": { "message": "La lista completa, la aplicación en masa y un barrido semanal de archivo que se ejecuta solo." },
   "proFactOnce": { "message": "Un pago de $$9.99. No es una suscripción, y nunca lo será." },
   "proFactOffline": { "message": "Sin OAuth y sin nada de código de red. Aquí nada puede enviar nada a ninguna parte, y tu clave se verifica en tu dispositivo. Revisa el zip." },
-  "proFactFuture": { "message": "Todas las funciones que se añadan después están incluidas. Quien compró en la primera versión recibió las cinco que vinieron luego." },
+  "proFactFuture": { "message": "Todas las funciones que se añadan después están incluidas. Quien compró en la primera versión recibió las siete que vinieron luego." },
   "proFactGuarantee": { "message": "Garantía de devolución de 30 días. ¿No es para ti? Escribe en 30 días y te devolvemos los $$9,99." },
   "reportEyebrow": { "message": "Informe del buzón" },
   "reportHint": { "message": "Una pasada de solo lectura cuenta lo que hay de verdad en tu buzón y lo convierte en un plan que puedes ejecutar paso a paso. No se abre nada y no se mueve nada." },

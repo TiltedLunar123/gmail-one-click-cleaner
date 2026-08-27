@@ -669,14 +669,24 @@ describe("Find in Gmail lands on the label the run created", () => {
 // =====================================================================
 
 describe("the copy says what the product actually does", () => {
-  test("five paid features came after the first version, not four", () => {
+  test("seven paid features came after the first version", () => {
     // Pro shipped in 7.0 with bulk unsubscribe. The X-ray purge (7.2),
     // Smart Suggestions (7.8), Auto-Pilot (7.12), the Mailbox Report plan
-    // (8.0) and Pro Settings (8.12) all came after it.
+    // (8.0), Pro Settings (8.12), the census clear (8.26) and the
+    // unsubscribe check (8.26) all came after it.
+    //
+    // 9.0: derived from PRO_FEATURES rather than restated, because the
+    // number being a separate literal is precisely how it fell a release
+    // behind twice. Pro shipped WITH the first pillar, so the count that
+    // came after is always one fewer than the list.
+    const list = between(SHARED_SRC, "const PRO_FEATURES = Object.freeze([", "]);");
+    const pillars = list.split("\n").filter((l) => /^\s*"/.test(l)).length;
+    expect(pillars).toBeGreaterThan(1);
+    const words = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
+    const expected = `all ${words[pillars - 1]} that came after`;
     const en = JSON.parse(read("_locales/en/messages.json"));
-    expect(en.proFactFuture.message).toContain("all five that came after");
-    expect(POPUP_HTML).toContain("all five that came after");
-    expect(POPUP_HTML).not.toContain("all four that came after");
+    expect(en.proFactFuture.message).toContain(expected);
+    expect(POPUP_HTML).toContain(expected);
   });
 
   test("no locale still says four", () => {
@@ -701,7 +711,7 @@ describe("the copy says what the product actually does", () => {
   test("the paid pillars, the blurb and the history count move as one", () => {
     const list = between(SHARED_SRC, "const PRO_FEATURES = Object.freeze([", "]);");
     const entries = list.split("\n").filter((l) => /^\s*"/.test(l));
-    expect(entries).toHaveLength(6);
+    expect(entries).toHaveLength(8);
 
     const blurb = OPTIONS_HTML
       .slice(OPTIONS_HTML.indexOf('id="pro"'), OPTIONS_HTML.indexOf('id="pro"') + 3000)
@@ -717,7 +727,7 @@ describe("the copy says what the product actually does", () => {
     // Pro shipped in 7.0 with the first pillar, so the number that "came
     // after" is always one fewer than the list.
     const en = JSON.parse(read("_locales/en/messages.json"));
-    expect(en.proFactFuture.message).toContain("all five that came after");
+    expect(en.proFactFuture.message).toContain("all seven that came after");
   });
 
   test("the Options blurb stops selling the Storage X-ray list, free since 8.13", () => {
