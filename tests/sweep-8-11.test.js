@@ -205,8 +205,12 @@ describe("the two paid lists remember what was ticked", () => {
     expect(POPUP_SRC).toContain("state.smart.checked.has(sender.email)");
     // Awaited together with the subs loader: a set that lands after the
     // render paints an empty selection and never re-renders on its own.
+    // 8.26 added a fourth: the census ticks decide what an ordinary
+    // cleanup run adds to its rules, so a set that lands late does not
+    // just paint an empty list, it narrows the next run.
+    expect(POPUP_SRC).toContain("state.census.checked.has(sender.email)");
     expect(POPUP_SRC).toContain(
-      "await Promise.all([loadSubsSelection(), loadXraySelection(), loadSmartSelection()]);"
+      "await Promise.all([loadSubsSelection(), loadXraySelection(), loadSmartSelection(), loadCensusSelection()]);"
     );
   });
 
@@ -367,10 +371,19 @@ describe("every element the popup reaches for is one it registered", () => {
   });
 
   test("no elements.x reference names something the map never defined", () => {
+    // 8.26: scanned over code with the comments stripped out, which is
+    // the seventh time this project has been bitten by a scanner
+    // matching the comment that WARNS about the very thing it looks
+    // for. A comment explaining that an unregistered elements.x is a
+    // silent no-op is documentation, not a reference. A real one still
+    // fails this, which is the property that matters.
+    const code = POPUP_SRC
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/^[ \t]*\/\/.*$/gm, " ");
     const used = new Set();
     const re = /\belements\.(\w+)/g;
     let m;
-    while ((m = re.exec(POPUP_SRC)) !== null) used.add(m[1]);
+    while ((m = re.exec(code)) !== null) used.add(m[1]);
     expect(used.size).toBeGreaterThan(100);
     expect([...used].filter((name) => !mapKeys.has(name)).sort()).toEqual([]);
   });

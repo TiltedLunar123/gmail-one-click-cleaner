@@ -39,11 +39,17 @@ describe("storage X-ray engine (7.2)", () => {
   test("tier queries descend and every tier maps to its floor MB", () => {
     const I = loadEngine();
     const floors = I.STORAGE_XRAY.TIER_QUERIES.map((q) => I.estimateMbPerEmail(q));
-    expect(floors).toEqual([25, 10, 5]);
+    // 8.26: two tiers added at the bottom. The scan stopped at 5 MB for
+    // four releases, which found a handful of attachments and missed
+    // the mail the mailbox is actually made of: measured live, 8
+    // messages over 5 MB against "many" over 100 KB.
+    expect(floors).toEqual([25, 10, 5, 1, 100 / 1024]);
     // Descending tiers matter: a message can only appear in one tier
     // because each lower tier excludes the one above via smaller:.
     expect(I.STORAGE_XRAY.TIER_QUERIES[1]).toContain("smaller:25M");
     expect(I.STORAGE_XRAY.TIER_QUERIES[2]).toContain("smaller:10M");
+    expect(I.STORAGE_XRAY.TIER_QUERIES[3]).toContain("smaller:5M");
+    expect(I.STORAGE_XRAY.TIER_QUERIES[4]).toContain("smaller:1M");
   });
 
   describe("foldStorageSample", () => {

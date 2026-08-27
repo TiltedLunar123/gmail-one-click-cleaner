@@ -635,13 +635,31 @@
       // tiers), 7.6 adds "restoreRun" (move a logged run's mail back to
       // the Inbox), 7.8 adds "smartScan" (read-only recommendation
       // scan). 8.0 adds "reportScan" (read-only mailbox report).
+      // 8.26 adds "senderCensus" (read-only, ranks the senders that
+      // actually fill this mailbox) and "unsubscribeVerify" (read-only,
+      // one search per receipt to find out whether a sender honoured an
+      // unsubscribe).
       // unsubSenders is re-sanitized at run start; keeping raw strings
       // here is fine.
-      runKind: ["cleanup", "subscriptionScan", "unsubscribe", "storageScan", "restoreRun", "smartScan", "reportScan"].includes(config.runKind)
+      runKind: ["cleanup", "subscriptionScan", "unsubscribe", "storageScan", "restoreRun", "smartScan", "reportScan", "senderCensus", "unsubscribeVerify"].includes(config.runKind)
         ? config.runKind
         : "cleanup",
       unsubSenders: Array.isArray(config.unsubSenders)
         ? config.unsubSenders.filter((s) => typeof s === "string").slice(0, 25)
+        : [],
+      // 8.26 verification targets: {email, after} pairs. Both fields are
+      // re-validated at run start by buildVerifyTargets, which builds
+      // the query itself rather than accepting one, so nothing that
+      // arrives here reaches openSearch as written.
+      verifyTargets: Array.isArray(config.verifyTargets)
+        ? config.verifyTargets.filter((t) => t && typeof t === "object").slice(0, 25)
+        : [],
+      // 8.26: the census senders the user ticked, which a cleanup run
+      // turns into extra rules. Re-sanitized through sanitizeSenderList
+      // at run start (strict email shape, leading `-` refused), and the
+      // popup only fills this for a Pro licence.
+      censusSenders: Array.isArray(config.censusSenders)
+        ? config.censusSenders.filter((s) => typeof s === "string").slice(0, 25)
         : [],
       // 7.8 smart scan: senders earlier scans already measured, so the
       // discovery phase can include them without spending queries.
@@ -1263,6 +1281,20 @@
             count: Array.isArray(msg.senders) ? msg.senders.length : 0
           });
           startUnsubscribeRun(Array.isArray(msg.senders) ? msg.senders : []);
+          sendResponse({ ok: true });
+          break;
+
+        case "gmailCleanerSenderCensus":
+          debugLog("Received sender census message");
+          startSenderCensus();
+          sendResponse({ ok: true });
+          break;
+
+        case "gmailCleanerVerifyUnsubscribes":
+          debugLog("Received unsubscribe verification message", {
+            count: Array.isArray(msg.targets) ? msg.targets.length : 0
+          });
+          startUnsubscribeVerify(Array.isArray(msg.targets) ? msg.targets : []);
           sendResponse({ ok: true });
           break;
 
@@ -2519,6 +2551,45 @@
     }
   }
 
+  // Cleanup rules built from the senders the user ticked in the census.
+  //
+  // Consent is the whole design here. These are NOT every sender the
+  // census measured: a scan finding that a bank mails you a lot is not
+  // permission to delete the bank's mail, and a Run that quietly grew
+  // new rules nobody chose would be the worst kind of surprise this
+  // product could ship. Only ticked senders reach CONFIG, the popup
+  // only puts them there for a Pro licence, and each rule carries the
+  // same six-month floor the census clear button does.
+  //
+  // Packed into from:() groups against the engine's own copy of the
+  // query ceiling, the way the X-ray purge learned to in 8.0:
+  // twenty-five long addresses in one group runs to about 1,270
+  // characters against a 512 limit.
+  function censusRules() {
+    const raw = Array.isArray(CONFIG.censusSenders) ? CONFIG.censusSenders : [];
+    const clean = sanitizeSenderList(raw);
+    if (!clean.length) return [];
+
+    const suffix = ") older_than:6m";
+    const budget = MAX_GUARDED_QUERY_CHARS - "from:(".length - suffix.length;
+    const out = [];
+    let group = [];
+    let groupLen = 0;
+    for (const email of clean) {
+      const cost = email.length + (group.length ? 4 : 0);
+      if (group.length && groupLen + cost > budget) {
+        out.push(`from:(${group.join(" OR ")}${suffix}`);
+        group = [];
+        groupLen = 0;
+      }
+      if (email.length > budget) continue;
+      group.push(email);
+      groupLen += group.length === 1 ? email.length : cost;
+    }
+    if (group.length) out.push(`from:(${group.join(" OR ")}${suffix}`);
+    return out;
+  }
+
   async function getRules(intensity) {
     const riskyCategories = ["category:updates", "category:forums"];
 
@@ -2636,6 +2707,25 @@
         } catch (e) {
           debugLog("Failed to load custom rules", { error: e?.message });
         }
+
+        // 8.26: the rules this mailbox earned, appended to the ones
+        // that shipped with the extension.
+        //
+        // Every rule above names a bucket chosen before this mailbox
+        // existed: a category, a size, a word in the body, an age. Mail
+        // that fits none of them is untouchable by design, and on a
+        // real account that is most of it -- category:promotions
+        // older_than:6m matched nothing at all on the mailbox this was
+        // built against, while two broad searches found sixty senders.
+        // A run then reports honestly that it cleaned very little, and
+        // the user reasonably concludes the product does not work.
+        //
+        // These come from the census, which measured them one search at
+        // a time, and they arrive last so nothing above changes
+        // position. They carry an age scope for the same reason the
+        // census clear button does: the sender being noisy is not
+        // permission to take this morning's mail.
+        for (const rule of censusRules()) set.push(rule);
 
         // Apply safe mode filter to ALL rules including custom
         return stripRisky(set);
@@ -2874,7 +2964,19 @@
     const sizeMatch = lower.match(/larger:(\d+)(m|k|b)?/);
     if (sizeMatch) {
       let val = parseFloat(sizeMatch[1]);
-      const unit = (sizeMatch[2] || "m");
+      // 8.26: a bare number means BYTES, not megabytes.
+      //
+      // Gmail documents larger:/smaller: as taking a size in bytes with
+      // M and K as optional suffixes, and this defaulted a suffixless
+      // number to megabytes. So a custom rule written the way Gmail's
+      // own help writes it, `larger:5000000`, was read as five million
+      // megabytes per email: the query's MB estimate, the storage
+      // figure on the Stats page and the "freed" line at the end of a
+      // run all came out five million times too large. The estimate is
+      // the only thing affected -- nothing routes mail on this number --
+      // but it is a number shown beside an action, which is this
+      // codebase's oldest bug and its most persistent one.
+      const unit = (sizeMatch[2] || "b");
 
       if (unit === "m") { /* already in MB */ }
       else if (unit === "k") val = val / 1024;
@@ -2895,8 +2997,19 @@
   // =========================
 
   async function openSearch(query) {
+    return navigateAndSettle(`#search/${encodeURIComponent(query)}`, "Gmail search results");
+  }
+
+  // 8.26: extracted from openSearch unchanged so the subscriptions panel
+  // can reuse it. Nothing in the settle logic below was ever specific to
+  // a search: it waits for one Gmail result list to be replaced by
+  // another, and Gmail's own Manage subscriptions view is a result list
+  // rendered by the same code (verified against a live mailbox: 21
+  // tr[role="row"] inside div[role="main"], each carrying [email]).
+  // The description is a parameter only so a timeout says which
+  // navigation gave up.
+  async function navigateAndSettle(hash, description) {
     const base = getGmailBaseUrl();
-    const hash = `#search/${encodeURIComponent(query)}`;
     const currentHash = location.hash;
     const targetHash = hash;
 
@@ -2979,7 +3092,7 @@
       },
       {
         timeout: TIMING.WAIT_SEARCH_TIMEOUT,
-        description: "Gmail search results",
+        description: description || "Gmail search results",
         onTick: (elapsedMs) => {
           // Every ~5s of waiting, surface a progress beat so the
           // user knows the script isn't dead, just waiting on
@@ -3001,6 +3114,25 @@
     }
 
     await sleep(TIMING.DOM_SETTLE_DELAY);
+  }
+
+  // Gmail's Manage subscriptions view (2025), the reason this release
+  // exists. It is a good sender list and a poor unsubscribe tool: it
+  // shows senders one at a time with no bulk selection, it only knows
+  // about mail carrying a machine-readable List-Unsubscribe header, and
+  // it never goes back to check that the sender honoured the request.
+  //
+  // Reading it is free and safe. This does not click anything in there:
+  // Gmail's own Unsubscribe button and the engine's unsubscribe run
+  // drive the same underlying request, and one of them has a
+  // cancellation check, a dialog classifier that refuses to follow a
+  // sender's link, and a record of what happened. Sampling is all that
+  // is wanted from this surface.
+  //
+  // A mailbox with the panel switched off, or an older Gmail, lands on
+  // whatever that hash resolves to and simply yields no rows.
+  async function openSubscriptionsPanel() {
+    return navigateAndSettle(SUBSCRIPTIONS.PANEL_HASH, "Gmail's subscriptions list");
   }
 
   function dispatchKeyEvent(key, code, options = {}) {
@@ -4961,7 +5093,18 @@
     UNSUB_CONTROL_TIMEOUT: 6000,
     UNSUB_DIALOG_TIMEOUT: 5000,
     DIALOG_CLOSE_TIMEOUT: 4000,
-    BETWEEN_SENDERS_MS: 1200
+    BETWEEN_SENDERS_MS: 1200,
+    // One search each, no message opened, nothing clicked, so this can
+    // afford to match the unsubscribe cap rather than sit below it.
+    MAX_VERIFY_PER_RUN: 25,
+    // Gmail's own Manage subscriptions view. Verified against a live
+    // mailbox 2026-08-27: #subscriptions resolves, and the panel is an
+    // ordinary result list of tr[role="row"] inside div[role="main"]
+    // carrying [email] attributes, so sampleSubscriptionRows reads it
+    // with no new selector. It listed 21 senders there against the 60
+    // the census samples from two broad searches, which is the whole
+    // argument for not simply deferring to it.
+    PANEL_HASH: "#subscriptions"
   });
 
   // The three discovery searches. Query 1 carries the localized
@@ -5491,6 +5634,213 @@
     }
   }
 
+  // =========================
+  // Unsubscribe verification (8.26)
+  // =========================
+  // Read-only. One search per receipt, and it answers the only question
+  // anybody actually has about an unsubscribe: did they stop?
+  //
+  // Nothing else asks it. Gmail's subscription manager sends the request
+  // and greys out the row. Every unsubscribe tool on the market reports
+  // "unsubscribed" the moment the request goes out. This extension did
+  // the same until now -- 8.5.1 at least made it check that the
+  // confirmation dialog closed, which is a much smaller claim than the
+  // sender honouring it.
+  //
+  // The date is not negotiable and it is not this function's to pick:
+  // the caller passes an `after` string built from the receipt's own
+  // date plus the grace window, and anything that fails the shape check
+  // below is skipped rather than guessed at. The engine builds the
+  // query itself from the two validated pieces, so nothing
+  // caller-controlled reaches openSearch as a query.
+  const VERIFY_DATE_RE = /^\d{4}\/\d{2}\/\d{2}$/;
+
+  function buildVerifyTargets(input) {
+    if (!Array.isArray(input)) return [];
+    const out = [];
+    const seen = new Set();
+    for (const raw of input) {
+      const email = String(raw?.email || "").trim().toLowerCase();
+      const after = String(raw?.after || "").trim();
+      if (!email || email.length > 320) continue;
+      // The same matcher sanitizeSenderList uses, and it is here for the
+      // same reason: a leading `-` inside from:(...) is Gmail's negation
+      // operator, which would turn one sender's check into a search for
+      // every OTHER sender and report the whole mailbox as proof that
+      // this one kept mailing.
+      if (!/^[a-z0-9!#$%&'*+/=?^_`{|}~.][a-z0-9!#$%&'*+/=?^_`{|}~.-]*@[a-z0-9.-]+\.[a-z]{2,}$/.test(email)) continue;
+      if (!VERIFY_DATE_RE.test(after)) continue;
+      if (seen.has(email)) continue;
+      seen.add(email);
+      out.push({ email, after, query: `from:(${email}) after:${after}` });
+      if (out.length >= SUBSCRIPTIONS.MAX_VERIFY_PER_RUN) break;
+    }
+    return out;
+  }
+
+  // The verdict, from one search. Engine-local copy of
+  // GCC.receipts.verdictFor; a test pins the two.
+  //
+  // The asymmetry is the point. One row is proof the sender kept
+  // mailing, and fifty rows Gmail refused to total are proof of the
+  // same thing, so a floor cannot make this verdict wrong -- only the
+  // number printed beside it, which is marked. A zero is different: a
+  // settled empty result really is nobody mailing, but a search that
+  // never resolved also arrives here as zero, and calling that "they
+  // stopped" would be this codebase's oldest bug pointed at the one
+  // sentence the whole feature exists to say.
+  function verdictFromCount(detailed, ok) {
+    if (!ok) return { verdict: "unknown", since: 0, sinceExact: false };
+    const count = Math.max(0, Number(detailed?.count) || 0);
+    const exact = detailed?.exact !== false;
+    if (count > 0) return { verdict: "still_sending", since: count, sinceExact: exact };
+    if (!exact) return { verdict: "unknown", since: 0, sinceExact: false };
+    return { verdict: "stopped", since: 0, sinceExact: true };
+  }
+
+  async function unsubscribeVerifyRun(rawTargets) {
+    if (RUNNING) {
+      debugLog("Run already in progress, ignoring verify request");
+      return;
+    }
+    RUNNING = true;
+    CANCELLED = false;
+    const originHash = location.hash;
+    const targets = buildVerifyTargets(rawTargets);
+    const results = [];
+
+    // 8.19's rule, and this run has the same reason to obey it: the
+    // popup is long gone by the time twenty-five searches finish, and a
+    // verdict already reached is a fact worth keeping even if the tab
+    // dies on the next one.
+    let flushedUpTo = 0;
+    const reportResults = () => {
+      const pending = results.slice(flushedUpTo);
+      if (!pending.length) return;
+      flushedUpTo = results.length;
+      try {
+        if (hasChromeRuntime()) {
+          chrome.runtime.sendMessage({
+            type: "gmailCleanerRecordVerifyResults",
+            results: pending
+          });
+        }
+      } catch (e) {
+        debugLog("Failed to send verify results to background", { error: e?.message });
+      }
+    };
+
+    try {
+      if (!isGmailTab()) {
+        alert("Gmail Cleaner: please run this from a Gmail tab.");
+        return;
+      }
+
+      if (!targets.length) {
+        safeSendImmediate({
+          runKind: "unsubscribeVerify",
+          phase: "done",
+          status: "Nothing to check yet.",
+          detail: "A receipt is only checked once its grace window has closed.",
+          percent: 100,
+          done: true,
+          verifyResults: []
+        });
+        return;
+      }
+
+      safeSendImmediate({
+        runKind: "unsubscribeVerify",
+        phase: "starting",
+        status: `Checking ${targets.length} unsubscribe${targets.length === 1 ? "" : "s"}...`,
+        detail: "Looking for mail that arrived after each sender's grace window closed.",
+        percent: 0
+      });
+
+      for (let i = 0; i < targets.length; i++) {
+        if (CANCELLED) throw new CancellationError("Verification cancelled by user");
+        const target = targets[i];
+
+        safeSendImmediate({
+          runKind: "unsubscribeVerify",
+          phase: "running",
+          status: `Checking (${i + 1}/${targets.length})...`,
+          detail: target.email,
+          percent: Math.round((i / targets.length) * 100)
+        });
+
+        let outcome = { verdict: "unknown", since: 0, sinceExact: false };
+        try {
+          await openSearch(target.query);
+          outcome = verdictFromCount(countCurrentResultsDetailed(), true);
+        } catch (e) {
+          if (e instanceof CancellationError) throw e;
+          debugLog("Verify failed for sender", { email: target.email, error: e?.message });
+        }
+
+        results.push({ sender: target.email, after: target.after, ...outcome });
+        reportResults();
+      }
+
+      reportResults();
+
+      const ignored = results.filter((r) => r.verdict === "still_sending").length;
+      const stopped = results.filter((r) => r.verdict === "stopped").length;
+      safeSendImmediate({
+        runKind: "unsubscribeVerify",
+        phase: "done",
+        status: ignored
+          ? `${ignored} of ${results.length} ignored your unsubscribe.`
+          : `All ${results.length} stopped.`,
+        detail: ignored
+          ? "Their mail since is queued up for one-click deletion."
+          : `${stopped} confirmed clear. Nothing new has arrived from any of them.`,
+        percent: 100,
+        done: true,
+        verifyResults: results
+      });
+    } catch (e) {
+      if (e instanceof CancellationError) {
+        reportResults();
+        safeSendImmediate({
+          runKind: "unsubscribeVerify",
+          phase: "cancelled",
+          status: "Check cancelled.",
+          detail: "Stopped by user. Verdicts already reached were kept.",
+          done: true,
+          percent: 100,
+          verifyResults: results
+        });
+      } else {
+        logError(e, "unsubscribe verify");
+        reportResults();
+        safeSendImmediate({
+          runKind: "unsubscribeVerify",
+          phase: "error",
+          status: "Check failed.",
+          detail: e instanceof Error ? e.message : String(e),
+          done: true,
+          percent: 100,
+          verifyResults: results
+        });
+      }
+    } finally {
+      RUNNING = false;
+      try {
+        if (typeof window !== "undefined") window.GCC_ATTACHED = false;
+      } catch {}
+      try {
+        if (originHash && location.hash !== originHash) location.hash = originHash;
+      } catch {}
+    }
+  }
+
+  function startUnsubscribeVerify(targets) {
+    if (!RUNNING) {
+      unsubscribeVerifyRun(targets).catch((e) => logError(e, "startUnsubscribeVerify"));
+    }
+  }
+
   function startSubscriptionScan() {
     if (!RUNNING) {
       subscriptionScan().catch((e) => logError(e, "startSubscriptionScan"));
@@ -5515,11 +5865,29 @@
   // from:(...) larger: query, so tagging, global guards, undo and
   // stats all apply unchanged.
 
+  // 8.26: two tiers added at the bottom, and they are the ones most
+  // mailboxes are actually made of.
+  //
+  // The X-ray looked no lower than 5 MB for four releases, which is a
+  // reasonable place to look for a video attachment and the wrong place
+  // to look for the mail that fills a mailbox. Measured on a real
+  // account: 8 messages over 5 MB, 36 over 1 MB, and "many" -- Gmail's
+  // word for a count it will not total -- over 100 KB. The scan found
+  // the 8, called that the mailbox's large mail, and the user pressed
+  // the purge button and got almost nothing back, which is exactly the
+  // complaint this release started from.
+  //
+  // Each tier still credits its own floor and the tiers stay disjoint,
+  // so the total is still an honest "at least". 100 KB is the bottom on
+  // purpose: below it a message's own headers are a real fraction of
+  // its size, and a floor that small stops being worth stating.
   const STORAGE_XRAY = Object.freeze({
     TIER_QUERIES: Object.freeze([
       "larger:25M",
       "larger:10M smaller:25M",
-      "larger:5M smaller:10M"
+      "larger:5M smaller:10M",
+      "larger:1M smaller:5M",
+      "larger:100k smaller:1M"
     ]),
     MAX_SENDERS: 100,
     ROW_SAMPLE_CAP: 100
@@ -5630,15 +5998,15 @@
         runKind: "storageScan",
         phase: "done",
         status: senders.length
-          ? `Found at least ${totalMb.toLocaleString()} MB in large mail.`
+          ? `Found at least ${totalMb.toLocaleString()} MB you can clear.`
           : (failedQueries === queries.length
             ? "Gmail did not respond to the scan."
-            : "No large mail found."),
+            : "No mail over 100 KB found."),
         detail: senders.length
-          ? `${totalCount.toLocaleString()} large emails across ${senders.length} senders.${failedQueries ? ` ${failedQueries} of ${queries.length} searches timed out, so this is a partial result.` : ""}`
+          ? `${totalCount.toLocaleString()} emails across ${senders.length} senders.${failedQueries ? ` ${failedQueries} of ${queries.length} searches timed out, so this is a partial result.` : ""}`
           : (failedQueries === queries.length
             ? "Every search timed out. Reload the Gmail tab and try again."
-            : "Nothing bigger than 5 MB turned up."),
+            : "Nothing over 100 KB turned up."),
         failedQueries,
         percent: 100,
         done: true,
@@ -6600,6 +6968,303 @@
     }
   }
 
+  // =========================
+  // Sender census (8.26)
+  // =========================
+  // Read-only. Engine-local copies of GCC.census's query builders and
+  // floor arithmetic, for the same reason smartScan carries its own
+  // copy of the smart policy: the content script runs inside Gmail and
+  // cannot reference GCC. A test pins both against shared.js.
+  //
+  // Why this exists, stated once: every other scan in this extension
+  // describes the mailbox with an operator chosen in advance, and a
+  // mailbox that is not shaped like the operator reads as empty. On the
+  // account this was built against, `category:promotions older_than:6m`
+  // returned nothing at all and `older_than:2y` returned nothing at
+  // all -- so the Mailbox Report, whose two biggest noise bands those
+  // are, had almost nothing to offer -- while two broad searches
+  // sampled sixty distinct senders, the heaviest of them a code host, a
+  // bank, a pharmacy and a card issuer. None of those is a promotion.
+  // The mail was always there. The questions were wrong.
+
+  const CENSUS = Object.freeze({
+    SCOPE: "-in:sent -in:drafts -in:chats",
+    // Three searches per sender, so the cap is the Pro depth setting,
+    // the same one smartScan uses and for the same reason.
+    MAX_MEASURE: 10,
+    MAX_MEASURE_DEEP: 20,
+    MAX_LIST: 60,
+    ROW_SAMPLE_CAP: 100
+  });
+
+  function buildCensusDiscoveryQueries() {
+    return [
+      `older_than:2y ${CENSUS.SCOPE}`,
+      `older_than:6m newer_than:2y ${CENSUS.SCOPE}`,
+      `newer_than:6m ${CENSUS.SCOPE}`,
+      `is:unread ${CENSUS.SCOPE}`,
+      `has:attachment ${CENSUS.SCOPE}`
+    ];
+  }
+
+  function buildCensusMeasureQueries(email) {
+    return {
+      total: `from:(${email})`,
+      atLeast1M: `from:(${email}) larger:1M`,
+      atLeast100k: `from:(${email}) larger:100k`
+    };
+  }
+
+  // Cumulative bands, subtracted. See GCC.census.senderFloorMb.
+  function censusSenderFloorMb(atLeast1M, atLeast100k) {
+    const clamp = (n) => Math.max(0, Math.min(10000000, Math.floor(Number(n) || 0)));
+    const big = clamp(atLeast1M);
+    const some = Math.max(big, clamp(atLeast100k));
+    return Math.round((big * 1 + (some - big) * 0.1) * 10) / 10;
+  }
+
+  async function senderCensus() {
+    if (RUNNING) {
+      debugLog("Run already in progress, ignoring census request");
+      return;
+    }
+    RUNNING = true;
+    CANCELLED = false;
+    const originHash = location.hash;
+    let failedQueries = 0;
+    let panelSeen = 0;
+
+    try {
+      if (!isGmailTab()) {
+        alert("Gmail Cleaner: please run this from a Gmail tab.");
+        return;
+      }
+
+      safeSendImmediate({
+        runKind: "senderCensus",
+        phase: "starting",
+        status: "Working out who fills your mailbox...",
+        detail: "Sampling broadly first, then counting the senders that come up most.",
+        percent: 0
+      });
+
+      // --- Discovery. Sampling ranks; it never counts. ---
+      const bySender = new Map();
+      const note = (entries) => {
+        const seenHere = new Set();
+        for (const entry of entries) {
+          const existing = bySender.get(entry.email);
+          if (existing) {
+            existing.hits += 1;
+            if (!seenHere.has(entry.email)) existing.slices += 1;
+            if (!existing.name) existing.name = entry.name;
+          } else {
+            bySender.set(entry.email, {
+              email: entry.email,
+              name: entry.name,
+              hits: 1,
+              slices: 1
+            });
+          }
+          seenHere.add(entry.email);
+        }
+      };
+
+      // Gmail's own subscriptions panel, if this mailbox has one. It is
+      // a short, high-quality list of senders that mail in bulk, it
+      // costs one navigation, and Gmail has already done the work of
+      // deciding they are subscriptions. Being short is why it is a
+      // starting point and not the answer.
+      try {
+        await openSubscriptionsPanel();
+        const rows = sampleSubscriptionRows({ cap: CENSUS.ROW_SAMPLE_CAP });
+        panelSeen = rows.length;
+        note(rows);
+      } catch (e) {
+        if (e instanceof CancellationError) throw e;
+        // Not a failure worth counting: plenty of mailboxes have no
+        // panel, and the broad searches below are the real discovery.
+        debugLog("Subscriptions panel unavailable, continuing", { error: e?.message });
+      }
+
+      const discovery = buildCensusDiscoveryQueries();
+      for (let i = 0; i < discovery.length; i++) {
+        if (CANCELLED) throw new CancellationError("Census cancelled by user");
+        safeSendImmediate({
+          runKind: "senderCensus",
+          phase: "running",
+          status: `Sampling your mail (${i + 1}/${discovery.length})...`,
+          detail: discovery[i],
+          percent: Math.round((i / discovery.length) * 25)
+        });
+        try {
+          await openSearch(discovery[i]);
+        } catch (e) {
+          if (e instanceof CancellationError) throw e;
+          failedQueries++;
+          debugLog("Census discovery query failed, continuing", { query: discovery[i], error: e?.message });
+          continue;
+        }
+        note(sampleSubscriptionRows({ cap: CENSUS.ROW_SAMPLE_CAP }));
+      }
+
+      // The same free vetoes smartScan applies before spending a query
+      // on anybody: a whitelisted sender and a sender matching a
+      // protected keyword are not candidates, whatever the sampling
+      // said. Discovery here is deliberately broad, so these matter
+      // more than they did, not less.
+      const candidates = [...bySender.values()]
+        .filter((s) => SMART_EMAIL_RE.test(s.email))
+        .filter((s) => !smartSenderWhitelisted(s.email, CONFIG.whitelist))
+        .filter((s) => !smartSenderProtected(s.email, s.name, CONFIG.protectKeywords))
+        .sort((a, b) => b.slices - a.slices || b.hits - a.hits || a.email.localeCompare(b.email));
+
+      const budget = CONFIG.smartSignalSenders === SMART_SCAN.MAX_SIGNAL_SENDERS
+        ? CENSUS.MAX_MEASURE
+        : (CONFIG.smartSignalSenders ? CENSUS.MAX_MEASURE_DEEP : CENSUS.MAX_MEASURE);
+      const toMeasure = candidates.slice(0, budget);
+
+      // --- Measurement. Gmail's own answer, per sender. ---
+      const measured = [];
+      for (let i = 0; i < toMeasure.length; i++) {
+        if (CANCELLED) throw new CancellationError("Census cancelled by user");
+        const sender = toMeasure[i];
+        safeSendImmediate({
+          runKind: "senderCensus",
+          phase: "running",
+          status: `Counting senders (${i + 1}/${toMeasure.length})...`,
+          detail: sender.email,
+          percent: 25 + Math.round((i / toMeasure.length) * 70)
+        });
+
+        const q = buildCensusMeasureQueries(sender.email);
+        try {
+          await openSearch(q.total);
+          const total = countCurrentResultsDetailed();
+          // A sender the search cannot find at all is not measured, it
+          // is dropped: a zero here means the address sampled off a row
+          // is not one Gmail will match on, and printing a sender with
+          // no mail beside a purge button is worse than omitting it.
+          if (!total.count) continue;
+          await openSearch(q.atLeast1M);
+          const big = countCurrentResultsDetailed();
+          await openSearch(q.atLeast100k);
+          const some = countCurrentResultsDetailed();
+
+          measured.push({
+            email: sender.email,
+            name: sender.name,
+            count: total.count,
+            exact: total.exact,
+            slices: sender.slices,
+            estMb: censusSenderFloorMb(big.count, some.count),
+            estMbExact: big.exact && some.exact,
+            measured: true
+          });
+        } catch (e) {
+          if (e instanceof CancellationError) throw e;
+          failedQueries++;
+          debugLog("Census measurement failed, continuing", { email: sender.email, error: e?.message });
+        }
+      }
+
+      // The unmeasured tail ships too, with no numbers on it. Dropping
+      // it would make a census of ten senders look like the whole
+      // mailbox, which is the one claim this scan must never make.
+      const rest = candidates
+        .slice(toMeasure.length)
+        .map((s) => ({
+          email: s.email,
+          name: s.name,
+          count: 0,
+          exact: false,
+          slices: s.slices,
+          estMb: 0,
+          estMbExact: false,
+          measured: false
+        }));
+
+      const senders = measured.concat(rest).slice(0, CENSUS.MAX_LIST);
+      const totalCount = measured.reduce((sum, s) => sum + s.count, 0);
+      const totalMb = Math.round(measured.reduce((sum, s) => sum + s.estMb, 0) * 10) / 10;
+      const allExact = measured.every((s) => s.exact && s.estMbExact);
+
+      try {
+        if (hasChromeRuntime()) {
+          chrome.runtime.sendMessage({
+            type: "gmailCleanerCensusResult",
+            senders,
+            totalCount,
+            totalMb,
+            exact: allExact,
+            discovered: candidates.length,
+            panelSeen
+          });
+        }
+      } catch (e) {
+        debugLog("Failed to send census result to background", { error: e?.message });
+      }
+
+      // "at least" whenever any operand was a page Gmail declined to
+      // total, which on a relevance-ranked search is most of them.
+      const atLeast = allExact ? "" : "at least ";
+      safeSendImmediate({
+        runKind: "senderCensus",
+        phase: "done",
+        status: measured.length
+          ? `${measured.length} senders account for ${atLeast}${totalCount.toLocaleString()} emails.`
+          : (failedQueries ? "Gmail did not answer enough of the census." : "No bulk senders found."),
+        detail: measured.length
+          ? `Sampled ${candidates.length.toLocaleString()} senders, counted the top ${measured.length}${totalMb > 0 ? `, worth ${atLeast}${totalMb.toLocaleString()} MB` : ""}.${failedQueries ? ` ${failedQueries} searches did not answer, so this is partial.` : ""}`
+          : (failedQueries
+            ? "Reload the Gmail tab and try again."
+            : "Nothing in this mailbox is sent in bulk."),
+        percent: 100,
+        done: true,
+        failedQueries,
+        censusSenders: senders,
+        totalCount,
+        totalMb,
+        exact: allExact
+      });
+    } catch (e) {
+      if (e instanceof CancellationError) {
+        safeSendImmediate({
+          runKind: "senderCensus",
+          phase: "cancelled",
+          status: "Census cancelled.",
+          detail: "Stopped by user.",
+          done: true,
+          percent: 100
+        });
+      } else {
+        logError(e, "sender census");
+        safeSendImmediate({
+          runKind: "senderCensus",
+          phase: "error",
+          status: "Census failed.",
+          detail: e instanceof Error ? e.message : String(e),
+          done: true,
+          percent: 100
+        });
+      }
+    } finally {
+      RUNNING = false;
+      try {
+        if (typeof window !== "undefined") window.GCC_ATTACHED = false;
+      } catch {}
+      try {
+        if (originHash && location.hash !== originHash) location.hash = originHash;
+      } catch {}
+    }
+  }
+
+  function startSenderCensus() {
+    if (!RUNNING) {
+      senderCensus().catch((e) => logError(e, "startSenderCensus"));
+    }
+  }
+
   function startSmartScan() {
     if (!RUNNING) {
       smartScan().catch((e) => logError(e, "startSmartScan"));
@@ -7453,6 +8118,17 @@
       REPORT,
       REPORT_BANDS,
       reportScan,
+      // 8.26 census + verification. The engine keeps its own copies of
+      // the query builders and the floor and verdict arithmetic, the
+      // way it does for smart scan, so all of them are exported to be
+      // pinned against shared.js rather than trusted to stay in step.
+      CENSUS,
+      buildCensusDiscoveryQueries,
+      buildCensusMeasureQueries,
+      censusSenderFloorMb,
+      censusRules,
+      buildVerifyTargets,
+      verdictFromCount,
       // 8.10: the per-rule row the progress table reads, and the dry-run
       // sentence, so both can be driven rather than pinned as source.
       recordQueryStats,
@@ -7494,6 +8170,10 @@
     startStorageScan();
   } else if (CONFIG.runKind === "smartScan") {
     startSmartScan();
+  } else if (CONFIG.runKind === "senderCensus") {
+    startSenderCensus();
+  } else if (CONFIG.runKind === "unsubscribeVerify") {
+    startUnsubscribeVerify(CONFIG.verifyTargets);
   } else if (CONFIG.runKind === "reportScan") {
     startReportScan();
   } else if (CONFIG.runKind === "restoreRun") {

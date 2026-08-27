@@ -60,7 +60,20 @@
     // 8.17's three free unsubscribes. Local, no clock, no server. 8.19
     // moved the SPEND here from the popup: see chargeFreeUnsubscribes.
     // The spelling is pinned equal to GCC.freeUnsub.KEY by a test.
-    FREE_UNSUB_USED: "freeUnsubUsed"
+    FREE_UNSUB_USED: "freeUnsubUsed",
+
+    // 8.26 sender census: who actually fills this mailbox. Local, never
+    // sync, for the reason REPORT carries: it is a list of the user's
+    // correspondents derived from their mail, and sync replicates to
+    // the Google or Mozilla account.
+    CENSUS: "senderCensus",
+
+    // 8.26 unsubscribe receipts: one dated record per unsubscribe, plus
+    // whatever verdict a later check reached. Local, same reasoning, and
+    // it is the one store in this extension whose value grows the longer
+    // it is kept: a receipt is worth nothing on the day it is written
+    // and is the whole feature two weeks later.
+    RECEIPTS: "unsubReceipts"
   });
 
   // =========================
@@ -1199,6 +1212,29 @@
         withStorageLock(() => recordUnsubscribeResults(msg.results)).then(() => sendResponse({ ok: true }));
         return true;
 
+      // Sender census (8.26): who actually fills this mailbox.
+      case "gmailCleanerCensusResult":
+        withStorageLock(() => recordCensus(msg))
+          .then(() => sendResponse({ ok: true }));
+        return true;
+
+      case "gmailCleanerGetCensus":
+        chrome.storage.local.get(STORAGE_KEYS.CENSUS)
+          .then((r) => sendResponse({ ok: true, census: r?.[STORAGE_KEYS.CENSUS] || null }))
+          .catch((err) => sendResponse({ ok: false, error: err?.message || "Failed" }));
+        return true;
+
+      // Unsubscribe receipts (8.26): verdicts from the verification run.
+      case "gmailCleanerRecordVerifyResults":
+        withStorageLock(() => recordVerifyResults(msg.results)).then(() => sendResponse({ ok: true }));
+        return true;
+
+      case "gmailCleanerGetReceipts":
+        chrome.storage.local.get(STORAGE_KEYS.RECEIPTS)
+          .then((r) => sendResponse({ ok: true, receipts: r?.[STORAGE_KEYS.RECEIPTS]?.list || [] }))
+          .catch((err) => sendResponse({ ok: false, error: err?.message || "Failed" }));
+        return true;
+
       case "gmailCleanerGetSubscriptions":
         chrome.storage.local.get(STORAGE_KEYS.SUBSCRIPTIONS)
           .then((r) => sendResponse({ ok: true, scan: r?.[STORAGE_KEYS.SUBSCRIPTIONS] || null }))
@@ -1571,6 +1607,18 @@
         await chrome.storage.local.set({ [STORAGE_KEYS.STATS]: stats });
       }
 
+      // 8.26: and a dated receipt for each sender that really did come
+      // back `unsubscribed`, written here rather than in the engine for
+      // exactly the reason the free allowance is charged here. The run
+      // that produces these outcomes routinely outlives the popup that
+      // started it, and a receipt is the only evidence the unsubscribe
+      // ever happened once the tab is gone.
+      //
+      // Charged off the same `status === "unsubscribed"` test as the
+      // allowance: a sender with no one-click link, or one the run never
+      // reached, has nothing to honour and so gets no receipt.
+      await recordReceipts(results);
+
       // 8.19: and the free allowance, from the same count, in the same
       // locked step. See chargeFreeUnsubscribes.
       await chargeFreeUnsubscribes(unsubscribedNow);
@@ -1612,6 +1660,163 @@
     const n = Number(okCount);
     const add = Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
     return Math.min(FREE_UNSUB_LIMIT, freeUnsubUsedOf(stored) + add);
+  }
+
+  // =========================
+  // Unsubscribe receipts (8.26)
+  // =========================
+  // The worker's own copy of the arithmetic in GCC.receipts, for the
+  // same reason it carries its own copy of the free-unsubscribe maths:
+  // it cannot load shared.js. A test pins the two together.
+
+  // The cap is pinned equal to GCC.receipts.LIMITS.MAX by a test. The
+  // grace window deliberately lives only in shared.js: the worker
+  // stores receipts and never decides which are due, because the one
+  // place that reads a clock should be the one place that owns it.
+  const RECEIPT_CAP = 200;
+  const RECEIPT_EMAIL_RE = /^[a-z0-9!#$%&'*+/=?^_`{|}~.][a-z0-9!#$%&'*+/=?^_`{|}~.-]*@[a-z0-9.-]+\.[a-z]{2,}$/;
+
+  async function readReceiptList() {
+    const stored = await chrome.storage.local.get(STORAGE_KEYS.RECEIPTS);
+    const list = stored?.[STORAGE_KEYS.RECEIPTS]?.list;
+    return Array.isArray(list) ? list : [];
+  }
+
+  async function writeReceiptList(list) {
+    const trimmed = list
+      .slice()
+      .sort((a, b) => (Number(b?.at) || 0) - (Number(a?.at) || 0))
+      .slice(0, RECEIPT_CAP);
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.RECEIPTS]: { updatedAt: Date.now(), list: trimmed }
+    });
+    return trimmed;
+  }
+
+  // One receipt per sender that came back `unsubscribed`. A repeat
+  // unsubscribe restarts the clock and clears the old verdict, because
+  // that verdict describes a window the user has since acted on again.
+  async function recordReceipts(results) {
+    if (!Array.isArray(results) || results.length === 0) return;
+    try {
+      const existing = await readReceiptList();
+      const byEmail = new Map();
+      for (const r of existing) {
+        const email = String(r?.email || "").trim().toLowerCase();
+        if (email) byEmail.set(email, r);
+      }
+      const now = Date.now();
+      let added = 0;
+      for (const r of results) {
+        if (String(r?.status || "") !== "unsubscribed") continue;
+        const email = String(r?.sender || "").trim().toLowerCase();
+        if (!email || email.length > 320 || !RECEIPT_EMAIL_RE.test(email)) continue;
+        const prev = byEmail.get(email);
+        byEmail.set(email, {
+          email,
+          name: String(prev?.name || "").slice(0, 120),
+          at: now,
+          checkedAt: 0,
+          verdict: "",
+          since: 0,
+          sinceExact: false
+        });
+        added++;
+      }
+      if (!added) return;
+      await writeReceiptList([...byEmail.values()]);
+    } catch (e) {
+      console.error("[GCC SW] recordReceipts failed:", e);
+    }
+  }
+
+  // Verdicts from a verification run. A receipt whose sender is not in
+  // the ledger is ignored rather than invented: a verdict with no
+  // unsubscribe date behind it has no window to be about.
+  async function recordVerifyResults(results) {
+    if (!Array.isArray(results) || results.length === 0) return;
+    try {
+      const existing = await readReceiptList();
+      const byEmail = new Map();
+      for (const r of existing) {
+        const email = String(r?.email || "").trim().toLowerCase();
+        if (email) byEmail.set(email, r);
+      }
+      const now = Date.now();
+      let touched = 0;
+      for (const r of results) {
+        const email = String(r?.sender || "").trim().toLowerCase();
+        const verdict = String(r?.verdict || "");
+        if (!email || !["stopped", "still_sending", "unknown"].includes(verdict)) continue;
+        const prev = byEmail.get(email);
+        if (!prev) continue;
+        // An `unknown` is a check that did not answer, so it must not
+        // overwrite a verdict that did. It only moves the clock, and
+        // only far enough that a failed sweep is retried rather than
+        // repeated forever.
+        if (verdict === "unknown" && prev.verdict) {
+          byEmail.set(email, { ...prev, checkedAt: 0 });
+          touched++;
+          continue;
+        }
+        byEmail.set(email, {
+          ...prev,
+          checkedAt: now,
+          verdict,
+          since: Math.max(0, Math.min(10000000, Math.floor(Number(r?.since) || 0))),
+          sinceExact: r?.sinceExact === true
+        });
+        touched++;
+      }
+      if (!touched) return;
+      await writeReceiptList([...byEmail.values()]);
+    } catch (e) {
+      console.error("[GCC SW] recordVerifyResults failed:", e);
+    }
+  }
+
+  // =========================
+  // Sender census (8.26)
+  // =========================
+
+  const CENSUS_SENDER_CAP = 60;
+
+  async function recordCensus(msg) {
+    try {
+      const raw = Array.isArray(msg?.senders) ? msg.senders : [];
+      const clean = [];
+      for (const s of raw.slice(0, CENSUS_SENDER_CAP)) {
+        const email = String(s?.email || "").trim().toLowerCase();
+        if (!email || email.length > 320 || !RECEIPT_EMAIL_RE.test(email)) continue;
+        clean.push({
+          email,
+          name: String(s?.name || "").slice(0, 120),
+          count: Math.max(0, Math.min(10000000, Math.floor(Number(s?.count) || 0))),
+          // Carried, never re-derived. 8.10 lost `measured` and 8.24
+          // lost `atLeast` by rebuilding a record from a field list that
+          // did not mention them, and both times the honesty fix died
+          // before it reached the branch written to read it.
+          exact: s?.exact === true,
+          slices: Math.max(0, Math.min(99, Number(s?.slices) || 0)),
+          estMb: Math.max(0, Math.min(1048576, Math.round((Number(s?.estMb) || 0) * 10) / 10)),
+          estMbExact: s?.estMbExact === true,
+          measured: s?.measured === true
+        });
+      }
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.CENSUS]: {
+          updatedAt: Date.now(),
+          senders: clean,
+          totalCount: Math.max(0, Math.min(10000000, Math.floor(Number(msg?.totalCount) || 0))),
+          totalMb: Math.max(0, Math.min(1048576, Math.round((Number(msg?.totalMb) || 0) * 10) / 10)),
+          exact: msg?.exact === true,
+          discovered: Math.max(0, Math.min(100000, Math.floor(Number(msg?.discovered) || 0))),
+          panelSeen: Math.max(0, Math.min(1000, Math.floor(Number(msg?.panelSeen) || 0)))
+        }
+      });
+    } catch (e) {
+      console.error("[GCC SW] recordCensus failed:", e);
+    }
   }
 
   async function chargeFreeUnsubscribes(okCount) {

@@ -229,10 +229,27 @@ describe("7.15: scoped runs keep the user's Minimum Age", () => {
   });
 
   test("the smart apply no longer nulls it", () => {
-    // Sliced from rulesOverride, not from the action override: the null
-    // used to sit between the two.
-    const head = between(popup, "config.rulesOverride = queries;", 'files: ["contentScript.js"]');
+    // Sliced from the function itself, not from `config.rulesOverride =
+    // queries;`. 8.26 added a second scoped-run starter that assigns
+    // the same variable name, so that anchor stopped naming one place
+    // and this test silently moved to the other function -- the same
+    // failure the `between` helper above was written for, arriving
+    // through an anchor that still matched but matched the wrong thing.
+    // A unique anchor beats a present one.
+    const head = between(popup, "const startSmartApplyRun =", 'files: ["contentScript.js"]');
+    expect(head).toMatch(/config\.rulesOverride = queries;/);
     expect(head).toMatch(/config\.archiveInsteadOfDelete\s*=\s*Boolean\(archive\);/);
+    expect(head).not.toMatch(/config\.minAge\s*=\s*null;/);
+  });
+
+  test("8.26's shared scoped run keeps it too, and forces delete", () => {
+    const head = between(popup, "const startScopedCleanupRun =", 'files: ["contentScript.js"]');
+    expect(head).toMatch(/config\.rulesOverride = queries;/);
+    // Never Boolean(archive) here: the census clear and the receipts
+    // clear both say "clear" on the button, and inheriting the Clean
+    // tab's persisted Archive setting would file the mail away while
+    // claiming to have reclaimed the space. 8.8's bug, verbatim.
+    expect(head).toMatch(/config\.archiveInsteadOfDelete\s*=\s*false;/);
     expect(head).not.toMatch(/config\.minAge\s*=\s*null;/);
   });
 
@@ -293,7 +310,9 @@ describe("7.15: Open progress does not hand back a finished dashboard", () => {
   });
 
   test("the flag is set by every path that injects from the popup", () => {
-    expect((popup.match(/state\.startedRunHere\s*=\s*true;/g) || []).length).toBe(4);
+    // 5 since 8.26: runCleanup, storage purge, smart apply, report plan
+    // step, and the scoped run the census and receipts clears share.
+    expect((popup.match(/state\.startedRunHere\s*=\s*true;/g) || []).length).toBe(5);
     expect(popup).toMatch(/startedRunHere:\s*false,/);
   });
 });

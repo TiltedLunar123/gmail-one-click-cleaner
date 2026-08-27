@@ -85,7 +85,7 @@ describe("GCC.storageXray.buildPurgeQuery with a full sender list", () => {
   test("it returns the first chunk, so the shape existing callers expect is unchanged", () => {
     expect(X.buildPurgeQuery(REALISTIC)).toBe(X.buildPurgeQueries(REALISTIC)[0]);
     expect(X.buildPurgeQuery(["a@x.com", "b@y.com"]))
-      .toBe("from:(a@x.com OR b@y.com) larger:5M");
+      .toBe("from:(a@x.com OR b@y.com) larger:100k");
   });
 });
 
@@ -116,7 +116,7 @@ describe("GCC.storageXray.buildPurgeQueries", () => {
   test("each chunk keeps the from:() group intact and the size floor", () => {
     for (const q of X.buildPurgeQueries(REALISTIC, "6m")) {
       expect(q.startsWith("from:(")).toBe(true);
-      expect(q).toContain(") larger:5M older_than:6m");
+      expect(q).toContain(") larger:100k older_than:6m");
       // Exactly the one close paren that ends the group.
       expect(q.split(")").length - 1).toBe(1);
     }
@@ -124,7 +124,7 @@ describe("GCC.storageXray.buildPurgeQueries", () => {
 
   test("one address alone is a single valid query", () => {
     const chunks = X.buildPurgeQueries(["solo@example.com"]);
-    expect(chunks).toEqual(["from:(solo@example.com) larger:5M"]);
+    expect(chunks).toEqual(["from:(solo@example.com) larger:100k"]);
     expect(GCC.validateGmailQuery(chunks[0]).valid).toBe(true);
   });
 

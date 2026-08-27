@@ -29,7 +29,10 @@ const codeOnly = (text) =>
     .replace(/\/\*[\s\S]*?\*\//g, " ")
     .replace(/^[ \t]*\/\/.*$/gm, " ");
 
-const RUN_PATHS = 4; // runCleanup, storage purge, smart apply, report plan step
+// runCleanup, storage purge, smart apply, report plan step, and 8.26's
+// startScopedCleanupRun, which the census clear and the receipts clear
+// share rather than adding a path each.
+const RUN_PATHS = 5;
 
 const indicesOf = (haystack, needle) => {
   const out = [];
