@@ -634,5 +634,20 @@
   "nothingToClear": { "message": "нечего чистить" },
   "receiptsClearing": { "message": "Удаляю письма $1 отправителей, которые вас проигнорировали..." },
   "receiptsDryCounting": { "message": "Пробный запуск: считаю, что эти отправители прислали с тех пор." },
-  "receiptsRunStarted": { "message": "чистка запущена" }
+  "receiptsRunStarted": { "message": "чистка запущена" },
+
+  "receiptRelapsed": { "message": "Перестал, потом начал снова · с тех пор $1" },
+  "receiptRelapsedFloor": { "message": "Перестал, потом начал снова · с тех пор минимум $1" },
+  "receiptSpam": { "message": "Всё ещё пишет · $1 попали в спам" },
+  "receiptSpamFloor": { "message": "Всё ещё пишет · минимум $1 попали в спам" },
+  "receiptsSpamCount": { "message": "$1 продолжают писать в спам" },
+  "censusReachNone": { "message": "Очистка ничего не заберёт: это всё свежая, непрочитанная или защищённая почта" },
+  "censusReachExact": { "message": "Очистка заберёт $1" },
+  "censusReachFloor": { "message": "Очистка заберёт минимум $1" },
+  "censusPurgeTakes": { "message": "Удалит $1 писем · только старше 6 месяцев" },
+  "censusPurgeTakesFloor": { "message": "Удалит минимум $1 писем · только старше 6 месяцев" },
+  "censusTotalMb": { "message": "На $1 отправителей приходится $2 писем, это $3." },
+  "censusTotalMbFloor": { "message": "На $1 отправителей приходится минимум $2 писем, это минимум $3." },
+  "censusTotalCount": { "message": "На $1 отправителей приходится $2 писем." },
+  "censusTotalCountFloor": { "message": "На $1 отправителей приходится минимум $2 писем." }
 }

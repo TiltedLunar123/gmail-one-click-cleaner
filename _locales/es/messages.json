@@ -634,5 +634,20 @@
   "nothingToClear": { "message": "nada que limpiar" },
   "receiptsClearing": { "message": "Borrando correo de $1 remitentes que te ignoraron..." },
   "receiptsDryCounting": { "message": "Simulación: contando lo que esos remitentes han enviado desde entonces." },
-  "receiptsRunStarted": { "message": "limpieza iniciada" }
+  "receiptsRunStarted": { "message": "limpieza iniciada" },
+
+  "receiptRelapsed": { "message": "Paró y volvió a empezar · $1 desde entonces" },
+  "receiptRelapsedFloor": { "message": "Paró y volvió a empezar · al menos $1 desde entonces" },
+  "receiptSpam": { "message": "Sigue enviando · $1 fueron a Spam" },
+  "receiptSpamFloor": { "message": "Sigue enviando · al menos $1 fueron a Spam" },
+  "receiptsSpamCount": { "message": "$1 siguen enviando al Spam" },
+  "censusReachNone": { "message": "Vaciar no se llevaría nada: todo es correo reciente, sin leer o protegido" },
+  "censusReachExact": { "message": "Vaciar se llevaría $1" },
+  "censusReachFloor": { "message": "Vaciar se llevaría al menos $1" },
+  "censusPurgeTakes": { "message": "Borra $1 correos · solo de más de 6 meses" },
+  "censusPurgeTakesFloor": { "message": "Borra al menos $1 correos · solo de más de 6 meses" },
+  "censusTotalMb": { "message": "$1 remitentes suman $2 correos, es decir $3." },
+  "censusTotalMbFloor": { "message": "$1 remitentes suman al menos $2 correos, es decir al menos $3." },
+  "censusTotalCount": { "message": "$1 remitentes suman $2 correos." },
+  "censusTotalCountFloor": { "message": "$1 remitentes suman al menos $2 correos." }
 }

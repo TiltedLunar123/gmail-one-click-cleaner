@@ -1468,6 +1468,33 @@ const GCC = (() => {
   // zero too, and reading that as "they stopped" would be this product's
   // oldest bug wearing a new hat. An inexact zero is therefore no
   // verdict at all.
+  // Every verdict a receipt can hold. Named once, because the sanitizer,
+  // the ranker and the renderer all have to agree on the set, and a
+  // verdict the sanitizer does not know is silently blanked on the way
+  // in: the record would keep its date and lose its answer.
+  //
+  // 9.0 adds two:
+  //   hidden_in_spam  they kept sending and Gmail is filing it as spam,
+  //                   which a default Gmail search cannot see, so 8.26
+  //                   reported those senders as "stopped".
+  //   relapsed        they honoured it, then started again. 8.26 wrote
+  //                   that over the top as plain "still_sending", which
+  //                   loses the one fact that distinguishes a list that
+  //                   never stopped from one that came back.
+  const RECEIPT_VERDICTS = Object.freeze([
+    "stopped",
+    "still_sending",
+    "hidden_in_spam",
+    "relapsed",
+    "unknown"
+  ]);
+
+  // The verdicts that mean "they did not honour it", which is what the
+  // Clear button and the ignored counts are about. hidden_in_spam is
+  // deliberately NOT here: they did not honour it either, but the mail
+  // is in Spam, and this product will not point a delete run at Spam.
+  const RECEIPT_IGNORED_VERDICTS = Object.freeze(["still_sending", "relapsed"]);
+
   const receiptVerdictFor = (answer) => {
     if (!answer || answer.ok === false) return { verdict: "unknown", since: 0, sinceExact: false };
     const count = clampCensusCount(answer.count);
@@ -1482,7 +1509,7 @@ const GCC = (() => {
     if (!email || email.length > 320 || !STORAGE_EMAIL_RE.test(email)) return null;
     const at = Number(raw?.at) || 0;
     if (at <= 0) return null;
-    const verdict = ["stopped", "still_sending", "unknown"].includes(raw?.verdict) ? raw.verdict : "";
+    const verdict = RECEIPT_VERDICTS.includes(raw?.verdict) ? raw.verdict : "";
     return {
       email,
       name: typeof raw?.name === "string" ? raw.name.slice(0, 120) : "",
@@ -1528,12 +1555,19 @@ const GCC = (() => {
 
   // Senders that ignored the request first: they are the only rows with
   // anything left to do.
+  //
+  // 9.0: `relapsed` outranks `still_sending`. A list that honoured the
+  // request and then restarted is the more interesting fact and the one
+  // the user is least likely to have noticed, because they watched it
+  // stop. `hidden_in_spam` sits below both: they did not honour it
+  // either, but there is no button under it and nothing in the inbox to
+  // act on, so it must not push a row with work to do off the screen.
   const rankReceipts = (receipts) => {
-    const order = { still_sending: 0, unknown: 1, "": 2, stopped: 3 };
+    const order = { relapsed: 0, still_sending: 1, hidden_in_spam: 2, unknown: 3, "": 4, stopped: 5 };
     return (Array.isArray(receipts) ? receipts : [])
       .map(sanitizeReceipt)
       .filter(Boolean)
-      .sort((a, b) => (order[a.verdict] ?? 2) - (order[b.verdict] ?? 2) || b.since - a.since || b.at - a.at)
+      .sort((a, b) => (order[a.verdict] ?? 4) - (order[b.verdict] ?? 4) || b.since - a.since || b.at - a.at)
       .slice(0, RECEIPT_LIMITS.MAX);
   };
 
@@ -1543,13 +1577,21 @@ const GCC = (() => {
     let stillSending = 0;
     let stopped = 0;
     let waiting = 0;
+    let hiddenInSpam = 0;
+    let relapsed = 0;
     for (const r of list) {
-      if (r.verdict === "still_sending") stillSending++;
+      // stillSending is the count of senders who did not honour it and
+      // have mail sitting in the mailbox, so a relapse belongs in it: it
+      // is what the Clear button acts on. Spam does not, because nothing
+      // acts on that one.
+      if (RECEIPT_IGNORED_VERDICTS.includes(r.verdict)) stillSending++;
       else if (r.verdict === "stopped") stopped++;
+      if (r.verdict === "hidden_in_spam") hiddenInSpam++;
+      if (r.verdict === "relapsed") relapsed++;
       if (receiptIsDue(r, now)) due++;
       else if (!r.verdict) waiting++;
     }
-    return { total: list.length, due, stillSending, stopped, waiting };
+    return { total: list.length, due, stillSending, stopped, waiting, hiddenInSpam, relapsed };
   };
 
   // The escalation, and the reason this feature is worth paying for.
@@ -1561,9 +1603,21 @@ const GCC = (() => {
   // the verdict was reached on, so the button deletes exactly the mail
   // the sentence beside it is about: the house rule, applied to a new
   // pair.
+  // 9.0: a relapse is cleared like any other sender that ignored the
+  // request. The window stays the ORIGINAL one, from the day after the
+  // grace period closed, and that is not a compromise: the stretch
+  // between the grace window and the relapse is exactly the stretch that
+  // read as stopped, which means there was nothing in it. A wider window
+  // over an empty span is the same mail.
+  //
+  // hidden_in_spam returns "" on purpose and must keep doing so. The
+  // only query that would reach that mail is scoped `in:spam`, and a
+  // delete run in the Spam view clicks a control that means Delete
+  // forever, with nothing for tag-before-delete or Restore to find.
+  // There is no button behind that verdict; the verdict IS the product.
   const receiptPurgeQuery = (receipt) => {
     const clean = sanitizeReceipt(receipt);
-    if (!clean || clean.verdict !== "still_sending") return "";
+    if (!clean || !RECEIPT_IGNORED_VERDICTS.includes(clean.verdict)) return "";
     return receiptVerifyQuery(clean);
   };
 
@@ -1575,7 +1629,7 @@ const GCC = (() => {
   // list, so a user with 40 senders ignoring them read "40 senders" on a
   // button that cleared 25 and said nothing about the other 15.
   const receiptsClearable = (receipts) => {
-    const ignored = rankReceipts(receipts).filter((r) => r.verdict === "still_sending");
+    const ignored = rankReceipts(receipts).filter((r) => RECEIPT_IGNORED_VERDICTS.includes(r.verdict));
     const acting = ignored.slice(0, RECEIPT_LIMITS.MAX_VERIFY_PER_RUN);
     let count = 0;
     let exact = true;
@@ -1596,6 +1650,8 @@ const GCC = (() => {
 
   const receipts = Object.freeze({
     LIMITS: RECEIPT_LIMITS,
+    VERDICTS: RECEIPT_VERDICTS,
+    IGNORED_VERDICTS: RECEIPT_IGNORED_VERDICTS,
     graceEndsAt: receiptGraceEndsAt,
     verifyDate: receiptVerifyDate,
     verifyQuery: receiptVerifyQuery,

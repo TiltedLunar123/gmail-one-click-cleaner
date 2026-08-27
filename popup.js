@@ -537,6 +537,7 @@ document.addEventListener("DOMContentLoaded", () => {
     receiptsPurgeSub: $("receiptsPurgeSub"),
     censusBlock: $("censusBlock"),
     censusStamp: $("censusStamp"),
+    censusTotal: $("censusTotal"),
     censusHint: $("censusHint"),
     censusScanBtn: $("censusScanBtn"),
     censusStatus: $("censusStatus"),
@@ -2133,7 +2134,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // clear button they paid for hidden outright. Repainting here makes
     // the outcome the same whichever of the two finishes last, which is
     // the invariant the rest of this function already keeps.
-    if (elements.censusUpsell) elements.censusUpsell.hidden = active;
+    // renderCensus recomputes the upsell from state.subs.licenseActive,
+    // which was assigned at the top of this function, so the two blocks
+    // do not need hiding by hand the way subsUpsell does above.
     renderCensus();
     renderReceipts();
   };
@@ -3454,12 +3457,28 @@ document.addEventListener("DOMContentLoaded", () => {
   // sees the question, Pro gets the answer.
 
   const receiptVerdictLabel = (r) => {
+    const n = (Number(r.since) || 0).toLocaleString();
     if (r.verdict === "still_sending") {
-      const n = Number(r.since) || 0;
-      const shown = n.toLocaleString();
       return r.sinceExact
-        ? t("receiptIgnored", `Ignored you · ${shown} since`, [shown])
-        : t("receiptIgnoredFloor", `Ignored you · at least ${shown} since`, [shown]);
+        ? t("receiptIgnored", `Ignored you · ${n} since`, [n])
+        : t("receiptIgnoredFloor", `Ignored you · at least ${n} since`, [n]);
+    }
+    // 9.0: they honoured it and then started again. Worth its own
+    // sentence because the user watched this one stop, which is the
+    // reason they would never think to check it.
+    if (r.verdict === "relapsed") {
+      return r.sinceExact
+        ? t("receiptRelapsed", `Stopped, then started again · ${n} since`, [n])
+        : t("receiptRelapsedFloor", `Stopped, then started again · at least ${n} since`, [n]);
+    }
+    // 9.0: they did not honour it either, and a default Gmail search
+    // cannot see it. There is no button under this one: the mail is in
+    // Spam, Gmail empties Spam by itself, and this product does not
+    // point a delete run at that view.
+    if (r.verdict === "hidden_in_spam") {
+      return r.sinceExact
+        ? t("receiptSpam", `Still sending · ${n} went to Spam`, [n])
+        : t("receiptSpamFloor", `Still sending · at least ${n} went to Spam`, [n]);
     }
     if (r.verdict === "stopped") return t("receiptStopped", "Stopped");
     if (r.verdict === "unknown") return t("receiptUnknown", "Could not tell");
@@ -3484,6 +3503,16 @@ document.addEventListener("DOMContentLoaded", () => {
           "receiptsIgnoredCount",
           `${summary.stillSending} ignored your unsubscribe`,
           [String(summary.stillSending)]
+        ));
+      }
+      // 9.0: named separately because it is the line nobody else in this
+      // market will print, and because it is not part of stillSending:
+      // there is no button behind it.
+      if (summary.hiddenInSpam) {
+        parts.push(t(
+          "receiptsSpamCount",
+          `${summary.hiddenInSpam} still sending into Spam`,
+          [String(summary.hiddenInSpam)]
         ));
       }
       if (summary.stopped) {
@@ -3536,7 +3565,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    const ignored = list.filter((r) => r.verdict === "still_sending");
+    const ignored = list.filter((r) => GCC.receipts.IGNORED_VERDICTS.includes(r.verdict));
     if (elements.receiptsPurgeBtn) {
       elements.receiptsPurgeBtn.hidden = ignored.length === 0 || !state.subs.licenseActive;
       if (elements.receiptsPurgeSub) {
@@ -3727,6 +3756,24 @@ document.addEventListener("DOMContentLoaded", () => {
         : censusCountLabel(sender);
       text.appendChild(meta);
 
+      // 9.0: and what Clear would actually take from them, which is a
+      // different number and is the one the tick box is about. The two
+      // are shown together rather than the first being replaced: "who
+      // fills this mailbox" is what the census is FOR, and answering it
+      // with a guarded count would make the whole list read as empty on
+      // a mailbox full of unread mail.
+      if (Number.isFinite(sender.reachable)) {
+        const reach = document.createElement("span");
+        reach.className = "subs-row-meta subs-row-meta--reach";
+        const n = sender.reachable.toLocaleString();
+        reach.textContent = sender.reachable === 0
+          ? t("censusReachNone", "Clear would take nothing: this is all recent, unread or protected mail")
+          : (sender.reachableExact
+            ? t("censusReachExact", `Clear would take ${n}`, [n])
+            : t("censusReachFloor", `Clear would take at least ${n}`, [n]));
+        text.appendChild(reach);
+      }
+
       label.appendChild(text);
       row.appendChild(label);
       elements.censusList.appendChild(row);
@@ -3752,11 +3799,29 @@ document.addEventListener("DOMContentLoaded", () => {
     const picked = state.census.checked.size;
     elements.censusPurgeBtn.hidden = !state.census.senders.some((s) => s.measured);
     if (elements.censusPurgeSub) {
-      elements.censusPurgeSub.textContent = state.subs.licenseActive
-        ? (picked
-          ? t("censusPurgePicked", `${picked} selected · older than 6 months only`, [String(picked)])
-          : t("censusPurgeNone", "Pick the senders you want cleared"))
-        : t("proPriceSub", "Pro · $9.99 lifetime");
+      // 9.0: the subtitle names what the run will take, not how many
+      // rows are ticked. "3 selected" is a fact about the list; the
+      // question the user has at this moment is what pressing it does,
+      // and 8.26 answered that with a number measured a different way.
+      // An unmeasured sender (a census stored before 9.0) is reported as
+      // unmeasured rather than counted as nothing.
+      const reach = GCC.census.clearable(state.census.senders, [...state.census.checked]);
+      let sub;
+      if (!state.subs.licenseActive) {
+        sub = t("proPriceSub", "Pro · $9.99 lifetime");
+      } else if (!picked) {
+        sub = t("censusPurgeNone", "Pick the senders you want cleared");
+      } else if (reach.known === 0) {
+        // Nothing ticked has a measurement, so the honest line is the
+        // scope, with no number attached to it.
+        sub = t("censusPurgePicked", `${picked} selected · older than 6 months only`, [String(picked)]);
+      } else {
+        const n = reach.count.toLocaleString();
+        sub = reach.exact
+          ? t("censusPurgeTakes", `Clears ${n} emails · older than 6 months only`, [n])
+          : t("censusPurgeTakesFloor", `Clears at least ${n} emails · older than 6 months only`, [n]);
+      }
+      elements.censusPurgeSub.textContent = sub;
     }
   };
 
@@ -3765,6 +3830,29 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.censusStamp.textContent = state.census.updatedAt
         ? GCC.relativeTime(state.census.updatedAt)
         : "";
+    }
+    // 9.0: the aggregate, on screen at last. Derived from the senders
+    // rather than read from the stored totals, so a list the popup
+    // trimmed or a record written by an older version cannot leave the
+    // headline describing a different set of senders than the rows
+    // underneath it. GCC.census.totals had no caller in any shipped file
+    // until now.
+    if (elements.censusTotal) {
+      const totals = GCC.census.totals(state.census.senders);
+      const show = totals.senders > 0 && totals.count > 0;
+      elements.censusTotal.hidden = !show;
+      if (show) {
+        const count = totals.count.toLocaleString();
+        const mb = GCC.formatMb(totals.estMb);
+        const senders = String(totals.senders);
+        elements.censusTotal.textContent = totals.estMb > 0
+          ? (totals.exact
+            ? t("censusTotalMb", `${senders} senders account for ${count} emails, worth ${mb}.`, [senders, count, mb])
+            : t("censusTotalMbFloor", `${senders} senders account for at least ${count} emails, worth at least ${mb}.`, [senders, count, mb]))
+          : (totals.exact
+            ? t("censusTotalCount", `${senders} senders account for ${count} emails.`, [senders, count])
+            : t("censusTotalCountFloor", `${senders} senders account for at least ${count} emails.`, [senders, count]));
+      }
     }
     renderCensusList();
     if (elements.censusUpsell) {
@@ -4002,7 +4090,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // window closed, and those windows differ. Grouping them would take
     // one sender's mail from inside its own grace period.
     const allIgnored = GCC.receipts.rank(state.receipts.list)
-      .filter((r) => r.verdict === "still_sending");
+      .filter((r) => GCC.receipts.IGNORED_VERDICTS.includes(r.verdict));
     const ignored = allIgnored.slice(0, GCC.receipts.LIMITS.MAX_VERIFY_PER_RUN);
     // 9.0: say so when the cap bites, the way the census clear has since
     // 8.26. Silently acting on 25 of 40 is the same defect as printing

@@ -277,7 +277,6 @@ describe("a paying user never gets the free version of an 8.26 surface", () => {
     const fn = fnFrom(POPUP, "const refreshLicenseUi = async () =>", "// 7.12:");
     expect(fn).toContain("renderCensus();");
     expect(fn).toContain("renderReceipts();");
-    expect(fn).toContain("elements.censusUpsell.hidden = active");
     // The siblings it always repainted, so this is a list and not a pair.
     expect(fn).toContain("renderXrayList();");
     expect(fn).toContain("renderSmartList();");

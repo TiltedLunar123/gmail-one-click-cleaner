@@ -81,6 +81,18 @@
     CENSUS_CHECKED: "censusCheckedEmails"
   });
 
+  // Mirrors GCC.receipts.VERDICTS. Kept as its own literal because the
+  // worker cannot import shared.js, and pinned equal by a test: a
+  // verdict the worker accepts that the sanitizer does not know would be
+  // written to disk and blanked on the way back out.
+  const RECEIPT_VERDICTS = Object.freeze([
+    "stopped",
+    "still_sending",
+    "hidden_in_spam",
+    "relapsed",
+    "unknown"
+  ]);
+
   // =========================
   // Localization helper (7.13)
   // =========================
@@ -1768,10 +1780,25 @@
       let touched = 0;
       for (const r of results) {
         const email = String(r?.sender || "").trim().toLowerCase();
-        const verdict = String(r?.verdict || "");
-        if (!email || !["stopped", "still_sending", "unknown"].includes(verdict)) continue;
+        let verdict = String(r?.verdict || "");
+        // Mirrors GCC.receipts.VERDICTS; a test pins the two lists equal.
+        // A verdict this list does not know is dropped rather than
+        // stored, because sanitizeReceipt would blank it on the way back
+        // out and the record would keep its date and lose its answer.
+        if (!email || !RECEIPT_VERDICTS.includes(verdict)) continue;
         const prev = byEmail.get(email);
         if (!prev) continue;
+
+        // 9.0: a sender that was proven stopped and is now sending again
+        // has RELAPSED, which is a different fact from one that never
+        // stopped, and the more interesting one: the user watched this
+        // list go quiet. 8.26 wrote plain "still_sending" over the top
+        // and the distinction was gone. Derived here rather than in the
+        // engine because only the stored record knows what the last
+        // verdict was; the engine sees one search.
+        if (verdict === "still_sending" && prev.verdict === "stopped") {
+          verdict = "relapsed";
+        }
         // An `unknown` is a check that did not answer, so it must not
         // overwrite a verdict that did. It only moves the clock, and
         // only far enough that a failed sweep is retried rather than

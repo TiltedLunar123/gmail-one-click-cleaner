@@ -634,5 +634,20 @@
   "nothingToClear": { "message": "nichts zu löschen" },
   "receiptsClearing": { "message": "Lösche Mails von $1 Absendern, die dich ignoriert haben..." },
   "receiptsDryCounting": { "message": "Testlauf: zähle, was diese Absender seitdem geschickt haben." },
-  "receiptsRunStarted": { "message": "löschen gestartet" }
+  "receiptsRunStarted": { "message": "löschen gestartet" },
+
+  "receiptRelapsed": { "message": "Erst gestoppt, dann wieder angefangen · $1 seitdem" },
+  "receiptRelapsedFloor": { "message": "Erst gestoppt, dann wieder angefangen · mindestens $1 seitdem" },
+  "receiptSpam": { "message": "Sendet weiter · $1 landeten im Spam" },
+  "receiptSpamFloor": { "message": "Sendet weiter · mindestens $1 landeten im Spam" },
+  "receiptsSpamCount": { "message": "$1 senden weiter in den Spam" },
+  "censusReachNone": { "message": "Löschen würde nichts erfassen: das ist alles neue, ungelesene oder geschützte Post" },
+  "censusReachExact": { "message": "Löschen erfasst $1" },
+  "censusReachFloor": { "message": "Löschen erfasst mindestens $1" },
+  "censusPurgeTakes": { "message": "Löscht $1 E-Mails · nur älter als 6 Monate" },
+  "censusPurgeTakesFloor": { "message": "Löscht mindestens $1 E-Mails · nur älter als 6 Monate" },
+  "censusTotalMb": { "message": "$1 Absender stehen für $2 E-Mails, also $3." },
+  "censusTotalMbFloor": { "message": "$1 Absender stehen für mindestens $2 E-Mails, also mindestens $3." },
+  "censusTotalCount": { "message": "$1 Absender stehen für $2 E-Mails." },
+  "censusTotalCountFloor": { "message": "$1 Absender stehen für mindestens $2 E-Mails." }
 }

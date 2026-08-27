@@ -5672,7 +5672,26 @@
       if (!VERIFY_DATE_RE.test(after)) continue;
       if (seen.has(email)) continue;
       seen.add(email);
-      out.push({ email, after, query: `from:(${email}) after:${after}` });
+      out.push({
+        email,
+        after,
+        query: `from:(${email}) after:${after}`,
+        // 9.0, and it is READ-ONLY. Gmail's default search excludes Spam
+        // and Trash, so a sender who kept mailing but landed in Spam was
+        // answered with an exact zero and this feature said "stopped" --
+        // the one direction an accusation must never fail in, and the
+        // failure was invisible because an exact zero is the strongest
+        // answer the verdict function has.
+        //
+        // `in:spam` is on DANGEROUS_QUERY_TOKENS and stays there. That
+        // refusal is about RULES: a cleanup scoped to Spam or Trash puts
+        // Gmail in the one view where the toolbar's delete control is
+        // "Delete forever", which tag-before-delete and Restore cannot
+        // help with. This string is never a rule. It is counted and
+        // never acted on, there is no button behind the verdict it
+        // produces, and a test pins that it can never reach a purge.
+        spamQuery: `in:spam from:(${email}) after:${after}`
+      });
       if (out.length >= SUBSCRIPTIONS.MAX_VERIFY_PER_RUN) break;
     }
     return out;
@@ -5792,6 +5811,33 @@
           debugLog("Verify failed for sender", { email: target.email, error: e?.message });
         }
 
+        // 9.0: the Spam check, run only when the inbox search found
+        // nothing. A sender already proven to be still sending needs no
+        // second proof, and a search that did not resolve is not a
+        // "stopped" to overturn.
+        let spamSince = null;
+        if (outcome.verdict === "stopped") {
+          try {
+            await openSearch(target.spamQuery);
+            const hidden = countCurrentResultsDetailed();
+            // Only an answer that FOUND something overturns the verdict.
+            // An inexact zero here leaves "stopped" alone: it is the
+            // absence of evidence, and this function's output is an
+            // accusation.
+            if (hidden.count > 0) {
+              spamSince = hidden.count;
+              outcome = {
+                verdict: "hidden_in_spam",
+                since: hidden.count,
+                sinceExact: hidden.exact !== false
+              };
+            }
+          } catch (e) {
+            if (e instanceof CancellationError) throw e;
+            debugLog("Spam check failed", { email: target.email, error: e?.message });
+          }
+        }
+
         // Only worth a second search when there is something to clear.
         if (outcome.verdict === "still_sending") {
           try {
@@ -5812,7 +5858,8 @@
           sender: target.email,
           after: target.after,
           ...outcome,
-          ...(clearable === null ? {} : { clearable, clearableExact })
+          ...(clearable === null ? {} : { clearable, clearableExact }),
+          ...(spamSince === null ? {} : { spamSince })
         });
         reportResults();
       }

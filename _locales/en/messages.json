@@ -634,5 +634,20 @@
   "nothingToClear": { "message": "nothing to clear" },
   "receiptsClearing": { "message": "Clearing mail from $1 senders that ignored you..." },
   "receiptsDryCounting": { "message": "Dry run: counting what those senders have sent since." },
-  "receiptsRunStarted": { "message": "clearing started" }
+  "receiptsRunStarted": { "message": "clearing started" },
+
+  "receiptRelapsed": { "message": "Stopped, then started again · $1 since" },
+  "receiptRelapsedFloor": { "message": "Stopped, then started again · at least $1 since" },
+  "receiptSpam": { "message": "Still sending · $1 went to Spam" },
+  "receiptSpamFloor": { "message": "Still sending · at least $1 went to Spam" },
+  "receiptsSpamCount": { "message": "$1 still sending into Spam" },
+  "censusReachNone": { "message": "Clear would take nothing: this is all recent, unread or protected mail" },
+  "censusReachExact": { "message": "Clear would take $1" },
+  "censusReachFloor": { "message": "Clear would take at least $1" },
+  "censusPurgeTakes": { "message": "Clears $1 emails · older than 6 months only" },
+  "censusPurgeTakesFloor": { "message": "Clears at least $1 emails · older than 6 months only" },
+  "censusTotalMb": { "message": "$1 senders account for $2 emails, worth $3." },
+  "censusTotalMbFloor": { "message": "$1 senders account for at least $2 emails, worth at least $3." },
+  "censusTotalCount": { "message": "$1 senders account for $2 emails." },
+  "censusTotalCountFloor": { "message": "$1 senders account for at least $2 emails." }
 }
