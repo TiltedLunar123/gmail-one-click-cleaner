@@ -1490,7 +1490,18 @@ const GCC = (() => {
       checkedAt: Number(raw?.checkedAt) || 0,
       verdict,
       since: clampCensusCount(raw?.since),
-      sinceExact: raw?.sinceExact === true
+      sinceExact: raw?.sinceExact === true,
+      // 9.0: `since` is the accusation and stays raw; `clearable` is what
+      // the Clear button can take and is measured through that button's
+      // own guards. Left ABSENT when it was never measured, because a 0
+      // would say the button can take nothing, and a receipt written by
+      // 8.26 has no such measurement at all.
+      ...(Number.isFinite(Number(raw?.clearable))
+        ? {
+          clearable: clampCensusCount(raw.clearable),
+          clearableExact: raw?.clearableExact === true
+        }
+        : {})
     };
   };
 
@@ -1556,6 +1567,33 @@ const GCC = (() => {
     return receiptVerifyQuery(clean);
   };
 
+  // What the Clear button will really take across the senders it is
+  // about to act on, and how many of them it will actually reach.
+  //
+  // The cap matters as much as the count. The action slices to
+  // MAX_VERIFY_PER_RUN and the subtitle used to quote the whole ignored
+  // list, so a user with 40 senders ignoring them read "40 senders" on a
+  // button that cleared 25 and said nothing about the other 15.
+  const receiptsClearable = (receipts) => {
+    const ignored = rankReceipts(receipts).filter((r) => r.verdict === "still_sending");
+    const acting = ignored.slice(0, RECEIPT_LIMITS.MAX_VERIFY_PER_RUN);
+    let count = 0;
+    let exact = true;
+    let unknown = 0;
+    for (const r of acting) {
+      if (!Number.isFinite(r.clearable)) { unknown++; continue; }
+      count += r.clearable;
+      if (!r.clearableExact) exact = false;
+    }
+    return {
+      senders: acting.length,
+      stranded: ignored.length - acting.length,
+      count,
+      exact,
+      unknown
+    };
+  };
+
   const receipts = Object.freeze({
     LIMITS: RECEIPT_LIMITS,
     graceEndsAt: receiptGraceEndsAt,
@@ -1567,7 +1605,8 @@ const GCC = (() => {
     sanitize: sanitizeReceipt,
     merge: mergeReceipts,
     rank: rankReceipts,
-    summary: receiptsSummary
+    summary: receiptsSummary,
+    clearable: receiptsClearable
   });
 
   // =========================
@@ -1638,6 +1677,32 @@ const GCC = (() => {
   // the next popup open. request() must run inside a user gesture.
 
   const GMAIL_ORIGINS = Object.freeze({ origins: ["https://mail.google.com/*"] });
+
+  // Is this URL a MAILBOX, as opposed to something else Google serves off
+  // mail.google.com?
+  //
+  // Google Chat lives at https://mail.google.com/chat/u/0/#chat/home, so
+  // it satisfies both `url.startsWith("https://mail.google.com/")` and the
+  // `https://mail.google.com/*` match pattern. The worker learned this in
+  // 8.21, after a scheduled run injected into a Chat tab, navigated it,
+  // tore the user's conversation away and killed the content script
+  // mid-run. The popup was never converted: with Chat in front, or as the
+  // only mail.google.com tab open, Run and every scan resolved to it, the
+  // engine refused, and the user got a progress dashboard that never
+  // moved and a "0 emails moved to Trash" notification for a run that
+  // never started.
+  //
+  // The bare "/" form is accepted because mail.google.com/ is the
+  // pre-redirect form of the mailbox itself, which is what the engine's
+  // own isGmailTab() accepts. This lives here so the popup, the worker
+  // and the engine cannot drift apart a third time.
+  const isMailboxUrl = (url) => {
+    const raw = String(url || "");
+    if (!raw.startsWith("https://mail.google.com/")) return false;
+    // Everything after the origin, minus any query or fragment.
+    const path = raw.slice("https://mail.google.com".length).split(/[?#]/)[0];
+    return path === "/" || path.startsWith("/mail/");
+  };
 
   const gmailAccess = Object.freeze({
     ORIGINS: GMAIL_ORIGINS,
@@ -1907,7 +1972,12 @@ const GCC = (() => {
   const censusMeasureQueries = (email) => Object.freeze({
     total: `from:(${email})`,
     atLeast1M: `from:(${email}) larger:1M`,
-    atLeast100k: `from:(${email}) larger:100k`
+    atLeast100k: `from:(${email}) larger:100k`,
+    // The fourth, added in 9.0: what the Clear button will ask for. The
+    // three above describe the mailbox; this one describes the button,
+    // and it is built by censusReachQuery from the very chunker the
+    // clear runs through, so the string cannot drift from the action.
+    reach: censusReachQuery(email)
   });
 
   const clampCensusCount = (value) => {
@@ -1950,6 +2020,17 @@ const GCC = (() => {
         slices: Math.max(0, Math.min(99, Number(s.slices) || 0)),
         estMb: Math.max(0, Math.min(1024 * 1024, Math.round((Number(s.estMb) || 0) * 10) / 10)),
         estMbExact: s.estMbExact === true,
+        // 8.27: carried, never re-derived, and deliberately left ABSENT
+        // rather than defaulted to 0 when the engine did not measure it.
+        // A census stored by 8.26 has no reachable field, and a 0 there
+        // would read as "this sender gives back nothing" on a list that
+        // predates the measurement entirely.
+        ...(Number.isFinite(Number(s.reachable))
+          ? {
+            reachable: clampCensusCount(s.reachable),
+            reachableExact: s.reachableExact === true
+          }
+          : {}),
         measured: s.measured !== false && clampCensusCount(s.count) > 0
       }));
     const measured = clean.filter((s) => s.measured)
@@ -2001,15 +2082,64 @@ const GCC = (() => {
     return purgeQueryChunks(emails, safeAge, "");
   };
 
+  // The age the census clear runs at. Named once so the measurement and
+  // the action cannot be given different ones by two separate edits.
+  const CENSUS_CLEAR_AGE = "6m";
+
+  // What the Clear button will actually ask Gmail for ONE sender, before
+  // the engine's global guards are appended to it.
+  //
+  // 8.27: the census used to be counted with a bare `from:(email)` while
+  // the button underneath ran this. Jude ticked a sender the list said
+  // held five emails, pressed Clear, and got "0 cleaned", because those
+  // five were recent and unread and every one of them was outside
+  // `older_than:6m -is:unread`. The count and the action have to be
+  // measured through the same filter; this builder is how they stay that
+  // way, and a test pins it equal to the first chunk censusPurgeQueries
+  // emits for a single address so the two can never drift again.
+  const censusReachQuery = (email) => {
+    const [q] = censusPurgeQueries([email], CENSUS_CLEAR_AGE);
+    return q || "";
+  };
+
+  // What the ticked senders will really give back, which is the only
+  // number that belongs next to the Clear button. `reachable` is the
+  // count the engine measured through the very query this button runs;
+  // a sender measured before 8.27 has no such field, and an absent
+  // reachable is NOT zero, it is unknown, so it is reported separately
+  // rather than quietly summed as nothing.
+  const censusClearable = (senders, emails) => {
+    const want = new Set(
+      (Array.isArray(emails) ? emails : [])
+        .map((e) => String(e || "").trim().toLowerCase())
+        .filter(Boolean)
+    );
+    let count = 0;
+    let exact = true;
+    let known = 0;
+    let unknown = 0;
+    for (const s of rankCensusSenders(senders)) {
+      if (!want.has(s.email)) continue;
+      if (!s.measured || !Number.isFinite(s.reachable)) { unknown++; continue; }
+      known++;
+      count += s.reachable;
+      if (!s.reachableExact) exact = false;
+    }
+    return { count, exact, known, unknown };
+  };
+
   const census = Object.freeze({
     LIMITS: CENSUS_LIMITS,
     SCOPE: CENSUS_SCOPE,
+    CLEAR_AGE: CENSUS_CLEAR_AGE,
     discoveryQueries: censusDiscoveryQueries,
     measureQueries: censusMeasureQueries,
+    reachQuery: censusReachQuery,
     senderFloorMb: censusSenderFloorMb,
     purgeQueries: censusPurgeQueries,
     rankSenders: rankCensusSenders,
-    totals: censusTotals
+    totals: censusTotals,
+    clearable: censusClearable
   });
 
   // =========================
@@ -3317,6 +3447,7 @@ const GCC = (() => {
     storeLinks,
     PRIVACY_URL,
     gmailAccess,
+    isMailboxUrl,
 
     // New in 7.2
     storageXray,

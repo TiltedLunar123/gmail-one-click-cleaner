@@ -73,7 +73,12 @@
     // it is the one store in this extension whose value grows the longer
     // it is kept: a receipt is worth nothing on the day it is written
     // and is the whole feature two weeks later.
-    RECEIPTS: "unsubReceipts"
+    RECEIPTS: "unsubReceipts",
+
+    // 8.26 census ticks, written by the popup. The worker reads them so
+    // a SCHEDULED sweep carries the same extra rules a hand-started run
+    // does; see runScheduledCleanup.
+    CENSUS_CHECKED: "censusCheckedEmails"
   });
 
   // =========================
@@ -879,6 +884,20 @@
         const scheduleWhitelist = Array.isArray(schedule.whitelist) ? schedule.whitelist : [];
         const whitelist = [...new Set([...globalWhitelist, ...scheduleWhitelist])];
 
+        // 9.0: the census ticks, which 8.26 wired to the popup's run and
+        // nowhere else. The comment on the popup's own config says these
+        // exist "so a scheduled sweep keeps clearing the senders this
+        // mailbox was measured to be full of", and the CHANGELOG ships
+        // that sentence to users, but the scheduled config never carried
+        // them: only a run started by hand did. This is the 7.15 bug
+        // fifty lines above, in the same literal, for the same reason.
+        //
+        // Gated on the licence and capped exactly as the popup gates it,
+        // because a tick is permission and a lapsed licence is not.
+        const censusSenders = (await readLicenseState()) === "pro"
+          ? await readCensusChecked()
+          : [];
+
         // Find a Gmail tab. A Chat tab on the same host is not one; see
         // isMailboxTab. Treated exactly like "no Gmail tab at all", which
         // means the schedule is skipped and lastRun is NOT stamped, so it
@@ -945,7 +964,10 @@
           version: SW_VERSION,
           scheduled: true,
           scheduleId,
-          runId
+          runId,
+          // Omitted entirely when there is nothing ticked, so a config
+          // with no census stays byte-identical to what it was.
+          ...(censusSenders.length ? { censusSenders } : {})
         };
 
         // Inject config and content script
@@ -1754,7 +1776,20 @@
         // overwrite a verdict that did. It only moves the clock, and
         // only far enough that a failed sweep is retried rather than
         // repeated forever.
-        if (verdict === "unknown" && prev.verdict) {
+        //
+        // 9.0: `&& prev.verdict` used to sit on this condition, so the
+        // rule applied only to receipts that already had an answer. The
+        // FIRST check a receipt ever gets is the one most likely to fail
+        // (a slow Gmail, or a relevance-ranked search Gmail declines to
+        // total, which verdictFromCount also reports as unknown), and
+        // that one fell through to the write below: checkedAt = now,
+        // verdict = "unknown". receiptIsDue then refuses to look at it
+        // again for RECHECK_DAYS. So the receipt with no answer at all
+        // was locked out for a month while one that already had an
+        // answer retried on the next sweep, which is exactly backwards,
+        // and the only escape was unsubscribing from that sender again,
+        // spending a free allowance and restarting the grace window.
+        if (verdict === "unknown") {
           byEmail.set(email, { ...prev, checkedAt: 0 });
           touched++;
           continue;
@@ -1764,7 +1799,16 @@
           checkedAt: now,
           verdict,
           since: Math.max(0, Math.min(10000000, Math.floor(Number(r?.since) || 0))),
-          sinceExact: r?.sinceExact === true
+          sinceExact: r?.sinceExact === true,
+          // 9.0: what the Clear button can really take, measured through
+          // its own guards while `since` stays raw. Absent rather than
+          // zeroed when the reach search did not answer.
+          ...(Number.isFinite(Number(r?.clearable))
+            ? {
+              clearable: Math.max(0, Math.min(10000000, Math.floor(Number(r.clearable)))),
+              clearableExact: r?.clearableExact === true
+            }
+            : {})
         });
         touched++;
       }
@@ -1780,6 +1824,38 @@
   // =========================
 
   const CENSUS_SENDER_CAP = 60;
+
+  // The popup's cap on how many ticked senders become rules on one run.
+  // Mirrors GCC.census.LIMITS.MAX_RULE_SENDERS; a test pins the two
+  // equal, because a scheduled run sending more rules than a manual one
+  // would be a different cleanup wearing the same name.
+  const CENSUS_RULE_SENDER_CAP = 25;
+
+  // What the popup ticked, read back for the scheduled path. Anything
+  // that is not a well-formed address is dropped rather than passed on:
+  // these become `from:(...)` groups in a delete run.
+  async function readCensusChecked() {
+    try {
+      const r = await chrome.storage.local.get(STORAGE_KEYS.CENSUS_CHECKED);
+      const list = r?.[STORAGE_KEYS.CENSUS_CHECKED];
+      if (!Array.isArray(list)) return [];
+      const out = [];
+      const seen = new Set();
+      for (const raw of list) {
+        const email = String(raw || "").trim().toLowerCase();
+        if (!email || email.length > 320 || !RECEIPT_EMAIL_RE.test(email)) continue;
+        if (seen.has(email)) continue;
+        seen.add(email);
+        out.push(email);
+        if (out.length >= CENSUS_RULE_SENDER_CAP) break;
+      }
+      return out;
+    } catch (e) {
+      // An unreadable tick list means no extra rules, never all of them.
+      console.warn("[GCC SW] census tick read failed:", e?.message || e);
+      return [];
+    }
+  }
 
   async function recordCensus(msg) {
     try {
@@ -1800,6 +1876,17 @@
           slices: Math.max(0, Math.min(99, Number(s?.slices) || 0)),
           estMb: Math.max(0, Math.min(1048576, Math.round((Number(s?.estMb) || 0) * 10) / 10)),
           estMbExact: s?.estMbExact === true,
+          // 8.27 -> 9.0: what the Clear button measured, carried the same
+          // way and for the same reason as the two above. Omitted rather
+          // than zeroed when the engine did not send it, because a census
+          // written by 8.26 has no such measurement and a 0 would read as
+          // "this sender gives back nothing".
+          ...(Number.isFinite(Number(s?.reachable))
+            ? {
+              reachable: Math.max(0, Math.min(10000000, Math.floor(Number(s.reachable)))),
+              reachableExact: s?.reachableExact === true
+            }
+            : {}),
           measured: s?.measured === true
         });
       }
@@ -1811,7 +1898,20 @@
           totalMb: Math.max(0, Math.min(1048576, Math.round((Number(msg?.totalMb) || 0) * 10) / 10)),
           exact: msg?.exact === true,
           discovered: Math.max(0, Math.min(100000, Math.floor(Number(msg?.discovered) || 0))),
-          panelSeen: Math.max(0, Math.min(1000, Math.floor(Number(msg?.panelSeen) || 0)))
+          panelSeen: Math.max(0, Math.min(1000, Math.floor(Number(msg?.panelSeen) || 0))),
+          // The switches every `reachable` above was measured through, so
+          // the popup can say "your safety switches have changed since
+          // this scan" instead of quietly printing a stale number.
+          guards: msg?.guards && typeof msg.guards === "object"
+            ? {
+              safeMode: msg.guards.safeMode === true,
+              minAge: typeof msg.guards.minAge === "string" ? msg.guards.minAge : null,
+              guardSkipStarred: msg.guards.guardSkipStarred === true,
+              guardSkipImportant: msg.guards.guardSkipImportant === true,
+              guardSkipUnread: msg.guards.guardSkipUnread === true,
+              guardSkipUserLabels: msg.guards.guardSkipUserLabels === true
+            }
+            : null
         }
       });
     } catch (e) {
@@ -1879,7 +1979,13 @@
           email,
           name: String(raw?.name || "").slice(0, 120),
           count: Math.max(1, Math.min(99999, Number(raw?.count) || 1)),
-          estMb: Math.max(0, Math.min(1024 * 1024, Math.round(Number(raw?.estMb) || 0))),
+          // 9.0: a tenth, matching the engine. Rounding to a whole MB
+          // here would have undone the engine's fix at the storage
+          // layer and left the same "at least 0 MB" on the list: the
+          // engine and the worker are two of the four places this
+          // number passes through, and only fixing one of them is how
+          // the same defect survives a release.
+          estMb: Math.max(0, Math.min(1024 * 1024, Math.floor((Number(raw?.estMb) || 0) * 10) / 10)),
           status: prevStatus[email]?.status || "",
           statusAt: prevStatus[email]?.statusAt || 0
         });
@@ -1887,7 +1993,7 @@
       await chrome.storage.local.set({
         [STORAGE_KEYS.STORAGE_XRAY]: {
           updatedAt: Date.now(),
-          totalMb: Math.max(0, Math.round(Number(totalMb) || 0)),
+          totalMb: Math.max(0, Math.floor((Number(totalMb) || 0) * 10) / 10),
           totalCount: Math.max(0, Math.round(Number(totalCount) || 0)),
           senders: clean
         }

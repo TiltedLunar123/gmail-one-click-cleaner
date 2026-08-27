@@ -231,9 +231,36 @@ describe("the popup sends the guards rather than letting them default", () => {
     // grew a refusal and a block body and this broke without anything
     // being wrong. Anchor on the declaration only.
     expect(popupSrc).toMatch(/const buildScanGuards = async \(\) =>/);
+
+    // 9.0: this used to read `expect(uses).toBe(3)`, and that count is
+    // the reason 8.26 shipped two scans without guards. A count pin says
+    // "three of them do it", never "all of them do it", so adding a
+    // fourth scan that FORGOT the helper kept the test green while
+    // adding one that remembered would have turned it red. 8.19 recorded
+    // this exact lesson about stats.stoppedShort and it recurred here.
+    //
+    // Enumerate the run kinds that must carry the user's real switches,
+    // and pin each by its own condition. The count is derived from the
+    // list so the two cannot disagree.
+    const GUARDED_RUN_KINDS = [
+      "reportScan",
+      "storageScan",
+      "smartScan",
+      // 9.0: the census measures each sender through the guards its
+      // Clear button applies.
+      "senderCensus",
+      // 9.0: the verdict is raw on purpose, but the Clear button beside
+      // it is guarded, so the run has to measure that too.
+      "unsubscribeVerify"
+    ];
+    for (const kind of GUARDED_RUN_KINDS) {
+      const at = popupSrc.indexOf(`runKind: "${kind}"`);
+      expect([kind, at > -1]).toEqual([kind, true]);
+      const block = popupSrc.slice(at, at + 1200);
+      expect([kind, block.includes("await buildScanGuards()")]).toEqual([kind, true]);
+    }
     const uses = popupSrc.split("await buildScanGuards()").length - 1;
-    // report, x-ray, and (8.6) the smart scan.
-    expect(uses).toBe(3);
+    expect(uses).toBe(GUARDED_RUN_KINDS.length);
   });
 
   test("it carries every guard applyGlobalGuards reads", () => {

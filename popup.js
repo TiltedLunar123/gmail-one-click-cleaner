@@ -1193,10 +1193,18 @@ document.addEventListener("DOMContentLoaded", () => {
     // silently fell through to whatever Gmail tab happened to be in
     // front. The pick is its own field now and nothing on the run
     // lifecycle clears it.
+    // 9.0: `https://mail.google.com/*` matches Google Chat, so every
+    // lookup below is filtered through the one predicate the worker and
+    // the engine also answer to. Without it, a Chat tab in front, or a
+    // Chat tab as the only mail.google.com tab open, was resolved as the
+    // mailbox: the engine refused, nothing terminal was sent, and Run
+    // looked like it had silently done nothing. See GCC.isMailboxUrl.
+    const mailboxes = (tabs) => (tabs || []).filter((t) => GCC.isMailboxUrl(t?.url));
+
     const picked = state.selectedGmailTabId ?? state.currentGmailTabId;
     if (picked) {
       try {
-        const tabs = await tabsQuery({ url: `${CONFIG.GMAIL_URL}*` });
+        const tabs = mailboxes(await tabsQuery({ url: `${CONFIG.GMAIL_URL}*` }));
         const selected = tabs.find(t => t.id === picked);
         if (selected) return selected;
       } catch (e) {
@@ -1206,13 +1214,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const active = await tabsQuery({ active: true, currentWindow: true });
     const activeTab = active?.[0];
-    if (activeTab?.url?.startsWith(CONFIG.GMAIL_URL)) return activeTab;
+    if (GCC.isMailboxUrl(activeTab?.url)) return activeTab;
 
-    const cur = await tabsQuery({ url: `${CONFIG.GMAIL_URL}*`, currentWindow: true });
-    if (cur?.length) return cur.find((t) => t.active) || cur[0];
+    const cur = mailboxes(await tabsQuery({ url: `${CONFIG.GMAIL_URL}*`, currentWindow: true }));
+    if (cur.length) return cur.find((t) => t.active) || cur[0];
 
-    const all = await tabsQuery({ url: `${CONFIG.GMAIL_URL}*` });
-    if (all?.length) return all.find((t) => t.active) || all[0];
+    const all = mailboxes(await tabsQuery({ url: `${CONFIG.GMAIL_URL}*` }));
+    if (all.length) return all.find((t) => t.active) || all[0];
 
     return null;
   };
@@ -1292,7 +1300,10 @@ document.addEventListener("DOMContentLoaded", () => {
         return null;
       }
       if (tab?.status !== "complete") continue;
-      if (tab.url?.startsWith(CONFIG.GMAIL_URL)) {
+      // Same predicate as findGmailTab: this tab was opened at the inbox
+      // URL, but "it is on mail.google.com" is not the question the
+      // engine will ask when it boots.
+      if (GCC.isMailboxUrl(tab.url)) {
         // Let the Gmail app paint before the engine starts querying.
         await GCC.sleep(1200);
         return tab;
@@ -2112,6 +2123,19 @@ document.addEventListener("DOMContentLoaded", () => {
     // 8.0 Mailbox Report shares the same license: the report is free
     // and complete, the top-ranked step is free to run, the rest is Pro.
     renderReport();
+
+    // 8.26's two surfaces, repainted here for the reason recorded above
+    // the activate hint: init does not await refreshLicenseUi, because it
+    // verifies a signature and that is slower than everything around it.
+    // loadCensus and loadReceipts usually win that race, so a paying user
+    // got the FREE census for the session: five senders, every checkbox
+    // disabled, the upsell block showing, and on the Unsubscribe tab the
+    // clear button they paid for hidden outright. Repainting here makes
+    // the outcome the same whichever of the two finishes last, which is
+    // the invariant the rest of this function already keeps.
+    if (elements.censusUpsell) elements.censusUpsell.hidden = active;
+    renderCensus();
+    renderReceipts();
   };
 
   // 7.12: locked Pro controls go straight to checkout. The click on
@@ -3516,10 +3540,18 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.receiptsPurgeBtn) {
       elements.receiptsPurgeBtn.hidden = ignored.length === 0 || !state.subs.licenseActive;
       if (elements.receiptsPurgeSub) {
+        // 9.0: the number on the button is the number the button acts
+        // on. handleReceiptsPurge slices to MAX_VERIFY_PER_RUN, and this
+        // line used to quote the whole ignored list, so a user with 40
+        // senders ignoring them read "40 senders" above a run that
+        // cleared 25 and never mentioned the other 15. The census clear
+        // beside it has shown a first-25 toast since 8.26; this is the
+        // same promise kept in the same way.
+        const reach = GCC.receipts.clearable(state.receipts.list);
         elements.receiptsPurgeSub.textContent = t(
           "receiptsPurgeSub",
-          `Only mail that arrived after each grace window closed · ${ignored.length} sender${ignored.length === 1 ? "" : "s"}`,
-          [String(ignored.length)]
+          `Only mail that arrived after each grace window closed · ${reach.senders} sender${reach.senders === 1 ? "" : "s"}`,
+          [String(reach.senders)]
         );
       }
     }
@@ -3561,7 +3593,17 @@ document.addEventListener("DOMContentLoaded", () => {
       if (elements.verifyBtn) elements.verifyBtn.disabled = true;
       setSubsStatus(t("verifying", `Checking ${due.length} senders...`, [String(due.length)]));
       const tabId = await injectEngineRun(
-        { runKind: "unsubscribeVerify", verifyTargets: due, debugMode: state.debugMode },
+        {
+          runKind: "unsubscribeVerify",
+          verifyTargets: due,
+          debugMode: state.debugMode,
+          // 9.0: the verdict is measured RAW on purpose (a starred or
+          // unread message from that sender is still proof they kept
+          // mailing), but the Clear button beside the verdict runs
+          // guarded, so the run needs the real switches to measure what
+          // that button can actually take. See unsubscribeVerifyRun.
+          ...(await buildScanGuards())
+        },
         setSubsStatus
       );
       if (tabId === null) {
@@ -3763,7 +3805,23 @@ document.addEventListener("DOMContentLoaded", () => {
       setCensusStatus(t("censusScanning", "Sampling your mail, then counting the senders that come up most..."));
       showSkeletonRows(elements.censusList, 5);
       const tabId = await injectEngineRun(
-        { runKind: "senderCensus", debugMode: state.debugMode },
+        {
+          runKind: "senderCensus",
+          debugMode: state.debugMode,
+          // 9.0: the census measures each sender through the guards its
+          // Clear button applies, so it needs the user's real switches
+          // rather than sanitizeConfig's defaults. It also needs the
+          // whitelist and the protected keywords, which buildScanGuards
+          // carries: without them the free vetoes in the engine run
+          // against empty lists, so a sender the user marked Never
+          // Delete was still ranked, still spent four searches, and was
+          // still offered with a live tick box.
+          ...(await buildScanGuards()),
+          // 8.12's pair, for the same reason smartScan sends it: without
+          // it CONFIG.smartSignalSenders falls back to the clamp default
+          // and the Pro deep depth could never be reached.
+          ...GCC.proSettings.smartScanBudget((await getProSettings()).smartScanDepth)
+        },
         setCensusStatus
       );
       if (tabId === null) {
@@ -3943,9 +4001,15 @@ document.addEventListener("DOMContentLoaded", () => {
     // is that it deletes only what arrived after that sender's grace
     // window closed, and those windows differ. Grouping them would take
     // one sender's mail from inside its own grace period.
-    const ignored = GCC.receipts.rank(state.receipts.list)
-      .filter((r) => r.verdict === "still_sending")
-      .slice(0, GCC.receipts.LIMITS.MAX_VERIFY_PER_RUN);
+    const allIgnored = GCC.receipts.rank(state.receipts.list)
+      .filter((r) => r.verdict === "still_sending");
+    const ignored = allIgnored.slice(0, GCC.receipts.LIMITS.MAX_VERIFY_PER_RUN);
+    // 9.0: say so when the cap bites, the way the census clear has since
+    // 8.26. Silently acting on 25 of 40 is the same defect as printing
+    // 40 on the button, one step later.
+    if (allIgnored.length > ignored.length) {
+      showToast(t("firstTwentyFive", "running the first 25; re-run for the rest"), "info");
+    }
     const queries = ignored.map((r) => GCC.receipts.purgeQuery(r)).filter(Boolean);
     if (!queries.length) {
       showToast(t("nothingToClear", "nothing to clear"), "info");

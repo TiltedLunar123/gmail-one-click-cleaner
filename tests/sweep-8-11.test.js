@@ -674,9 +674,26 @@ describe("the Auto-Pilot scan measures what the popup's buttons apply", () => {
     // that a scan sending nothing is counted as though all four guards
     // are set, so a new scan that forgets them measures a mailbox the
     // user does not have.
-    const popupScans = POPUP_SRC.match(/runKind: "(reportScan|storageScan|smartScan)"/g) || [];
-    expect(popupScans.length).toBe(3);
-    expect((POPUP_SRC.match(/\.\.\.\(await buildScanGuards\(\)\)/g) || []).length).toBe(3);
+    // 9.0: named one by one rather than counted. The old form matched a
+    // fixed alternation of three run kinds and asserted the count was
+    // three, which is true of a codebase that has forgotten two of them
+    // as surely as of one that has none to forget. 8.26 added
+    // senderCensus and unsubscribeVerify and this stayed green.
+    const MUST_SEND_GUARDS = [
+      "reportScan",
+      "storageScan",
+      "smartScan",
+      "senderCensus",
+      "unsubscribeVerify"
+    ];
+    for (const kind of MUST_SEND_GUARDS) {
+      const at = POPUP_SRC.indexOf(`runKind: "${kind}"`);
+      expect([kind, at > -1]).toEqual([kind, true]);
+      expect([kind, POPUP_SRC.slice(at, at + 1200).includes("...(await buildScanGuards())")])
+        .toEqual([kind, true]);
+    }
+    expect((POPUP_SRC.match(/\.\.\.\(await buildScanGuards\(\)\)/g) || []).length)
+      .toBe(MUST_SEND_GUARDS.length);
   });
 });
 
