@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "8.26.0";
+  const GCC_CONTENT_VERSION = "9.0.0";
 
   // =========================
   // Timing & behavior constants
@@ -5672,7 +5672,26 @@
       if (!VERIFY_DATE_RE.test(after)) continue;
       if (seen.has(email)) continue;
       seen.add(email);
-      out.push({ email, after, query: `from:(${email}) after:${after}` });
+      out.push({
+        email,
+        after,
+        query: `from:(${email}) after:${after}`,
+        // 9.0, and it is READ-ONLY. Gmail's default search excludes Spam
+        // and Trash, so a sender who kept mailing but landed in Spam was
+        // answered with an exact zero and this feature said "stopped" --
+        // the one direction an accusation must never fail in, and the
+        // failure was invisible because an exact zero is the strongest
+        // answer the verdict function has.
+        //
+        // `in:spam` is on DANGEROUS_QUERY_TOKENS and stays there. That
+        // refusal is about RULES: a cleanup scoped to Spam or Trash puts
+        // Gmail in the one view where the toolbar's delete control is
+        // "Delete forever", which tag-before-delete and Restore cannot
+        // help with. This string is never a rule. It is counted and
+        // never acted on, there is no button behind the verdict it
+        // produces, and a test pins that it can never reach a purge.
+        spamQuery: `in:spam from:(${email}) after:${after}`
+      });
       if (out.length >= SUBSCRIPTIONS.MAX_VERIFY_PER_RUN) break;
     }
     return out;
@@ -5770,6 +5789,20 @@
         });
 
         let outcome = { verdict: "unknown", since: 0, sinceExact: false };
+        // 9.0: measured separately from the verdict, and it has to be.
+        //
+        // The VERDICT stays raw and must stay raw. A starred or unread
+        // message from that sender is still proof they kept mailing, and
+        // counting the verdict through -is:unread would make "stopped"
+        // the default answer for exactly the senders who are ignoring
+        // the user, which is the one direction this feature must never
+        // fail in. But the Clear button underneath the verdict runs the
+        // same query through applyGlobalGuards, so the number printed
+        // beside THAT button is a different number, and 8.26 printed the
+        // raw one. This is the Mailbox Report's answer, not the X-ray's:
+        // measure both ways and show each figure where it belongs.
+        let clearable = null;
+        let clearableExact = false;
         try {
           await openSearch(target.query);
           outcome = verdictFromCount(countCurrentResultsDetailed(), true);
@@ -5778,7 +5811,56 @@
           debugLog("Verify failed for sender", { email: target.email, error: e?.message });
         }
 
-        results.push({ sender: target.email, after: target.after, ...outcome });
+        // 9.0: the Spam check, run only when the inbox search found
+        // nothing. A sender already proven to be still sending needs no
+        // second proof, and a search that did not resolve is not a
+        // "stopped" to overturn.
+        let spamSince = null;
+        if (outcome.verdict === "stopped") {
+          try {
+            await openSearch(target.spamQuery);
+            const hidden = countCurrentResultsDetailed();
+            // Only an answer that FOUND something overturns the verdict.
+            // An inexact zero here leaves "stopped" alone: it is the
+            // absence of evidence, and this function's output is an
+            // accusation.
+            if (hidden.count > 0) {
+              spamSince = hidden.count;
+              outcome = {
+                verdict: "hidden_in_spam",
+                since: hidden.count,
+                sinceExact: hidden.exact !== false
+              };
+            }
+          } catch (e) {
+            if (e instanceof CancellationError) throw e;
+            debugLog("Spam check failed", { email: target.email, error: e?.message });
+          }
+        }
+
+        // Only worth a second search when there is something to clear.
+        if (outcome.verdict === "still_sending") {
+          try {
+            await openSearch(applyGlobalGuards(target.query));
+            const reach = countCurrentResultsDetailed();
+            clearable = reach.count;
+            clearableExact = reach.exact;
+          } catch (e) {
+            if (e instanceof CancellationError) throw e;
+            // An unmeasured clearable is left absent, not zeroed: the
+            // verdict already stands on the raw search, and a 0 here
+            // would claim the button can take nothing when nobody asked.
+            debugLog("Verify reach check failed", { email: target.email, error: e?.message });
+          }
+        }
+
+        results.push({
+          sender: target.email,
+          after: target.after,
+          ...outcome,
+          ...(clearable === null ? {} : { clearable, clearableExact }),
+          ...(spamSince === null ? {} : { spamSince })
+        });
         reportResults();
       }
 
@@ -5974,11 +6056,28 @@
         );
       }
 
+      // 9.0: a TENTH, not a whole megabyte.
+      //
+      // Every tier used to credit at least 5 MB per sampled row, so
+      // rounding to a whole number could never reach zero. 8.26 added
+      // `larger:1M smaller:5M` and `larger:100k smaller:1M`, and the
+      // bottom one credits 100/1024 = 0.0977 MB per row, so a sender
+      // with five sampled rows in it accumulated 0.49 MB and
+      // Math.round wrote 0. On the mailbox 8.26 was built for, which is
+      // mostly small mail, that is most senders: a list of names beside
+      // "at least 0 MB" and a headline summing those zeros.
+      //
+      // It rounds the wrong way too. Math.round is bidirectional, so six
+      // rows in that band (0.586 MB) printed "at least 1 MB", which
+      // claims more than the scan measured on the one screen whose whole
+      // premise is that its numbers are floors. GCC.formatMb already
+      // renders a tenth where one exists, so nothing downstream needs to
+      // change to show it.
       const senders = [...bySender.values()]
-        .map((s) => ({ ...s, estMb: Math.round(s.estMb) }))
+        .map((s) => ({ ...s, estMb: Math.floor(s.estMb * 10) / 10 }))
         .sort((a, b) => b.estMb - a.estMb || b.count - a.count)
         .slice(0, STORAGE_XRAY.MAX_SENDERS);
-      const totalMb = senders.reduce((sum, s) => sum + s.estMb, 0);
+      const totalMb = Math.floor(senders.reduce((sum, s) => sum + s.estMb, 0) * 10) / 10;
       const totalCount = senders.reduce((sum, s) => sum + s.count, 0);
 
       try {
@@ -6989,12 +7088,16 @@
 
   const CENSUS = Object.freeze({
     SCOPE: "-in:sent -in:drafts -in:chats",
-    // Three searches per sender, so the cap is the Pro depth setting,
+    // Four searches per sender now, so the cap is the Pro depth setting,
     // the same one smartScan uses and for the same reason.
     MAX_MEASURE: 10,
     MAX_MEASURE_DEEP: 20,
     MAX_LIST: 60,
-    ROW_SAMPLE_CAP: 100
+    ROW_SAMPLE_CAP: 100,
+    // The age the Clear button runs at. Mirrors GCC.census.CLEAR_AGE and
+    // a test pins the two equal: the fourth search below only means
+    // anything if it asks for the same window the button will.
+    CLEAR_AGE: "6m"
   });
 
   function buildCensusDiscoveryQueries() {
@@ -7011,7 +7114,17 @@
     return {
       total: `from:(${email})`,
       atLeast1M: `from:(${email}) larger:1M`,
-      atLeast100k: `from:(${email}) larger:100k`
+      atLeast100k: `from:(${email}) larger:100k`,
+      // 8.27: what the Clear button will really ask for. The three above
+      // describe the mailbox, which is the census's whole job; this one
+      // describes the BUTTON, and without it the row printed a number
+      // the button could not honour. Jude ticked a sender the list said
+      // held five emails and got "0 cleaned", because all five were
+      // recent and unread and the clear runs
+      // `older_than:6m -is:unread -is:starred -is:important -has:userlabels`.
+      // Mirrors GCC.census.reachQuery, which is built from the very
+      // chunker the clear uses, and a test pins all three equal.
+      reach: `from:(${email}) older_than:${CENSUS.CLEAR_AGE}`
     };
   }
 
@@ -7150,6 +7263,14 @@
           const big = countCurrentResultsDetailed();
           await openSearch(q.atLeast100k);
           const some = countCurrentResultsDetailed();
+          // 8.27: measure the button, not just the sender. This is the
+          // 8.6 fix from Smart Suggestions applied to the census, which
+          // shipped in 8.26 without it. `count` still answers "who fills
+          // this mailbox", which is what the feature is for; `reachable`
+          // answers "what does Clear actually take", and only the second
+          // one belongs beside the button.
+          await openSearch(applyGlobalGuards(q.reach));
+          const reach = countCurrentResultsDetailed();
 
           measured.push({
             email: sender.email,
@@ -7159,6 +7280,8 @@
             slices: sender.slices,
             estMb: censusSenderFloorMb(big.count, some.count),
             estMbExact: big.exact && some.exact,
+            reachable: reach.count,
+            reachableExact: reach.exact,
             measured: true
           });
         } catch (e) {
@@ -7188,6 +7311,18 @@
       const totalCount = measured.reduce((sum, s) => sum + s.count, 0);
       const totalMb = Math.round(measured.reduce((sum, s) => sum + s.estMb, 0) * 10) / 10;
       const allExact = measured.every((s) => s.exact && s.estMbExact);
+      // 8.27: the switches every `reachable` above was measured through,
+      // for the reason smartScan has carried this since 8.21. The button
+      // reads the Clean tab LIVE; untick Skip Unread between the scan and
+      // the press and the run reaches mail the row never counted.
+      const censusGuards = {
+        safeMode: Boolean(CONFIG.safeMode),
+        minAge: CONFIG.minAge || null,
+        guardSkipStarred: Boolean(CONFIG.guardSkipStarred),
+        guardSkipImportant: Boolean(CONFIG.guardSkipImportant),
+        guardSkipUnread: Boolean(CONFIG.guardSkipUnread),
+        guardSkipUserLabels: Boolean(CONFIG.guardSkipUserLabels)
+      };
 
       try {
         if (hasChromeRuntime()) {
@@ -7198,7 +7333,8 @@
             totalMb,
             exact: allExact,
             discovered: candidates.length,
-            panelSeen
+            panelSeen,
+            guards: censusGuards
           });
         }
       } catch (e) {

@@ -435,7 +435,7 @@
   "pillarSmartBody": { "message": "Die volle Liste, Massen-Anwendung und ein wöchentlicher Archiv-Durchlauf, der von allein läuft." },
   "proFactOnce": { "message": "Eine Zahlung von $$9.99. Kein Abo, und wird auch nie eins." },
   "proFactOffline": { "message": "Kein OAuth und überhaupt kein Netzwerkcode. Hier kann nichts irgendetwas irgendwohin senden, und dein Schlüssel wird auf deinem Gerät geprüft. Sieh selbst ins Zip." },
-  "proFactFuture": { "message": "Jede später ergänzte Funktion ist enthalten. Käufer der ersten Version bekamen alle fuenf, die danach kamen." },
+  "proFactFuture": { "message": "Jede später ergänzte Funktion ist enthalten. Käufer der ersten Version bekamen alle sieben, die danach kamen." },
   "proFactGuarantee": { "message": "30 Tage Geld-zurück-Garantie. Nicht das Richtige? Schreib innerhalb von 30 Tagen und du bekommst die $$9,99 zurück." },
   "reportEyebrow": { "message": "Postfach-Bericht" },
   "reportHint": { "message": "Ein reiner Lesedurchlauf zählt, was wirklich in deinem Postfach liegt, und macht daraus einen Plan, den du Schritt für Schritt starten kannst. Nichts wird geöffnet, nichts bewegt sich." },
@@ -634,5 +634,20 @@
   "nothingToClear": { "message": "nichts zu löschen" },
   "receiptsClearing": { "message": "Lösche Mails von $1 Absendern, die dich ignoriert haben..." },
   "receiptsDryCounting": { "message": "Testlauf: zähle, was diese Absender seitdem geschickt haben." },
-  "receiptsRunStarted": { "message": "löschen gestartet" }
+  "receiptsRunStarted": { "message": "löschen gestartet" },
+
+  "receiptRelapsed": { "message": "Erst gestoppt, dann wieder angefangen · $1 seitdem" },
+  "receiptRelapsedFloor": { "message": "Erst gestoppt, dann wieder angefangen · mindestens $1 seitdem" },
+  "receiptSpam": { "message": "Sendet weiter · $1 landeten im Spam" },
+  "receiptSpamFloor": { "message": "Sendet weiter · mindestens $1 landeten im Spam" },
+  "receiptsSpamCount": { "message": "$1 senden weiter in den Spam" },
+  "censusReachNone": { "message": "Löschen würde nichts erfassen: das ist alles neue, ungelesene oder geschützte Post" },
+  "censusReachExact": { "message": "Löschen erfasst $1" },
+  "censusReachFloor": { "message": "Löschen erfasst mindestens $1" },
+  "censusPurgeTakes": { "message": "Löscht $1 E-Mails · nur älter als 6 Monate" },
+  "censusPurgeTakesFloor": { "message": "Löscht mindestens $1 E-Mails · nur älter als 6 Monate" },
+  "censusTotalMb": { "message": "$1 Absender stehen für $2 E-Mails, also $3." },
+  "censusTotalMbFloor": { "message": "$1 Absender stehen für mindestens $2 E-Mails, also mindestens $3." },
+  "censusTotalCount": { "message": "$1 Absender stehen für $2 E-Mails." },
+  "censusTotalCountFloor": { "message": "$1 Absender stehen für mindestens $2 E-Mails." }
 }

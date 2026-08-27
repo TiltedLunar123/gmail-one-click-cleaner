@@ -435,7 +435,7 @@
   "pillarSmartBody": { "message": "La liste complète, l'application groupée et un balayage d'archivage hebdomadaire qui tourne tout seul." },
   "proFactOnce": { "message": "Un paiement de $$9.99. Ce n'est pas un abonnement, et ça ne le sera jamais." },
   "proFactOffline": { "message": "Pas d'OAuth, et aucun code réseau. Rien ici ne peut envoyer quoi que ce soit où que ce soit, et votre clé est vérifiée sur votre appareil. Vérifiez le zip." },
-  "proFactFuture": { "message": "Toutes les fonctions ajoutées ensuite sont incluses. Les acheteurs de la première version ont reçu les cinq qui ont suivi." },
+  "proFactFuture": { "message": "Toutes les fonctions ajoutées ensuite sont incluses. Les acheteurs de la première version ont reçu les sept qui ont suivi." },
   "proFactGuarantee": { "message": "Garantie satisfait ou remboursé de 30 jours. Pas convaincu ? Écrivez sous 30 jours et vous récupérez vos $$9,99." },
   "reportEyebrow": { "message": "Rapport de boîte mail" },
   "reportHint": { "message": "Un passage en lecture seule compte ce qui se trouve vraiment dans votre boîte mail et en fait un plan que vous lancez étape par étape. Rien n'est ouvert et rien ne bouge." },
@@ -634,5 +634,20 @@
   "nothingToClear": { "message": "rien à nettoyer" },
   "receiptsClearing": { "message": "Suppression du courrier de $1 expéditeurs qui vous ont ignoré..." },
   "receiptsDryCounting": { "message": "Simulation : comptage de ce que ces expéditeurs ont envoyé depuis." },
-  "receiptsRunStarted": { "message": "nettoyage lancé" }
+  "receiptsRunStarted": { "message": "nettoyage lancé" },
+
+  "receiptRelapsed": { "message": "A cessé, puis a repris · $1 depuis" },
+  "receiptRelapsedFloor": { "message": "A cessé, puis a repris · au moins $1 depuis" },
+  "receiptSpam": { "message": "Envoie toujours · $1 sont partis dans les spams" },
+  "receiptSpamFloor": { "message": "Envoie toujours · au moins $1 sont partis dans les spams" },
+  "receiptsSpamCount": { "message": "$1 envoient toujours, dans les spams" },
+  "censusReachNone": { "message": "Le nettoyage ne prendrait rien : tout est récent, non lu ou protégé" },
+  "censusReachExact": { "message": "Le nettoyage prendrait $1" },
+  "censusReachFloor": { "message": "Le nettoyage prendrait au moins $1" },
+  "censusPurgeTakes": { "message": "Supprime $1 e-mails · de plus de 6 mois uniquement" },
+  "censusPurgeTakesFloor": { "message": "Supprime au moins $1 e-mails · de plus de 6 mois uniquement" },
+  "censusTotalMb": { "message": "$1 expéditeurs représentent $2 e-mails, soit $3." },
+  "censusTotalMbFloor": { "message": "$1 expéditeurs représentent au moins $2 e-mails, soit au moins $3." },
+  "censusTotalCount": { "message": "$1 expéditeurs représentent $2 e-mails." },
+  "censusTotalCountFloor": { "message": "$1 expéditeurs représentent au moins $2 e-mails." }
 }

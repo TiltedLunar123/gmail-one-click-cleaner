@@ -435,7 +435,7 @@
   "pillarSmartBody": { "message": "The full list, bulk apply, and a weekly archive sweep that runs itself." },
   "proFactOnce": { "message": "One payment of $$9.99. Not a subscription, and never will be." },
   "proFactOffline": { "message": "No OAuth, and no network code at all. Nothing here can send anything anywhere, and your key is checked on your device. Grep the zip and see." },
-  "proFactFuture": { "message": "Every feature added later is included. Buyers from the first version got all five that came after." },
+  "proFactFuture": { "message": "Every feature added later is included. Buyers from the first version got all seven that came after." },
   "proFactGuarantee": { "message": "30-day money-back guarantee. Not for you? Email within 30 days and get the full $$9.99 back." },
   "reportEyebrow": { "message": "Mailbox report" },
   "reportHint": { "message": "One read-only pass counts what is actually in your mailbox and turns it into a plan you can run a step at a time. Nothing is opened and nothing moves." },
@@ -634,5 +634,20 @@
   "nothingToClear": { "message": "nothing to clear" },
   "receiptsClearing": { "message": "Clearing mail from $1 senders that ignored you..." },
   "receiptsDryCounting": { "message": "Dry run: counting what those senders have sent since." },
-  "receiptsRunStarted": { "message": "clearing started" }
+  "receiptsRunStarted": { "message": "clearing started" },
+
+  "receiptRelapsed": { "message": "Stopped, then started again · $1 since" },
+  "receiptRelapsedFloor": { "message": "Stopped, then started again · at least $1 since" },
+  "receiptSpam": { "message": "Still sending · $1 went to Spam" },
+  "receiptSpamFloor": { "message": "Still sending · at least $1 went to Spam" },
+  "receiptsSpamCount": { "message": "$1 still sending into Spam" },
+  "censusReachNone": { "message": "Clear would take nothing: this is all recent, unread or protected mail" },
+  "censusReachExact": { "message": "Clear would take $1" },
+  "censusReachFloor": { "message": "Clear would take at least $1" },
+  "censusPurgeTakes": { "message": "Clears $1 emails · older than 6 months only" },
+  "censusPurgeTakesFloor": { "message": "Clears at least $1 emails · older than 6 months only" },
+  "censusTotalMb": { "message": "$1 senders account for $2 emails, worth $3." },
+  "censusTotalMbFloor": { "message": "$1 senders account for at least $2 emails, worth at least $3." },
+  "censusTotalCount": { "message": "$1 senders account for $2 emails." },
+  "censusTotalCountFloor": { "message": "$1 senders account for at least $2 emails." }
 }

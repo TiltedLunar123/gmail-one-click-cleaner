@@ -435,7 +435,7 @@
   "pillarSmartBody": { "message": "全リスト、一括適用、そして毎週ひとりでに走るアーカイブ掃除。" },
   "proFactOnce": { "message": "$$9.99を一度だけ。サブスクではありませんし、これからもなりません。" },
   "proFactOffline": { "message": "OAuth なし、通信コードも一切なし。ここから何かがどこかへ送られることはなく、キーは端末内で検証されます。zip を自分で確認できます。" },
-  "proFactFuture": { "message": "あとから追加される機能もすべて含まれます。最初のバージョンで購入した方は、その後に増えた5つをすべて受け取っています。" },
+  "proFactFuture": { "message": "あとから追加される機能もすべて含まれます。最初のバージョンで購入した方は、その後に増えた7つをすべて受け取っています。" },
   "proFactGuarantee": { "message": "30日間の返金保証。合わなければ30日以内にご連絡いただければ $$9.99 を全額返金します。" },
   "reportEyebrow": { "message": "メールボックスのレポート" },
   "reportHint": { "message": "読み取り専用の1回のパスで、メールボックスに実際に何があるかを数え、1ステップずつ実行できる計画にまとめます。メールは開かれず、何も動きません。" },
@@ -634,5 +634,20 @@
   "nothingToClear": { "message": "掃除するものがありません" },
   "receiptsClearing": { "message": "無視した差出人$1人のメールを削除中..." },
   "receiptsDryCounting": { "message": "シミュレーション: それらの差出人がその後送った分を数えています。" },
-  "receiptsRunStarted": { "message": "掃除を開始しました" }
+  "receiptsRunStarted": { "message": "掃除を開始しました" },
+
+  "receiptRelapsed": { "message": "一度止まってまた再開 · それ以降 $1 件" },
+  "receiptRelapsedFloor": { "message": "一度止まってまた再開 · それ以降 少なくとも $1 件" },
+  "receiptSpam": { "message": "まだ送信中 · $1 件が迷惑メールへ" },
+  "receiptSpamFloor": { "message": "まだ送信中 · 少なくとも $1 件が迷惑メールへ" },
+  "receiptsSpamCount": { "message": "$1 件の送信者が迷惑メールへ送り続けています" },
+  "censusReachNone": { "message": "削除しても何も消えません。すべて最近・未読・保護されたメールです" },
+  "censusReachExact": { "message": "削除すると $1 件が消えます" },
+  "censusReachFloor": { "message": "削除すると少なくとも $1 件が消えます" },
+  "censusPurgeTakes": { "message": "$1 件を削除 · 6 か月より古いものだけ" },
+  "censusPurgeTakesFloor": { "message": "少なくとも $1 件を削除 · 6 か月より古いものだけ" },
+  "censusTotalMb": { "message": "$1 人の送信者で $2 件、$3 分です。" },
+  "censusTotalMbFloor": { "message": "$1 人の送信者で少なくとも $2 件、少なくとも $3 分です。" },
+  "censusTotalCount": { "message": "$1 人の送信者で $2 件です。" },
+  "censusTotalCountFloor": { "message": "$1 人の送信者で少なくとも $2 件です。" }
 }

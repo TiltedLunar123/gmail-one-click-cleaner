@@ -156,7 +156,7 @@ describe("engine copies match shared.js", () => {
     }
   });
 
-  test("measure queries are the same three, and the size pair is cumulative", () => {
+  test("measure queries are the same four, and the size pair is cumulative", () => {
     const GCC = loadShared();
     const I = loadEngine();
     const mine = I.buildCensusMeasureQueries("a@x.com");
@@ -165,6 +165,40 @@ describe("engine copies match shared.js", () => {
     // what makes the subtraction in senderFloorMb exact.
     expect(mine.atLeast100k).not.toContain("smaller:");
     expect(mine.atLeast1M).not.toContain("smaller:");
+  });
+
+  test("the fourth query IS the clear, character for character", () => {
+    // 9.0, and the whole point of the release. 8.26 counted each sender
+    // with the bare `from:(email)` above while the button underneath ran
+    // `from:(email) older_than:6m` through applyGlobalGuards. Jude
+    // ticked a sender the list said held five emails, pressed Clear, and
+    // got "0 cleaned", because all five were recent and unread.
+    //
+    // Pinned against the CHUNKER the clear actually calls, not against a
+    // second literal. A literal on both sides is two things that agree
+    // today; this is one thing measured twice.
+    const GCC = loadShared();
+    const I = loadEngine();
+    for (const email of ["a@x.com", "no-reply@news.example.co.uk", "x.y+z@sub.domain.org"]) {
+      const [cleared] = GCC.census.purgeQueries([email], GCC.census.CLEAR_AGE);
+      expect(GCC.census.reachQuery(email)).toBe(cleared);
+      expect(I.buildCensusMeasureQueries(email).reach).toBe(cleared);
+    }
+  });
+
+  test("the engine measures the reach query through the guards the clear applies", () => {
+    // The string being right is half of it. Counting it raw would put
+    // the same wrong number back on the row.
+    const at = ENGINE.indexOf("async function senderCensus(");
+    expect(at).toBeGreaterThan(-1);
+    // Bounded by the next declaration rather than a character count, so
+    // the window cannot quietly stop short of the lines it is pinning.
+    const end = ENGINE.indexOf("async function ", at + 10);
+    expect(end).toBeGreaterThan(at);
+    const fn = ENGINE.slice(at, end);
+    expect(fn).toContain("await openSearch(applyGlobalGuards(q.reach));");
+    expect(fn).toContain("reachable: reach.count,");
+    expect(fn).toContain("reachableExact: reach.exact,");
   });
 
   test("the floor arithmetic agrees across a matrix", () => {
@@ -365,12 +399,23 @@ describe("the worker's copies stay in step with shared.js", () => {
     expect(WORKER).not.toMatch(/RECEIPT_GRACE_DAYS/);
   });
 
-  test("an unknown verdict never overwrites one that answered", () => {
+  test("an unknown verdict never overwrites one that answered, and never counts as a check", () => {
+    // 9.0: the condition used to be `verdict === "unknown" && prev.verdict`,
+    // so the rule applied only to receipts that already had an answer.
+    // A receipt whose FIRST check failed fell through to the write below
+    // and got checkedAt = now with verdict "unknown", which receiptIsDue
+    // then refuses to revisit for RECHECK_DAYS. The one with no answer
+    // at all was locked out for a month while the one that already had
+    // an answer retried on the next sweep.
     const fn = WORKER.slice(
       WORKER.indexOf("async function recordVerifyResults"),
-      WORKER.indexOf("async function recordVerifyResults") + 2200
+      WORKER.indexOf("async function recordVerifyResults") + 3600
     );
-    expect(fn).toMatch(/verdict === "unknown" && prev\.verdict/);
+    expect(fn).toMatch(/if \(verdict === "unknown"\) \{/);
+    expect(fn).not.toMatch(/verdict === "unknown" && prev\.verdict/);
+    // It still only moves the clock: the stored verdict is untouched.
+    const branch = fn.slice(fn.indexOf('if (verdict === "unknown") {'));
+    expect(branch.slice(0, 160)).toContain("{ ...prev, checkedAt: 0 }");
   });
 
   test("a receipt is written only for a sender that really unsubscribed", () => {

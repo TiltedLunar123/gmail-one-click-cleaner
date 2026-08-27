@@ -6,13 +6,178 @@
 // even of a file inside the package, would end the extension's
 // no-network-calls promise.
 //
-// Carries the newest 12 of 82 releases; the page says so
+// Carries the newest 12 of 83 releases; the page says so
 // and links the full log on GitHub.
 
 // eslint-disable-next-line no-unused-vars
 var GCC_CHANGELOG = {
-  "total": 82,
+  "total": 83,
   "entries": [
+    {
+      "version": "9.0.0",
+      "title": "Count what the button clears",
+      "intro": [
+        "The last release taught this extension to find the senders that actually fill a mailbox. It then printed the wrong number beside them. A sender would be listed with five emails, you would tick it, press Clear, and get nothing back.",
+        "The count came from a plain search for that sender. The button ran a narrower one: mail older than six months, skipping anything starred, important, unread, or filed under a label of your own. On a newsletter sender, unread alone is most of it. Both numbers were true. They were answers to different questions, and only one of them was the question you were asking.",
+        "Every count in this extension is now measured through the same filter as the button sitting next to it. That has been the rule here for a long time and the two features added last release were never held to it."
+      ],
+      "sections": [
+        {
+          "name": "Added",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "Every census row says what clearing it would take."
+                ],
+                [
+                  "",
+                  " The count still answers who fills your mailbox, because that is what the list is for. Underneath it now sits the other number: what the Clear button would actually remove from that sender today. When those two differ, the row says so, and when clearing would take nothing, the row says that too instead of letting you find out by pressing it."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Senders who kept mailing you from the Spam folder."
+                ],
+                [
+                  "",
+                  " A Gmail search does not look in Spam, so a sender who ignored your unsubscribe but landed in the spam filter answered the check with a flat zero and the receipt read \"Stopped\". They had not stopped. There is a third answer now, and it is the one no other tool will give you, because it means saying the unsubscribe failed quietly. Nothing is deleted for this one: the extension will not point a delete at the Spam folder, where Gmail's own control means gone for good."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Senders who stopped and started again."
+                ],
+                [
+                  "",
+                  " A list that goes quiet for a month and then comes back is the one you will never think to check, because you watched it stop. It used to be recorded as though it had never stopped at all. It gets its own line now."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The census total, on screen."
+                ],
+                [
+                  "",
+                  " It was measured, it was saved, and nothing ever drew it."
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Fixed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "Clearing a census sender does what the row promised."
+                ],
+                [
+                  "",
+                  " The count and the button ask Gmail the same question now. This is the bug above, and it is the reason for the version number."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Your Never Delete list applies to the census."
+                ],
+                [
+                  "",
+                  " Neither of last release's two scans passed your whitelist or your protected keywords to the engine, so a sender you had explicitly protected was still ranked, still measured, and still offered with a tick box. Pro's deeper scan setting could not be reached from those screens either."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The Storage X-ray stops rounding small senders down to nothing."
+                ],
+                [
+                  "",
+                  " The smaller size bands added last release credit about a tenth of a megabyte per message, and sizes were rounded to whole megabytes, so a real sender holding real mail was listed as \"at least 0 MB\". It keeps a tenth now, and rounds down rather than up, because the page says at least."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "A Google Chat tab is no longer mistaken for your mailbox."
+                ],
+                [
+                  "",
+                  " Chat lives on the same address as Gmail. With it open in front, Run and every scan quietly resolved to it, did nothing, and left a progress screen waiting on a run that never began."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Buying Pro no longer leaves the census and the receipts locked."
+                ],
+                [
+                  "",
+                  " Whichever finished first decided what you saw, so a licence that verified a moment late left a paying user looking at the free version of both until they reopened the popup."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Scheduled sweeps use the senders you ticked."
+                ],
+                [
+                  "",
+                  " They were described as extra rules on your ordinary runs, and the weekly unattended run, which is the one that matters most, was the only one not carrying them."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "A check that could not reach Gmail is retried, not shelved."
+                ],
+                [
+                  "",
+                  " If the very first check of a sender failed to get an answer, that sender was set aside for a month, while one that had already been answered was retried on the next sweep. Exactly backwards."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The clear button on the receipts counts what it clears."
+                ],
+                [
+                  "",
+                  " It said how many senders had ignored you and then acted on the first twenty-five, without mentioning the rest."
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "8.26.0",
       "title": "Find the bulk, not the buckets",
@@ -1063,241 +1228,6 @@ var GCC_CHANGELOG = {
                 [
                   "",
                   " There are two places to unsubscribe from one sender, and three free ones now mean three in both. Spending one from a card says so as it goes, and the count on the Lists tab moves with it. Bulk apply is still Pro: one card is not bulk."
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "version": "8.16.0",
-      "title": "Runs that stopped are not runs that finished",
-      "intro": [
-        "A tidy-up release, and most of it comes from one thing being true in more places than anyone had noticed: pressing Cancel, or a rule running out of room, left the extension believing the job was done. The other half is a batch of settings pages that could paint an empty list when storage had a bad second, and then save it."
-      ],
-      "sections": [
-        {
-          "name": "Fixed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "Cancelling a cleanup marked the work as finished."
-                ],
-                [
-                  "",
-                  " Stopping a run half way still ticked the Mailbox Report step off as Cleared, still stamped senders as Purged on the Storage X-ray, and still counted a suggestion as applied. The Cleared badge also takes that step's Run button away, and on the free plan that is the one step you have, so cancelling could cost you it. A run that errors out did the same. All four of those marks now wait for a run that really finished."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A run that ran out of room said nothing afterwards."
-                ],
-                [
-                  "",
-                  " A single rule can hold more mail than one run can get through, and Gmail sometimes slows a rule down until the extension gives up on it and moves on. It says so at the time, in the progress log, and that was the only place it ever said it: the result screen still read \"Cleanup Complete!\", the desktop notification still read like a finished sweep, and the Mailbox Report ticked the step off. The result screen, the recap, the notification and the Auto-Pilot line now all say a rule stopped early and that running it again carries on where it left off."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The number of emails a search had found could be read off your mail instead."
-                ],
-                [
-                  "",
-                  " The extension looks for Gmail's \"1-50 of 12,438\" counter to size a run. It searched the message list before the toolbar the counter actually sits in, and accepted any short text with \"of\" and a number in it, so a subject line like \"Part 3 of 12\" or \"Best of 2024\" could stand in for the total. That number is what the Mailbox Report shows against every step, what Smart Suggestions ranks senders by, what Dry Run quotes and what the too-big-to-run-unattended check is measured against. It reads the toolbar first now, and only accepts text shaped like a real counter."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The Settings page could save an empty Never Delete list over your real one."
-                ],
-                [
-                  "",
-                  " If reading your synced settings failed for a moment, the page drew empty lists, said \"Settings loaded\", and treated that emptiness as your settings. Pressing Save then wrote it. The page now refuses to draw or save anything until it has actually read what is there, and says so. Exporting and importing refuse on the same page state: a backup built from lists that were never read would record an empty Never Delete list as your settings, and an import cannot be undone when the storage its rollback needs is the storage that is failing."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Pro: opening Settings during a storage hiccup could reset four of your Pro settings."
-                ],
-                [
-                  "",
-                  " The card drew the defaults, took them as your current values, and wrote all six back the moment you changed one. One of them decides how much of your recovery log is kept, so a 300 entry log was trimmed to 60 on the next run and runs you could still have undone stopped being restorable. The card now stays blank and locked rather than showing values that are not yours."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Pro: Auto-Pilot could switch itself off in the middle of a sweep."
-                ],
-                [
-                  "",
-                  " If reading its settings failed while a sweep was finishing, \"off, and not yet confirmed\" was written back over your real settings. The weekly timer kept firing and nothing happened, the switch read as off, and turning it back on dropped it to preview mode until you found the confirm button again. The same read failure at browser startup deleted the weekly timer for the whole session while the switch still showed as on."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Importing a settings file with no whitelist in it emptied yours."
-                ],
-                [
-                  "",
-                  " Custom rules, protected keywords and schedules were all left alone when a file did not carry them. The whitelist, which is the one that decides what never gets deleted, was overwritten with nothing."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Vacation mode could be ignored by the runs it is for."
-                ],
-                [
-                  "",
-                  " If the extension could not read whether you had snoozed, it treated that as \"not snoozed\" and let the scheduled and Auto-Pilot sweeps go ahead. Unattended work now waits when it cannot tell."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Snooze reported success whether or not it saved."
-                ],
-                [
-                  "",
-                  " The Settings page said \"Schedules snoozed 14 days\" without checking, so a write that failed left the sweeps running with nothing to suggest it."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Clearing the recovery log could be undone by a run finishing beside it."
-                ],
-                [
-                  "",
-                  " The two writes were not queued against each other, so a cleanup that finished at that moment put every entry back."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Traditional Chinese: cleanup could not find the Delete button."
-                ],
-                [
-                  "",
-                  " The extension knew the Simplified Chinese word and not the Traditional one, which are different characters, so a run selected the mail and then stopped, having done nothing. Archive and labelling already knew both."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Safe Mode did not shield receipts in six languages."
-                ],
-                [
-                  "",
-                  " Swedish, Danish, Norwegian, Polish, Turkish and Arabic mailboxes were checked against the English words only, and Traditional Chinese against the Simplified ones, while Safe Mode reported itself as on. Norwegian is covered whichever of the two language codes Gmail uses."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "\"Find in Gmail\" in the recovery log searched for nothing."
-                ],
-                [
-                  "",
-                  " Every recovery label has a space in it, and the link did not quote it, so Gmail searched for a label that does not exist and showed an empty result next to a Restore button that would have worked."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A refused cleanup left the popup looking like a live one."
-                ],
-                [
-                  "",
-                  " Starting a cleanup while a scan was still running is correctly refused, but the popup kept the running status, the Cancel button and an Open progress button that handed back a finished dashboard for somebody else's run."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Five refusals on the scan buttons were in English only."
-                ],
-                [
-                  "",
-                  " The one that matters most tells you to allow Gmail access, which is the single thing that fixes it. Every other copy of the same sentence in the popup was already translated."
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "name": "Changed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "Very long searches say so."
-                ],
-                [
-                  "",
-                  " With a big whitelist and a long list of protected keywords, the search the extension builds can get long enough to be worth trimming, and the exclusions are the part on the end. A run now says so once, and names the two lists to trim."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The Pro panel counts its own history correctly."
-                ],
-                [
-                  "",
-                  " It said buyers from the first version got the four features that came after. There have been five."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The Settings page stops selling something that is already free."
-                ],
-                [
-                  "",
-                  " It described the full Storage X-ray as part of Pro. The list of what is filling your mailbox has been free since 8.13; the one-click purge under it is the paid part. Pro Settings was missing from the same sentence."
                 ]
               ]
             }

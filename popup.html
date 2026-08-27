@@ -1984,6 +1984,22 @@
       border: 1px solid rgba(34, 211, 238, 0.24);
     }
     .xray-total.show { display: flex; }
+    /* 9.0: the census headline. Same ground as .xray-total so the two
+       aggregate lines read as one family, but a plain block: the census
+       states one sentence rather than a figure beside a caption. */
+    .census-total {
+      margin: 8px 0 4px;
+      padding: 9px 12px;
+      border-radius: var(--r-md);
+      background: linear-gradient(135deg, rgba(34, 211, 238, 0.11), rgba(16, 185, 129, 0.07));
+      border: 1px solid rgba(34, 211, 238, 0.24);
+      font-size: 12px;
+      color: var(--text);
+    }
+    /* The reach line sits under the count on a census row and is the one
+       the tick box is actually about, so it is dimmer than the name and
+       brighter than nothing. */
+    .subs-row-meta--reach { color: var(--muted); }
     .xray-total-mb { font-size: 15px; font-weight: 700; color: var(--primary-strong); white-space: nowrap; }
     .xray-total-sub { font-size: 11px; color: var(--muted); }
     .xray-mb {
@@ -2989,6 +3005,16 @@
 
           <div id="censusStatus" class="subs-status" role="status" aria-live="polite"></div>
 
+          <!-- 9.0: the one line the census can honestly claim about the
+               whole mailbox. The engine has always sent totalCount and
+               totalMb and the worker has always stored them, and until
+               now nothing rendered either: the figure existed on the
+               terminal message, was read into state, and stopped there.
+               So the aggregate survived a popup close in storage and did
+               not survive it on screen, which is the storage half of a
+               rule this codebase keeps for the render half too. -->
+          <p class="census-total" id="censusTotal" hidden></p>
+
           <div id="censusList" class="subs-list" role="list" aria-label="Top senders" data-i18n-label="censusListLabel"></div>
 
           <button id="censusPurgeBtn" class="subs-unsub-btn" type="button" hidden>
@@ -3634,10 +3660,10 @@
             class="badge"
             id="versionBadge"
             type="button"
-            aria-label="Version 8.26.0, see what's new"
+            aria-label="Version 9.0.0, see what's new"
             title="What's new in this version"
             data-i18n-title="whatsNewTitle"
-          >v8.26.0</button>
+          >v9.0.0</button>
           <button id="kbdHelpBtn" class="linkish" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" data-i18n-label="kbdTitle" data-i18n-title="kbdBtnTitle">
             <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/></svg>
           </button>
@@ -3724,13 +3750,15 @@
           </li>
           <li>
             <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-            <!-- 8.16: five, not four. Pro shipped in 7.0 with bulk
+            <!-- 9.0: seven, not five. Pro shipped in 7.0 with bulk
                  unsubscribe; the X-ray purge (7.2), Smart Suggestions
-                 (7.8), Auto-Pilot (7.12), the Mailbox Report plan (8.0)
-                 and Pro Settings (8.12) all came after it. Undercounting
+                 (7.8), Auto-Pilot (7.12), the Mailbox Report plan (8.0),
+                 Pro Settings (8.12), the census clear (8.26) and the
+                 unsubscribe check (8.26) all came after it. Undercounting
                  the promise on the panel that asks for money is a strange
-                 way to keep it. -->
-            <span data-i18n="proFactFuture">Every feature added later is included. Buyers from the first version got all five that came after.</span>
+                 way to keep it, and this is the second release the number
+                 has been left behind. -->
+            <span data-i18n="proFactFuture">Every feature added later is included. Buyers from the first version got all seven that came after.</span>
           </li>
           <li>
             <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
