@@ -6,13 +6,105 @@
 // even of a file inside the package, would end the extension's
 // no-network-calls promise.
 //
-// Carries the newest 12 of 81 releases; the page says so
+// Carries the newest 12 of 82 releases; the page says so
 // and links the full log on GitHub.
 
 // eslint-disable-next-line no-unused-vars
 var GCC_CHANGELOG = {
-  "total": 81,
+  "total": 82,
   "entries": [
+    {
+      "version": "8.26.0",
+      "title": "Find the bulk, not the buckets",
+      "intro": [
+        "Every scan in this extension used to describe your mailbox with a Gmail search written before your mailbox existed: promotions, big attachments, mail with the word unsubscribe in it, anything over a year old. Those find mail that fits a bucket. Most mailboxes are not buckets. They are tens of thousands of ordinary small messages from a few dozen senders, and no search on that list names them, so every tool reported a small number and did a small thing.",
+        "Tested against a real mailbox while this was built: promotions older than six months returned nothing. Mail older than two years returned nothing. Two broad searches found sixty senders."
+      ],
+      "sections": [
+        {
+          "name": "Added",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "A census of who actually fills your mailbox."
+                ],
+                [
+                  "",
+                  " It samples widely first, sliced by age and by whether you ever opened the mail rather than by category, then counts each of the senders that keep coming up with its own Gmail search. So the number beside a name is Gmail's answer about that sender, not a guess from one page of results. The list is free. Clearing the senders you tick is Pro."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Unsubscribe receipts, and a check that they were honoured."
+                ],
+                [
+                  "",
+                  " Gmail now has its own unsubscribe button, and like every unsubscribe tool ever made it sends the request and greys out the row. Nobody goes back to find out whether the sender stopped. Plenty of them do not. Each unsubscribe you run here is now dated, and once a sender has had two weeks to act on it, Pro checks whether anything new arrived. The ones that ignored you get a button that deletes only what they sent after their window closed."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The senders you tick keep getting cleaned."
+                ],
+                [
+                  "",
+                  " A ticked census sender becomes an extra rule on your ordinary runs, so a weekly sweep keeps clearing the senders your mailbox is actually full of. Only senders you ticked, never the whole census."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Ask for a feature from the Options page."
+                ],
+                [
+                  "",
+                  " It opens a pre-filled email in your own mail app. Nothing is sent by the extension, which still makes no network requests of any kind."
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Fixed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "The Storage X-ray looks below 5 megabytes now."
+                ],
+                [
+                  "",
+                  " It only ever searched for mail over 5 MB, which finds a few video attachments and misses everything a mailbox is made of. On the account this was tested against: 8 messages over 5 MB, 36 over 1 MB, and more than Gmail would count over 100 KB. Two smaller size bands were added, and the purge button underneath moved with them, so the button still clears exactly the mail the list counted."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "A size written in bytes is read as bytes."
+                ],
+                [
+                  "",
+                  " Gmail's own help writes sizes as plain numbers of bytes. A custom rule written that way had its storage estimate read as megabytes instead, so one rule could inflate the freed figure at the end of a run by millions."
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "8.25.0",
       "title": "Say it when it is a floor",
@@ -1206,229 +1298,6 @@ var GCC_CHANGELOG = {
                 [
                   "",
                   " It described the full Storage X-ray as part of Pro. The list of what is filling your mailbox has been free since 8.13; the one-click purge under it is the paid part. Pro Settings was missing from the same sentence."
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "version": "8.15.0",
-      "title": "Quality of life, and the safety lists that would not say no",
-      "intro": [
-        "A tidy-up release. Most of it is small things that were quietly in the way: steps you had already cleaned that would not offer to run again, lists that made you scroll to find out what you could still undo, and a Pro setting that did not do what it said. One fix underneath all of that matters more than the rest, and it is the first one below."
-      ],
-      "sections": [
-        {
-          "name": "Fixed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "A cleanup could run with your Never Delete list missing."
-                ],
-                [
-                  "",
-                  " Your whitelist and your protected keywords are read when a run starts and handed to the cleaner, which is the only way it knows to leave that mail alone. If either read failed for a moment, and storage does fail for a moment sometimes, the answer came back as an empty list rather than as an error, and the run went ahead with nothing protected. The popup, the progress page and the recovery log all reported an ordinary successful cleanup. A run and a scan now stop and say so instead."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A step you cleaned part of the way was marked Cleared for good."
-                ],
-                [
-                  "",
-                  " A big step can stop part-way, and the cleaner says so at the time: \"run the cleaner again to continue this rule.\" The Mailbox Report ticked it off anyway. The row kept showing thousands of emails with a Cleared badge and no Run button, \"Run the whole plan\" skipped it, and nothing ever put it back. The badge now means the step is empty, so a fresh scan that still finds mail there gives you the button back."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A second Gmail account could be told to stop by the wrong window."
-                ],
-                [
-                  "",
-                  " With two mailboxes open, a finished progress dashboard left open for the first one joined in on the second one's run: it filled its table with the other account's rows and raised the other account's confirmation. Answering on that window sent the answer to a run that was already over, so the live one waited, gave up and stopped after you had clicked Continue. Each dashboard now only listens to its own Gmail tab."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Clear stuck run could start a fresh cleanup a minute later."
-                ],
-                [
-                  "",
-                  " That button clears the flag that says a cleaner is attached to the tab, and the dashboard reads that same flag when it decides whether to reconnect a run that has gone quiet. So pressing it and walking away looked like a cleaner that had vanished mid-run, and one was started again, from whatever settings ran last. The dashboard now treats a cleared run as over, and it will never re-inject on a page that has not heard from a run at all."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "An imported schedule never actually ran."
-                ],
-                [
-                  "",
-                  " Importing a settings backup wrote the schedule and showed it as Enabled, but nothing told the extension to set the timer, so the unattended cleanup sat there doing nothing until the next time the browser restarted. Import now sets the timers, and the list on screen updates to match."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The account picker could name the wrong mailbox."
-                ],
-                [
-                  "",
-                  " With two Gmail tabs open it always highlighted the first one, while a run went to whichever mailbox you were looking at. The other half of the same split: choosing an account and then having any run finish, including a scheduled one you did not start, threw the choice away while the highlight stayed put."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A backup with more rules than the extension stores said nothing about the ones it dropped."
-                ],
-                [
-                  "",
-                  " Version 8.14 fixed this for the whitelist and the keywords. Rules were still counted in a way that hid it, because the missing categories get filled in from the defaults."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The summary after an archive run said your mail went to Trash."
-                ],
-                [
-                  "",
-                  " An archive run that found nothing to move was filed as a deletion, so the popup offered to reassure you about a 30 day Trash window for mail that was never deleted."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Auto-Pilot could start a sweep just after you turned it off."
-                ],
-                [
-                  "",
-                  " Between the weekly timer firing and the sweep starting there is a second or so of checks, and switching Auto-Pilot off inside that gap was missed. Your mail was never touched, that part was already guarded, but the scan still ran and your Gmail tab still churned through it."
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "name": "Changed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "Pro: 50 senders per Auto-Pilot sweep now clears 50."
-                ],
-                [
-                  "",
-                  " The setting chose the senders correctly and then built the sweep from the first 25 of them, so picking 50 cleared exactly what 25 cleared. 10 and 25 were never affected."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The recovery log says how long you have left."
-                ],
-                [
-                  "",
-                  " Every deleted run now shows the days remaining before Gmail empties that mail out of Trash, while there is still time to do something about it, rather than only explaining itself once the deadline had passed."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Cleanup results say when the space actually comes back."
-                ],
-                [
-                  "",
-                  " Deleting moves mail to Trash and Google keeps counting it until Trash empties, about 30 days later. The result screen and the progress dashboard now say so, so a storage bar that has not moved yet is not a surprise."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Cleaning by sender or by inbox gets a name."
-                ],
-                [
-                  "",
-                  " Those runs were all labelled \"Other\" in Gmail, in the recovery log and on the Stats page, which made a weekly Auto-Pilot sweep hard to tell from anything else. They are labelled Senders and Inbox now. Runs that already had a name keep it exactly as it was."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Protect on the Stats page knows who is already protected."
-                ],
-                [
-                  "",
-                  " It offered itself on every sender, including ones your whitelist already covers, and reported adding a duplicate as a fresh success. Senders already covered now show as protected instead."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Bulk unsubscribe stops re-doing senders it has finished."
-                ],
-                [
-                  "",
-                  " Ticks are remembered between sessions, which is right up until a run settles a sender: after that every later run started with them ticked again and spent part of its 25 sender budget repeating itself. Senders that still need their own website are marked and left out; senders where Gmail's control simply could not be found stay available to retry."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Pro Settings warns before you lose an edit."
-                ],
-                [
-                  "",
-                  " That card saves on its own button, and it was the one part of the Settings page that could be changed and closed without a word."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The scheduled cleanup rows announce themselves properly."
-                ],
-                [
-                  "",
-                  " Their enable and remove buttons read as a state word and a punctuation mark to a screen reader, identically on every row, for controls that change and delete an unattended cleanup with no confirmation step."
                 ]
               ]
             }
