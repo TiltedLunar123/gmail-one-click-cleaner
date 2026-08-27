@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "8.24.0";
+  const GCC_CONTENT_VERSION = "8.25.0";
 
   // =========================
   // Timing & behavior constants
@@ -1021,7 +1021,17 @@
     "请稍后再试",
     "出了点问题",
     "请求过多",
+    // 8.25: the Traditional forms of the two Simplified phrases above.
+    // This table carried 请稍后再试 / 出了点问题 / 请求过多 and only one
+    // Traditional entry, so a zh-TW or zh-HK Gmail could report two of
+    // the three throttle messages and the run would not slow down for
+    // either. Same gap 8.16 closed in DELETE_LABEL_TOKENS and 8.24 in
+    // SELECT_ALL_TOKENS, in the last table of the family that still had
+    // it. Detection-side only: over-matching costs a pause, missing
+    // costs the backoff that keeps a long run alive.
     "請稍後再試",
+    "出了點問題",
+    "請求過多",
     "發生錯誤"
   ]);
 
@@ -1360,6 +1370,31 @@
   });
 
   const getMainRoot = () => qs(SELECTORS.main) || document;
+
+  // The same lookup with the fallback taken away, for anything that
+  // reads or clicks CONVERSATION ROWS.
+  //
+  // 8.22 found that Gmail leaves the previous conversation list in the
+  // page when it renders a search: laid out, not rendered, outside
+  // div[role="main"] and ahead of the results in document order, with
+  // its own grid and its own toolbar. Every row lookup was scoped to
+  // main because of it -- but `getMainRoot()` answers `document` when
+  // main is missing, and that hands the stale grid straight back. The
+  // window is narrow (openSearch will not return until main exists) and
+  // it is the same width as a Gmail render, which is exactly how 8.22
+  // arrived.
+  //
+  // What sits behind these five call sites is the reason to close it
+  // rather than note it: rows get TICKED and then deleted, rows get
+  // SAMPLED into the undo log and the unsubscribe list, and a row gets
+  // OPENED so its unsubscribe control can be driven. Unsubscribing
+  // cannot be undone, and a sender read off a list the query never
+  // matched is a sender the user never chose.
+  //
+  // Refusing is the answer that already exists here: getGridRowCount has
+  // returned null on a missing main since it was written, and every
+  // caller reads a null count as "could not tell" rather than as zero.
+  const getListRoot = () => qs(SELECTORS.main);
 
   const findToolbarRoot = () => qsFirst(SELECTORS.toolbar);
 
@@ -1779,7 +1814,12 @@
     // caller raises: the fallback that exists to rescue a run instead
     // guaranteed it stopped. Selecting rows from a list the query never
     // matched is the worse half, and scoping ends both.
-    const grid = qs(SELECTORS.grid, getMainRoot());
+    // 8.25: getListRoot, not getMainRoot. See getListRoot: the `||
+    // document` fallback put the stale grid back in reach of the one
+    // pass in this file that CLICKS every checkbox it finds.
+    const listRoot = getListRoot();
+    if (!listRoot) return 0;
+    const grid = qs(SELECTORS.grid, listRoot);
     if (!grid) return 0;
     const rows = qsa('tr[role="row"]', grid);
     let clicked = 0;
@@ -3345,7 +3385,10 @@
     // count for the current page.
     // Guard applies to EVERY branch now, not just the range one. The
     // counter's own node is short; anything long is an ancestor whose
-    // concatenated text happens to contain the word "of".
+    // concatenated text happens to contain the word "of". 8.25: stated
+    // once. A second identical check sat above the range branch, left
+    // behind when this one was hoisted, and a duplicated guard reads
+    // like two different conditions to whoever edits one of them next.
     if (text.length > MAX_COUNTER_TEXT_LENGTH) return null;
 
     // 8.16: this branch used to accept the word "of" followed by digits
@@ -3388,8 +3431,6 @@
       const n = digitsToCount(aboutMatch[1]);
       if (n !== null) return n;
     }
-
-    if (text.length > MAX_COUNTER_TEXT_LENGTH) return null;
 
     const range = COUNT_RANGE_RE.exec(text);
     if (!range) return null;
@@ -3614,7 +3655,13 @@
   // count those rows; if the grid isn't present we fall back to the
   // legacy text scrape so older Gmail layouts still work.
   function extractSelectedCount() {
-    const mainRoot = getMainRoot();
+    // 8.25: getListRoot, so a missing main answers "could not tell"
+    // instead of counting the leftover list's ticks. This function is
+    // what grades every selection pass, and agreeing with
+    // selectAllVisibleRowsIndividually about the WRONG list is how a
+    // wrong selection would reach the Delete click unnoticed.
+    const mainRoot = getListRoot();
+    if (!mainRoot) return null;
 
     // Primary signal (current Gmail): row.x7 count.
     const grid = qs(SELECTORS.grid, mainRoot);
@@ -3683,7 +3730,12 @@
   function sampleListRows({ maxSamples = 50 } = {}) {
     const out = { senders: [], threadIds: [] };
     try {
-      const root = getMainRoot() || document;
+      // 8.25: main or nothing. These samples become the undo log's
+      // searchable identifiers and the top-senders ranking, so rows
+      // taken from the list Gmail left behind would attribute a run to
+      // mail it never touched.
+      const root = getListRoot();
+      if (!root) return out;
       const candidates = qsa('tr[role="row"]', root);
       const limit = Math.min(candidates.length, maxSamples);
       const senderSet = new Set();
@@ -3931,8 +3983,29 @@
       // live run would act on. Using the viewport count here reported ~50
       // for a confirmed "all 12,400 conversations" batch.
       const estimated = guardrailCount ?? estimateTotalResults() ?? 0;
-      debugLog("Dry run page estimate", { estimated, bulkSelected });
-      return { deleted: false, count: estimated, reason: "dry-run", bulkSelected };
+      debugLog("Dry run page estimate", { estimated, bulkSelected, matchTotalUnknown });
+      // 8.25: and it has to say when that figure is a floor.
+      //
+      // matchTotalUnknown is already computed above and the LIVE path
+      // has acted on it since 8.12: Gmail's select-all-matching offer
+      // was clicked, so the click will reach every match, and neither
+      // the toolbar counter nor the offer text gave up a number. The
+      // live path calls that over-cap and asks the user, because an
+      // unmeasurable run is more of that question and not less.
+      //
+      // The preview, on the same page, printed the fifty rows in the
+      // viewport as a fact. That is the wrong half of the product to
+      // leave it in: Dry Run exists to be believed before a delete, and
+      // "would affect 50" for a rule holding twelve thousand is not a
+      // conservative estimate, it is the opposite of one. Relevance
+      // ranking made this the normal case rather than the rare one.
+      return {
+        deleted: false,
+        count: estimated,
+        countIsFloor: matchTotalUnknown,
+        reason: "dry-run",
+        bulkSelected
+      };
     }
 
     const estimatedTotal = guardrailCount ?? estimateTotalResults();
@@ -4134,6 +4207,12 @@
     // the fact here, where it survives a closed popup and an unattended
     // run.
     stoppedShort: 0,
+    // 8.25: how many dry-run rules quoted a floor rather than a total,
+    // for the same reason stoppedShort is here. Gmail answers a
+    // relevance-ranked search "1-50 of many", so the preview can only
+    // see the page it is standing on, and the end-of-run sentence is the
+    // one surface a closed popup and an unattended run both still reach.
+    wouldDeleteFloors: 0,
     // 8.21: when the RUN started. The progress page's "Duration" chip was
     // `Date.now() - state.startTime`, where state.startTime is when that
     // PAGE loaded. Open "View progress" ten minutes into a sweep and it
@@ -4150,6 +4229,7 @@
     stats.perQuery = [];
     stats.tagLabels = [];
     stats.stoppedShort = 0;
+    stats.wouldDeleteFloors = 0;
     stats.startedAt = Date.now();
   }
 
@@ -4399,9 +4479,20 @@
             const matchTotal = Number(estimateTotalResults()) || 0;
             const count = Math.max(pageCount, matchTotal);
 
+            // 8.25: a floor stays a floor once the two candidates are
+            // compared, unless the toolbar counter turned out to carry a
+            // real total after all -- which is the one thing that would
+            // make this exact, and it is checked rather than assumed.
+            const countIsFloor = result.countIsFloor === true && matchTotal <= pageCount;
+            if (countIsFloor) stats.wouldDeleteFloors++;
+
             stats.totalWouldDelete += count;
 
-            safeSend({ detail: `Dry-Run: would affect ${count} for: ${guardedQuery}` });
+            safeSend({
+              detail: countIsFloor
+                ? `Dry-Run: would affect at least ${count} for: ${guardedQuery}`
+                : `Dry-Run: would affect ${count} for: ${guardedQuery}`
+            });
 
             recordQuery({ query, label, count, mode: "dry", durationMs });
             return;
@@ -4773,6 +4864,9 @@
       // done progress message so the popup's result screen can stop
       // calling a half-finished sweep "Cleanup Complete!".
       stoppedShort: Number(stats.stoppedShort) || 0,
+      // 8.25: dry-run rules whose figure was the page rather than the
+      // match set, carried the same way and for the same reason.
+      wouldDeleteFloors: Number(stats.wouldDeleteFloors) || 0,
       // 8.21: how long the RUN took, measured by the only thing that was
       // there for all of it. Null when the run never started the clock,
       // so the page can leave the chip off rather than invent one.
@@ -4810,6 +4904,16 @@
     }
 
     if (mode === "dry") {
+      // 8.25: "about" was already hedging the double-count below; it was
+      // not hedging a figure that is one page of a result set Gmail
+      // refused to total. Those are different admissions and only one of
+      // them was being made.
+      const floors = Number(doneStats.wouldDeleteFloors) || 0;
+      if (floors > 0) {
+        return `Dry run finished: at least ${runCount.toLocaleString()} matches across ${totalQueries} rules. ` +
+          `${floors === 1 ? "One rule" : `${floors} rules`} matched more than Gmail would total, so the real figure is higher. ` +
+          `Rules overlap, so mail matching more than one is counted more than once.`;
+      }
       // 8.10: this is a SUM of per-rule totals, and the rule tables nest
       // on purpose -- Normal runs `category:promotions older_than:3m`
       // and `category:promotions older_than:1y`, and everything the
@@ -4876,7 +4980,12 @@
   function sampleSubscriptionRows({ cap = SUBSCRIPTIONS.ROW_SAMPLE_CAP } = {}) {
     const out = [];
     try {
-      const rows = qsa('tr[role="row"]', getMainRoot());
+      // 8.25: main or nothing. This sample IS the unsubscribe list the
+      // user ticks, and it is also how the Storage X-ray and the
+      // Mailbox Report name senders. See getListRoot.
+      const listRoot = getListRoot();
+      if (!listRoot) return out;
+      const rows = qsa('tr[role="row"]', listRoot);
       const limit = Math.min(rows.length, cap);
       for (let i = 0; i < limit; i++) {
         const senderEl =
@@ -5013,7 +5122,12 @@
   // Prefer `yO`, fall back to any row that is not flagged unread, then
   // to the first row.
   async function openMessageFromCurrentList() {
-    const rows = qsa('tr[role="row"]', getMainRoot());
+    // 8.25: main or nothing. The conversation this opens is the one
+    // whose Unsubscribe control gets driven, and unsubscribing cannot be
+    // undone, so a row from the leftover list is the worst row in the
+    // page to reach for. See getListRoot.
+    const listRoot = getListRoot();
+    const rows = listRoot ? qsa('tr[role="row"]', listRoot) : [];
     if (!rows.length || hasNoResults()) {
       return { opened: false, reason: "no_results" };
     }
@@ -5668,6 +5782,12 @@
       let failedQueries = 0;
       let headlineMeasured = false;
       let unguardedMeasured = false;
+      // 8.25: and whether the RAW headline was a stated total. 8.24
+      // tracked this for the guarded one and stopped there, because the
+      // guarded count is the one the hero prints. The raw count is never
+      // printed on its own; it is only ever subtracted, and a
+      // subtraction is only as exact as both of its sides.
+      let unguardedIsFloor = false;
       // 8.24: which of those counts Gmail actually stated a total for.
       // See countCurrentResultsDetailed. A band whose search came back
       // "1-50 of many" is measured -- the search ran and returned mail --
@@ -5705,6 +5825,7 @@
         if (steps[i].id === "__headlineRaw") {
           unguardedCount = count;
           unguardedMeasured = true;
+          unguardedIsFloor = !exact;
         } else if (steps[i].id === "__headline") {
           cleanableCount = count;
           headlineMeasured = true;
@@ -5722,7 +5843,28 @@
       // been measured at all, or a failed raw headline reports the guards
       // as holding back nothing and a failed guarded one reports them as
       // holding back the entire mailbox.
-      const guardedOutCount = (headlineMeasured && unguardedMeasured)
+      //
+      // 8.25: and both sides must be a STATED TOTAL, not just measured.
+      // The popup prints this as "940 more old emails are protected by
+      // your guards", one line under a hero that may itself be admitting
+      // it only counted a page, and the sentence names the exact
+      // switches to go and change. Since Gmail moved search to relevance
+      // ranking either search can come back "1-50 of many", and the
+      // subtraction is then wrong in whichever direction the floor fell:
+      // a raw 12,000 against a guarded floor of 50 invents 11,950 held
+      // back, and two floors of 50 cancel to 0 and delete the sentence
+      // for a mailbox where the guards are holding back thousands.
+      //
+      // Neither reading can be rescued by qualifying it, because a floor
+      // in the SUBTRAHEND makes the difference an upper bound while a
+      // floor in the minuend makes it a lower one, and the report cannot
+      // tell the user which without knowing the very number it is
+      // missing. So this drops the figure rather than dressing it up,
+      // which is what 8.24 did for the sender card's unread percentage
+      // and what 8.22's notes chose for the held-back volume.
+      const guardedOutExact = headlineMeasured && unguardedMeasured
+        && !unguardedIsFloor && !cleanableIsFloor;
+      const guardedOutCount = guardedOutExact
         ? Math.max(0, unguardedCount - cleanableCount)
         : 0;
 
@@ -5861,6 +6003,14 @@
         bands,
         cleanableCount,
         cleanableAtLeast: cleanableIsFloor && cleanableCount > 0,
+        // 8.25: on the terminal message too, not only in the worker's
+        // copy. The popup reads this screen from whichever of the two
+        // arrives, and the done message was the one field short, so the
+        // sentence explaining why a report reads near zero was invisible
+        // on the scan that produced it and appeared the next time the
+        // popup was opened. Same shape as 8.19: a fact recorded only
+        // where the run can no longer be heard.
+        guardedOutCount,
         largeMb,
         topSenders,
         failedQueries,
@@ -7248,6 +7398,11 @@
       hasNoResults,
       getGridRowCount,
       sampleListRows,
+      // 8.25: the row-level pass that OPENS a conversation, so the row
+      // whose Unsubscribe control gets driven can be asserted rather
+      // than assumed. selectAllVisibleRowsIndividually is already in the
+      // coverage block below for the same reason.
+      openMessageFromCurrentList,
       queryHasDangerousToken,
       sanitizeProtectKeywords,
       buildSubjectExclusion,

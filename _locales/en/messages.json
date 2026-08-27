@@ -176,8 +176,8 @@
   "xrayUpsellMany": { "message": "$1 senders are holding at least $2. Pro purges the ones you pick for $$9.99." },
   "xrayUpsellTail": { "message": "Google One wants $$20 every year for more storage." },
   "purgedChip": { "message": "Purged" },
-  "reclaimableOne": { "message": "reclaimable across 1 large email" },
-  "reclaimableMany": { "message": "reclaimable across $1 large emails" },
+  "reclaimableOne": { "message": "reclaimable across at least 1 large email" },
+  "reclaimableMany": { "message": "reclaimable across at least $1 large emails" },
   "oneSenderRanked": { "message": "1 sender ranked" },
   "nSendersRanked": { "message": "$1 senders ranked" },
 
@@ -587,5 +587,10 @@
   "smartUnsubNoBulk": { "message": "Unsubscribe runs one sender at a time; use the button on this card." },
   "xrayPurgeCapped": { "message": "Purging the first $1 of $2 selected. Run again for the rest." },
   "dryRunCompleteStatus": { "message": "dry run finished" },
-  "dryRunCompleteToast": { "message": "Dry run finished. Nothing was moved." }
+  "dryRunCompleteToast": { "message": "Dry run finished. Nothing was moved." },
+
+  "resultLeadDryAtLeast": { "message": "Matched at least" },
+  "resultNoteDryFloor": { "message": "This was a preview. No mail was moved, deleted or labelled. Gmail did not report a total for every rule, so the real number is higher than the one above." },
+  "progDoneMatchedDryFloor": { "message": "at least $1 emails matched, nothing was moved" },
+  "reportNoteFloors": { "message": "Counts come from Gmail's own search, and a plus sign means Gmail did not report a total for that search, so the real number is higher. Storage figures are floors too. Deleted mail sits in Trash for about 30 days before Google's storage bar moves." }
 }

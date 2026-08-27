@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const OPTIONS_VERSION = "8.24.0";
+  const OPTIONS_VERSION = "8.25.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -1789,7 +1789,11 @@
       renderUnlockedList(licenseState.active);
       if (licenseState.active) {
         statusEl.textContent = `Pro is active on this browser (key ${maskKey(licenseState.key)}). All ${GCC.license.FEATURES.length} paid features are unlocked:`;
-        statusEl.style.color = "var(--success, #34d399)";
+        // 8.25: --ink-good, not --success. --success is a FILL, and in
+        // light it is #059669, which measures 3.76:1 as text on this
+        // card. --ink-good was added in 8.18/8.19 for exactly this and
+        // resolves to --success in dark, so dark renders identically.
+        statusEl.style.color = "var(--ink-good, #34d399)";
         keyInput.style.display = "none";
         activateBtn.style.display = "none";
         if (removeBtn) removeBtn.style.display = "";

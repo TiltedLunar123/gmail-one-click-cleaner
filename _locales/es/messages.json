@@ -176,8 +176,8 @@
   "xrayUpsellMany": { "message": "$1 remitentes retienen al menos $2. Pro purga los que elijas por $$9.99." },
   "xrayUpsellTail": { "message": "Google One pide $$20 cada año por más espacio." },
   "purgedChip": { "message": "Purgado" },
-  "reclaimableOne": { "message": "recuperable en 1 correo grande" },
-  "reclaimableMany": { "message": "recuperable en $1 correos grandes" },
+  "reclaimableOne": { "message": "recuperable en al menos 1 correo grande" },
+  "reclaimableMany": { "message": "recuperable en al menos $1 correos grandes" },
   "oneSenderRanked": { "message": "1 remitente clasificado" },
   "nSendersRanked": { "message": "$1 remitentes clasificados" },
 
@@ -587,5 +587,10 @@
   "smartUnsubNoBulk": { "message": "La baja se ejecuta de un remitente a la vez; usa el botón de esta tarjeta." },
   "xrayPurgeCapped": { "message": "Purgando los primeros $1 de $2 seleccionados. Vuelve a ejecutarlo para el resto." },
   "dryRunCompleteStatus": { "message": "simulación finalizada" },
-  "dryRunCompleteToast": { "message": "Simulación finalizada. No se movió nada." }
+  "dryRunCompleteToast": { "message": "Simulación finalizada. No se movió nada." },
+
+  "resultLeadDryAtLeast": { "message": "Encontrados al menos" },
+  "resultNoteDryFloor": { "message": "Esto fue una vista previa. No se movió, eliminó ni etiquetó ningún correo. Gmail no indicó un total para todas las reglas, así que la cifra real es mayor que la de arriba." },
+  "progDoneMatchedDryFloor": { "message": "al menos $1 correos encontrados, no se movió nada" },
+  "reportNoteFloors": { "message": "Las cifras vienen de la propia búsqueda de Gmail, y un signo más significa que Gmail no indicó un total para esa búsqueda, así que la cifra real es mayor. Las cifras de almacenamiento también son mínimos. El correo eliminado permanece en la Papelera unos 30 días antes de que cambie la barra de almacenamiento de Google." }
 }

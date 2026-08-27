@@ -6,13 +6,133 @@
 // even of a file inside the package, would end the extension's
 // no-network-calls promise.
 //
-// Carries the newest 12 of 80 releases; the page says so
+// Carries the newest 12 of 81 releases; the page says so
 // and links the full log on GitHub.
 
 // eslint-disable-next-line no-unused-vars
 var GCC_CHANGELOG = {
-  "total": 80,
+  "total": 81,
   "entries": [
+    {
+      "version": "8.25.0",
+      "title": "Say it when it is a floor",
+      "intro": [
+        "8.24 taught the Mailbox Report to admit when Gmail had given it a page instead of a total. Three other screens were still stating the same kind of number flatly, and one of them is Dry Run, which exists to be believed before you delete anything."
+      ],
+      "sections": [
+        {
+          "name": "Fixed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "Dry Run says \"at least\" when it means at least."
+                ],
+                [
+                  "",
+                  " A preview reads Gmail's own count, and on a relevance-ranked search Gmail does not give one, so the preview was quoting the fifty rows on screen as the size of a rule holding thousands. The number has not moved. The preview now tells you when the number is a floor, on the popup, on the progress dashboard and in the sentence at the end of the run."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The report stopped inventing a figure for the mail your guards hold back."
+                ],
+                [
+                  "",
+                  " That line is one search minus another. Either search can come back without a total, and then the subtraction is wrong in whichever direction the missing number fell. It could claim eleven thousand protected emails from a page of fifty. It could also claim none at all on a mailbox holding thousands back. It now says nothing rather than guessing."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The plus sign is explained in words."
+                ],
+                [
+                  "",
+                  " A step reading 50+ said what it meant only if you hovered it, which is no help on a phone or from a keyboard. The note under the report spells it out whenever there is one on screen."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The Storage X-ray counts what it saw."
+                ],
+                [
+                  "",
+                  " The megabytes have always been marked as a floor and the email count beside them was not, even though both come from the same sample."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Long runs slow down properly on Traditional Chinese Gmail."
+                ],
+                [
+                  "",
+                  " When Gmail asks for a pause it says so in words, and the cleaner knew two of the three Simplified phrasings and only one of the Traditional ones."
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Safety",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "Rows are only ever read from the list you can see."
+                ],
+                [
+                  "",
+                  " Gmail leaves the previous search results in the page after a new search. A handful of lookups could still reach that leftover list while Gmail was redrawing. They are the lookups that tick the checkboxes a delete acts on, name the senders in your recovery log, and pick the message an unsubscribe is driven from. Unsubscribing cannot be undone. None of them will read anything but the live list now."
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Changed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "Small text is readable where it sits."
+                ],
+                [
+                  "",
+                  " The quiet grey used for hints and secondary links was measured against the plain card. Most of the controls wearing it paint a slightly lighter chip under themselves first, and against that it fell under the readability bar. Six places were writing in a colour picked for a different background: the keyboard hint on the Save button, the Save button itself in light mode, the diagnostics buttons, the Pro line on the Rules page and the privacy link on the Clean tab."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Storage figures drop the pointless decimal."
+                ],
+                [
+                  "",
+                  " The X-ray rounds every sender to a whole megabyte, so \"900.0 MB\" was one digit of precision the scan never had. A real tenth still shows."
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "8.24.0",
       "title": "Fifty is not a total",
@@ -1309,109 +1429,6 @@ var GCC_CHANGELOG = {
                 [
                   "",
                   " Their enable and remove buttons read as a state word and a punctuation mark to a screen reader, identically on every row, for controls that change and delete an unattended cleanup with no confirmation step."
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "version": "8.14.0",
-      "title": "Imports that say what they drop, and a recovery log that stays put",
-      "intro": [
-        "A tidy-up release. Nothing new to learn: importing a settings backup now tells you the truth about what it kept, your recovery log stops shrinking when it should not, and buying Pro updates the page you are already looking at."
-      ],
-      "sections": [
-        {
-          "name": "Fixed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "Importing a settings backup no longer drops entries quietly."
-                ],
-                [
-                  "",
-                  " The confirmation counted what was in the file, but the extension stores at most 100 whitelist entries, 50 rules per level and 25 protected keywords, and it skips anything it cannot read, such as a mistyped address. So a backup with 150 whitelist entries asked about 150, kept 100, and finished with a plain \"imported successfully\" - and the 50 senders that fell off were 50 senders whose mail was no longer protected from a cleanup. The confirmation now counts what will actually be stored, spells out anything that will be dropped, and says so again once the import is done."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The recovery log stops trimming itself when it cannot check your key."
-                ],
-                [
-                  "",
-                  " With Pro you can raise the log from 60 entries to 300, and the cap is applied every time a run is recorded. If the licence check could not complete at that moment, for instance because storage was briefly unavailable, it was read as \"no licence\" and the log was cut back to 60 on the spot. Those entries are how one-click Restore finds an old run, and they were not coming back. The log is now left alone whenever the answer is not certain."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The daily stats cleanup can no longer erase a cleanup that finished beside it."
-                ],
-                [
-                  "",
-                  " Once a day the extension drops day counters older than 90 days. If a run finished while that was in progress, the tidy-up could write back what it had read a moment earlier, taking the run's totals and its entry in the Stats history with it - including the Restore button attached to that entry."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The version announced to screen readers on the popup was four releases out of date."
-                ],
-                [
-                  "",
-                  " The button showed the right number; the label read aloud did not."
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "name": "Changed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "Activating Pro updates a Settings page you already have open."
-                ],
-                [
-                  "",
-                  " Buying in one tab and having Settings open in another left the second one showing \"Get Pro\" and a locked Pro Settings card until you reloaded it. It now notices, in both directions: removing your key elsewhere locks the card again."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The Pro line on the completion notification has a limit."
-                ],
-                [
-                  "",
-                  " It was appended to every qualifying run, so cleaning your mail daily meant a daily sales line in a desktop notification, with no way to stop it except turning completion notifications off entirely. It now waits a week between showings and stops after three."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The Pro summary in the popup names all six paid features."
-                ],
-                [
-                  "",
-                  " It had been listing three of them since two more shipped."
                 ]
               ]
             }

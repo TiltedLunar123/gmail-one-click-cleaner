@@ -290,7 +290,8 @@ describe("GCC.smart presentation policy", () => {
       signals: { count: 20, unreadRatio: 0, oldShare: 0, shape: false, estMb: 250 },
       estCount: 20
     });
-    expect(S.reasonText(heavy)).toBe("20 emails, at least 250.0 MB");
+    // 8.25: whole megabytes print without a tenth. See formatMb.
+    expect(S.reasonText(heavy)).toBe("20 emails, at least 250 MB");
   });
 
   test("primaryAction: purge for hogs, delete for unread, archive otherwise", () => {

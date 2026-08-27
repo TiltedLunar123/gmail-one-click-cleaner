@@ -1025,11 +1025,32 @@
       transition: opacity var(--t-fast) var(--ease);
       z-index: 2;
       font-size: 11px;
-      color: rgba(4, 24, 29, 0.6);
+      /* 8.25: 0.6 of the button's ink measured 3.83:1 against the darker
+         end of its own gradient. The hint is meant to be quiet, not
+         faint, and it is only on screen while the button is hovered or
+         focused, which is exactly when someone is reading it. 0.75
+         measures 5.71:1 and still sits well behind the label. */
+      color: rgba(4, 24, 29, 0.75);
       pointer-events: none;
     }
     .primary:hover .shortcut-hint,
     .primary:focus-visible .shortcut-hint { opacity: 1; }
+
+    /* 8.25: the kbd cap inside a FILLED button.
+       The generic kbd below is a page style: a dark chip with pale ink,
+       which is right on the page ground and inverted on a cyan button.
+       Measured on the Run button it came out at 2.08:1 against the
+       gradient's light end. A cap on a filled control has no business
+       carrying its own fill at all, so it drops it and wears the
+       button's ink, which is the one colour already proven against that
+       exact background. Both themes, because the popup's light Run
+       button deliberately keeps the same cyan. */
+    .primary kbd,
+    html[data-theme="light"] .primary kbd {
+      background: transparent;
+      border: 1px solid currentColor;
+      color: inherit;
+    }
 
     kbd {
       display: inline-block;
@@ -1928,9 +1949,15 @@
     /* 8.6: sits on the end of the privacy line rather than in the
        footer, which already carries four links and is the thing that
        makes this popup feel busy. */
+    /* 8.25: --ink-info, not --accent. --accent is a fill and in light it
+       is #0284c7, which measures 3.88:1 as 11px link text on this card.
+       --ink-info is the darker twin that exists for that (6.39:1 on its
+       own chip) and resolves to --info in dark, so dark is unchanged.
+       This is the only link on the Clean tab and it is the privacy
+       policy, which is the one link a store reviewer follows. */
     .run-assurance .assurance-link {
       flex: 0 0 auto;
-      color: var(--accent);
+      color: var(--ink-info);
       text-decoration: underline;
       text-underline-offset: 2px;
       white-space: nowrap;
@@ -2706,7 +2733,9 @@
       border-color: rgba(13, 30, 40, 0.12);
     }
     html[data-theme="light"] .badge { color: var(--primary-hover); }
-    html[data-theme="light"] .shortcut-hint { color: rgba(4, 24, 29, 0.55); }
+    /* Light keeps the same cyan Run button, so it keeps the same ink at
+       the same strength. See .shortcut-hint above. */
+    html[data-theme="light"] .shortcut-hint { color: rgba(4, 24, 29, 0.75); }
     html[data-theme="light"] .xray-total-mb,
     html[data-theme="light"] .xray-mb,
     html[data-theme="light"] .xray-locked-mb { color: #0e7490; }
@@ -3532,10 +3561,10 @@
             class="badge"
             id="versionBadge"
             type="button"
-            aria-label="Version 8.24.0, see what's new"
+            aria-label="Version 8.25.0, see what's new"
             title="What's new in this version"
             data-i18n-title="whatsNewTitle"
-          >v8.24.0</button>
+          >v8.25.0</button>
           <button id="kbdHelpBtn" class="linkish" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" data-i18n-label="kbdTitle" data-i18n-title="kbdBtnTitle">
             <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/></svg>
           </button>

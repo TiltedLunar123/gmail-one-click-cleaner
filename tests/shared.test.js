@@ -65,12 +65,25 @@ describe("shared.js: GCC utilities", () => {
 
     test("formats megabytes", () => {
       expect(GCC.formatMb(5.5)).toBe("5.5 MB");
-      expect(GCC.formatMb(100)).toBe("100.0 MB");
     });
 
     test("converts to GB above 1024 MB", () => {
-      expect(GCC.formatMb(1024)).toBe("1.0 GB");
       expect(GCC.formatMb(2560)).toBe("2.5 GB");
+    });
+
+    // 8.25: the Storage X-ray rounds every sender to a whole MB before
+    // it reaches this, so the tenth was always ".0" on the one screen
+    // that shows several of these figures at once. A tenth that cannot
+    // vary is three digits of precision the scan never had.
+    test("a whole number carries no decimal", () => {
+      expect(GCC.formatMb(100)).toBe("100 MB");
+      expect(GCC.formatMb(900)).toBe("900 MB");
+      expect(GCC.formatMb(1024)).toBe("1 GB");
+    });
+
+    test("a real tenth still shows", () => {
+      expect(GCC.formatMb(640.4)).toBe("640.4 MB");
+      expect(GCC.formatMb(1536)).toBe("1.5 GB");
     });
   });
 
