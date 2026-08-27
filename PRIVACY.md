@@ -13,12 +13,22 @@ exactly why.
   that could receive your mail, and we cannot read your mailbox.
 
 - **What stays on your device.** Your recovery log, cleanup history, run statistics and the
-  results of subscription, storage and suggestion scans are held in the extension's local
-  storage. Those scans build an on-device index of who emails you, how much storage each
-  sender uses, how much of their mail you leave unread, and which senders you have already
-  acted on; Smart Suggestions and Auto-Pilot rank suggestions from it, and it reads your
-  Sent mail to notice senders you actually reply to. None of it is transmitted, and it is
-  removed when you uninstall.
+  results of subscription, storage, sender census and suggestion scans are held in the
+  extension's local storage. Those scans build an on-device index of who emails you, how much
+  storage each sender uses, how much of their mail you leave unread, and which senders you
+  have already acted on; Smart Suggestions and Auto-Pilot rank suggestions from it, and it
+  reads your Sent mail to notice senders you actually reply to. The sender census stores the
+  addresses and display names it measured, and the senders you tick in that list are stored
+  too, because a cleanup run uses them. Each census replaces the one before it. None of it is
+  transmitted, and it is removed when you uninstall.
+
+- **Unsubscribe receipts.** A successful unsubscribe also writes a dated receipt on the
+  device: the sender's address, a display name if one is already known, and the time, plus a
+  later verdict if you check whether they stopped. The newest 200 receipts are kept and older
+  ones drop off. This is the one thing here that is meant to be kept rather than refreshed,
+  because the whole point of a receipt is to still be there weeks later when the check runs.
+  None of it is transmitted. Uninstalling removes it, and unsubscribing from the same sender
+  again replaces that sender's receipt.
 
 - **What your browser syncs.** Your settings, cleanup rules, custom rules, protected
   keywords, schedules, Auto-Pilot configuration, your sender whitelist and your Pro license

@@ -1365,6 +1365,212 @@ const GCC = (() => {
   });
 
   // =========================
+  // Unsubscribe receipts (8.26)
+  // =========================
+  // Gmail ships its own subscription manager now, and it does what every
+  // unsubscribe tool has always done: it sends the request and greys out
+  // the row. Nothing in Gmail, and nothing in this extension before now,
+  // ever went back to find out whether the sender actually stopped.
+  //
+  // They frequently do not. CAN-SPAM gives a sender ten business days to
+  // honour an opt-out, and a list that ignores the header entirely
+  // simply keeps mailing. The user has already crossed that sender off
+  // and is no longer looking, which is what makes it worth checking: the
+  // failure is invisible by construction.
+  //
+  // So an unsubscribe is recorded as a receipt with a date, and the
+  // receipt is later settled against the mailbox: has anything arrived
+  // from this sender since the grace window closed? That is one Gmail
+  // search per receipt and it answers the only question that matters
+  // about an unsubscribe, which is whether it worked.
+  //
+  // This is the same principle the rest of the codebase runs on, aimed
+  // one step further out. 8.16: a terminal message is not a completion.
+  // 8.26: a request is not a result.
+
+  const RECEIPT_LIMITS = Object.freeze({
+    MAX: 200,
+    // Ten business days, taken as fourteen calendar days so the window
+    // cannot close early on a sender because of how a weekend fell.
+    // Erring long is the safe direction: this number decides when the
+    // extension is willing to say a sender ignored the user, and it
+    // would rather be late than wrong.
+    GRACE_DAYS: 14,
+    // A settled receipt is not re-checked for a month. Senders restart
+    // lists, so "stopped" is not permanent and the check is repeatable,
+    // but re-running it daily would spend searches to learn nothing.
+    RECHECK_DAYS: 30,
+    MAX_VERIFY_PER_RUN: 25,
+    // Deliberately zero. The free tier gets the whole ledger, both dates
+    // and the count of receipts ready to settle, because all of that is
+    // arithmetic over what is already on disk and costs the mailbox
+    // nothing. What it does not get is the sweep, which is the part that
+    // spends searches and produces the answer. 8.17's lesson was that
+    // giving away the biggest completed outcome leaves Pro nothing to
+    // sell; the shape that works is free sees the question, Pro gets the
+    // answer.
+    FREE_VERIFY: 0
+  });
+
+  const RECEIPT_DAY_MS = 24 * 60 * 60 * 1000;
+
+  const receiptGraceEndsAt = (at) => {
+    const t = Number(at);
+    if (!Number.isFinite(t) || t <= 0) return 0;
+    return t + RECEIPT_LIMITS.GRACE_DAYS * RECEIPT_DAY_MS;
+  };
+
+  // Gmail's after: takes YYYY/MM/DD in the user's own timezone, so the
+  // window is only ever day-accurate. The query therefore starts the day
+  // AFTER the grace period ends, never the day it ends on: a same-day
+  // boundary would let mail sent hours before the deadline count as mail
+  // sent after it. Every rounding decision here runs the same way,
+  // because the output of this function is an accusation.
+  const receiptVerifyDate = (at) => {
+    const end = receiptGraceEndsAt(at);
+    if (!end) return "";
+    const d = new Date(end + RECEIPT_DAY_MS);
+    if (Number.isNaN(d.getTime())) return "";
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
+  };
+
+  const receiptVerifyQuery = (receipt) => {
+    const email = String(receipt?.email || "").trim().toLowerCase();
+    if (!email || !STORAGE_EMAIL_RE.test(email)) return "";
+    const date = receiptVerifyDate(receipt?.at);
+    if (!date) return "";
+    return `from:(${email}) after:${date}`;
+  };
+
+  // Ready to settle: the grace window has closed, and either it has
+  // never been checked or the last check has gone stale.
+  const receiptIsDue = (receipt, now = Date.now()) => {
+    const end = receiptGraceEndsAt(receipt?.at);
+    if (!end || now < end) return false;
+    const checkedAt = Number(receipt?.checkedAt) || 0;
+    if (!checkedAt) return true;
+    return now - checkedAt >= RECEIPT_LIMITS.RECHECK_DAYS * RECEIPT_DAY_MS;
+  };
+
+  // The verdict, from one search's answer.
+  //
+  // 8.24 taught this codebase to carry `exact` beside every count, and
+  // the interesting thing here is that the verdict does not need it. A
+  // single row is proof the sender kept mailing, and fifty rows Gmail
+  // declined to total are proof of the same thing; the floor understates
+  // how much arrived and cannot manufacture a message that did not. So
+  // the verdict is sound on a floor while the NUMBER beside it is not,
+  // and only the number is marked.
+  //
+  // Zero is the case that needs care. A settled empty result really is
+  // nobody mailing, but a search that never resolved arrives here as
+  // zero too, and reading that as "they stopped" would be this product's
+  // oldest bug wearing a new hat. An inexact zero is therefore no
+  // verdict at all.
+  const receiptVerdictFor = (answer) => {
+    if (!answer || answer.ok === false) return { verdict: "unknown", since: 0, sinceExact: false };
+    const count = clampCensusCount(answer.count);
+    const exact = answer.exact !== false;
+    if (count > 0) return { verdict: "still_sending", since: count, sinceExact: exact };
+    if (!exact) return { verdict: "unknown", since: 0, sinceExact: false };
+    return { verdict: "stopped", since: 0, sinceExact: true };
+  };
+
+  const sanitizeReceipt = (raw) => {
+    const email = String(raw?.email || "").trim().toLowerCase();
+    if (!email || email.length > 320 || !STORAGE_EMAIL_RE.test(email)) return null;
+    const at = Number(raw?.at) || 0;
+    if (at <= 0) return null;
+    const verdict = ["stopped", "still_sending", "unknown"].includes(raw?.verdict) ? raw.verdict : "";
+    return {
+      email,
+      name: typeof raw?.name === "string" ? raw.name.slice(0, 120) : "",
+      at,
+      checkedAt: Number(raw?.checkedAt) || 0,
+      verdict,
+      since: clampCensusCount(raw?.since),
+      sinceExact: raw?.sinceExact === true
+    };
+  };
+
+  // Newest unsubscribe wins on a repeat: a sender unsubscribed from
+  // twice has had its clock restarted, and the older receipt's verdict
+  // describes a window the user has already acted on again.
+  const mergeReceipts = (existing, incoming) => {
+    const byEmail = new Map();
+    for (const raw of Array.isArray(existing) ? existing : []) {
+      const clean = sanitizeReceipt(raw);
+      if (clean) byEmail.set(clean.email, clean);
+    }
+    for (const raw of Array.isArray(incoming) ? incoming : []) {
+      const clean = sanitizeReceipt(raw);
+      if (!clean) continue;
+      const prev = byEmail.get(clean.email);
+      if (prev && prev.at >= clean.at) continue;
+      byEmail.set(clean.email, prev ? { ...clean, name: clean.name || prev.name } : clean);
+    }
+    return [...byEmail.values()]
+      .sort((a, b) => b.at - a.at)
+      .slice(0, RECEIPT_LIMITS.MAX);
+  };
+
+  // Senders that ignored the request first: they are the only rows with
+  // anything left to do.
+  const rankReceipts = (receipts) => {
+    const order = { still_sending: 0, unknown: 1, "": 2, stopped: 3 };
+    return (Array.isArray(receipts) ? receipts : [])
+      .map(sanitizeReceipt)
+      .filter(Boolean)
+      .sort((a, b) => (order[a.verdict] ?? 2) - (order[b.verdict] ?? 2) || b.since - a.since || b.at - a.at)
+      .slice(0, RECEIPT_LIMITS.MAX);
+  };
+
+  const receiptsSummary = (receipts, now = Date.now()) => {
+    const list = rankReceipts(receipts);
+    let due = 0;
+    let stillSending = 0;
+    let stopped = 0;
+    let waiting = 0;
+    for (const r of list) {
+      if (r.verdict === "still_sending") stillSending++;
+      else if (r.verdict === "stopped") stopped++;
+      if (receiptIsDue(r, now)) due++;
+      else if (!r.verdict) waiting++;
+    }
+    return { total: list.length, due, stillSending, stopped, waiting };
+  };
+
+  // The escalation, and the reason this feature is worth paying for.
+  //
+  // Knowing a sender ignored the unsubscribe is only half of it. The
+  // other half is that everything they have sent since is still sitting
+  // in the mailbox, and it is the one body of mail the user has already
+  // said, in writing, that they did not want. Scoped to the same window
+  // the verdict was reached on, so the button deletes exactly the mail
+  // the sentence beside it is about: the house rule, applied to a new
+  // pair.
+  const receiptPurgeQuery = (receipt) => {
+    const clean = sanitizeReceipt(receipt);
+    if (!clean || clean.verdict !== "still_sending") return "";
+    return receiptVerifyQuery(clean);
+  };
+
+  const receipts = Object.freeze({
+    LIMITS: RECEIPT_LIMITS,
+    graceEndsAt: receiptGraceEndsAt,
+    verifyDate: receiptVerifyDate,
+    verifyQuery: receiptVerifyQuery,
+    purgeQuery: receiptPurgeQuery,
+    isDue: receiptIsDue,
+    verdictFor: receiptVerdictFor,
+    sanitize: sanitizeReceipt,
+    merge: mergeReceipts,
+    rank: rankReceipts,
+    summary: receiptsSummary
+  });
+
+  // =========================
   // Browser + store identity (7.1)
   // =========================
   // The extension ships from three stores. Store-facing links (rating
@@ -1479,7 +1685,17 @@ const GCC = (() => {
     FREE_VISIBLE: 3,
     // Matches the smallest scan tier so a purge only ever touches mail
     // the X-ray actually counted.
-    PURGE_SIZE_FLOOR: "larger:5M",
+    //
+    // 8.26: moved 5M -> 100k with the two new tiers, and a test now pins
+    // it to the engine's tier table rather than to this comment. Adding
+    // the small tiers without moving this would have been the house bug
+    // in its purest form: the list would show a sender holding three
+    // thousand 200 KB messages, print "at least 300 MB" beside them, and
+    // the button underneath would search larger:5M and delete nothing at
+    // all. The count and the action have to be measured through the same
+    // filter, and the only thing keeping them that way was one sentence
+    // in a comment that nothing enforced.
+    PURGE_SIZE_FLOOR: "larger:100k",
     VALID_AGES: Object.freeze(["", "6m", "1y", "2y"])
   });
 
@@ -1511,13 +1727,36 @@ const GCC = (() => {
   // keeps its single-string shape for existing callers and tests, and
   // returns the FIRST chunk only when the list overflows, so nothing can
   // silently emit an over-length query again.
-  const purgeQueryChunks = (emails, age = "") => {
+  // 8.26: the size floor is a parameter now, and it had to become one.
+  //
+  // Smart Suggestions' "purgeLarge" card reuses this builder, so both
+  // features read their idea of "big enough to be worth deleting" out of
+  // one constant -- which was invisible until the X-ray's floor moved to
+  // 100 KB and took the smart card with it. The card is offered on
+  // `estMb >= 100`, says LARGE on its face, and would then have deleted
+  // everything over 100 KB from that sender: the house bug, arriving
+  // through a shared constant rather than a shared query.
+  //
+  // Two features, two meanings, two floors. The default is the X-ray's,
+  // so every existing caller keeps the behaviour it had.
+  const purgeQueryChunks = (emails, age = "", sizeFloor = STORAGE_XRAY_LIMITS.PURGE_SIZE_FLOOR) => {
     const clean = sanitizeStorageEmails(emails);
     if (clean.length === 0) return [];
     const ageToken = STORAGE_XRAY_LIMITS.VALID_AGES.includes(age) && age
       ? ` older_than:${age}`
       : "";
-    const suffix = `) ${STORAGE_XRAY_LIMITS.PURGE_SIZE_FLOOR}${ageToken}`;
+    // "" means no size term at all, which is what the census needs: it
+    // ranks senders by how much mail they send, not how big it is, so a
+    // size floor there would be the house bug again -- a count measured
+    // one way and an action taken another. Anything else that is not a
+    // well-formed larger: token falls back to the X-ray's floor rather
+    // than being interpolated, so a caller cannot inject a term here.
+    const floor = sizeFloor === ""
+      ? ""
+      : (typeof sizeFloor === "string" && /^larger:\d+[kmb]?$/i.test(sizeFloor)
+        ? sizeFloor
+        : STORAGE_XRAY_LIMITS.PURGE_SIZE_FLOOR);
+    const suffix = floor ? `) ${floor}${ageToken}` : `)${ageToken}`;
     const budget = MAX_QUERY_CHARS - "from:(".length - suffix.length;
 
     const out = [];
@@ -1542,8 +1781,8 @@ const GCC = (() => {
     return out;
   };
 
-  const buildStoragePurgeQuery = (emails, age = "") => {
-    const chunks = purgeQueryChunks(emails, age);
+  const buildStoragePurgeQuery = (emails, age = "", sizeFloor) => {
+    const chunks = purgeQueryChunks(emails, age, sizeFloor);
     return chunks.length ? chunks[0] : "";
   };
 
@@ -1571,6 +1810,206 @@ const GCC = (() => {
     buildPurgeQuery: buildStoragePurgeQuery,
     buildPurgeQueries: purgeQueryChunks,
     rankSenders: rankStorageSenders
+  });
+
+  // =========================
+  // Sender census (8.26)
+  // =========================
+  // Every scan in this extension before now described the mailbox with a
+  // Gmail operator written in advance: category:promotions, larger:5M,
+  // "unsubscribe", older_than:1y. Those describe mail that fits a
+  // bucket. A real mailbox's bulk is tens of thousands of ordinary small
+  // messages from a few dozen senders, and not one of those operators
+  // names it, so every feature measured the buckets, reported a small
+  // number, and did a small thing. Measured against a live account while
+  // this was written: `category:promotions older_than:6m` returned
+  // nothing at all, `older_than:2y` returned nothing at all, and two
+  // broad searches found sixty distinct senders.
+  //
+  // The census asks the opposite question: not "how much mail matches
+  // this operator" but "who is actually sending you all of this". It
+  // ranks by sampling and then measures by query, which is the only
+  // honest way to do it from the DOM:
+  //
+  //   1. Discovery. A handful of deliberately broad searches, sliced by
+  //      age and by how the user treats mail rather than by category,
+  //      and the senders on each page of results are tallied. This
+  //      ranks; it never counts.
+  //   2. Measurement. The top senders each get real from:() searches, so
+  //      the number beside a name is Gmail's own answer about that
+  //      sender and not an extrapolation from a sampled page.
+  //
+  // Sampling to rank and querying to count is what keeps this clear of
+  // the house bug (a number shown beside an action measured through a
+  // different filter). The rank is never shown as a quantity, and the
+  // quantity is never inferred from the rank.
+
+  const CENSUS_LIMITS = Object.freeze({
+    // Kept per sender in storage. Well above what any surface shows, so
+    // the popup can re-rank without a rescan.
+    MAX_LIST: 60,
+    // Measurement costs three searches per sender, so it is capped the
+    // way smartScan's is, and by the same Pro depth setting.
+    MAX_MEASURE: 10,
+    MAX_MEASURE_DEEP: 20,
+    // 8.13's precedent, applied again: the LIST is free and the bulk
+    // action is what Pro buys. Free sees the five biggest senders by
+    // name and count, which is enough to know the census is telling the
+    // truth and not enough to do the job by hand.
+    FREE_LIST: 5,
+    ROW_SAMPLE_CAP: 100,
+    MAX_COUNT: 10000000,
+    MAX_RULE_SENDERS: 25,
+    // Deliberately the same list STORAGE_XRAY_LIMITS carries. A census
+    // clear runs through the same chunker, which drops an age it does
+    // not recognise rather than refusing it, so a wider list here would
+    // turn "clear mail older than three months" into "clear everything".
+    // A test pins the two lists equal.
+    VALID_AGES: Object.freeze(["", "6m", "1y", "2y"])
+  });
+
+  // Discovery. Three age slices and two behaviour slices, and not one
+  // category: operator among them, which is the entire point.
+  //
+  // The age slices are disjoint on purpose. Gmail ranks a broad search
+  // by relevance and hands back one page, so a single `older_than:6m`
+  // would sample one page drawn from wherever Gmail felt like drawing
+  // it; three windows that cannot overlap force the sample to spread
+  // across the mailbox's whole life instead of piling into whichever era
+  // Gmail ranks highest today.
+  //
+  // is:unread is the strongest junk signal a mailbox has and it belongs
+  // to no category: mail the user never opened, whoever sent it and
+  // whatever bucket Gmail filed it in.
+  //
+  // -in:sent -in:drafts -in:chats for the reason REPORT_HEADLINE_QUERY
+  // carries it: a bare age search reaches the user's own sent mail, and
+  // counting the user as one of their own top senders would be both
+  // wrong and a little insulting.
+  const CENSUS_SCOPE = "-in:sent -in:drafts -in:chats";
+
+  const censusDiscoveryQueries = () => Object.freeze([
+    `older_than:2y ${CENSUS_SCOPE}`,
+    `older_than:6m newer_than:2y ${CENSUS_SCOPE}`,
+    `newer_than:6m ${CENSUS_SCOPE}`,
+    `is:unread ${CENSUS_SCOPE}`,
+    `has:attachment ${CENSUS_SCOPE}`
+  ]);
+
+  // Measurement, three searches per sender.
+  //
+  // The two size searches are CUMULATIVE (larger:100k includes
+  // everything larger:1M matched) rather than the disjoint
+  // larger:/smaller: pairs the X-ray uses. Two cumulative searches give
+  // the same two bands as three disjoint ones, at one search less per
+  // sender, and subtracting them is exact because one set contains the
+  // other.
+  const censusMeasureQueries = (email) => Object.freeze({
+    total: `from:(${email})`,
+    atLeast1M: `from:(${email}) larger:1M`,
+    atLeast100k: `from:(${email}) larger:100k`
+  });
+
+  const clampCensusCount = (value) => {
+    const n = Math.floor(Number(value));
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return Math.min(n, CENSUS_LIMITS.MAX_COUNT);
+  };
+
+  // A floor, in the same sense every MB figure in this product is one.
+  //
+  // Each message is credited the floor of the band it landed in: 1 MB
+  // for the ones Gmail says are at least 1 MB, 0.1 MB for the ones it
+  // says are at least 100 KB but not 1 MB. Everything under 100 KB is
+  // credited NOTHING, which is why the answer can be stated as "at
+  // least" without qualification. A mailbox of 12,000 small messages
+  // reads as at least 1.2 GB instead of the nothing the X-ray saw, and
+  // the real figure is larger than that, never smaller.
+  const censusSenderFloorMb = (atLeast1M, atLeast100k) => {
+    const big = clampCensusCount(atLeast1M);
+    // Gmail cannot report fewer messages over 100 KB than it reports
+    // over 1 MB; if it did, one of the two searches was truncated, and
+    // the larger claim is the one to keep.
+    const some = Math.max(big, clampCensusCount(atLeast100k));
+    const mb = big * 1 + (some - big) * 0.1;
+    return Math.round(mb * 10) / 10;
+  };
+
+  // Measured senders first and ranked by size, then by volume; the
+  // unmeasured tail keeps its discovery order. A sender with no number
+  // must never outrank one with a number, whatever the sampling said.
+  const rankCensusSenders = (senders) => {
+    if (!Array.isArray(senders)) return [];
+    const clean = senders
+      .filter((s) => s && typeof s.email === "string" && STORAGE_EMAIL_RE.test(s.email))
+      .map((s) => ({
+        email: s.email.toLowerCase(),
+        name: typeof s.name === "string" ? s.name.slice(0, 120) : "",
+        count: clampCensusCount(s.count),
+        exact: s.exact === true,
+        slices: Math.max(0, Math.min(99, Number(s.slices) || 0)),
+        estMb: Math.max(0, Math.min(1024 * 1024, Math.round((Number(s.estMb) || 0) * 10) / 10)),
+        estMbExact: s.estMbExact === true,
+        measured: s.measured !== false && clampCensusCount(s.count) > 0
+      }));
+    const measured = clean.filter((s) => s.measured)
+      .sort((a, b) => b.estMb - a.estMb || b.count - a.count || a.email.localeCompare(b.email));
+    const rest = clean.filter((s) => !s.measured)
+      .sort((a, b) => b.slices - a.slices || a.email.localeCompare(b.email));
+    return measured.concat(rest).slice(0, CENSUS_LIMITS.MAX_LIST);
+  };
+
+  // What the census can honestly claim in one line. Only measured
+  // senders contribute. Summing MB across senders is sound where summing
+  // report bands is not, because these searches are per sender and two
+  // senders cannot both hold the same message.
+  const censusTotals = (senders) => {
+    const list = rankCensusSenders(senders).filter((s) => s.measured);
+    let mb = 0;
+    let count = 0;
+    let exact = true;
+    for (const s of list) {
+      mb += s.estMb;
+      count += s.count;
+      if (!s.exact || !s.estMbExact) exact = false;
+    }
+    return {
+      senders: list.length,
+      count,
+      estMb: Math.round(mb * 10) / 10,
+      // False means at least one operand was a page Gmail refused to
+      // total, so both figures are lower bounds twice over: floors made
+      // of floors. The copy says "at least" either way; this is what
+      // stops a surface printing an exact-looking total from them.
+      exact
+    };
+  };
+
+  // The clear button behind the census list. No size floor, because the
+  // census never measured one: it ranks senders by how much mail they
+  // send.
+  //
+  // The age is validated against the list purgeQueryChunks itself
+  // honours, NOT against this module's own. If they ever differ the
+  // failure is silent and total: purgeQueryChunks drops an age it does
+  // not recognise instead of refusing, so passing "3m" here would emit a
+  // bare `from:(a OR b)` and clear every message those senders have ever
+  // sent, including this morning's. An unknown age falls back to six
+  // months rather than to nothing.
+  const censusPurgeQueries = (emails, age = "6m") => {
+    const safeAge = age && STORAGE_XRAY_LIMITS.VALID_AGES.includes(age) ? age : "6m";
+    return purgeQueryChunks(emails, safeAge, "");
+  };
+
+  const census = Object.freeze({
+    LIMITS: CENSUS_LIMITS,
+    SCOPE: CENSUS_SCOPE,
+    discoveryQueries: censusDiscoveryQueries,
+    measureQueries: censusMeasureQueries,
+    senderFloorMb: censusSenderFloorMb,
+    purgeQueries: censusPurgeQueries,
+    rankSenders: rankCensusSenders,
+    totals: censusTotals
   });
 
   // =========================
@@ -2258,7 +2697,13 @@ const GCC = (() => {
     MAX_BULK_PER_RUN: 25,
     DISMISS_TTL_MS: 90 * 24 * 60 * 60 * 1000,
     MAX_FEEDBACK: 300,
-    DOMAIN_BOOST: 6
+    DOMAIN_BOOST: 6,
+    // 8.26: what "large" means on a purgeLarge card, kept here rather
+    // than borrowed from the X-ray. The card is offered on estMb >= 100
+    // and the word on the button is LARGE, so its floor answers to that
+    // sentence and to nothing else. Pinned equal to the engine's
+    // smartActionQuery by the smart-scan suite.
+    LARGE_FLOOR: "larger:5M"
   });
 
   const SMART_ACTIONS = Object.freeze(["deleteOld", "archiveAll", "purgeLarge", "unsubscribe"]);
@@ -2418,7 +2863,12 @@ const GCC = (() => {
       return { runKind: "unsubscribe", senders: [email] };
     }
     if (action === "purgeLarge") {
-      const query = buildStoragePurgeQuery([email], "6m");
+      // Explicitly the smart card's own floor, not the X-ray's. See
+      // purgeQueryChunks: these two used to share one constant, and the
+      // engine's smartActionQuery hardcodes larger:5M with a test
+      // pinning the pair, so the drift would have been caught here or
+      // there. It was caught in both.
+      const query = buildStoragePurgeQuery([email], "6m", SMART_LIMITS.LARGE_FLOOR);
       return query ? { runKind: "cleanup", query, archive: false } : null;
     }
     if (action === "archiveAll") {
@@ -2895,6 +3345,10 @@ const GCC = (() => {
     proSettings,
 
     // New in 8.17
-    freeUnsub
+    freeUnsub,
+
+    // New in 8.26
+    census,
+    receipts
   });
 })();

@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "8.25.0";
+  const POPUP_VERSION = "8.26.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -76,6 +76,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // batch, run, come back, tick the rest", and coming back showed an
     // empty selection with no record of which ones had already gone.
     XRAY_CHECKED: "xrayCheckedEmails",
+    // 8.26: which census senders are ticked. Local: it is a list of
+    // the user's correspondents, and sync replicates to the account.
+    CENSUS_CHECKED: "censusCheckedEmails",
     // 8.12: and the age those ticks were chosen under. Restoring the
     // selection without it re-armed the next purge at the 6-month
     // default, which is WIDER than anything else the select offers.
@@ -179,6 +182,24 @@ document.addEventListener("DOMContentLoaded", () => {
       // 8.17: remaining free unsubscribes. Starts at 0 (deny) until
       // the local counter is read, which is the unread-as-zero answer.
       freeLeft: 0
+    },
+    // 8.26. `running` is separate from subs.running because the census
+    // lives on the Report tab and the verification on the Unsubscribe
+    // tab, and neither should disable the other's buttons; the engine's
+    // own single-run guard is what actually serialises them.
+    census: {
+      senders: [],
+      updatedAt: 0,
+      totalCount: 0,
+      totalMb: 0,
+      exact: false,
+      discovered: 0,
+      checked: new Set(),
+      running: null
+    },
+    receipts: {
+      list: [],
+      running: null
     },
 
     // 7.2 storage X-ray: last scan + totals. Pro gating reads
@@ -502,6 +523,30 @@ document.addEventListener("DOMContentLoaded", () => {
     subsUpsellText: $("subsUpsellText"),
     subsBuyLink: $("subsBuyLink"),
     subsEnterKey: $("subsEnterKey"),
+
+    // 8.26 unsubscribe receipts + sender census. 8.11's lesson applies
+    // here more than anywhere: an elements.X referenced but never
+    // registered is a silent no-op, and these drive buttons that spend
+    // a licence.
+    receiptsBlock: $("receiptsBlock"),
+    receiptsSummary: $("receiptsSummary"),
+    receiptsList: $("receiptsList"),
+    verifyBtn: $("verifyBtn"),
+    verifyBtnSub: $("verifyBtnSub"),
+    receiptsPurgeBtn: $("receiptsPurgeBtn"),
+    receiptsPurgeSub: $("receiptsPurgeSub"),
+    censusBlock: $("censusBlock"),
+    censusStamp: $("censusStamp"),
+    censusHint: $("censusHint"),
+    censusScanBtn: $("censusScanBtn"),
+    censusStatus: $("censusStatus"),
+    censusList: $("censusList"),
+    censusPurgeBtn: $("censusPurgeBtn"),
+    censusPurgeSub: $("censusPurgeSub"),
+    censusUpsell: $("censusUpsell"),
+    censusUpsellText: $("censusUpsellText"),
+    censusBuyLink: $("censusBuyLink"),
+    censusEnterKey: $("censusEnterKey"),
     footerProBtn: $("footerProBtn"),
     proPromo: $("proPromo"),
     proPromoBuy: $("proPromoBuy"),
@@ -1649,6 +1694,19 @@ document.addEventListener("DOMContentLoaded", () => {
       protectKeywords,
       debugMode: Boolean(state.debugMode),
       version: POPUP_VERSION,
+      // 8.26: the census senders the user ticked become extra rules on
+      // an ordinary run, so a scheduled sweep keeps clearing the
+      // senders this mailbox was measured to be full of.
+      //
+      // Gated here rather than in the engine, and gated on the TICKS
+      // rather than on the census: a scan finding that a bank mails you
+      // often is not permission to delete the bank's mail. Only senders
+      // the user chose, and only for a licence that paid for the
+      // feature. An empty list is omitted entirely so a free run's
+      // config is byte-identical to what it was before this release.
+      ...(state.subs.licenseActive && state.census.checked.size
+        ? { censusSenders: [...state.census.checked].slice(0, GCC.census.LIMITS.MAX_RULE_SENDERS) }
+        : {}),
       // 6.0: focused target preset, if one is active (one run only).
       ...(Array.isArray(state.rulesOverride) && state.rulesOverride.length
         ? { rulesOverride: state.rulesOverride }
@@ -3364,6 +3422,549 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   // =========================
+  // Unsubscribe receipts (8.26)
+  // =========================
+  // The ledger and the "how many are ready to check" figure are free:
+  // both are arithmetic over what is already on disk and cost the
+  // mailbox nothing. The sweep that produces the verdicts is Pro. Free
+  // sees the question, Pro gets the answer.
+
+  const receiptVerdictLabel = (r) => {
+    if (r.verdict === "still_sending") {
+      const n = Number(r.since) || 0;
+      const shown = n.toLocaleString();
+      return r.sinceExact
+        ? t("receiptIgnored", `Ignored you · ${shown} since`, [shown])
+        : t("receiptIgnoredFloor", `Ignored you · at least ${shown} since`, [shown]);
+    }
+    if (r.verdict === "stopped") return t("receiptStopped", "Stopped");
+    if (r.verdict === "unknown") return t("receiptUnknown", "Could not tell");
+    if (GCC.receipts.isDue(r)) return t("receiptDue", "Ready to check");
+    return t("receiptWaiting", "In its grace window");
+  };
+
+  const renderReceipts = () => {
+    if (!elements.receiptsBlock) return;
+    const list = GCC.receipts.rank(state.receipts.list);
+    // Nothing to show until the user has actually unsubscribed from
+    // something. An empty ledger with a locked button on it would be
+    // advertising, not a feature.
+    elements.receiptsBlock.hidden = list.length === 0;
+    if (!list.length) return;
+
+    const summary = GCC.receipts.summary(list);
+    if (elements.receiptsSummary) {
+      const parts = [];
+      if (summary.stillSending) {
+        parts.push(t(
+          "receiptsIgnoredCount",
+          `${summary.stillSending} ignored your unsubscribe`,
+          [String(summary.stillSending)]
+        ));
+      }
+      if (summary.stopped) {
+        parts.push(t("receiptsStoppedCount", `${summary.stopped} confirmed stopped`, [String(summary.stopped)]));
+      }
+      if (summary.due) {
+        parts.push(t("receiptsDueCount", `${summary.due} ready to check`, [String(summary.due)]));
+      }
+      if (!parts.length && summary.waiting) {
+        parts.push(t(
+          "receiptsWaitingCount",
+          `${summary.waiting} still in their two-week grace window`,
+          [String(summary.waiting)]
+        ));
+      }
+      elements.receiptsSummary.textContent = parts.join(" · ");
+    }
+
+    if (elements.receiptsList) {
+      elements.receiptsList.textContent = "";
+      for (const r of list.slice(0, 25)) {
+        const row = document.createElement("div");
+        row.className = "subs-row";
+        row.setAttribute("role", "listitem");
+
+        const text = document.createElement("span");
+        text.className = "subs-row-text";
+
+        const name = document.createElement("span");
+        name.className = "subs-row-name";
+        name.textContent = r.name || r.email;
+        text.appendChild(name);
+
+        const meta = document.createElement("span");
+        meta.className = "subs-row-meta";
+        meta.textContent = `${receiptVerdictLabel(r)} · ${t("receiptSince", "unsubscribed")} ${GCC.relativeTime(r.at)}`;
+        text.appendChild(meta);
+
+        row.appendChild(text);
+        elements.receiptsList.appendChild(row);
+      }
+    }
+
+    if (elements.verifyBtn) {
+      elements.verifyBtn.hidden = summary.due === 0;
+      if (elements.verifyBtnSub) {
+        elements.verifyBtnSub.textContent = state.subs.licenseActive
+          ? t("verifyDueSub", `${summary.due} ready · one search each, nothing is opened`, [String(summary.due)])
+          : t("proPriceSub", "Pro · $9.99 lifetime");
+      }
+    }
+
+    const ignored = list.filter((r) => r.verdict === "still_sending");
+    if (elements.receiptsPurgeBtn) {
+      elements.receiptsPurgeBtn.hidden = ignored.length === 0 || !state.subs.licenseActive;
+      if (elements.receiptsPurgeSub) {
+        elements.receiptsPurgeSub.textContent = t(
+          "receiptsPurgeSub",
+          `Only mail that arrived after each grace window closed · ${ignored.length} sender${ignored.length === 1 ? "" : "s"}`,
+          [String(ignored.length)]
+        );
+      }
+    }
+  };
+
+  const loadReceipts = async () => {
+    try {
+      const res = await GCC.sendMessage({ type: "gmailCleanerGetReceipts" });
+      state.receipts.list = Array.isArray(res?.receipts) ? res.receipts : [];
+      renderReceipts();
+    } catch (err) {
+      log("warn", "receipts load failed", err);
+    }
+  };
+
+  const handleVerifyClick = async () => {
+    if (state.receipts.running) return;
+    if (!state.subs.licenseActive) {
+      openProPanel("verify_locked", {
+        lead: t(
+          "verifyUpsellLead",
+          "Gmail sends the unsubscribe and stops there. This checks whether the sender honoured it."
+        ),
+        fallbackUpsell: elements.subsUpsell
+      });
+      return;
+    }
+    const due = GCC.receipts.rank(state.receipts.list)
+      .filter((r) => GCC.receipts.isDue(r))
+      .slice(0, GCC.receipts.LIMITS.MAX_VERIFY_PER_RUN)
+      .map((r) => ({ email: r.email, after: GCC.receipts.verifyDate(r.at) }))
+      .filter((t2) => t2.after);
+    if (!due.length) {
+      showToast(t("noneDueYet", "nothing has finished its grace window yet"), "info");
+      return;
+    }
+    try {
+      state.receipts.running = "unsubscribeVerify";
+      if (elements.verifyBtn) elements.verifyBtn.disabled = true;
+      setSubsStatus(t("verifying", `Checking ${due.length} senders...`, [String(due.length)]));
+      const tabId = await injectEngineRun(
+        { runKind: "unsubscribeVerify", verifyTargets: due, debugMode: state.debugMode },
+        setSubsStatus
+      );
+      if (tabId === null) {
+        state.receipts.running = null;
+        if (elements.verifyBtn) elements.verifyBtn.disabled = false;
+      }
+    } catch (err) {
+      log("error", "verify start failed", err);
+      showToast(t("scanFailedPrefix", `scan failed: ${err?.message || "unknown error"}`, [err?.message || "unknown error"]), "error");
+      setSubsStatus("");
+      state.receipts.running = null;
+      if (elements.verifyBtn) elements.verifyBtn.disabled = false;
+    }
+  };
+
+  const handleVerifyProgress = (msg) => {
+    const terminal = msg.done || ["done", "cancelled", "error"].includes(msg.phase);
+    if (msg.status) setSubsStatus(msg.status + (msg.detail ? ` ${msg.detail}` : ""));
+    if (!terminal) return;
+    state.receipts.running = null;
+    if (elements.verifyBtn) elements.verifyBtn.disabled = false;
+    // Re-read from the worker rather than folding the message in here.
+    // The engine flushes verdicts as it goes and the worker is what
+    // merged them into the ledger; reading its copy is the only way the
+    // popup can be sure it is showing what was actually stored.
+    loadReceipts().catch(() => {});
+  };
+
+  // =========================
+  // Sender census (8.26)
+  // =========================
+  // Scan is free and read-only; the ranked list past the first five and
+  // the bulk clear are Pro, matching the X-ray's split exactly. The
+  // clear is an ordinary cleanup run scoped by rulesOverride, so the
+  // guards, the tag-before-delete and the recovery log all apply.
+
+  const setCensusStatus = (text) => {
+    if (elements.censusStatus) elements.censusStatus.textContent = text || "";
+  };
+
+  // The ticks outlive the popup, as the X-ray's do: "run again for the
+  // rest" is only true if the rest is still ticked when you come back.
+  // They also decide what an ordinary cleanup run adds to its rules, so
+  // losing them silently narrows every later run.
+  const persistCensusSelection = () => {
+    storageSet("local", {
+      [STORAGE_KEYS.CENSUS_CHECKED]: [...state.census.checked].slice(0, GCC.census.LIMITS.MAX_LIST)
+    }).catch(() => {});
+  };
+
+  const loadCensusSelection = async () => {
+    try {
+      const r = await storageGet("local", [STORAGE_KEYS.CENSUS_CHECKED]);
+      const list = r?.[STORAGE_KEYS.CENSUS_CHECKED];
+      state.census.checked = new Set(
+        Array.isArray(list) ? list.filter((e) => typeof e === "string") : []
+      );
+    } catch (err) {
+      log("warn", "census selection load failed", err);
+    }
+  };
+
+  const censusCountLabel = (sender) => {
+    const n = Number(sender?.count) || 0;
+    const shown = n.toLocaleString();
+    return sender?.exact
+      ? t("censusCountExact", `${shown} emails`, [shown])
+      : t("censusCountFloor", `at least ${shown} emails`, [shown]);
+  };
+
+  const renderCensusList = () => {
+    if (!elements.censusList) return;
+    elements.censusList.textContent = "";
+    const senders = GCC.census.rankSenders(state.census.senders);
+    const measured = senders.filter((s) => s.measured);
+    if (!measured.length) {
+      if (elements.censusPurgeBtn) elements.censusPurgeBtn.hidden = true;
+      return;
+    }
+
+    const pro = state.subs.licenseActive;
+    const visible = pro ? measured : measured.slice(0, GCC.census.LIMITS.FREE_LIST);
+
+    for (const sender of visible) {
+      const row = document.createElement("div");
+      row.className = "subs-row";
+      row.setAttribute("role", "listitem");
+
+      const label = document.createElement("label");
+      label.className = "subs-row-main";
+
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.value = sender.email;
+      box.checked = state.census.checked.has(sender.email);
+      box.disabled = !pro;
+      box.addEventListener("change", () => {
+        if (box.checked) state.census.checked.add(sender.email);
+        else state.census.checked.delete(sender.email);
+        updateCensusPurgeButton();
+        persistCensusSelection();
+      });
+      label.appendChild(box);
+
+      const text = document.createElement("span");
+      text.className = "subs-row-text";
+
+      const name = document.createElement("span");
+      name.className = "subs-row-name";
+      name.textContent = sender.name || sender.email;
+      text.appendChild(name);
+
+      const meta = document.createElement("span");
+      meta.className = "subs-row-meta";
+      // Count first, size second, and the size only when there is one.
+      // On the mailbox this was built against the interesting number is
+      // how many, not how many megabytes: the top sender was a code
+      // host whose mail is tiny and endless.
+      meta.textContent = sender.estMb > 0
+        ? `${censusCountLabel(sender)} · ${GCC.formatMb(sender.estMb)}`
+        : censusCountLabel(sender);
+      text.appendChild(meta);
+
+      label.appendChild(text);
+      row.appendChild(label);
+      elements.censusList.appendChild(row);
+    }
+
+    if (!pro && measured.length > visible.length) {
+      const more = document.createElement("div");
+      more.className = "subs-row subs-row--locked";
+      more.setAttribute("role", "listitem");
+      more.textContent = t(
+        "censusMoreLocked",
+        `${measured.length - visible.length} more senders measured. Pro shows the full list and clears them in one run.`,
+        [String(measured.length - visible.length)]
+      );
+      elements.censusList.appendChild(more);
+    }
+
+    updateCensusPurgeButton();
+  };
+
+  const updateCensusPurgeButton = () => {
+    if (!elements.censusPurgeBtn) return;
+    const picked = state.census.checked.size;
+    elements.censusPurgeBtn.hidden = !state.census.senders.some((s) => s.measured);
+    if (elements.censusPurgeSub) {
+      elements.censusPurgeSub.textContent = state.subs.licenseActive
+        ? (picked
+          ? t("censusPurgePicked", `${picked} selected · older than 6 months only`, [String(picked)])
+          : t("censusPurgeNone", "Pick the senders you want cleared"))
+        : t("proPriceSub", "Pro · $9.99 lifetime");
+    }
+  };
+
+  const renderCensus = () => {
+    if (elements.censusStamp) {
+      elements.censusStamp.textContent = state.census.updatedAt
+        ? GCC.relativeTime(state.census.updatedAt)
+        : "";
+    }
+    renderCensusList();
+    if (elements.censusUpsell) {
+      const measured = state.census.senders.filter((s) => s.measured).length;
+      const show = !state.subs.licenseActive && measured > GCC.census.LIMITS.FREE_LIST;
+      elements.censusUpsell.hidden = !show;
+      if (show && elements.censusUpsellText) {
+        elements.censusUpsellText.textContent = t(
+          "censusUpsell",
+          "Pro shows every sender the census measured and clears the ones you pick in one run."
+        );
+      }
+    }
+  };
+
+  const loadCensus = async () => {
+    try {
+      const res = await GCC.sendMessage({ type: "gmailCleanerGetCensus" });
+      const census = res?.census;
+      if (!census) return;
+      state.census.senders = Array.isArray(census.senders) ? census.senders : [];
+      state.census.updatedAt = Number(census.updatedAt) || 0;
+      state.census.totalCount = Number(census.totalCount) || 0;
+      state.census.totalMb = Number(census.totalMb) || 0;
+      state.census.exact = census.exact === true;
+      state.census.discovered = Number(census.discovered) || 0;
+      renderCensus();
+    } catch (err) {
+      log("warn", "census load failed", err);
+    }
+  };
+
+  const handleCensusScan = async () => {
+    if (state.census.running) return;
+    try {
+      state.census.running = "senderCensus";
+      if (elements.censusScanBtn) elements.censusScanBtn.disabled = true;
+      setCensusStatus(t("censusScanning", "Sampling your mail, then counting the senders that come up most..."));
+      showSkeletonRows(elements.censusList, 5);
+      const tabId = await injectEngineRun(
+        { runKind: "senderCensus", debugMode: state.debugMode },
+        setCensusStatus
+      );
+      if (tabId === null) {
+        state.census.running = null;
+        if (elements.censusScanBtn) elements.censusScanBtn.disabled = false;
+      }
+    } catch (err) {
+      log("error", "census start failed", err);
+      showToast(t("scanFailedPrefix", `scan failed: ${err?.message || "unknown error"}`, [err?.message || "unknown error"]), "error");
+      setCensusStatus("");
+      state.census.running = null;
+      if (elements.censusScanBtn) elements.censusScanBtn.disabled = false;
+    }
+  };
+
+  const handleCensusProgress = (msg) => {
+    const terminal = msg.done || ["done", "cancelled", "error"].includes(msg.phase);
+    if (msg.status) setCensusStatus(msg.status + (msg.detail ? ` ${msg.detail}` : ""));
+    if (!terminal) return;
+    state.census.running = null;
+    if (elements.censusScanBtn) elements.censusScanBtn.disabled = false;
+    if (Array.isArray(msg.censusSenders)) {
+      state.census.senders = msg.censusSenders;
+      state.census.updatedAt = Date.now();
+      state.census.totalCount = Number(msg.totalCount) || 0;
+      state.census.totalMb = Number(msg.totalMb) || 0;
+      state.census.exact = msg.exact === true;
+      renderCensus();
+    } else {
+      // A cancelled or failed census keeps whatever the last complete
+      // one stored. 8.16: a terminal message is not a completion, and
+      // replacing a good list with an empty one because a run stopped
+      // early is that mistake with data loss attached.
+      renderCensus();
+    }
+  };
+
+  // A sender-scoped cleanup, started the way the X-ray purge and the
+  // smart apply start theirs: claim the run, override the rules, force
+  // delete rather than inheriting the Clean tab's action dropdown, and
+  // let every global guard, the tag-before-delete and the recovery log
+  // apply unchanged. Written once and shared by the census clear and
+  // the receipts clear rather than copied a third and fourth time.
+  const startScopedCleanupRun = async ({ queries, setStatus, busyLabel, dryLabel, startedToast }) => {
+    if (state.isRunning) return false;
+    if (!Array.isArray(queries) || !queries.length) return false;
+
+    state.isRunning = true;
+    let claimedRunId = null;
+    try {
+      if (!(await GCC.gmailAccess.check())) {
+        refreshBanners().catch(() => {});
+        setStatus(t("allowAccessFirst", "Allow Gmail access at the top of this popup first."));
+        showToast(t("accessNeededToast", "gmail access needed"), "warning");
+        state.isRunning = false;
+        return false;
+      }
+
+      const gmailTab = await findOrOpenGmailTab(setStatus);
+      if (!gmailTab?.id) {
+        state.isRunning = false;
+        return false;
+      }
+
+      const claim = await tryClaimRun(gmailTab.id);
+      if (!claim.ok) {
+        reportRunRefused();
+        state.isRunning = false;
+        return false;
+      }
+      claimedRunId = claim.claim.runId;
+
+      const config = await buildConfig();
+      config.runId = claim.claim.runId;
+      config.rulesOverride = queries;
+      // 8.8's rule, and it applies to every specialised run: the Clean
+      // tab's Action dropdown is persisted, so a user who once set it to
+      // Archive would get a button that says clear and a run that files
+      // the mail away instead, leaving the quota untouched.
+      config.archiveInsteadOfDelete = false;
+      state.currentGmailTabId = gmailTab.id;
+      state.startedRunHere = true;
+      setStatus(config.dryRun ? dryLabel : busyLabel);
+
+      if (await isEngineAttached(gmailTab.id)) {
+        reportRunRefused();
+        await clearActiveRun(claimedRunId);
+        claimedRunId = null;
+        state.isRunning = false;
+        setStatus("");
+        state.currentGmailTabId = null;
+        state.startedRunHere = false;
+        return false;
+      }
+
+      // Without this a progress-tab reconnect re-injects the last full
+      // cleanup config and sweeps the whole rule set instead of these
+      // senders. Persisted after the duplicate-run guard so a refused
+      // run leaves nothing scoped behind.
+      await persistLastConfig(config);
+
+      await openProgressTab(gmailTab.id);
+
+      await scriptingExecuteScript({
+        target: { tabId: gmailTab.id },
+        func: (cfg) => { window.GMAIL_CLEANER_CONFIG = cfg; },
+        args: [config]
+      });
+      await scriptingExecuteScript({
+        target: { tabId: gmailTab.id },
+        files: ["contentScript.js"]
+      });
+
+      await bumpRunCount();
+      // "started", not "cleared". 8.9: nothing has moved yet -- the
+      // engine was only just injected and the run can still be
+      // cancelled, error out, or match nothing at all.
+      showToast(startedToast, "success");
+      setTimeout(safeClosePopup, 200);
+      return true;
+    } catch (err) {
+      const msg = err?.message || String(err);
+      log("error", "startScopedCleanupRun error:", err);
+      setStatus(t("failedToStart", `Failed to start: ${msg}`, [msg]));
+      showToast(t("cleanFailedPrefix", `run failed: ${msg}`, [msg]), "error");
+      if (claimedRunId) await clearActiveRun(claimedRunId);
+      state.isRunning = false;
+      state.currentGmailTabId = null;
+      return false;
+    }
+  };
+
+  const handleCensusPurge = async () => {
+    if (!state.subs.licenseActive) {
+      openProPanel("census_locked", {
+        lead: t(
+          "censusUpsellLead",
+          "The census found who fills your mailbox. Pro clears the senders you pick in one run."
+        ),
+        fallbackUpsell: elements.censusUpsell
+      });
+      return;
+    }
+    const emails = [...state.census.checked];
+    if (!emails.length) {
+      showToast(t("pickOneSender", "pick at least one sender first"), "warning");
+      return;
+    }
+    const capped = emails.slice(0, GCC.census.LIMITS.MAX_RULE_SENDERS);
+    if (emails.length > capped.length) {
+      showToast(t("firstTwentyFive", "running the first 25; re-run for the rest"), "info");
+    }
+    const queries = GCC.census.purgeQueries(capped, "6m");
+    if (!queries.length) {
+      showToast(t("noSafeRule", "could not build a safe rule for this sender"), "warning");
+      return;
+    }
+    await startScopedCleanupRun({
+      queries,
+      setStatus: setCensusStatus,
+      busyLabel: capped.length === 1
+        ? t("cleaningOne", "Cleaning up 1 sender...")
+        : t("cleaningMany", `Cleaning up ${capped.length} senders...`, [String(capped.length)]),
+      dryLabel: t("censusDryCounting", "Dry run: counting what clearing those senders would remove..."),
+      startedToast: t("censusRunStarted", "clearing started")
+    });
+  };
+
+  const handleReceiptsPurge = async () => {
+    if (!state.subs.licenseActive) {
+      openProPanel("receipts_locked", { fallbackUpsell: elements.subsUpsell });
+      return;
+    }
+    // One query per sender, and each carries that sender's OWN after:
+    // date. They cannot be packed into a shared from:(a OR b) group the
+    // way the census clear is, because the whole claim on this button
+    // is that it deletes only what arrived after that sender's grace
+    // window closed, and those windows differ. Grouping them would take
+    // one sender's mail from inside its own grace period.
+    const ignored = GCC.receipts.rank(state.receipts.list)
+      .filter((r) => r.verdict === "still_sending")
+      .slice(0, GCC.receipts.LIMITS.MAX_VERIFY_PER_RUN);
+    const queries = ignored.map((r) => GCC.receipts.purgeQuery(r)).filter(Boolean);
+    if (!queries.length) {
+      showToast(t("nothingToClear", "nothing to clear"), "info");
+      return;
+    }
+    await startScopedCleanupRun({
+      queries,
+      setStatus: setSubsStatus,
+      busyLabel: t(
+        "receiptsClearing",
+        `Clearing mail from ${queries.length} senders that ignored you...`,
+        [String(queries.length)]
+      ),
+      dryLabel: t("receiptsDryCounting", "Dry run: counting what those senders have sent since."),
+      startedToast: t("receiptsRunStarted", "clearing started")
+    });
+  };
+
+  // =========================
   // Storage X-ray (7.2)
   // =========================
   // Scan is free and read-only; the full ranked list and the purge are
@@ -5038,6 +5639,16 @@ document.addEventListener("DOMContentLoaded", () => {
           handleReportProgress(msg);
           return;
         }
+        // 8.26: the census renders below the report's bands, and the
+        // verification into the receipts block on the Unsubscribe tab.
+        if (msg.runKind === "senderCensus") {
+          handleCensusProgress(msg);
+          return;
+        }
+        if (msg.runKind === "unsubscribeVerify") {
+          handleVerifyProgress(msg);
+          return;
+        }
         // 7.6: restore runs are started and watched from the recovery
         // log on the Stats page; the popup has no surface for them.
         if (msg.runKind === "restoreRun") return;
@@ -5736,6 +6347,18 @@ document.addEventListener("DOMContentLoaded", () => {
       persistSubsSelection();
     });
 
+    // 8.26 receipts + census
+    elements.verifyBtn?.addEventListener("click", handleVerifyClick);
+    elements.receiptsPurgeBtn?.addEventListener("click", handleReceiptsPurge);
+    elements.censusScanBtn?.addEventListener("click", handleCensusScan);
+    elements.censusPurgeBtn?.addEventListener("click", handleCensusPurge);
+    elements.censusBuyLink?.addEventListener("click", () => openProPanel("census_buy", {
+      fallbackUpsell: elements.censusUpsell
+    }));
+    elements.censusEnterKey?.addEventListener("click", () => openProPanel("census_key", {
+      fallbackUpsell: elements.censusUpsell
+    }));
+
     // 7.2 storage X-ray
     elements.xrayScanBtn?.addEventListener("click", handleScanStorage);
     elements.xrayPurgeBtn?.addEventListener("click", handleXrayPurge);
@@ -5946,8 +6569,13 @@ document.addEventListener("DOMContentLoaded", () => {
     // All three are awaited together: each renderer reads its own set,
     // and a set that arrives late renders an empty selection once and
     // then never re-renders on its own.
-    await Promise.all([loadSubsSelection(), loadXraySelection(), loadSmartSelection()]);
+    await Promise.all([loadSubsSelection(), loadXraySelection(), loadSmartSelection(), loadCensusSelection()]);
     loadStoredSubscriptions().catch((e) => log("warn", "subs load failed", e));
+    // 8.26: the receipt ledger and the last census (best-effort). The
+    // receipts block stays hidden until there is at least one receipt,
+    // so a fresh install sees nothing new on the Unsubscribe tab.
+    loadReceipts().catch((e) => log("warn", "receipts load failed", e));
+    loadCensus().catch((e) => log("warn", "census load failed", e));
     // 7.2 storage X-ray: last scan (best-effort).
     loadStoredStorageScan().catch((e) => log("warn", "xray load failed", e));
     // 7.8 Smart Suggestions: disclosure state + stored scan.

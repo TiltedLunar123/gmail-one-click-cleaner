@@ -3,6 +3,56 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.26.0 - Find the bulk, not the buckets
+
+Every scan in this extension used to describe your mailbox with a Gmail
+search written before your mailbox existed: promotions, big attachments,
+mail with the word unsubscribe in it, anything over a year old. Those
+find mail that fits a bucket. Most mailboxes are not buckets. They are
+tens of thousands of ordinary small messages from a few dozen senders,
+and no search on that list names them, so every tool reported a small
+number and did a small thing.
+
+Tested against a real mailbox while this was built: promotions older than
+six months returned nothing. Mail older than two years returned nothing.
+Two broad searches found sixty senders.
+
+### Added
+- **A census of who actually fills your mailbox.** It samples widely
+  first, sliced by age and by whether you ever opened the mail rather
+  than by category, then counts each of the senders that keep coming up
+  with its own Gmail search. So the number beside a name is Gmail's
+  answer about that sender, not a guess from one page of results. The
+  list is free. Clearing the senders you tick is Pro.
+- **Unsubscribe receipts, and a check that they were honoured.** Gmail
+  now has its own unsubscribe button, and like every unsubscribe tool
+  ever made it sends the request and greys out the row. Nobody goes back
+  to find out whether the sender stopped. Plenty of them do not. Each
+  unsubscribe you run here is now dated, and once a sender has had two
+  weeks to act on it, Pro checks whether anything new arrived. The ones
+  that ignored you get a button that deletes only what they sent after
+  their window closed.
+- **The senders you tick keep getting cleaned.** A ticked census sender
+  becomes an extra rule on your ordinary runs, so a weekly sweep keeps
+  clearing the senders your mailbox is actually full of. Only senders you
+  ticked, never the whole census.
+- **Ask for a feature from the Options page.** It opens a pre-filled
+  email in your own mail app. Nothing is sent by the extension, which
+  still makes no network requests of any kind.
+
+### Fixed
+- **The Storage X-ray looks below 5 megabytes now.** It only ever
+  searched for mail over 5 MB, which finds a few video attachments and
+  misses everything a mailbox is made of. On the account this was tested
+  against: 8 messages over 5 MB, 36 over 1 MB, and more than Gmail would
+  count over 100 KB. Two smaller size bands were added, and the purge
+  button underneath moved with them, so the button still clears exactly
+  the mail the list counted.
+- **A size written in bytes is read as bytes.** Gmail's own help writes
+  sizes as plain numbers of bytes. A custom rule written that way had its
+  storage estimate read as megabytes instead, so one rule could inflate
+  the freed figure at the end of a run by millions.
+
 ## 8.25.0 - Say it when it is a floor
 
 8.24 taught the Mailbox Report to admit when Gmail had given it a page

@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const OPTIONS_VERSION = "8.25.0";
+  const OPTIONS_VERSION = "8.26.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -2187,5 +2187,62 @@
       GCC.showToast("Schedule created", "success");
     });
   }
+
+  // =========================
+  // Feature requests (8.26)
+  // =========================
+  // Opens the user's own mail client with a pre-filled message. There is
+  // no submit, no endpoint and no stored draft, because the extension
+  // issues no network requests at all and a test over every shipped file
+  // enforces that. The version and browser ride along so a bug report is
+  // reproducible; nothing else does.
+
+  const initFeatureRequest = () => {
+    const text = GCC.$("featureRequestText");
+    const btn = GCC.$("featureRequestSendBtn");
+    const status = GCC.$("featureRequestStatus");
+    if (!text || !btn) return;
+
+    btn.addEventListener("click", () => {
+      const body = String(text.value || "").trim();
+      if (!body) {
+        if (status) status.textContent = "Write what you would like first.";
+        text.focus();
+        return;
+      }
+
+      // mailto: bodies go through the OS and then the mail client, and
+      // both have length limits that vary and neither reports hitting
+      // one: an over-long body silently opens an empty compose window.
+      // Trimmed here so the user sees the message they are sending.
+      const MAX_BODY = 1800;
+      const trimmed = body.length > MAX_BODY
+        ? body.slice(0, MAX_BODY) + "\n\n[trimmed to fit an email link]"
+        : body;
+
+      const footer = [
+        "",
+        "---",
+        `Extension: Gmail One-Click Cleaner ${OPTIONS_VERSION}`,
+        `Browser: ${GCC.detectBrowser()}`
+      ].join("\n");
+
+      const href = "mailto:" + GCC.license.PRO.SUPPORT_EMAIL
+        + "?subject=" + encodeURIComponent("Gmail Cleaner feature request")
+        + "&body=" + encodeURIComponent(trimmed + footer);
+
+      // A plain assignment rather than window.open: a popup blocker
+      // swallows the second one silently, and this page is allowed to
+      // navigate itself to a mailto without leaving the page.
+      window.location.href = href;
+      if (status) {
+        status.textContent = body.length > MAX_BODY
+          ? "Opening your mail app. The message was trimmed to fit."
+          : "Opening your mail app.";
+      }
+    });
+  };
+
+  initFeatureRequest();
 
 })();

@@ -56,18 +56,18 @@ describe("GCC.storageXray.sanitizeEmails", () => {
 describe("GCC.storageXray.buildPurgeQuery", () => {
   test("builds a from:(...) group with the size floor", () => {
     expect(X.buildPurgeQuery(["a@x.com", "b@y.com"]))
-      .toBe("from:(a@x.com OR b@y.com) larger:5M");
+      .toBe("from:(a@x.com OR b@y.com) larger:100k");
   });
 
   test("appends a validated age filter", () => {
     expect(X.buildPurgeQuery(["a@x.com"], "6m"))
-      .toBe("from:(a@x.com) larger:5M older_than:6m");
+      .toBe("from:(a@x.com) larger:100k older_than:6m");
     expect(X.buildPurgeQuery(["a@x.com"], "1y")).toContain("older_than:1y");
   });
 
   test("rejects invalid age tokens instead of interpolating them", () => {
-    expect(X.buildPurgeQuery(["a@x.com"], "99z")).toBe("from:(a@x.com) larger:5M");
-    expect(X.buildPurgeQuery(["a@x.com"], ") is:starred")).toBe("from:(a@x.com) larger:5M");
+    expect(X.buildPurgeQuery(["a@x.com"], "99z")).toBe("from:(a@x.com) larger:100k");
+    expect(X.buildPurgeQuery(["a@x.com"], ") is:starred")).toBe("from:(a@x.com) larger:100k");
   });
 
   test("returns empty string when nothing valid survives", () => {
@@ -82,7 +82,7 @@ describe("GCC.storageXray.buildPurgeQuery", () => {
       'evil@x.com") OR (is:important',
       "evil2@x.com -in:trash"
     ]);
-    expect(q).toBe("from:(fine@ok.com) larger:5M");
+    expect(q).toBe("from:(fine@ok.com) larger:100k");
     expect(q).not.toContain("is:important");
     expect(q).not.toContain('"');
     // exactly the one close paren that ends the from group, none injected:

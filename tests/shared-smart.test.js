@@ -212,11 +212,25 @@ describe("GCC.smart.buildActionRule", () => {
     });
   });
 
-  test("purgeLarge reuses the X-ray purge query builder", () => {
+  test("purgeLarge reuses the X-ray builder but keeps its own floor", () => {
     const rule = S.buildActionRule(sender, "purgeLarge");
-    expect(rule.query).toBe(GCC.storageXray.buildPurgeQuery(["news@shop.com"], "6m"));
+    // 8.26: same builder, explicitly NOT the same floor. Both features
+    // used to read one constant, so moving the X-ray down to 100 KB
+    // silently redefined what a card saying LARGE would delete. The
+    // card is offered on estMb >= 100; its floor answers to that word.
+    expect(rule.query).toBe(
+      GCC.storageXray.buildPurgeQuery(["news@shop.com"], "6m", GCC.smart.LIMITS.LARGE_FLOOR)
+    );
     expect(rule.query).toContain("larger:5M");
     expect(rule.archive).toBe(false);
+  });
+
+  test("the two size floors are deliberately different values", () => {
+    // Pinned as a pair rather than as two literals: if a future change
+    // makes them equal again it will be because someone meant it.
+    expect(GCC.smart.LIMITS.LARGE_FLOOR).not.toBe(GCC.storageXray.LIMITS.PURGE_SIZE_FLOOR);
+    expect(S.buildActionRule(sender, "purgeLarge").query)
+      .not.toContain(GCC.storageXray.LIMITS.PURGE_SIZE_FLOOR);
   });
 
   test("unsubscribe maps onto the existing Pro unsubscribe path", () => {

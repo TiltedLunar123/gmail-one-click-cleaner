@@ -2965,6 +2965,46 @@
           </span>
         </p>
 
+        <!-- 8.26 sender census. The bands above ask "how much mail
+             matches this operator", and a mailbox that is not shaped
+             like the operator answers zero to all of them. This asks
+             who is sending it instead, which is a question every
+             mailbox has an answer to. -->
+        <div class="census-block" id="censusBlock">
+          <div class="panel-head">
+            <span class="eyebrow" data-i18n="censusEyebrow">Who fills your mailbox</span>
+            <span class="report-stamp" id="censusStamp"></span>
+          </div>
+
+          <p class="subs-hint" id="censusHint" data-i18n="censusHint">
+            The steps above look for mail that fits a category. This looks for
+            the senders you actually hear from most, whatever category Gmail
+            filed them under, then counts each one with its own search.
+          </p>
+
+          <button id="censusScanBtn" class="subs-scan-btn" type="button">
+            <span class="label-main" data-i18n="censusScanMain">Find my top senders</span>
+            <span class="label-sub" data-i18n="scanSubFree">Free · read-only, changes nothing</span>
+          </button>
+
+          <div id="censusStatus" class="subs-status" role="status" aria-live="polite"></div>
+
+          <div id="censusList" class="subs-list" role="list" aria-label="Top senders" data-i18n-label="censusListLabel"></div>
+
+          <button id="censusPurgeBtn" class="subs-unsub-btn" type="button" hidden>
+            <span class="label-main" data-i18n="censusPurgeMain">Clear the senders I picked</span>
+            <span class="label-sub" id="censusPurgeSub" data-i18n="proPriceSub">Pro · $9.99 lifetime</span>
+          </button>
+
+          <p class="subs-upsell" id="censusUpsell" hidden>
+            <span id="censusUpsellText"></span>
+            <span class="subs-upsell-links">
+              <button type="button" class="linkish linkish--pro" id="censusBuyLink" data-i18n="getProLifetime">Get Pro - $9.99 lifetime</button>
+              <button type="button" class="linkish" id="censusEnterKey" data-i18n="haveKey">I have a key</button>
+            </span>
+          </p>
+        </div>
+
         <p class="report-note" id="reportNote" hidden data-i18n="reportNote">
           Counts come from Gmail's own search. Storage figures are floors,
           so the real total is higher. Deleted mail sits in Trash for about
@@ -3467,6 +3507,39 @@
           </span>
         </p>
 
+        <!-- 8.26 unsubscribe receipts. Gmail ships its own subscription
+             manager now and it does what every unsubscribe tool does:
+             sends the request and greys out the row. Nobody ever checks
+             whether the sender honoured it, and a user who has crossed
+             a sender off is not looking, which is exactly what makes
+             the failure worth catching. -->
+        <div class="receipts-block" id="receiptsBlock" hidden>
+          <div class="panel-head">
+            <span class="eyebrow" data-i18n="receiptsEyebrow">Did they actually stop?</span>
+          </div>
+
+          <p class="subs-hint" data-i18n="receiptsHint">
+            Unsubscribing is a request, not a result. Every unsubscribe you
+            run here is dated, and once a sender has had two weeks to honour
+            it this checks whether anything new arrived. The ones that
+            ignored you can be cleared in one click.
+          </p>
+
+          <div id="receiptsSummary" class="subs-status" role="status" aria-live="polite"></div>
+
+          <button id="verifyBtn" class="subs-scan-btn" type="button" hidden>
+            <span class="label-main" data-i18n="verifyMain">Check they stopped</span>
+            <span class="label-sub" id="verifyBtnSub" data-i18n="proPriceSub">Pro · $9.99 lifetime</span>
+          </button>
+
+          <div id="receiptsList" class="subs-list" role="list" aria-label="Unsubscribe receipts" data-i18n-label="receiptsListLabel"></div>
+
+          <button id="receiptsPurgeBtn" class="subs-unsub-btn" type="button" hidden>
+            <span class="label-main" data-i18n="receiptsPurgeMain">Delete what they sent since</span>
+            <span class="label-sub" id="receiptsPurgeSub"></span>
+          </button>
+        </div>
+
       </div><!-- /tabPanelUnsubscribe -->
 
       <div class="tab-panel" role="tabpanel" id="tabPanelStorage" aria-labelledby="tabStorage" tabindex="0" hidden>
@@ -3561,10 +3634,10 @@
             class="badge"
             id="versionBadge"
             type="button"
-            aria-label="Version 8.25.0, see what's new"
+            aria-label="Version 8.26.0, see what's new"
             title="What's new in this version"
             data-i18n-title="whatsNewTitle"
-          >v8.25.0</button>
+          >v8.26.0</button>
           <button id="kbdHelpBtn" class="linkish" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" data-i18n-label="kbdTitle" data-i18n-title="kbdBtnTitle">
             <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/></svg>
           </button>
