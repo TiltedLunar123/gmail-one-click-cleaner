@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "8.24.0";
+  const POPUP_VERSION = "8.25.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -745,7 +745,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // for archive runs, and left the note underneath still describing
   // Trash: archived mail never goes there, so there is no 30-day
   // window and restore is by label with no deadline at all.
-  const showResultSummary = ({ count = 0, freedBytes = 0, action = "trash", dryRun = false, stoppedShort = 0 } = {}) => {
+  const showResultSummary = ({ count = 0, freedBytes = 0, action = "trash", dryRun = false, stoppedShort = 0, wouldDeleteFloors = 0 } = {}) => {
     if (!elements.resultSummary) return;
     // 8.18: rolls up to the count instead of appearing at it. The
     // string handed to countUp is the same String(...) this line always
@@ -774,9 +774,14 @@ document.addEventListener("DOMContentLoaded", () => {
         ? t("resultTitleDry", "Dry run finished")
         : t("resultTitle", "Cleanup Complete!");
     }
+    // 8.25: a dry run whose rules ran into Gmail's "1-50 of many" saw a
+    // page, not a match set, and this line is the number the preview
+    // exists to produce. "Matched at least" is one word longer and it is
+    // the difference between a floor and a claim.
+    const dryFloor = dryRun && Math.max(0, Number(wouldDeleteFloors) || 0) > 0;
     if (elements.resultLead) {
       elements.resultLead.textContent = dryRun
-        ? t("resultLeadDry", "Matched")
+        ? (dryFloor ? t("resultLeadDryAtLeast", "Matched at least") : t("resultLeadDry", "Matched"))
         : t("resultLead", "Cleaned");
     }
     if (elements.resultActionNote) {
@@ -788,7 +793,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (elements.resultSafetyNote) {
       elements.resultSafetyNote.textContent = dryRun
-        ? t("resultNoteDry", "This was a preview. No mail was moved, deleted or labelled.")
+        ? (dryFloor
+          ? t("resultNoteDryFloor", "This was a preview. No mail was moved, deleted or labelled. Gmail did not report a total for every rule, so the real number is higher than the one above.")
+          : t("resultNoteDry", "This was a preview. No mail was moved, deleted or labelled."))
         : (archived
           ? t("resultNoteArchive", "Nothing deleted. Archived mail stays in All Mail, and you can restore it from Stats at any time.")
           : t("resultNote", "Nothing permanently deleted, Gmail keeps Trash for 30 days. You can restore anytime. Your storage only frees up once Trash empties."));
@@ -2748,7 +2755,14 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    const held = Number(state.report.guardedOutCount || 0);
+    // 8.25: and it refuses a figure whose own report says it cannot be
+    // one. The engine stopped computing this when either headline search
+    // came back without a total, but a report stored by 8.24 is still on
+    // disk with the old subtraction in it, and it is right there beside
+    // the flag that proves the subtraction was unsound. Reading the two
+    // together costs nothing and holds whichever build measured them.
+    const heldIsUnsound = state.report.cleanableAtLeast === true;
+    const held = heldIsUnsound ? 0 : Number(state.report.guardedOutCount || 0);
     if (held >= 1) {
       const which = [];
       if (elements.skipUnreadEl?.checked ?? true) which.push(t("skipUnread", "Skip Unread"));
@@ -2841,7 +2855,31 @@ document.addEventListener("DOMContentLoaded", () => {
         : "";
     }
     renderGuardNote();
-    if (elements.reportNote) elements.reportNote.hidden = !state.report.updatedAt;
+    // 8.25: the note explains the plus sign in words when there is one
+    // to explain.
+    //
+    // 8.24 marks a band Gmail gave no total for as "50+" and puts the
+    // sentence behind a `title`, which is a hover: not on a phone, not
+    // on a keyboard, and not for anyone who never thinks to try. The
+    // rows carry the mark; this line is where the report already
+    // explains where its numbers come from, and a plus sign nobody can
+    // decode reads as a formatting quirk rather than as the admission it
+    // is. Only when a band is actually a floor, so a mailbox Gmail
+    // totalled properly is not told about a mode it never hit.
+    if (elements.reportNote) {
+      const anyFloor = ranked.some((b) => b.atLeast === true && b.count > 0)
+        || state.report.cleanableAtLeast === true;
+      elements.reportNote.textContent = anyFloor
+        ? t(
+          "reportNoteFloors",
+          "Counts come from Gmail's own search, and a plus sign means Gmail did not report a total for that search, so the real number is higher. Storage figures are floors too. Deleted mail sits in Trash for about 30 days before Google's storage bar moves."
+        )
+        : t(
+          "reportNote",
+          "Counts come from Gmail's own search. Storage figures are floors, so the real total is higher. Deleted mail sits in Trash for about 30 days before Google's storage bar moves."
+        );
+      elements.reportNote.hidden = !state.report.updatedAt;
+    }
 
     elements.reportList.textContent = "";
 
@@ -3421,10 +3459,20 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.xrayTotalMb.textContent = `≥ ${GCC.formatMb(totalMb)}`;
     }
     if (elements.xrayTotalSub) {
+      // 8.25: "at least", like the megabytes it sits under.
+      //
+      // This count is the rows the scan could SEE: three size-tier
+      // searches, each sampled from the page Gmail rendered. The MB
+      // figure beside it has carried a "≥" since the feature shipped and
+      // the tab's own intro calls the estimate a floor, so the one
+      // figure claiming to be exact was the one the same sample
+      // produced. On any mailbox with more than a page of large mail it
+      // is an undercount, and it was the number the sentence stated
+      // flatly.
       const countText = GCC.formatNumber(totalCount);
       elements.xrayTotalSub.textContent = totalCount === 1
-        ? t("reclaimableOne", "reclaimable across 1 large email")
-        : t("reclaimableMany", `reclaimable across ${countText} large emails`, [countText]);
+        ? t("reclaimableOne", "reclaimable across at least 1 large email")
+        : t("reclaimableMany", `reclaimable across at least ${countText} large emails`, [countText]);
     }
     elements.xrayTotal.classList.add("show");
   };
@@ -5065,7 +5113,9 @@ document.addEventListener("DOMContentLoaded", () => {
             dryRun: stats?.mode === "dry",
             // 8.16: from buildFinalStats, so the screen that says
             // "Cleanup Complete!" says it only when the run was.
-            stoppedShort: Number(stats?.stoppedShort) || 0
+            stoppedShort: Number(stats?.stoppedShort) || 0,
+            // 8.25: dry-run rules that could only see one page.
+            wouldDeleteFloors: Number(stats?.wouldDeleteFloors) || 0
           });
 
           // 7.4: a live result counts as seen; without the marker this

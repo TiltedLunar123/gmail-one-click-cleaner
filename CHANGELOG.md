@@ -3,6 +3,60 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 8.25.0 - Say it when it is a floor
+
+8.24 taught the Mailbox Report to admit when Gmail had given it a page
+instead of a total. Three other screens were still stating the same kind
+of number flatly, and one of them is Dry Run, which exists to be believed
+before you delete anything.
+
+### Fixed
+- **Dry Run says "at least" when it means at least.** A preview reads
+  Gmail's own count, and on a relevance-ranked search Gmail does not give
+  one, so the preview was quoting the fifty rows on screen as the size of
+  a rule holding thousands. The number has not moved. The preview now
+  tells you when the number is a floor, on the popup, on the progress
+  dashboard and in the sentence at the end of the run.
+- **The report stopped inventing a figure for the mail your guards hold
+  back.** That line is one search minus another. Either search can come
+  back without a total, and then the subtraction is wrong in whichever
+  direction the missing number fell. It could claim eleven thousand
+  protected emails from a page of fifty. It could also claim none at all
+  on a mailbox holding thousands back. It now says nothing rather than
+  guessing.
+- **The plus sign is explained in words.** A step reading 50+ said what
+  it meant only if you hovered it, which is no help on a phone or from a
+  keyboard. The note under the report spells it out whenever there is one
+  on screen.
+- **The Storage X-ray counts what it saw.** The megabytes have always
+  been marked as a floor and the email count beside them was not, even
+  though both come from the same sample.
+- **Long runs slow down properly on Traditional Chinese Gmail.** When
+  Gmail asks for a pause it says so in words, and the cleaner knew two of
+  the three Simplified phrasings and only one of the Traditional ones.
+
+### Safety
+- **Rows are only ever read from the list you can see.** Gmail leaves the
+  previous search results in the page after a new search. A handful of
+  lookups could still reach that leftover list while Gmail was redrawing.
+  They are the lookups that tick the checkboxes a delete acts on, name
+  the senders in your recovery log, and pick the message an unsubscribe
+  is driven from. Unsubscribing cannot be undone. None of them will read
+  anything but the live list now.
+
+### Changed
+- **Small text is readable where it sits.** The quiet grey used for hints
+  and secondary links was measured against the plain card. Most of the
+  controls wearing it paint a slightly lighter chip under themselves
+  first, and against that it fell under the readability bar. Six places
+  were writing in a colour picked for a different background: the
+  keyboard hint on the Save button, the Save button itself in light mode,
+  the diagnostics buttons, the Pro line on the Rules page and the privacy
+  link on the Clean tab.
+- **Storage figures drop the pointless decimal.** The X-ray rounds every
+  sender to a whole megabyte, so "900.0 MB" was one digit of precision
+  the scan never had. A real tenth still shows.
+
 ## 8.24.0 - Fifty is not a total
 
 Gmail sorts most searches by relevance now, and when it does that it stops

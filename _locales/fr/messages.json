@@ -176,8 +176,8 @@
   "xrayUpsellMany": { "message": "$1 expéditeurs retiennent au moins $2. Pro purge ceux que vous choisissez pour $$9.99." },
   "xrayUpsellTail": { "message": "Google One demande $$20 par an pour plus d'espace." },
   "purgedChip": { "message": "Purgé" },
-  "reclaimableOne": { "message": "récupérable sur 1 gros e-mail" },
-  "reclaimableMany": { "message": "récupérable sur $1 gros e-mails" },
+  "reclaimableOne": { "message": "récupérable sur au moins 1 e-mail volumineux" },
+  "reclaimableMany": { "message": "récupérable sur au moins $1 e-mails volumineux" },
   "oneSenderRanked": { "message": "1 expéditeur classé" },
   "nSendersRanked": { "message": "$1 expéditeurs classés" },
 
@@ -587,5 +587,10 @@
   "smartUnsubNoBulk": { "message": "Le désabonnement traite un expéditeur à la fois ; utilisez le bouton de cette carte." },
   "xrayPurgeCapped": { "message": "Purge des $1 premiers sur $2 sélectionnés. Relancez pour le reste." },
   "dryRunCompleteStatus": { "message": "simulation terminée" },
-  "dryRunCompleteToast": { "message": "Simulation terminée. Rien n'a été déplacé." }
+  "dryRunCompleteToast": { "message": "Simulation terminée. Rien n'a été déplacé." },
+
+  "resultLeadDryAtLeast": { "message": "Au moins" },
+  "resultNoteDryFloor": { "message": "Ceci était un aperçu. Aucun message n'a été déplacé, supprimé ou libellé. Gmail n'a pas indiqué de total pour chaque règle, donc le nombre réel est plus élevé que celui ci-dessus." },
+  "progDoneMatchedDryFloor": { "message": "au moins $1 e-mails correspondants, rien n'a été déplacé" },
+  "reportNoteFloors": { "message": "Les chiffres viennent de la recherche de Gmail, et un signe plus indique que Gmail n'a pas donné de total pour cette recherche : le nombre réel est donc plus élevé. Les chiffres de stockage sont eux aussi des minimums. Les messages supprimés restent dans la Corbeille environ 30 jours avant que la barre de stockage de Google ne bouge." }
 }

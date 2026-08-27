@@ -176,8 +176,8 @@
   "xrayUpsellMany": { "message": "$1人の差出人が少なくとも$2を占有中。Proなら選んだ相手を$$9.99で一掃。" },
   "xrayUpsellTail": { "message": "Google Oneは容量追加に毎年$$20かかります。" },
   "purgedChip": { "message": "一掃済み" },
-  "reclaimableOne": { "message": "大きなメール1件から回収可能" },
-  "reclaimableMany": { "message": "大きなメール$1件から回収可能" },
+  "reclaimableOne": { "message": "少なくとも 1 件の大きなメールから回収可能" },
+  "reclaimableMany": { "message": "少なくとも $1 件の大きなメールから回収可能" },
   "oneSenderRanked": { "message": "1人をランク付け" },
   "nSendersRanked": { "message": "$1人をランク付け" },
 
@@ -587,5 +587,10 @@
   "smartUnsubNoBulk": { "message": "配信停止は送信者ごとに1件ずつ実行します。このカードのボタンを使ってください。" },
   "xrayPurgeCapped": { "message": "選択した $2 件のうち最初の $1 件を削除します。残りは再度実行してください。" },
   "dryRunCompleteStatus": { "message": "テスト実行が完了しました" },
-  "dryRunCompleteToast": { "message": "テスト実行が完了しました。何も移動していません。" }
+  "dryRunCompleteToast": { "message": "テスト実行が完了しました。何も移動していません。" },
+
+  "resultLeadDryAtLeast": { "message": "一致は少なくとも" },
+  "resultNoteDryFloor": { "message": "これはプレビューです。メールの移動、削除、ラベル付けは行われていません。Gmail がすべてのルールで総数を返さなかったため、実際の数は上の数より多くなります。" },
+  "progDoneMatchedDryFloor": { "message": "少なくとも $1 件のメールが一致しました。移動はされていません" },
+  "reportNoteFloors": { "message": "件数は Gmail の検索結果です。プラス記号は Gmail がその検索の総数を返さなかったことを示すため、実際の数はこれより多くなります。ストレージの数値も下限です。削除したメールは約 30 日間ゴミ箱に残り、その後 Google のストレージ表示に反映されます。" }
 }

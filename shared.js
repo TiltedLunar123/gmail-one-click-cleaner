@@ -352,10 +352,19 @@ const GCC = (() => {
     requestAnimationFrame(step);
   };
 
+  // 8.25: a whole number does not get a ".0". Every figure this formats
+  // is an ESTIMATE built from Gmail's rounded per-message sizes, and the
+  // Storage X-ray rounds each sender to a whole MB before it gets here,
+  // so the tenth was always zero on that screen: "900.0 MB" and
+  // "640.0 MB" beside each other, one digit of precision the scan never
+  // had, on the tab whose whole claim is that its numbers are floors.
+  // The tenth still shows where it carries something (5.5 MB, 2.5 GB),
+  // which is the only case it ever did.
   const formatMb = (mb) => {
     if (!mb || mb < 0.01) return "0 MB";
-    if (mb >= 1024) return (mb / 1024).toFixed(1) + " GB";
-    return mb.toFixed(1) + " MB";
+    const trim = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+    if (mb >= 1024) return trim(Math.round((mb / 1024) * 10) / 10) + " GB";
+    return trim(Math.round(mb * 10) / 10) + " MB";
   };
 
   const formatBytes = (bytes) => {
@@ -1818,6 +1827,16 @@ const GCC = (() => {
     // The band that supplies the figure decides how it is worded, not
     // "any of them was a floor": the largest is one specific band and
     // the sentence is about that band's number.
+    //
+    // 8.25 tried to prefer a band Gmail had actually totalled over a
+    // bigger-looking floor and that was WRONG, kept here because the
+    // reasoning is tempting: a floored band reads as 50, so an exact
+    // band of 60 already outranks it by count on its own, and the only
+    // case the preference changes is the one where the floor is the
+    // biggest count known -- where skipping it puts "the largest holding
+    // 50" next to a step holding at least 9,000. The largest known count
+    // is the largest this report can name. Qualifying it is the fix, and
+    // 8.24 already does that on the next line.
     const largest = locked.reduce((max, b) => (b.count > max.count ? b : max), locked[0]);
     const biggest = largest.count.toLocaleString();
     return largest.atLeast

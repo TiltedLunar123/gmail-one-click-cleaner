@@ -22,6 +22,19 @@
   --on-primary: #04181d;
   --primary-glow: rgba(34, 211, 238, 0.4);
 
+  /* 8.25: the fill under --on-primary text, as ONE token per theme.
+     Every filled control on the Rules and Diagnostics pages wrote this
+     gradient out by hand as --primary-strong to --primary, and in light
+     --primary-strong is #0891b2, which white measures 3.68:1 against. A
+     per-page light override fixes the colour and breaks something else:
+     the base rule is `button, .button-link`, so an override specific
+     enough to beat it also beats `.theme-switcher button`, and the theme
+     pills come back filled with brand and unreadable. Naming the ROLE
+     lets the fill change per theme while every existing override keeps
+     the precedence it already had. Dark is unchanged: near-black ink on
+     neon cyan measures 13.7:1 at the light end of this gradient. */
+  --brand-fill: linear-gradient(135deg, var(--primary-strong), var(--primary));
+
   /* Secondary brand hue (azure) for the cool second glow */
   --accent: #38bdf8;
   --accent-glow: rgba(56, 189, 248, 0.22);
@@ -54,8 +67,18 @@
   --text-main: #e6f1f5;
   --text-secondary: #c5d6dd;
   --text-muted: #8aa0ab;
-  /* Must clear 4.5:1 on --bg-surface cards, not just --bg-deep */
-  --text-dim: #6e8494;
+  /* Must clear 4.5:1 on the ground it is actually painted on.
+     8.19 raised this to #6e8494 for --bg-surface (4.62:1) and stopped
+     there, and the surface is not where most of this ink lands: the
+     controls wearing it paint their OWN wash first. A .linkish chip is
+     rgba(255,255,255,.04) over the card, a toggle row is .02, and every
+     "I have a key", the footer's three links and the three toggle hints
+     sat on those lightened grounds at 4.21 and 4.43. Same shape as the
+     8.19 chip lesson one layer up: an element that tints its own
+     background moves the ground its label has to clear.
+     Measured in a browser: 5.24 on --bg-surface, 4.78 on the .linkish
+     chip, 5.01 on a toggle row. */
+  --text-dim: #758ea0;
 
   --border-subtle: rgba(180, 220, 235, 0.08);
   --border-medium: rgba(180, 220, 235, 0.14);
@@ -194,6 +217,10 @@
   --primary-strong: #0891b2;
   --on-primary: #ffffff;
   --primary-glow: rgba(14, 116, 144, 0.22);
+
+  /* White clears --primary (#0e7490) at 5.36:1 and --primary-hover
+     (#155e75) at 7.21:1, so the light fill starts one step darker. */
+  --brand-fill: linear-gradient(135deg, var(--primary), var(--primary-hover));
 
   --accent: #0284c7;
   --accent-glow: rgba(2, 132, 199, 0.16);

@@ -218,13 +218,18 @@ describe("GCC.popupUi.xrayUpsellLine", () => {
     }
   });
 
+  // 8.25: whole megabytes and whole gigabytes print without a tenth,
+  // because the X-ray rounds every sender to a whole MB before this sees
+  // it and a tenth that cannot vary is precision the scan never had.
+  // See formatMb.
   test("leads with senders and a floor-estimate size", () => {
     const line = UI.xrayUpsellLine(9, 412);
-    expect(line).toBe("9 senders are holding at least 412.0 MB. Pro purges the ones you pick for $9.99.");
+    expect(line).toBe("9 senders are holding at least 412 MB. Pro purges the ones you pick for $9.99.");
   });
 
   test("singular form and GB scaling", () => {
-    expect(UI.xrayUpsellLine(1, 80)).toContain("1 sender is holding at least 80.0 MB");
-    expect(UI.xrayUpsellLine(12, 2048)).toContain("at least 2.0 GB");
+    expect(UI.xrayUpsellLine(1, 80)).toContain("1 sender is holding at least 80 MB");
+    expect(UI.xrayUpsellLine(12, 2048)).toContain("at least 2 GB");
+    expect(UI.xrayUpsellLine(12, 2560)).toContain("at least 2.5 GB");
   });
 });

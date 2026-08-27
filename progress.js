@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const PROGRESS_VERSION = "8.24.0";
+  const PROGRESS_VERSION = "8.25.0";
 
   const CONFIG = Object.freeze({
     MAX_LOG_ENTRIES: 300,
@@ -447,7 +447,17 @@
     if (mode === "dry") {
       chips.push(["Mode", "Dry-run"]);
       const wouldCleanTotal = (stats.totalWouldDelete || 0) + (stats.totalWouldArchive || 0);
-      if (wouldCleanTotal > 0) chips.push(["Would clean", formatNumber(wouldCleanTotal)]);
+      // 8.25: the chip carries the floor mark too. A chip is the shortest
+      // surface in the product and the easiest place for a qualified
+      // figure to lose its qualifier.
+      if (wouldCleanTotal > 0) {
+        chips.push([
+          "Would clean",
+          (Number(stats.wouldDeleteFloors) || 0) > 0
+            ? `${formatNumber(wouldCleanTotal)}+`
+            : formatNumber(wouldCleanTotal)
+        ]);
+      }
     } else {
       chips.push(["Mode", "Live"]);
       const cleanedTotal = (stats.totalDeleted || 0) + (stats.totalArchived || 0);
@@ -590,8 +600,15 @@
     const countText = formatNumber(cleaned);
 
     const main = document.createElement("span");
+    // 8.25: a preview whose rules ran into Gmail's "1-50 of many"
+    // counted a page. The engine sends how many did; this card is the
+    // full-screen version of the popup's result line and states the
+    // figure the same way.
+    const dryFloors = stats.mode === "dry" ? Math.max(0, Number(stats.wouldDeleteFloors) || 0) : 0;
     main.textContent = stats.mode === "dry"
-      ? t("progDoneMatchedDry", `${countText} emails matched, nothing was moved`, [countText])
+      ? (dryFloors > 0
+        ? t("progDoneMatchedDryFloor", `at least ${countText} emails matched, nothing was moved`, [countText])
+        : t("progDoneMatchedDry", `${countText} emails matched, nothing was moved`, [countText]))
       : t("progDoneCleaned", `${countText} emails cleaned`, [countText]);
     ui.doneNumber.appendChild(main);
 

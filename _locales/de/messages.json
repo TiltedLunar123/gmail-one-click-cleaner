@@ -176,8 +176,8 @@
   "xrayUpsellMany": { "message": "$1 Absender halten mindestens $2 fest. Pro entsorgt die von dir gewählten, für $$9.99." },
   "xrayUpsellTail": { "message": "Google One will $$20 pro Jahr für mehr Speicher." },
   "purgedChip": { "message": "Entsorgt" },
-  "reclaimableOne": { "message": "rückholbar in 1 großen E-Mail" },
-  "reclaimableMany": { "message": "rückholbar in $1 großen E-Mails" },
+  "reclaimableOne": { "message": "freigebbar aus mindestens 1 großen E-Mail" },
+  "reclaimableMany": { "message": "freigebbar aus mindestens $1 großen E-Mails" },
   "oneSenderRanked": { "message": "1 Absender gelistet" },
   "nSendersRanked": { "message": "$1 Absender gelistet" },
 
@@ -587,5 +587,10 @@
   "smartUnsubNoBulk": { "message": "Die Abmeldung verarbeitet einen Absender nach dem anderen; nutzen Sie die Schaltfläche auf dieser Karte." },
   "xrayPurgeCapped": { "message": "Die ersten $1 von $2 ausgewählten werden bereinigt. Für den Rest erneut ausführen." },
   "dryRunCompleteStatus": { "message": "Testlauf beendet" },
-  "dryRunCompleteToast": { "message": "Testlauf beendet. Es wurde nichts verschoben." }
+  "dryRunCompleteToast": { "message": "Testlauf beendet. Es wurde nichts verschoben." },
+
+  "resultLeadDryAtLeast": { "message": "Mindestens gefunden" },
+  "resultNoteDryFloor": { "message": "Das war eine Vorschau. Es wurden keine E-Mails verschoben, gelöscht oder beschriftet. Gmail hat nicht für jede Regel eine Gesamtzahl gemeldet, daher ist die tatsächliche Zahl höher als die oben." },
+  "progDoneMatchedDryFloor": { "message": "mindestens $1 E-Mails gefunden, nichts wurde verschoben" },
+  "reportNoteFloors": { "message": "Die Zahlen stammen aus der Gmail-Suche, und ein Pluszeichen bedeutet, dass Gmail für diese Suche keine Gesamtzahl gemeldet hat, die echte Zahl ist also höher. Die Speicherangaben sind ebenfalls Untergrenzen. Gelöschte E-Mails bleiben etwa 30 Tage im Papierkorb, bevor sich die Speicheranzeige von Google ändert." }
 }

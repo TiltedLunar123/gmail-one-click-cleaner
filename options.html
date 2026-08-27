@@ -330,12 +330,32 @@
     }
 
     #save {
-      background: linear-gradient(135deg, var(--primary-strong), var(--primary));
+      background: var(--brand-fill);
       color: var(--on-primary);
       box-shadow: 0 4px 12px var(--primary-glow);
       padding: 10px 28px;
       font-size: 14px;
       font-weight: 700;
+    }
+
+    /* 8.25: the hint the button carries has to be legible on the button.
+       .shortcut-hint and kbd are page styles (a slate on the card, a
+       dark cap with pale ink) and this markup puts both INSIDE the
+       primary control, where the ground is the brand fill. Measured:
+       1.25:1 for the hint and 2.16:1 for the caps. Wearing the button's
+       own ink is the fix, because that colour is already proven against
+       this exact fill, and 0.9 keeps it reading as a hint while clearing
+       4.5:1 at both ends of the gradient in both themes. */
+    #save .shortcut-hint {
+      color: var(--on-primary);
+      opacity: 0.9;
+      margin-left: 8px;
+    }
+
+    #save kbd {
+      background: transparent;
+      border: 1px solid currentColor;
+      color: inherit;
     }
 
     #save:hover:not(:disabled) {
@@ -1007,6 +1027,15 @@
       border-color: rgba(13, 30, 40, 0.12);
     }
     [data-theme="light"] .shortcut-hint { color: var(--text-muted); }
+    /* 8.25: the saved state is the fill problem one colour over.
+       --success in light is #059669 and white on it is 3.76:1, and
+       --ink-good exists for exactly this and takes it to 5.48:1. The
+       ordinary fill is handled by --brand-fill in shared.css. */
+    [data-theme="light"] #save.success {
+      background: linear-gradient(135deg, var(--ink-good), #065f46);
+    }
+    /* The hint keeps the button's ink whichever fill is under it. */
+    [data-theme="light"] #save .shortcut-hint { color: var(--on-primary); }
     [data-theme="light"] kbd {
       background: rgba(13, 30, 40, 0.06);
       color: var(--text-secondary);
