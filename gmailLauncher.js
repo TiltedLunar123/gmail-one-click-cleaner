@@ -40,9 +40,30 @@
   // the check is written the same way here on purpose.
   const isMailboxPath = () => /^\/mail\//.test(location.pathname);
 
+  // How a second copy of this script asks the first whether it is still
+  // alive. An extension update tears down the isolated world its
+  // listeners were built in, but leaves both the host element and those
+  // listeners attached to Gmail's document, so "is the node there" is
+  // not the same question as "is anything still driving it".
+  // chrome.runtime.id goes undefined in an invalidated context, and that
+  // is the difference.
+  const ALIVE_EVENT = "gcc-launcher-alive";
+
   if (window.top !== window) return;
   if (!isMailboxPath()) return;
-  if (document.getElementById(HOST_ID)) return;
+
+  const existing = document.getElementById(HOST_ID);
+  if (existing) {
+    const ask = new CustomEvent(ALIVE_EVENT, { detail: { alive: false } });
+    existing.dispatchEvent(ask);
+    // Someone live already owns the corner. Stand down rather than draw
+    // a second button.
+    if (ask.detail.alive) return;
+    // An orphan from the context this update replaced. Its buttons no
+    // longer reach the worker, so leaving it there is leaving a dead
+    // control in someone's mailbox until they reload Gmail.
+    existing.remove();
+  }
 
   // =========================
   // Small helpers
@@ -571,11 +592,21 @@
 
   const mount = () => {
     if (document.getElementById(HOST_ID)) return;
-    const host = el("div", { id: HOST_ID, "data-gcc-version": LAUNCHER_VERSION });
-    // Open, not closed: the suite drives this file through the shadow
-    // root it builds, and a closed root would only be testable by
-    // reaching for internals the page has no business seeing either.
-    shadow = host.attachShadow({ mode: "open" });
+    // Nothing on this node but the id the dedupe check needs. An earlier
+    // draft also stamped the version here, which put the build number of
+    // an installed extension on a page for anything to read.
+    const host = el("div", { id: HOST_ID });
+    host.addEventListener(ALIVE_EVENT, (event) => {
+      // Undefined in an invalidated context, which is precisely when a
+      // replacement copy should take this node over.
+      if (event.detail) event.detail.alive = Boolean(chrome.runtime?.id);
+    });
+    // Closed. The panel puts counts from the user's own mailbox on
+    // screen, and an open root hands them to any script running on
+    // mail.google.com through host.shadowRoot. The suite reaches the
+    // root by intercepting attachShadow, which the page cannot do after
+    // the fact.
+    shadow = host.attachShadow({ mode: "closed" });
     shadow.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && state.open) {
         event.stopPropagation();
@@ -625,7 +656,11 @@
     // actually differs from what is already on screen.
     if (state.view !== "idle" && state.view !== "result") return;
     const resp = await send({ type: "gmailCleanerLauncherState" });
-    if (!resp?.ok || !state.open) return;
+    // No answer is the shape an extension update leaves behind: the node
+    // is still in Gmail's document and nothing is behind it any more.
+    // Every button in this panel would fail silently, so say why.
+    if (!resp) return setView("stale");
+    if (!resp.ok || !state.open) return;
     if (resp.show === false) return unmount();
     // Checked again after the await: a click lands in the milliseconds
     // the worker takes to answer, and a fresher report is no reason to
@@ -688,6 +723,10 @@
     busy: ["launcherBusy", "Something is already running in this tab. Try again once it finishes."],
     no_mailbox: ["launcherScanFailed", "Could not start the scan here. Open the extension from the toolbar instead."],
     untrusted: ["launcherScanFailed", "Could not start the scan here. Open the extension from the toolbar instead."],
+    // Switched off in Options, or hidden, since this tab was opened. The
+    // storage listener takes the button away a moment later; until then
+    // the refusal is the honest answer.
+    hidden: ["launcherScanFailed", "Could not start the scan here. Open the extension from the toolbar instead."],
     swallowed: ["launcherBusy", "Something is already running in this tab. Try again once it finishes."]
   });
 
@@ -729,8 +768,24 @@
   // Boot
   // =========================
 
+  // Turning the switch off in Options, or hiding from another mailbox
+  // tab, has to reach the tabs that are already open. Without this the
+  // button stays in every one of them until Gmail is reloaded, and the
+  // switch reads as a control that did nothing.
+  const watchTheSwitch = () => {
+    if (!chrome.storage?.onChanged?.addListener) return;
+    chrome.storage.onChanged.addListener(async (changes, area) => {
+      if (area !== "local" || !changes.gmailLauncher || !shadow) return;
+      const resp = await send({ type: "gmailCleanerLauncherState" });
+      if (resp?.ok && resp.show === false) unmount();
+    });
+  };
+
   const boot = async () => {
-    const resp = await send({ type: "gmailCleanerLauncherState" });
+    const resp = await send({
+      type: "gmailCleanerLauncherState",
+      launcher: LAUNCHER_VERSION
+    });
     // No answer at all means no service worker to talk to, which on a
     // freshly reloaded extension is a tab holding a dead port. Drawing a
     // button whose every click fails is worse than drawing nothing.
@@ -738,10 +793,8 @@
 
     state.report = resp.report || null;
     if (resp.greet) {
-      // Cleared before the panel is drawn, not after it is dismissed: a
-      // second Gmail tab opening in the same second must not greet as
-      // well, and a greeting nobody closed should still count as given.
-      send({ type: "gmailCleanerLauncherGreeted" });
+      // The worker spent the greeting to answer this, so a second tab
+      // asking in the same second is told no. Nothing to clear here.
       state.view = "greet";
       state.open = true;
     } else if (resp.busy) {
@@ -754,6 +807,7 @@
 
     mount();
     watchForRemoval();
+    watchTheSwitch();
   };
 
   boot();

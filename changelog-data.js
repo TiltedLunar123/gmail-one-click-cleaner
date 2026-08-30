@@ -18,7 +18,7 @@ var GCC_CHANGELOG = {
       "title": "Be where the mailbox is",
       "intro": [
         "Everything this extension does has lived behind the toolbar icon, and Chrome folds that icon into the puzzle-piece menu until you pin it. So the mailbox report, the storage x-ray and the whole recovery net sat one click behind a button plenty of people never found. An install could go months without ever scanning anything, which is a strange thing to be true of a cleaner.",
-        "There is a small button in the corner of Gmail now. It draws inside a shadow root, so nothing it defines can reach Gmail's page and nothing on that page can reach into it. It reads no mail and walks none of Gmail's interface. The only thing it can start is the free read-only report, which is the same scan the popup runs and the one worth running first. Anything that moves mail stays in the popup, behind the confirmations that are already there.",
+        "There is a small button in the corner of Gmail now. It draws inside a closed shadow root, so nothing it defines can reach Gmail's page, nothing on that page can reach into it, and the counts it shows are not readable by anything else running on mail.google.com. It reads no mail and walks none of Gmail's interface. The only thing it can start is the free read-only report, which is the same scan the popup runs and the one worth running first. Anything that moves mail stays in the popup, behind the confirmations that are already there.",
         "The first mailbox you open after installing gets a greeting, once. After that the button sits closed until you click it, and it opens on whatever the last scan found."
       ],
       "sections": [
@@ -71,6 +71,12 @@ var GCC_CHANGELOG = {
             },
             {
               "text": "The scan the button starts runs in the tab the click came from. Never \"whichever Gmail tab is active\": with two accounts signed in, that is how you measure one mailbox and report on the other."
+            },
+            {
+              "text": "A finished report now records which signed-in mailbox produced it, as an account number and nothing else. The panel in Gmail shows a report only in the mailbox it was measured in, so a second account does not get shown the first one's counts under the words \"this mailbox\". Reports saved by earlier versions carry no such mark and are still shown, because that is what those versions did."
+            },
+            {
+              "text": "Switching the button off, or hiding it, now reaches Gmail tabs that were already open instead of waiting for a reload. The Scan button in a panel that was open when the switch moved refuses rather than running."
             }
           ]
         }

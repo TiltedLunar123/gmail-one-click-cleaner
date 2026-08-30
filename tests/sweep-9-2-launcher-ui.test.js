@@ -77,8 +77,16 @@ const boot = async (state = {}) => {
   await flush();
 };
 
+// The root is closed, so the page cannot reach it and neither can a
+// test through host.shadowRoot. Intercepting attachShadow is how the
+// suite gets in, and it is deliberately something only code running
+// BEFORE the launcher can do: a script that arrives afterwards, which
+// is every script on mail.google.com, has no way back in.
+let shadowRoots;
+const realAttachShadow = Element.prototype.attachShadow;
+
 const host = () => document.getElementById(HOST_ID);
-const root = () => host()?.shadowRoot || null;
+const root = () => (host() ? shadowRoots.get(host()) || null : null);
 const q = (sel) => root()?.querySelector(sel) || null;
 const text = () => root()?.textContent || "";
 const buttonSaying = (label) => [...(root()?.querySelectorAll("button") || [])]
@@ -93,6 +101,13 @@ const RealMutationObserver = global.MutationObserver;
 let observers;
 
 beforeEach(() => {
+  shadowRoots = new Map();
+  Element.prototype.attachShadow = function attachShadow(init) {
+    const created = realAttachShadow.call(this, init);
+    shadowRoots.set(this, created);
+    return created;
+  };
+
   observers = [];
   global.MutationObserver = class extends RealMutationObserver {
     constructor(cb) {
@@ -106,7 +121,6 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/mail/u/0/#inbox");
   sent = [];
   answers = {
-    gmailCleanerLauncherGreeted: { ok: true },
     gmailCleanerLauncherHide: { ok: true },
     gmailCleanerLauncherScan: { ok: true, runId: "launcher_1" },
     gmailCleanerLauncherOpenPopup: { ok: false, error: "unsupported" }
@@ -117,6 +131,7 @@ beforeEach(() => {
 afterEach(() => {
   for (const observer of observers) observer.disconnect();
   global.MutationObserver = RealMutationObserver;
+  Element.prototype.attachShadow = realAttachShadow;
   jest.useRealTimers();
 });
 
@@ -130,6 +145,16 @@ describe("what it draws, and what it leaves alone", () => {
     // Nothing of this extension's styling may reach Gmail's document.
     expect(document.head.querySelector("style")).toBeNull();
     expect(root().querySelector("style")).not.toBeNull();
+  });
+
+  test("the page cannot read the panel, and the node carries no version", async () => {
+    await boot({ report: REPORT });
+    q(".pill").click();
+    // What a script on mail.google.com sees: a div with an id, no way
+    // into the root, and none of the user's counts.
+    expect(host().shadowRoot).toBeNull();
+    expect(host().outerHTML).toBe(`<div id="${HOST_ID}"></div>`);
+    expect(host().textContent).toBe("");
   });
 
   test("the pill says something, from the catalogue rather than a blank", async () => {
@@ -161,9 +186,28 @@ describe("what it draws, and what it leaves alone", () => {
 
   test("running twice does not stack a second button", async () => {
     await boot();
+    const first = host();
     new Function(SRC)();
     await flush();
     expect(document.querySelectorAll(`#${HOST_ID}`)).toHaveLength(1);
+    // The live copy keeps the corner rather than being replaced.
+    expect(host()).toBe(first);
+  });
+
+  test("an orphan left by an update is taken over, not stood down in front of", async () => {
+    await boot();
+    const orphan = host();
+    // What an invalidated context looks like from the page: the node and
+    // its listeners are still there, and chrome.runtime.id is gone. The
+    // old copy answers the liveness question honestly, with a no.
+    global.chrome.runtime.id = undefined;
+
+    new Function(SRC)();
+    await flush();
+
+    expect(document.querySelectorAll(`#${HOST_ID}`)).toHaveLength(1);
+    expect(host()).not.toBe(orphan);
+    expect(q(".pill")).not.toBeNull();
   });
 
   test("it puts itself back if something removes it", async () => {
@@ -182,9 +226,10 @@ describe("the one greeting", () => {
     await boot({ greet: true });
     expect(q(".panel")).not.toBeNull();
     expect(text()).toContain(CATALOG.launcherGreetTitle.message);
-    // Marked at the moment it is drawn, not when it is closed: a second
-    // Gmail tab opening in the same second must not greet as well.
-    expect(sent.map((m) => m.type)).toContain("gmailCleanerLauncherGreeted");
+    // The page sends nothing to claim the greeting: answering the state
+    // question is what spends it, in the worker, under its lock. See the
+    // worker suite for the two-tabs-at-once half of that.
+    expect(sent.map((m) => m.type)).toEqual(["gmailCleanerLauncherState"]);
   });
 
   test("Not now puts it back to the pill", async () => {

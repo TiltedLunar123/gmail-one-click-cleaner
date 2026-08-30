@@ -119,6 +119,16 @@ beforeEach(() => {
   injectedFiles = [];
   attached = false;
   pingRunId = "";
+  // Rebuilt, not just cleared: one test below replaces this outright to
+  // model an engine that belongs to somebody else, and clearAllMocks
+  // does not put a replaced property back.
+  chrome.tabs.sendMessage = jest.fn(async () => ({
+    ok: true,
+    phase: "running",
+    version: "9.2.0",
+    runId: pingRunId,
+    runKind: "reportScan"
+  }));
   jest.clearAllMocks();
 });
 
@@ -201,12 +211,67 @@ describe("the one greeting", () => {
     expect((await state()).greet).toBe(false);
   });
 
-  test("marking it given clears it, and leaves the button on", async () => {
+  test("answering the question is what spends it", async () => {
     storageBacking.local.gmailLauncher = { greetPending: true };
-    await dispatch({ type: "gmailCleanerLauncherGreeted" });
+    expect((await state()).greet).toBe(true);
     expect(record().greetPending).toBe(false);
+    // And the button stays, which is the point: the greeting is spent,
+    // not the launcher.
+    expect(await state()).toMatchObject({ show: true, greet: false });
+  });
+
+  test("two mailbox tabs asking at once, and only one of them is the first", async () => {
+    storageBacking.local.gmailLauncher = { greetPending: true };
+    // Both dispatched before either has answered. The read and the clear
+    // are one operation under the storage lock, so the second one sees a
+    // record that has already been spent.
+    const a = jest.fn();
+    const b = jest.fn();
+    onMessageCb({ type: "gmailCleanerLauncherState" }, { tab: MAILBOX_TAB }, a);
+    onMessageCb({ type: "gmailCleanerLauncherState" }, { tab: { id: 78, url: MAILBOX_TAB.url } }, b);
+    await new Promise((r) => setTimeout(r, 120));
+
+    const greets = [a, b].map((fn) => fn.mock.calls[0][0].greet);
+    expect(greets.filter(Boolean)).toHaveLength(1);
+  });
+});
+
+describe("one report, two signed-in mailboxes", () => {
+  test("a report measured somewhere else is not handed to this tab", async () => {
+    storageBacking.local.mailboxReport = { ...REPORT, account: "1" };
     const resp = await state();
-    expect(resp).toMatchObject({ show: true, greet: false });
+    expect(resp.show).toBe(true);
+    expect(resp.report).toBeNull();
+  });
+
+  test("the tab that measured it still gets it", async () => {
+    storageBacking.local.mailboxReport = { ...REPORT, account: "0" };
+    expect((await state()).report.cleanableCount).toBe(12000);
+  });
+
+  test("a report from before this release has no account, and is shown", async () => {
+    storageBacking.local.mailboxReport = REPORT;
+    expect((await state()).report.cleanableCount).toBe(12000);
+  });
+
+  test("a finished scan is stamped with the mailbox it was measured in", async () => {
+    await dispatch({
+      type: "gmailCleanerReportScanResult",
+      bands: [{ id: "promotions", kind: "noise", action: "delete", count: 8000, estMb: 0 }],
+      cleanableCount: 12000,
+      largeMb: 100
+    }, { tab: { id: 90, url: "https://mail.google.com/mail/u/2/#inbox" } });
+    expect(storageBacking.local.mailboxReport.account).toBe("2");
+  });
+
+  test("a scan whose sender is not a mailbox is stamped with nothing, not with account zero", async () => {
+    await dispatch({
+      type: "gmailCleanerReportScanResult",
+      bands: [{ id: "promotions", kind: "noise", action: "delete", count: 1, estMb: 0 }],
+      cleanableCount: 1,
+      largeMb: 0
+    }, { id: "test-extension-id" });
+    expect(storageBacking.local.mailboxReport.account).toBe("");
   });
 });
 
@@ -247,8 +312,15 @@ describe("starting the report from inside Gmail", () => {
 
   test("measures through the switches the popup's own buttons apply", async () => {
     storageBacking.local.lastUiSnapshot = { safeMode: true, minAge: "1y", guardSkipUnread: false };
-    storageBacking.local.whitelist = ["boss@work.com"];
-    storageBacking.local.protectKeywords = ["invoice"];
+    // SYNC. The Never-Delete list and the protected keywords live there:
+    // Options writes them there, the popup reads them there, and so do
+    // the scheduled sweeps and Auto-Pilot. An earlier draft of this
+    // feature read local, which is always empty for these two, so the
+    // panel would have counted mail the Clean button refuses to touch
+    // and this test would have passed anyway by writing to the same
+    // wrong place. Writing sync here is the assertion.
+    storageBacking.sync.whitelist = ["boss@work.com"];
+    storageBacking.sync.protectKeywords = ["invoice"];
 
     await scan();
     expect(injectedConfig).toMatchObject({
@@ -310,6 +382,26 @@ describe("starting the report from inside Gmail", () => {
     chrome.tabs.sendMessage = jest.fn(async () => ({ ok: true, phase: "running", runId: "somebody_else" }));
     const resp = await scan();
     expect(resp).toEqual({ ok: false, error: "swallowed" });
+  });
+
+  test("refuses once the button has been switched off or hidden", async () => {
+    // A Gmail tab opened before the switch moved still has a live panel
+    // in it. The Scan button in that panel is not a way around the
+    // switch.
+    storageBacking.local.gmailLauncher = { enabled: false };
+    expect(await scan()).toEqual({ ok: false, error: "hidden" });
+
+    storageBacking.local.gmailLauncher = { hideUntil: Date.now() + 60000 };
+    expect(await scan()).toEqual({ ok: false, error: "hidden" });
+    expect(injectedFiles).toEqual([]);
+  });
+
+  test("a scan takes no run claim, and leaves none behind", async () => {
+    // Read-only runs never claim ACTIVE_RUN: a marker for a scan is one
+    // more thing that can strand, and a stranded one books the mailbox
+    // for the whole two-hour TTL.
+    expect((await scan()).ok).toBe(true);
+    expect(storageBacking.local.activeRun).toBeUndefined();
   });
 
   test("an untrusted copy cannot start a scan either", async () => {

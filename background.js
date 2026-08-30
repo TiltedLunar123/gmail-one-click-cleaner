@@ -1413,7 +1413,11 @@
 
       // Mailbox Report (8.0): persist the latest read-only band scan.
       case "gmailCleanerReportScanResult":
-        withStorageLock(() => recordReportScan(msg))
+        // 9.2: stamped with the mailbox it was measured in, taken from
+        // the sender rather than the payload so the engine cannot claim
+        // one. Only the account index, which is what tells two open
+        // mailboxes apart and is not an address.
+        withStorageLock(() => recordReportScan(msg, launcherAccountOf(sender.tab?.url)))
           .then(() => sendResponse({ ok: true }));
         return true;
 
@@ -1505,15 +1509,12 @@
       // the policy (hidden, snoozed, already greeted) in the file the
       // tests already cover.
       case "gmailCleanerLauncherState":
-        launcherState()
+        // Under the lock because answering "yes, you are the first" also
+        // spends the greeting, and two tabs asking at once must not both
+        // be told yes.
+        withStorageLock(() => launcherState(sender.tab))
           .then((state) => sendResponse({ ok: true, ...state }))
           .catch((err) => sendResponse({ ok: false, error: err?.message || "Failed" }));
-        return true;
-
-      case "gmailCleanerLauncherGreeted":
-        withStorageLock(() => setLauncherRecord({ greetPending: false }))
-          .then(() => sendResponse({ ok: true }))
-          .catch(() => sendResponse({ ok: false }));
         return true;
 
       case "gmailCleanerLauncherHide":
@@ -2513,7 +2514,7 @@
     return Math.min(n, REPORT_MAX_COUNT);
   };
 
-  async function recordReportScan(msg) {
+  async function recordReportScan(msg, account) {
     const bands = Array.isArray(msg?.bands) ? msg.bands : null;
     if (!bands) return;
     try {
@@ -2597,6 +2598,11 @@
       await chrome.storage.local.set({
         [STORAGE_KEYS.REPORT]: {
           updatedAt: Date.now(),
+          // 9.2: which signed-in mailbox produced these counts, as an
+          // index and nothing more. Empty when the sender's tab could
+          // not be read, and empty is how every report written before
+          // this release reads, so absent means "unknown, show it".
+          account: typeof account === "string" ? account : "",
           bands: clean,
           cleanableCount: clampReportNumber(msg?.cleanableCount),
           // 8.24: and whether Gmail stated a total for it. Same default
@@ -3687,7 +3693,15 @@
     return !(Number(rec.hideUntil) > now);
   }
 
-  async function launcherState() {
+  // Which signed-in mailbox this tab is showing, or "" when the URL is
+  // not a mailbox at all. gmailAccountOf reads a missing /u/<n>/ segment
+  // as account 0, which is right for a Gmail URL and wrong for anything
+  // else, so the mailbox test comes first.
+  function launcherAccountOf(url) {
+    return isMailboxTab(url) ? gmailAccountOf(url) : "";
+  }
+
+  async function launcherState(tab) {
     const rec = await readLauncherRecord();
     const untrusted = await isUntrustedInstall();
     if (!launcherVisible(rec, untrusted, Date.now())) {
@@ -3706,9 +3720,26 @@
       report = null;
     }
 
+    // A report measured on another signed-in account is not what this
+    // mailbox is holding, and the panel says "this mailbox". One store
+    // holds one report, so with two accounts open the second tab would
+    // otherwise show the first tab's counts under that sentence, which
+    // is the whole class of defect 9.0 was about. Reports written before
+    // this release carry no account: absent means unknown, and unknown
+    // is shown, because that is what every earlier version did.
+    const account = launcherAccountOf(tab?.url);
+    if (report?.account && account && report.account !== account) report = null;
+
+    // The greeting is spent here, inside the lock the caller holds,
+    // rather than by a second message from the page. Reading it and
+    // clearing it in one step is what stops two Gmail tabs opened in the
+    // same second from both being told they are the first.
+    const greet = rec.greetPending === true;
+    if (greet) await setLauncherRecord({ greetPending: false });
+
     return {
       show: true,
-      greet: rec.greetPending === true,
+      greet,
       // A boolean, not the claim. hasActiveRun() answers with the whole
       // marker (tab id, run id, when it started) and the launcher needs
       // one bit of that; handing a content script the rest would be a
@@ -3735,14 +3766,36 @@
     if (typeof tabId !== "number" || !isMailboxTab(tab?.url)) {
       return { ok: false, error: "no_mailbox" };
     }
-    if (await isUntrustedInstall()) return { ok: false, error: "untrusted" };
-    if (await hasActiveRun()) return { ok: false, error: "busy" };
-    if (await isEngineAttached(tabId)) return { ok: false, error: "busy" };
+    const untrusted = await isUntrustedInstall();
+    if (untrusted) return { ok: false, error: "untrusted" };
 
-    const stored = await chrome.storage.local.get([
+    // The same answer the button itself is drawn from. Without this, a
+    // launcher switched off in Options is still a live Scan button in
+    // every Gmail tab that was already open when the switch moved.
+    if (!launcherVisible(await readLauncherRecord(), untrusted, Date.now())) {
+      return { ok: false, error: "hidden" };
+    }
+
+    // Everything read BEFORE the attach check, so the window between
+    // "nothing is attached here" and the injection is two calls wide
+    // rather than four. The engine takes its config from a window global
+    // that a scheduled run writes the same way, and Issue #6 is what
+    // happens when two writers meet in that gap.
+    //
+    // Sync, not local. The Never-Delete list and the protected keywords
+    // live in chrome.storage.sync: Options writes them there, the popup
+    // reads them there, and so do the scheduled sweeps and Auto-Pilot.
+    // Reading local here handed the engine two empty arrays, so the
+    // counts in the panel would have promised mail the Clean button
+    // refuses to touch. That is 8.5 again, in a new surface.
+    const stored = await chrome.storage.sync.get([
       STORAGE_KEYS.WHITELIST,
       STORAGE_KEYS.PROTECT_KEYWORDS
     ]);
+    const guards = await readUserScanGuards();
+
+    if (await hasActiveRun()) return { ok: false, error: "busy" };
+    if (await isEngineAttached(tabId)) return { ok: false, error: "busy" };
 
     const runId = `launcher_${Date.now()}`;
     const config = {
@@ -3751,7 +3804,7 @@
       // The popup's own switches, for the reason 8.11 gives on the
       // Auto-Pilot scan: this scan overwrites the store the popup reads,
       // so it has to measure what the popup's buttons would act on.
-      ...(await readUserScanGuards()),
+      ...guards,
       whitelist: Array.isArray(stored?.[STORAGE_KEYS.WHITELIST])
         ? stored[STORAGE_KEYS.WHITELIST]
         : [],
