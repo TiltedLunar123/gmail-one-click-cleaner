@@ -21,7 +21,11 @@ const SCRIPT_VERSIONS = [
   ["options.js", "OPTIONS_VERSION"],
   ["progress.js", "PROGRESS_VERSION"],
   ["diagnostics.js", "DIAGNOSTICS_VERSION"],
-  ["changelog.js", "CHANGELOG_VERSION"]
+  ["changelog.js", "CHANGELOG_VERSION"],
+  // 9.2: the in-Gmail launcher. It stamps its version onto the host
+  // element it appends to the page, which is the one place a support
+  // question can read which build drew the button.
+  ["gmailLauncher.js", "LAUNCHER_VERSION"]
 ];
 
 const HTML_BADGES = [

@@ -668,5 +668,32 @@
   "receiptStoppedStale": { "message": "前回の確認時は停止していました" },
   "receiptCheckedOn": { "message": "最終確認" },
 
-  "censusUnreadable": { "message": "前回の集計を読み取れなかったため、使用しませんでした。今あなたの受信トレイを埋めているのが誰かを見るには、もう一度スキャンしてください。" }
+  "censusUnreadable": { "message": "前回の集計を読み取れなかったため、使用しませんでした。今あなたの受信トレイを埋めているのが誰かを見るには、もう一度スキャンしてください。" },
+
+  "launcherPill": { "message": "Gmail を整理" },
+  "launcherHide": { "message": "非表示" },
+  "launcherClose": { "message": "閉じる" },
+  "launcherGreetTitle": { "message": "Gmail クリーナーの準備ができました" },
+  "launcherGreetBody": { "message": "まだ何もスキャンしていません。スキャンは無料で読み取り専用です。安全に削除できる量を数えるだけで、メールは動かしません。" },
+  "launcherIdleTitle": { "message": "このメールボックスを整理" },
+  "launcherScanCta": { "message": "このメールボックスをスキャン" },
+  "launcherNotNow": { "message": "後で" },
+  "launcherPinHint": { "message": "ブラウザのツールバーに拡張機能をピン留めすると、すべての機能に届きます。" },
+  "launcherScanningTitle": { "message": "メールボックスを読み取り中" },
+  "launcherScanningBody": { "message": "検索を数回行うだけです。メールは開かれず、動かされません。少しお待ちください。" },
+  "launcherResultTitle": { "message": "このメールボックスの中身" },
+  "launcherStatEmails": { "message": "件が削除できる古さです" },
+  "launcherStatStorage": { "message": "古くて大きいメールの容量" },
+  "launcherResultFoot": { "message": "プラス記号は「少なくともこの数」という意味です。数値はすべて Gmail 自身の検索によるものです。" },
+  "launcherResultEmpty": { "message": "削除できるほど古いものはまだありません。きれいなメールボックスです。" },
+  "launcherOpenCta": { "message": "クリーナーを開く" },
+  "launcherRescan": { "message": "もう一度スキャン" },
+  "launcherBusy": { "message": "このタブでは別の処理が実行中です。終わってからもう一度お試しください。" },
+  "launcherScanFailed": { "message": "ここではスキャンを開始できませんでした。ツールバーから拡張機能を開いてください。" },
+  "launcherScanSlow": { "message": "スキャンにいつもより時間がかかっています。ツールバーから拡張機能を開いて確認してください。" },
+  "launcherStale": { "message": "拡張機能が更新されました。このボタンを使うには Gmail を再読み込みしてください。" },
+  "launcherHideAsk": { "message": "このボタンを非表示にしますか?" },
+  "launcherHide30": { "message": "30 日間" },
+  "launcherHideOff": { "message": "オフにする" },
+  "launcherHiddenNote": { "message": "設定にある切り替えで戻せます。" }
 }

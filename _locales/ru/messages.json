@@ -668,5 +668,32 @@
   "receiptStoppedStale": { "message": "При последней проверке остановился" },
   "receiptCheckedOn": { "message": "Последняя проверка" },
 
-  "censusUnreadable": { "message": "Последний подсчёт не удалось прочитать, поэтому он не использовался. Просканируйте ещё раз, чтобы увидеть, кто заполняет ваш ящик сейчас." }
+  "censusUnreadable": { "message": "Последний подсчёт не удалось прочитать, поэтому он не использовался. Просканируйте ещё раз, чтобы увидеть, кто заполняет ваш ящик сейчас." },
+
+  "launcherPill": { "message": "Очистить Gmail" },
+  "launcherHide": { "message": "Скрыть" },
+  "launcherClose": { "message": "Закрыть" },
+  "launcherGreetTitle": { "message": "Очистка Gmail готова к работе" },
+  "launcherGreetBody": { "message": "Ничего ещё не проверялось. Проверка бесплатна и только читает: она считает, что можно безопасно удалить, и ничего не перемещает." },
+  "launcherIdleTitle": { "message": "Очистить этот ящик" },
+  "launcherScanCta": { "message": "Проверить этот ящик" },
+  "launcherNotNow": { "message": "Не сейчас" },
+  "launcherPinHint": { "message": "Закрепите расширение на панели браузера, чтобы открыть все инструменты." },
+  "launcherScanningTitle": { "message": "Читаем ваш ящик" },
+  "launcherScanningBody": { "message": "Несколько поисковых запросов, ничего не открывается и не перемещается. Подождите немного." },
+  "launcherResultTitle": { "message": "Что лежит в этом ящике" },
+  "launcherStatEmails": { "message": "писем старше срока очистки" },
+  "launcherStatStorage": { "message": "в старых и тяжёлых письмах" },
+  "launcherResultFoot": { "message": "Знак плюс означает «не меньше этого». Все числа взяты из собственного поиска Gmail." },
+  "launcherResultEmpty": { "message": "Пока нет ничего достаточно старого. Ящик чистый." },
+  "launcherOpenCta": { "message": "Открыть очистку" },
+  "launcherRescan": { "message": "Проверить снова" },
+  "launcherBusy": { "message": "В этой вкладке уже что-то выполняется. Повторите, когда закончится." },
+  "launcherScanFailed": { "message": "Здесь не удалось начать проверку. Откройте расширение с панели браузера." },
+  "launcherScanSlow": { "message": "Проверка идёт дольше обычного. Откройте расширение с панели браузера, чтобы следить за ней." },
+  "launcherStale": { "message": "Расширение обновилось. Перезагрузите Gmail, чтобы пользоваться этой кнопкой." },
+  "launcherHideAsk": { "message": "Скрыть эту кнопку?" },
+  "launcherHide30": { "message": "На 30 дней" },
+  "launcherHideOff": { "message": "Выключить" },
+  "launcherHiddenNote": { "message": "В настройках есть переключатель, чтобы вернуть её." }
 }

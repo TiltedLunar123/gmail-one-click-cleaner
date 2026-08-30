@@ -6,13 +6,82 @@
 // even of a file inside the package, would end the extension's
 // no-network-calls promise.
 //
-// Carries the newest 12 of 84 releases; the page says so
+// Carries the newest 12 of 85 releases; the page says so
 // and links the full log on GitHub.
 
 // eslint-disable-next-line no-unused-vars
 var GCC_CHANGELOG = {
-  "total": 84,
+  "total": 85,
   "entries": [
+    {
+      "version": "9.2.0",
+      "title": "Be where the mailbox is",
+      "intro": [
+        "Everything this extension does has lived behind the toolbar icon, and Chrome folds that icon into the puzzle-piece menu until you pin it. So the mailbox report, the storage x-ray and the whole recovery net sat one click behind a button plenty of people never found. An install could go months without ever scanning anything, which is a strange thing to be true of a cleaner.",
+        "There is a small button in the corner of Gmail now. It draws inside a closed shadow root, so nothing it defines can reach Gmail's page, nothing on that page can reach into it, and the counts it shows are not readable by anything else running on mail.google.com. It reads no mail and walks none of Gmail's interface. The only thing it can start is the free read-only report, which is the same scan the popup runs and the one worth running first. Anything that moves mail stays in the popup, behind the confirmations that are already there.",
+        "The first mailbox you open after installing gets a greeting, once. After that the button sits closed until you click it, and it opens on whatever the last scan found."
+      ],
+      "sections": [
+        {
+          "name": "Added",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "A cleaner button in the corner of Gmail."
+                ],
+                [
+                  "",
+                  " Small, in the bottom right, and it opens a panel rather than doing anything on its own. Escape closes it. It never appears on a copy of the extension that was planted by other software rather than installed from a store, which is the same rule that keeps scheduled sweeps off those copies."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The free mailbox report, started from inside Gmail."
+                ],
+                [
+                  "",
+                  " One click, the same read-only scan the popup runs, measured through the same safety switches so the counts describe what the popup's buttons would do. The panel then shows how many emails are old enough to clear, how many megabytes are sitting in old and large mail, and the three biggest steps by count."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Cleaner button inside Gmail, on the Options page."
+                ],
+                [
+                  "",
+                  " A switch, on by default. The panel can also hide the button for 30 days, and turning the switch back on clears that too, because a switch that reads on while the button stays gone is a switch that lies."
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Changed",
+          "items": [
+            {
+              "text": "The panel refuses to start a scan when anything else is already running in that tab, and says so, instead of injecting a second engine on top of the first."
+            },
+            {
+              "text": "The scan the button starts runs in the tab the click came from. Never \"whichever Gmail tab is active\": with two accounts signed in, that is how you measure one mailbox and report on the other."
+            },
+            {
+              "text": "A finished report now records which signed-in mailbox produced it, as an account number and nothing else. The panel in Gmail shows a report only in the mailbox it was measured in, so a second account does not get shown the first one's counts under the words \"this mailbox\". Reports saved by earlier versions carry no such mark and are still shown, because that is what those versions did."
+            },
+            {
+              "text": "Switching the button off, or hiding it, now reaches Gmail tabs that were already open instead of waiting for a reload. The Scan button in a panel that was open when the switch moved refuses rather than running."
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "9.1.0",
       "title": "Say it before the click, not after",
@@ -1247,170 +1316,6 @@ var GCC_CHANGELOG = {
             },
             {
               "text": "The first claim in that policy is that the extension makes no network requests, and the policy now shows you the one-line command that checks it for yourself."
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "version": "8.18.0",
-      "title": "A calmer popup, and motion that means something",
-      "intro": [
-        "The Clean tab showed thirteen things at once while every other tab showed three or four, and the six controls at the middle of it were one decision pretending to be six. They are drawn as one group now. Nothing was removed and nothing was hidden: the safety and privacy lines still sit right under the button they describe, where they have been since 8.7.",
-        "The rest is motion, and the point of it is that the parts you drive now respond. Switching tabs, a scan filling a list, a count landing, a button being pressed: all of those used to happen between one frame and the next. The parts that already animated were mostly the parts nobody touches."
-      ],
-      "sections": [
-        {
-          "name": "Added",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "The tab bar has one indicator that slides between tabs"
-                ],
-                [
-                  "",
-                  ", so the selection travels instead of blinking out on one tab and in on another."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Scan results arrive a row at a time."
-                ],
-                [
-                  "",
-                  " Thirty senders appearing in a single frame reads as a flash; the same thirty arriving over a third of a second reads as a result."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The Mailbox Report's headline count rolls up to its total"
-                ],
-                [
-                  "",
-                  ", as do the four figures on the Stats page."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Buttons press."
-                ],
-                [
-                  "",
-                  " They compress quickly under the pointer and spring back, rather than changing colour and nothing else."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A run with no count yet shows a moving bar"
-                ],
-                [
-                  "",
-                  " instead of an empty one. An empty bar and a stalled run looked the same."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The daily-activity chart animates."
-                ],
-                [
-                  "",
-                  " It always carried the instruction to and never once obeyed it: the bars were sized before they were on the page, so there was nothing to animate from."
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "name": "Fixed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "The skip link on the progress page was almost invisible."
-                ],
-                [
-                  "",
-                  " White text on the cyan background measured 1.81:1, and that link exists only for people navigating by keyboard or screen reader."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Half of the Cancel button was unreadable."
-                ],
-                [
-                  "",
-                  " Its background faded from a light red where the white label measured 2.77:1. Both ends clear 4.5:1 now. It is the button that stops a run, so it should be the easiest one to read."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The scan buttons were the wrong blue in the light theme."
-                ],
-                [
-                  "",
-                  " They hardcoded the dark theme's bright cyan, so on the light theme three of the four tabs had a neon edge on a white card."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Chart bars can be read without a mouse."
-                ],
-                [
-                  "",
-                  " They are focusable and announce their date and count, instead of showing it only on hover."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Settings had one panel with a border that never drew"
-                ],
-                [
-                  "",
-                  ", because it named a colour that does not exist."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Reduced motion now also switches off the row-by-row timing."
-                ],
-                [
-                  "",
-                  " Without that the new stagger would have survived as a flicker for exactly the people who asked for less movement."
-                ]
-              ]
             }
           ]
         }

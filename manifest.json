@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "__MSG_appName__",
   "short_name": "Gmail Cleaner",
-  "version": "9.1.0",
-  "version_name": "9.1.0 - Say it before the click, not after",
+  "version": "9.2.0",
+  "version_name": "9.2.0 - Be where the mailbox is",
   "description": "__MSG_appDesc__",
   "default_locale": "en",
   "minimum_chrome_version": "110",
@@ -12,6 +12,14 @@
   "background": {
     "service_worker": "background.js"
   },
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": ["gmailLauncher.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_title": "Gmail One-Click Cleaner",

@@ -668,5 +668,32 @@
   "receiptStoppedStale": { "message": "Parado na última checagem" },
   "receiptCheckedOn": { "message": "Última checagem" },
 
-  "censusUnreadable": { "message": "O último censo não pôde ser lido, então não foi usado. Escaneie de novo para ver quem enche sua caixa agora." }
+  "censusUnreadable": { "message": "O último censo não pôde ser lido, então não foi usado. Escaneie de novo para ver quem enche sua caixa agora." },
+
+  "launcherPill": { "message": "Limpar o Gmail" },
+  "launcherHide": { "message": "Ocultar" },
+  "launcherClose": { "message": "Fechar" },
+  "launcherGreetTitle": { "message": "Seu limpador do Gmail está pronto" },
+  "launcherGreetBody": { "message": "Nada foi verificado ainda. A verificação é gratuita e só de leitura: ela conta o que dá para limpar com segurança e não move nada." },
+  "launcherIdleTitle": { "message": "Limpar esta caixa de entrada" },
+  "launcherScanCta": { "message": "Verificar esta caixa" },
+  "launcherNotNow": { "message": "Agora não" },
+  "launcherPinHint": { "message": "Fixe a extensão na barra de ferramentas do navegador para alcançar todas as ferramentas." },
+  "launcherScanningTitle": { "message": "Lendo sua caixa de entrada" },
+  "launcherScanningBody": { "message": "Algumas buscas, nada é aberto e nada é movido. Aguarde um instante." },
+  "launcherResultTitle": { "message": "O que esta caixa está guardando" },
+  "launcherStatEmails": { "message": "e-mails com idade suficiente para limpar" },
+  "launcherStatStorage": { "message": "em mensagens antigas e grandes" },
+  "launcherResultFoot": { "message": "O sinal de mais quer dizer pelo menos essa quantidade. Cada número vem da própria busca do Gmail." },
+  "launcherResultEmpty": { "message": "Nada com idade suficiente ainda. Esta caixa está limpa." },
+  "launcherOpenCta": { "message": "Abrir o limpador" },
+  "launcherRescan": { "message": "Verificar de novo" },
+  "launcherBusy": { "message": "Já existe algo em execução nesta aba. Tente novamente quando terminar." },
+  "launcherScanFailed": { "message": "Não foi possível iniciar a verificação aqui. Abra a extensão pela barra de ferramentas." },
+  "launcherScanSlow": { "message": "A verificação está demorando mais que o normal. Abra a extensão pela barra de ferramentas para acompanhar." },
+  "launcherStale": { "message": "A extensão foi atualizada. Recarregue o Gmail para usar este botão." },
+  "launcherHideAsk": { "message": "Ocultar este botão?" },
+  "launcherHide30": { "message": "Por 30 dias" },
+  "launcherHideOff": { "message": "Desligar" },
+  "launcherHiddenNote": { "message": "As Configurações têm um botão para trazer de volta." }
 }

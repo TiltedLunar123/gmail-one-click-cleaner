@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "9.1.0";
+  const SW_VERSION = "9.2.0";
 
   // =========================
   // Storage Keys
@@ -34,6 +34,13 @@
     // Google or Mozilla account. Same reasoning as 7.15's query strip.
     REPORT: "mailboxReport",
     REPORT_PENDING: "reportPendingPurge",
+
+    // 9.2 in-Gmail launcher: whether the button draws in Gmail, until
+    // when a Hide click silences it, and whether the first mailbox this
+    // browser opens after install still owes the user a greeting. Local,
+    // never sync: it describes this browser's Gmail tabs, and a greeting
+    // already given here should still be given on a new machine.
+    LAUNCHER: "gmailLauncher",
 
     // 8.9: the version whose release notes were last opened in THIS
     // browser. Local, not sync: reading the notes on one machine should
@@ -333,6 +340,12 @@
     // alone: an absent or older one is what puts the dot on the popup's
     // version button.
     if (details.reason === "install") await markChangelogSeen();
+
+    // 9.2: arm the one greeting the in-Gmail launcher gives. Fresh
+    // installs only. An update must not re-greet someone who has been
+    // using the extension for a year, and the flag is what the launcher
+    // clears the first time it draws the welcome.
+    if (details.reason === "install") await armLauncherGreeting();
 
     // Restore saved schedules
     await restoreScheduledAlarms();
@@ -1400,7 +1413,11 @@
 
       // Mailbox Report (8.0): persist the latest read-only band scan.
       case "gmailCleanerReportScanResult":
-        withStorageLock(() => recordReportScan(msg))
+        // 9.2: stamped with the mailbox it was measured in, taken from
+        // the sender rather than the payload so the engine cannot claim
+        // one. Only the account index, which is what tells two open
+        // mailboxes apart and is not an address.
+        withStorageLock(() => recordReportScan(msg, launcherAccountOf(sender.tab?.url)))
           .then(() => sendResponse({ ok: true }));
         return true;
 
@@ -1481,6 +1498,45 @@
         restoreAutoPilotAlarm()
           .then(() => sendResponse({ ok: true }))
           .catch((err) => sendResponse({ ok: false, error: err?.message || "Failed" }));
+        return true;
+
+      // =========================
+      // In-Gmail launcher (9.2)
+      // =========================
+      // The launcher is a content script, so it cannot read the licence,
+      // the install source or the report for itself: everything it draws
+      // is decided here and handed over in one answer. That also keeps
+      // the policy (hidden, snoozed, already greeted) in the file the
+      // tests already cover.
+      case "gmailCleanerLauncherState":
+        // Under the lock because answering "yes, you are the first" also
+        // spends the greeting, and two tabs asking at once must not both
+        // be told yes.
+        withStorageLock(() => launcherState(sender.tab))
+          .then((state) => sendResponse({ ok: true, ...state }))
+          .catch((err) => sendResponse({ ok: false, error: err?.message || "Failed" }));
+        return true;
+
+      case "gmailCleanerLauncherHide":
+        withStorageLock(() => hideLauncher(msg.forever === true))
+          .then((rec) => sendResponse({ ok: true, launcher: rec }))
+          .catch((err) => sendResponse({ ok: false, error: err?.message || "Failed" }));
+        return true;
+
+      case "gmailCleanerLauncherScan":
+        // sender.tab is the mailbox the button was clicked in. Never a
+        // tabs.query: the whole point of starting from inside Gmail is
+        // that the tab is known, and picking "some Gmail tab" is how the
+        // Auto-Pilot account bug happened in 8.11.
+        startLauncherReportScan(sender.tab)
+          .then((res) => sendResponse(res))
+          .catch((err) => sendResponse({ ok: false, error: err?.message || "Failed" }));
+        return true;
+
+      case "gmailCleanerLauncherOpenPopup":
+        openActionPopup()
+          .then((res) => sendResponse(res))
+          .catch(() => sendResponse({ ok: false, error: "unsupported" }));
         return true;
 
       case "gmailCleanerDone":
@@ -2458,7 +2514,7 @@
     return Math.min(n, REPORT_MAX_COUNT);
   };
 
-  async function recordReportScan(msg) {
+  async function recordReportScan(msg, account) {
     const bands = Array.isArray(msg?.bands) ? msg.bands : null;
     if (!bands) return;
     try {
@@ -2542,6 +2598,11 @@
       await chrome.storage.local.set({
         [STORAGE_KEYS.REPORT]: {
           updatedAt: Date.now(),
+          // 9.2: which signed-in mailbox produced these counts, as an
+          // index and nothing more. Empty when the sender's tab could
+          // not be read, and empty is how every report written before
+          // this release reads, so absent means "unknown, show it".
+          account: typeof account === "string" ? account : "",
           bands: clean,
           cleanableCount: clampReportNumber(msg?.cleanableCount),
           // 8.24: and whether Gmail stated a total for it. Same default
@@ -3557,6 +3618,235 @@
       guardSkipUnread: ui?.guardSkipUnread !== false,
       guardSkipUserLabels: ui?.guardSkipUserLabels !== false
     };
+  }
+
+  // =========================
+  // In-Gmail launcher (9.2)
+  // =========================
+  //
+  // Everything the extension does happened in the popup, which means it
+  // happened only for the people who went looking for the toolbar icon.
+  // Chrome hides that icon behind the puzzle piece until it is pinned,
+  // so an install could sit there having never scanned anything. The
+  // launcher is the one surface that is present without being sought.
+  //
+  // It is a content script, so it can read neither the licence nor the
+  // install source nor the report. Everything it draws is decided here
+  // and handed over in one answer, which also keeps the policy in a file
+  // the suite already covers.
+
+  const LAUNCHER_HIDE_DAYS = 30;
+
+  const LAUNCHER_DEFAULTS = Object.freeze({
+    enabled: true,
+    hideUntil: 0,
+    greetPending: false
+  });
+
+  async function readLauncherRecord() {
+    try {
+      const stored = await chrome.storage.local.get(STORAGE_KEYS.LAUNCHER);
+      const rec = stored?.[STORAGE_KEYS.LAUNCHER];
+      if (!rec || typeof rec !== "object") return { ...LAUNCHER_DEFAULTS };
+      return {
+        // Absent reads as on, the rule readUserScanGuards follows just
+        // above: someone whose record predates this key has not switched
+        // the button off, they have never been shown it.
+        enabled: rec.enabled !== false,
+        hideUntil: Number(rec.hideUntil) > 0 ? Number(rec.hideUntil) : 0,
+        greetPending: rec.greetPending === true
+      };
+    } catch {
+      return { ...LAUNCHER_DEFAULTS };
+    }
+  }
+
+  async function setLauncherRecord(patch) {
+    const next = { ...(await readLauncherRecord()), ...patch };
+    await chrome.storage.local.set({ [STORAGE_KEYS.LAUNCHER]: next });
+    return next;
+  }
+
+  async function armLauncherGreeting() {
+    try {
+      await withStorageLock(() => setLauncherRecord({ greetPending: true }));
+    } catch (e) {
+      console.warn("[GCC SW] could not arm the launcher greeting:", e?.message || e);
+    }
+  }
+
+  async function hideLauncher(forever) {
+    return forever
+      ? setLauncherRecord({ enabled: false, hideUntil: 0 })
+      : setLauncherRecord({
+        hideUntil: Date.now() + LAUNCHER_HIDE_DAYS * 24 * 60 * 60 * 1000
+      });
+  }
+
+  // Whether the button may draw at all. The untrusted-install rule the
+  // scheduled sweeps follow applies here too: a copy planted by
+  // third-party software does not get to put a button offering to delete
+  // mail inside somebody's Gmail.
+  function launcherVisible(rec, untrusted, now) {
+    if (untrusted) return false;
+    if (!rec || rec.enabled === false) return false;
+    return !(Number(rec.hideUntil) > now);
+  }
+
+  // Which signed-in mailbox this tab is showing, or "" when the URL is
+  // not a mailbox at all. gmailAccountOf reads a missing /u/<n>/ segment
+  // as account 0, which is right for a Gmail URL and wrong for anything
+  // else, so the mailbox test comes first.
+  function launcherAccountOf(url) {
+    return isMailboxTab(url) ? gmailAccountOf(url) : "";
+  }
+
+  async function launcherState(tab) {
+    const rec = await readLauncherRecord();
+    const untrusted = await isUntrustedInstall();
+    if (!launcherVisible(rec, untrusted, Date.now())) {
+      // Nothing else is read or returned once the answer is no. A hidden
+      // launcher is not a launcher that draws itself invisibly: it is a
+      // content script that stops, and it should not be holding a copy
+      // of the mailbox report while it does.
+      return { show: false, greet: false, busy: false, report: null };
+    }
+
+    let report = null;
+    try {
+      const stored = await chrome.storage.local.get(STORAGE_KEYS.REPORT);
+      report = stored?.[STORAGE_KEYS.REPORT] || null;
+    } catch {
+      report = null;
+    }
+
+    // A report measured on another signed-in account is not what this
+    // mailbox is holding, and the panel says "this mailbox". One store
+    // holds one report, so with two accounts open the second tab would
+    // otherwise show the first tab's counts under that sentence, which
+    // is the whole class of defect 9.0 was about. Reports written before
+    // this release carry no account: absent means unknown, and unknown
+    // is shown, because that is what every earlier version did.
+    const account = launcherAccountOf(tab?.url);
+    if (report?.account && account && report.account !== account) report = null;
+
+    // The greeting is spent here, inside the lock the caller holds,
+    // rather than by a second message from the page. Reading it and
+    // clearing it in one step is what stops two Gmail tabs opened in the
+    // same second from both being told they are the first.
+    const greet = rec.greetPending === true;
+    if (greet) await setLauncherRecord({ greetPending: false });
+
+    return {
+      show: true,
+      greet,
+      // A boolean, not the claim. hasActiveRun() answers with the whole
+      // marker (tab id, run id, when it started) and the launcher needs
+      // one bit of that; handing a content script the rest would be a
+      // detail about the browser leaving the extension for no reason.
+      busy: Boolean(await hasActiveRun()),
+      report
+    };
+  }
+
+  // The free mailbox report, started from the tab the click came from.
+  //
+  // Deliberately the same three steps the scheduled path takes: refuse
+  // when an engine is already attached, inject the config, then confirm
+  // the injection was not swallowed. A scan takes no ACTIVE_RUN claim
+  // (it never acts on mail), so isEngineAttached is the only thing
+  // standing between two scans in one tab.
+  //
+  // sender.tab, never a tabs.query. The tab is known here, and "whichever
+  // Gmail tab is active" is exactly the retargeting bug 8.11 closed on
+  // the Auto-Pilot sweep: with two accounts open it measures one mailbox
+  // and answers about the other.
+  async function startLauncherReportScan(tab) {
+    const tabId = tab?.id;
+    if (typeof tabId !== "number" || !isMailboxTab(tab?.url)) {
+      return { ok: false, error: "no_mailbox" };
+    }
+    const untrusted = await isUntrustedInstall();
+    if (untrusted) return { ok: false, error: "untrusted" };
+
+    // The same answer the button itself is drawn from. Without this, a
+    // launcher switched off in Options is still a live Scan button in
+    // every Gmail tab that was already open when the switch moved.
+    if (!launcherVisible(await readLauncherRecord(), untrusted, Date.now())) {
+      return { ok: false, error: "hidden" };
+    }
+
+    // Everything read BEFORE the attach check, so the window between
+    // "nothing is attached here" and the injection is two calls wide
+    // rather than four. The engine takes its config from a window global
+    // that a scheduled run writes the same way, and Issue #6 is what
+    // happens when two writers meet in that gap.
+    //
+    // Sync, not local. The Never-Delete list and the protected keywords
+    // live in chrome.storage.sync: Options writes them there, the popup
+    // reads them there, and so do the scheduled sweeps and Auto-Pilot.
+    // Reading local here handed the engine two empty arrays, so the
+    // counts in the panel would have promised mail the Clean button
+    // refuses to touch. That is 8.5 again, in a new surface.
+    const stored = await chrome.storage.sync.get([
+      STORAGE_KEYS.WHITELIST,
+      STORAGE_KEYS.PROTECT_KEYWORDS
+    ]);
+    const guards = await readUserScanGuards();
+
+    if (await hasActiveRun()) return { ok: false, error: "busy" };
+    if (await isEngineAttached(tabId)) return { ok: false, error: "busy" };
+
+    const runId = `launcher_${Date.now()}`;
+    const config = {
+      runKind: "reportScan",
+      runId,
+      // The popup's own switches, for the reason 8.11 gives on the
+      // Auto-Pilot scan: this scan overwrites the store the popup reads,
+      // so it has to measure what the popup's buttons would act on.
+      ...guards,
+      whitelist: Array.isArray(stored?.[STORAGE_KEYS.WHITELIST])
+        ? stored[STORAGE_KEYS.WHITELIST]
+        : [],
+      protectKeywords: Array.isArray(stored?.[STORAGE_KEYS.PROTECT_KEYWORDS])
+        ? stored[STORAGE_KEYS.PROTECT_KEYWORDS]
+        : [],
+      debugMode: false,
+      version: SW_VERSION
+    };
+
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (cfg) => { window.GMAIL_CLEANER_CONFIG = cfg; },
+      args: [config]
+    });
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["contentScript.js"]
+    });
+
+    if (!(await confirmInjection(tabId, runId))) {
+      console.warn("[GCC SW] launcher scan: injection was swallowed, no scan started");
+      return { ok: false, error: "swallowed" };
+    }
+    return { ok: true, runId };
+  }
+
+  // Chrome grew chrome.action.openPopup() in 127 and this manifest's
+  // floor is 110, so this is a feature test rather than a call. Firefox
+  // has its own rules about when a popup may open. When it is missing or
+  // refuses, the launcher says where the icon is instead of claiming it
+  // opened something.
+  async function openActionPopup() {
+    if (typeof chrome.action?.openPopup !== "function") {
+      return { ok: false, error: "unsupported" };
+    }
+    try {
+      await chrome.action.openPopup();
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e?.message || "refused" };
+    }
   }
 
   // Which signed-in account a Gmail URL is showing. Gmail carries it in
@@ -4985,6 +5275,14 @@
       hasActiveRun,
       probeEngine,
       forceResetRun,
+      // 9.2 launcher
+      launcherVisible,
+      readLauncherRecord,
+      setLauncherRecord,
+      hideLauncher,
+      launcherState,
+      startLauncherReportScan,
+      LAUNCHER_HIDE_DAYS,
       setTestLicenseJwk: (jwk) => { _testLicenseJwk = jwk; }
     };
   }

@@ -668,5 +668,32 @@
   "receiptStoppedStale": { "message": "Arrêté lors du dernier contrôle" },
   "receiptCheckedOn": { "message": "Dernier contrôle" },
 
-  "censusUnreadable": { "message": "Le dernier recensement n'a pas pu être lu, il n'a donc pas été utilisé. Relancez l'analyse pour voir qui remplit votre boîte aujourd'hui." }
+  "censusUnreadable": { "message": "Le dernier recensement n'a pas pu être lu, il n'a donc pas été utilisé. Relancez l'analyse pour voir qui remplit votre boîte aujourd'hui." },
+
+  "launcherPill": { "message": "Nettoyer Gmail" },
+  "launcherHide": { "message": "Masquer" },
+  "launcherClose": { "message": "Fermer" },
+  "launcherGreetTitle": { "message": "Votre nettoyeur Gmail est prêt" },
+  "launcherGreetBody": { "message": "Rien n'a encore été analysé. L'analyse est gratuite et en lecture seule : elle compte ce qui peut partir sans risque et ne déplace rien." },
+  "launcherIdleTitle": { "message": "Nettoyer cette boîte" },
+  "launcherScanCta": { "message": "Analyser cette boîte" },
+  "launcherNotNow": { "message": "Pas maintenant" },
+  "launcherPinHint": { "message": "Épinglez l'extension à la barre d'outils du navigateur pour accéder à tous les outils." },
+  "launcherScanningTitle": { "message": "Lecture de votre boîte" },
+  "launcherScanningBody": { "message": "Quelques recherches, rien n'est ouvert et rien n'est déplacé. Laissez-lui un instant." },
+  "launcherResultTitle": { "message": "Ce que contient cette boîte" },
+  "launcherStatEmails": { "message": "e-mails assez anciens pour être supprimés" },
+  "launcherStatStorage": { "message": "en courrier ancien et volumineux" },
+  "launcherResultFoot": { "message": "Un signe plus veut dire au moins autant. Chaque chiffre vient de la recherche de Gmail elle-même." },
+  "launcherResultEmpty": { "message": "Rien d'assez ancien pour l'instant. Cette boîte est propre." },
+  "launcherOpenCta": { "message": "Ouvrir le nettoyeur" },
+  "launcherRescan": { "message": "Analyser à nouveau" },
+  "launcherBusy": { "message": "Quelque chose tourne déjà dans cet onglet. Réessayez une fois terminé." },
+  "launcherScanFailed": { "message": "Impossible de lancer l'analyse ici. Ouvrez l'extension depuis la barre d'outils." },
+  "launcherScanSlow": { "message": "L'analyse prend plus de temps que d'habitude. Ouvrez l'extension depuis la barre d'outils pour la suivre." },
+  "launcherStale": { "message": "L'extension a été mise à jour. Rechargez Gmail pour utiliser ce bouton." },
+  "launcherHideAsk": { "message": "Masquer ce bouton ?" },
+  "launcherHide30": { "message": "Pendant 30 jours" },
+  "launcherHideOff": { "message": "Le désactiver" },
+  "launcherHiddenNote": { "message": "Un interrupteur dans les Paramètres le fait revenir." }
 }

@@ -14,6 +14,13 @@ A browser extension that bulk-cleans Gmail in one click. Run configurable cleanu
 
 ## Features
 
+### A button inside Gmail
+Chrome folds new extensions into the puzzle-piece menu until you pin them, so the toolbar icon is easy to never find. A small button sits in the corner of Gmail instead, and the free mailbox scan is one click from it.
+- **It draws in a closed shadow root.** Nothing it defines reaches Gmail's page, nothing on that page reaches into it, and the counts on screen are not readable by anything else running on mail.google.com. It reads no mail and walks none of Gmail's interface.
+- **One thing it can start**, the free read-only report, measured through the same safety switches the popup's own buttons apply. Everything that moves mail stays in the popup behind the confirmations already there.
+- **The scan runs in the tab you clicked in**, and a report is only shown back in the mailbox it was measured in. With two accounts signed in, anything else measures one mailbox and answers about the other.
+- **Hide it for 30 days or turn it off**, from the panel or from **Settings > Cleaner button inside Gmail**. It never appears on a copy of the extension that was planted by other software rather than installed from a store.
+
 ### Mailbox Report
 One read-only pass counts what is actually in your mailbox and turns it into a ranked plan you can run a step at a time. Nothing is opened and nothing moves during the scan.
 - **The whole report is free** - old promotions, big attachments, forgotten newsletters, social and forum mail, and inbox mail you never archived, each with a real count from Gmail's own search.

@@ -29,6 +29,11 @@ const FILES = [
   "popup.html",
   "popup.js",
   "contentScript.js",
+  // 9.2: the always-on surface in Gmail. Separate from contentScript.js
+  // on purpose. That file is the engine, injected only for the seconds a
+  // run takes; this one is registered in the manifest and loads with
+  // every mailbox, so it stays small and touches nothing.
+  "gmailLauncher.js",
   "progress.html",
   "progress.js",
   "options.html",

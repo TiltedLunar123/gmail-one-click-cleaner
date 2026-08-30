@@ -668,5 +668,32 @@
   "receiptStoppedStale": { "message": "Stopped when last checked" },
   "receiptCheckedOn": { "message": "Last checked" },
 
-  "censusUnreadable": { "message": "The last census could not be read, so it was not used. Scan again to see who fills your mailbox now." }
+  "censusUnreadable": { "message": "The last census could not be read, so it was not used. Scan again to see who fills your mailbox now." },
+
+  "launcherPill": { "message": "Clean Gmail" },
+  "launcherHide": { "message": "Hide" },
+  "launcherClose": { "message": "Close" },
+  "launcherGreetTitle": { "message": "Your Gmail cleaner is ready" },
+  "launcherGreetBody": { "message": "Nothing has been scanned yet. The scan is free and read-only: it counts what is safe to clear and moves nothing." },
+  "launcherIdleTitle": { "message": "Clean up this mailbox" },
+  "launcherScanCta": { "message": "Scan this mailbox" },
+  "launcherNotNow": { "message": "Not now" },
+  "launcherPinHint": { "message": "Pin the extension in your browser toolbar to reach every tool." },
+  "launcherScanningTitle": { "message": "Reading your mailbox" },
+  "launcherScanningBody": { "message": "A few searches, nothing opened and nothing moved. Give it a moment." },
+  "launcherResultTitle": { "message": "What this mailbox is holding" },
+  "launcherStatEmails": { "message": "emails old enough to clear" },
+  "launcherStatStorage": { "message": "in old, large mail" },
+  "launcherResultFoot": { "message": "A plus sign means at least that many. Every count comes from Gmail's own search." },
+  "launcherResultEmpty": { "message": "Nothing old enough to clear yet. That is a clean mailbox." },
+  "launcherOpenCta": { "message": "Open the cleaner" },
+  "launcherRescan": { "message": "Scan again" },
+  "launcherBusy": { "message": "Something is already running in this tab. Try again once it finishes." },
+  "launcherScanFailed": { "message": "Could not start the scan here. Open the extension from the toolbar instead." },
+  "launcherScanSlow": { "message": "The scan is taking longer than usual. Open the extension from the toolbar to watch it." },
+  "launcherStale": { "message": "The extension was updated. Reload Gmail to use this button." },
+  "launcherHideAsk": { "message": "Hide this button?" },
+  "launcherHide30": { "message": "For 30 days" },
+  "launcherHideOff": { "message": "Turn it off" },
+  "launcherHiddenNote": { "message": "Settings has a switch to bring it back." }
 }

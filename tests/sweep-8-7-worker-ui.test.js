@@ -130,9 +130,25 @@ describe("an injection that produced no engine is noticed", () => {
     expect(bgSrc).not.toContain("schedule.lastRun = Date.now();");
   });
 
-  test("all three injection sites confirm", () => {
-    // scheduled cleanup, Auto-Pilot scan, Auto-Pilot apply.
-    expect(bgSrc.split("await confirmInjection(").length - 1).toBe(3);
+  test("every site that injects the engine confirms the injection", () => {
+    // 8.7 wrote this as a literal 3 (scheduled cleanup, Auto-Pilot scan,
+    // Auto-Pilot apply) and 9.2 added a fourth, the in-Gmail launcher's
+    // report scan. That is the shape 9.0 recorded on the scan guards: a
+    // count says "three places do this", never "every place does this",
+    // and a new site that FORGOT to confirm would have kept the pin
+    // green while a site that remembered turned it red. The incentive
+    // runs backwards, and it runs backwards hardest when the counted
+    // thing is a safety check.
+    //
+    // So enumerate the injections and derive the number from them.
+    const injections = [...bgSrc.matchAll(/files: \["contentScript\.js"\]/g)].map((m) => m.index);
+    expect(injections.length).toBeGreaterThanOrEqual(4);
+    expect(bgSrc.split("await confirmInjection(").length - 1).toBe(injections.length);
+    // And each one confirms for itself, rather than the file merely
+    // carrying the right total somewhere.
+    for (const at of injections) {
+      expect(bgSrc.slice(at, at + 900)).toContain("await confirmInjection(");
+    }
   });
 });
 
