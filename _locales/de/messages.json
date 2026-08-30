@@ -649,5 +649,13 @@
   "censusTotalMb": { "message": "$1 Absender stehen für $2 E-Mails, also $3." },
   "censusTotalMbFloor": { "message": "$1 Absender stehen für mindestens $2 E-Mails, also mindestens $3." },
   "censusTotalCount": { "message": "$1 Absender stehen für $2 E-Mails." },
-  "censusTotalCountFloor": { "message": "$1 Absender stehen für mindestens $2 E-Mails." }
+  "censusTotalCountFloor": { "message": "$1 Absender stehen für mindestens $2 E-Mails." },
+
+  "censusGuardsChangedNote": { "message": "Deine Sicherheitsschalter haben sich seit dieser Zählung geändert, daher passen diese Zahlen nicht mehr zu dem, was ein Löschen tun würde. Scanne erneut." },
+  "censusPurgeStale": { "message": "$1 ausgewählt · scanne erneut, deine Sicherheitsschalter haben sich geändert" },
+  "receiptsPurgeStale": { "message": "Erneut prüfen: deine Sicherheitsschalter haben sich nach dieser Prüfung geändert" },
+  "receiptsPurgeNothing": { "message": "Nichts zu löschen: deine Mindestalter-Einstellung ist weiter als diese Schonfristen" },
+  "receiptsPurgeTakes": { "message": "Löscht $1 E-Mails · nur was nach jeder Schonfrist ankam" },
+  "receiptsPurgeTakesFloor": { "message": "Löscht mindestens $1 E-Mails · nur was nach jeder Schonfrist ankam" },
+  "receiptsNothingReachable": { "message": "nichts zu löschen: dein Mindestalter ist weiter als diese Schonfristen" }
 }

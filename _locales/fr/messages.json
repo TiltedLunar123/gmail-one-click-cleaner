@@ -649,5 +649,13 @@
   "censusTotalMb": { "message": "$1 expéditeurs représentent $2 e-mails, soit $3." },
   "censusTotalMbFloor": { "message": "$1 expéditeurs représentent au moins $2 e-mails, soit au moins $3." },
   "censusTotalCount": { "message": "$1 expéditeurs représentent $2 e-mails." },
-  "censusTotalCountFloor": { "message": "$1 expéditeurs représentent au moins $2 e-mails." }
+  "censusTotalCountFloor": { "message": "$1 expéditeurs représentent au moins $2 e-mails." },
+
+  "censusGuardsChangedNote": { "message": "Vos interrupteurs de sécurité ont changé depuis ce recensement, donc ces chiffres ne correspondent plus à ce qu'un nettoyage supprimerait. Relancez l'analyse." },
+  "censusPurgeStale": { "message": "$1 sélectionnés · relancez l'analyse, vos interrupteurs de sécurité ont changé" },
+  "receiptsPurgeStale": { "message": "Relancez la vérification : vos interrupteurs de sécurité ont changé depuis ce contrôle" },
+  "receiptsPurgeNothing": { "message": "Rien à nettoyer : votre âge minimum est plus large que ces délais de grâce" },
+  "receiptsPurgeTakes": { "message": "Supprime $1 e-mails · uniquement ce qui est arrivé après chaque délai de grâce" },
+  "receiptsPurgeTakesFloor": { "message": "Supprime au moins $1 e-mails · uniquement ce qui est arrivé après chaque délai de grâce" },
+  "receiptsNothingReachable": { "message": "rien à nettoyer : votre âge minimum est plus large que ces délais de grâce" }
 }

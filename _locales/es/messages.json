@@ -649,5 +649,13 @@
   "censusTotalMb": { "message": "$1 remitentes suman $2 correos, es decir $3." },
   "censusTotalMbFloor": { "message": "$1 remitentes suman al menos $2 correos, es decir al menos $3." },
   "censusTotalCount": { "message": "$1 remitentes suman $2 correos." },
-  "censusTotalCountFloor": { "message": "$1 remitentes suman al menos $2 correos." }
+  "censusTotalCountFloor": { "message": "$1 remitentes suman al menos $2 correos." },
+
+  "censusGuardsChangedNote": { "message": "Tus interruptores de seguridad han cambiado desde este censo, así que estas cifras ya no coinciden con lo que borraría una limpieza. Vuelve a escanear." },
+  "censusPurgeStale": { "message": "$1 seleccionados · vuelve a escanear, tus interruptores de seguridad cambiaron" },
+  "receiptsPurgeStale": { "message": "Vuelve a comprobar: tus interruptores de seguridad cambiaron después de esta comprobación" },
+  "receiptsPurgeNothing": { "message": "Nada que limpiar: tu ajuste de antigüedad mínima es más amplio que estos plazos de gracia" },
+  "receiptsPurgeTakes": { "message": "Borra $1 correos · solo lo llegado tras cada plazo de gracia" },
+  "receiptsPurgeTakesFloor": { "message": "Borra al menos $1 correos · solo lo llegado tras cada plazo de gracia" },
+  "receiptsNothingReachable": { "message": "nada que limpiar: tu antigüedad mínima es más amplia que estos plazos de gracia" }
 }

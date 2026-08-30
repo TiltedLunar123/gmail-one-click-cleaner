@@ -163,7 +163,12 @@ describe("Smart Suggestions count what their own button acts on (8.6)", () => {
     // reach different mail. Pinned as "the helper is the only source, and
     // the stale case suppresses it", not as one exact line.
     expect(popupSrc).toContain("GCC.smart.actionCountText(sender)");
-    expect(popupSrc).toContain('smartGuardsChanged() ? "" : GCC.smart.actionCountText(sender)');
+    // 9.1: the check takes the SENDER now. The stored list is
+    // union-merged across scans while the record-level snapshot is
+    // replaced by the newest one, so a sender carried forward from an
+    // earlier scan was validated against guards it was never measured
+    // under. The snapshot travels with its measurement.
+    expect(popupSrc).toContain('smartGuardsChanged(sender) ? "" : GCC.smart.actionCountText(sender)');
     expect(popupSrc.split("GCC.smart.actionCountText(").length - 1).toBe(1);
   });
 
@@ -185,10 +190,14 @@ describe("Smart Suggestions count what their own button acts on (8.6)", () => {
     // so the two cannot drift into disagreeing about what a guard is.
     const record = fnBody(bgSrc, "async function recordSmartScan(", "async function recordSmartFeedback");
     expect(record).toContain("guards: sanitizeScanGuards(guards)");
+    // 9.1: and on each sender the scan actually measured, because the
+    // record-level one describes only the latest scan while the list it
+    // sits on carries senders from every scan before it.
+    expect(record).toContain("entry.guards = sanitizeScanGuards(guards);");
     expect(bgSrc).toContain("function sanitizeScanGuards(guards)");
 
     // And the popup compares over the SAME field list the report uses.
-    const changed = fnBody(popupSrc, "const smartGuardsChanged = () => {", "const renderSmartGuardNote");
+    const changed = fnBody(popupSrc, "const smartGuardsChanged = (sender) => {", "const renderSmartGuardNote");
     expect(changed).toContain("REPORT_GUARD_FIELDS.some(");
     expect(changed).toContain("liveReportGuards()");
     // A scan stored before 8.21 has no snapshot, and "cannot tell" must

@@ -1521,6 +1521,14 @@ const GCC = (() => {
       name: typeof raw?.name === "string" ? raw.name.slice(0, 120) : "",
       at,
       checkedAt: Number(raw?.checkedAt) || 0,
+      // 9.1: when a Clear last ran over this sender. `rankReceipts` sorts
+      // the ignored senders by `since`, and a purge changes neither
+      // `since` nor `at`, so re-running the button rebuilt exactly the
+      // same first twenty-five and sender twenty-six waited out
+      // RECHECK_DAYS for a turn that never came. The X-ray learned this
+      // in 8.11 and the census in 9.1; this is the third list with a cap
+      // and the last one without a memory of what the cap already took.
+      clearedAt: Number(raw?.clearedAt) || 0,
       verdict,
       since: clampCensusCount(raw?.since),
       sinceExact: raw?.sinceExact === true,
@@ -1634,23 +1642,51 @@ const GCC = (() => {
   // MAX_VERIFY_PER_RUN and the subtitle used to quote the whole ignored
   // list, so a user with 40 senders ignoring them read "40 senders" on a
   // button that cleared 25 and said nothing about the other 15.
-  const receiptsClearable = (receipts) => {
+  // 9.1: a sender whose mail this button already took, for the verdict
+  // it is currently carrying. `clearedAt` is stamped when a clear run
+  // starts and `checkedAt` when a new verdict lands, so a sender that
+  // relapsed after being cleared comes back into the queue on its own
+  // without any extra bookkeeping.
+  const receiptWasCleared = (r) =>
+    Number(r?.clearedAt) > 0 && Number(r.clearedAt) >= (Number(r?.checkedAt) || 0);
+
+  // The senders a Clear would act on, in the order it will take them.
+  // Uncleared first, so pressing the button twice reaches the second
+  // twenty-five instead of the first twenty-five again.
+  const receiptsPurgeOrder = (receipts) => {
     const ignored = rankReceipts(receipts).filter((r) => RECEIPT_IGNORED_VERDICTS.includes(r.verdict));
-    const acting = ignored.slice(0, RECEIPT_LIMITS.MAX_VERIFY_PER_RUN);
+    const pending = ignored.filter((r) => !receiptWasCleared(r));
+    const done = ignored.filter(receiptWasCleared);
+    return { ordered: pending.concat(done), pending: pending.length, cleared: done.length };
+  };
+
+  const receiptsClearable = (receipts) => {
+    const { ordered, pending, cleared } = receiptsPurgeOrder(receipts);
+    const acting = ordered.slice(0, RECEIPT_LIMITS.MAX_VERIFY_PER_RUN);
     let count = 0;
     let exact = true;
+    let known = 0;
     let unknown = 0;
     for (const r of acting) {
       if (!Number.isFinite(r.clearable)) { unknown++; continue; }
+      known++;
       count += r.clearable;
       if (!r.clearableExact) exact = false;
     }
     return {
       senders: acting.length,
-      stranded: ignored.length - acting.length,
+      stranded: ordered.length - acting.length,
       count,
       exact,
-      unknown
+      // 9.1: how many of the acted-on senders carry a measurement at
+      // all, so the button can tell "measured, and it is zero" apart
+      // from "never measured". The census clear has reported this since
+      // 9.0 and the receipts clear inherited only the half of it that
+      // could not distinguish the two.
+      known,
+      unknown,
+      pending,
+      cleared
     };
   };
 
@@ -1668,6 +1704,8 @@ const GCC = (() => {
     merge: mergeReceipts,
     rank: rankReceipts,
     summary: receiptsSummary,
+    wasCleared: receiptWasCleared,
+    purgeOrder: receiptsPurgeOrder,
     clearable: receiptsClearable
   });
 
@@ -1923,7 +1961,19 @@ const GCC = (() => {
         email: s.email,
         name: typeof s.name === "string" ? s.name.slice(0, 120) : "",
         count: Math.max(1, Math.min(99999, Number(s.count) || 1)),
-        estMb: Math.max(0, Math.min(1024 * 1024, Math.round(Number(s.estMb) || 0))),
+        // 9.1: a TENTH, truncated, which is what the engine
+        // (contentScript.js, foldStorageSample) and the worker
+        // (recordStorageScan) both already store. 9.0 fixed the rounding
+        // in those two and left this one, and this is the only place the
+        // X-ray list is rendered from, so a sender worth 0.3 MB was
+        // still printed as "at least 0 MB". The number passes through
+        // four hands and the release only counted two of them.
+        //
+        // Truncating rather than rounding matters as much as the
+        // precision: every one of these figures is shown as "at least",
+        // so rounding 0.78 up to 0.8 would print a floor the mailbox
+        // cannot back.
+        estMb: Math.max(0, Math.min(1024 * 1024, Math.floor((Number(s.estMb) || 0) * 10) / 10)),
         status: typeof s.status === "string" ? s.status.slice(0, 30) : "",
         statusAt: Number(s.statusAt) || 0
       }))

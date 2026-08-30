@@ -6,13 +6,149 @@
 // even of a file inside the package, would end the extension's
 // no-network-calls promise.
 //
-// Carries the newest 12 of 83 releases; the page says so
+// Carries the newest 12 of 84 releases; the page says so
 // and links the full log on GitHub.
 
 // eslint-disable-next-line no-unused-vars
 var GCC_CHANGELOG = {
-  "total": 83,
+  "total": 84,
   "entries": [
+    {
+      "version": "9.1.0",
+      "title": "Say it before the click, not after",
+      "intro": [
+        "Three screens in this extension put a number next to a button. Each number is measured through your safety switches, and each button reads those switches fresh at the moment you press it. When you change one in between, the number stops describing the button.",
+        "The Mailbox Report learned to say so two releases back. Smart Suggestions learned it one release later. The sender census, added last release, shipped the half that records what it measured through and none of the half that checks. The record sat in storage with a note on it explaining what it was for and nothing read it.",
+        "That check is on all three now, and the release is mostly this one idea applied everywhere it was missing."
+      ],
+      "sections": [
+        {
+          "name": "Fixed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "The census no longer promises a count it cannot keep."
+                ],
+                [
+                  "",
+                  " Untick Skip Unread after running the census and every row went on saying \"Clear would take 12\" while the button beside it would have deleted the unread mail too. The rows now drop the promise, the button drops its number, and a line appears saying the switches moved and the census should be run again."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Sender sizes under a megabyte no longer read as zero."
+                ],
+                [
+                  "",
+                  " The Storage X-ray works in tenths of a megabyte everywhere it measures and everywhere it stores, and then rounded to whole megabytes on the way to the screen. On a mailbox of ordinary small mail that is most senders: a list of real names beside \"at least 0 MB\"."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The unsubscribe check no longer reports a sender as stopped when it just proved otherwise."
+                ],
+                [
+                  "",
+                  " A run whose only finding was a sender still mailing from the Spam folder finished with \"All 1 stopped.\" The closing line counted one verdict and there are five."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "A sender that stopped and started again stays marked that way."
+                ],
+                [
+                  "",
+                  " The relapse was worked out from the previous verdict, and once a receipt was marked as a relapse the next check thirty days later no longer recognised it, wrote plain \"still sending\" over the top, and the fact you had watched that list go quiet was gone."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "\"Clear their mail\" says how much mail, and refuses when the answer is nothing."
+                ],
+                [
+                  "",
+                  " The button is scoped to what arrived after each sender's grace window closed, but your Minimum Age setting was still added on top, and mail cannot be both newer than two weeks ago and older than three months. The run opened Gmail, searched, found nothing and finished. The measured figure was already on hand and now sits on the button, which says which setting is in the way instead of starting."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "\"Re-run for the rest\" now reaches the rest."
+                ],
+                [
+                  "",
+                  " Both the census clear and the unsubscribe clear act on twenty-five senders at a time and neither remembered what it had already taken, so pressing again rebuilt the same twenty-five and sender twenty-six waited forever."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "A ticked sender that falls off the census list can be untangled."
+                ],
+                [
+                  "",
+                  " The ticks are remembered between sessions and feed the scheduled sweep, so a sender ticked once and then not measured again by a later census kept generating a delete rule with no checkbox anywhere to clear it."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The check button says what one press checks."
+                ],
+                [
+                  "",
+                  " With forty receipts past their grace window it said forty and checked twenty-five, which is the cap the two buttons beside it have announced since they were built."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The receipt list no longer shows one verdict less than the run found."
+                ],
+                [
+                  "",
+                  " The panel re-read the ledger the instant the run announced it was done, which raced the write of the last sender's answer."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "A suggestion carried over from an earlier scan is checked against the switches it was actually measured under"
+                ],
+                [
+                  "",
+                  ", rather than the ones the most recent scan happened to use."
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "9.0.0",
       "title": "Count what the button clears",
@@ -1190,44 +1326,6 @@ var GCC_CHANGELOG = {
                 [
                   "",
                   " Without that the new stagger would have survived as a flicker for exactly the people who asked for less movement."
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "version": "8.17.0",
-      "title": "Three free unsubscribes so you can see it work",
-      "intro": [
-        "Bulk unsubscribe is the one paid feature you cannot try with a Clean-tab rule. You could scan, tick the senders you hate, and then hit a paywall for something you had never seen work. Every unpaid install now gets three real unsubscribes on its own mail, once. After that the usual paywall takes over, and it can name the number you just watched be real."
-      ],
-      "sections": [
-        {
-          "name": "Added",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "Three free unsubscribes, once, for the life of the install."
-                ],
-                [
-                  "",
-                  " The Lists tab says how many you have left before you click. Only senders that actually unsubscribe count against it. A cancelled run, a failed run, or a sender that needs their website costs you nothing. When the three are used up, Pro is what it was."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The three are spendable from a Smart Suggestions card too."
-                ],
-                [
-                  "",
-                  " There are two places to unsubscribe from one sender, and three free ones now mean three in both. Spending one from a card says so as it goes, and the count on the Lists tab moves with it. Bulk apply is still Pro: one card is not bulk."
                 ]
               ]
             }

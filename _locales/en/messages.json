@@ -649,5 +649,13 @@
   "censusTotalMb": { "message": "$1 senders account for $2 emails, worth $3." },
   "censusTotalMbFloor": { "message": "$1 senders account for at least $2 emails, worth at least $3." },
   "censusTotalCount": { "message": "$1 senders account for $2 emails." },
-  "censusTotalCountFloor": { "message": "$1 senders account for at least $2 emails." }
+  "censusTotalCountFloor": { "message": "$1 senders account for at least $2 emails." },
+
+  "censusGuardsChangedNote": { "message": "Your safety switches have changed since this census, so these counts no longer match what a clear would do. Scan again." },
+  "censusPurgeStale": { "message": "$1 selected · scan again, your safety switches changed" },
+  "receiptsPurgeStale": { "message": "Scan again: your safety switches changed after this check" },
+  "receiptsPurgeNothing": { "message": "Nothing to clear: your Minimum Age setting is wider than these grace windows" },
+  "receiptsPurgeTakes": { "message": "Clears $1 emails · only what arrived after each grace window" },
+  "receiptsPurgeTakesFloor": { "message": "Clears at least $1 emails · only what arrived after each grace window" },
+  "receiptsNothingReachable": { "message": "nothing to clear: your Minimum Age setting is wider than these grace windows" }
 }

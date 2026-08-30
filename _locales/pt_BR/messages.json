@@ -649,5 +649,13 @@
   "censusTotalMb": { "message": "$1 remetentes somam $2 e-mails, ou seja $3." },
   "censusTotalMbFloor": { "message": "$1 remetentes somam pelo menos $2 e-mails, ou seja pelo menos $3." },
   "censusTotalCount": { "message": "$1 remetentes somam $2 e-mails." },
-  "censusTotalCountFloor": { "message": "$1 remetentes somam pelo menos $2 e-mails." }
+  "censusTotalCountFloor": { "message": "$1 remetentes somam pelo menos $2 e-mails." },
+
+  "censusGuardsChangedNote": { "message": "Seus interruptores de segurança mudaram desde este censo, então estes números não correspondem mais ao que uma limpeza apagaria. Escaneie de novo." },
+  "censusPurgeStale": { "message": "$1 selecionados · escaneie de novo, seus interruptores de segurança mudaram" },
+  "receiptsPurgeStale": { "message": "Verifique de novo: seus interruptores de segurança mudaram depois desta checagem" },
+  "receiptsPurgeNothing": { "message": "Nada para limpar: sua idade mínima está mais ampla que estes prazos de carência" },
+  "receiptsPurgeTakes": { "message": "Apaga $1 e-mails · só o que chegou depois de cada prazo de carência" },
+  "receiptsPurgeTakesFloor": { "message": "Apaga pelo menos $1 e-mails · só o que chegou depois de cada prazo de carência" },
+  "receiptsNothingReachable": { "message": "nada para limpar: sua idade mínima está mais ampla que estes prazos de carência" }
 }

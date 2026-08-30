@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "9.0.0";
+  const SW_VERSION = "9.1.0";
 
   // =========================
   // Storage Keys
@@ -1260,12 +1260,31 @@
 
       // Unsubscribe receipts (8.26): verdicts from the verification run.
       case "gmailCleanerRecordVerifyResults":
-        withStorageLock(() => recordVerifyResults(msg.results)).then(() => sendResponse({ ok: true }));
+        withStorageLock(() => recordVerifyResults(msg.results, msg.guards)).then(() => sendResponse({ ok: true }));
         return true;
 
+      // 9.1: the senders a receipts Clear just took, so the next press
+      // reaches the ones the 25-sender cap left behind.
+      case "gmailCleanerReceiptsCleared":
+        withStorageLock(() => recordReceiptsCleared(msg.senders)).then(() => sendResponse({ ok: true }));
+        return true;
+
+      // 9.1: through the same queue the writes go through.
+      //
+      // The engine flushes the last sender's verdict and broadcasts
+      // "done" in the same synchronous block, and the popup answers that
+      // by re-reading the ledger. An unlocked read overtook the
+      // read-modify-write still sitting in the queue, so the panel
+      // rendered a ledger one verdict old and stayed that way until
+      // something else re-read it. Queuing the read behind the write is
+      // the whole fix; a delay would only make the race less likely.
       case "gmailCleanerGetReceipts":
-        chrome.storage.local.get(STORAGE_KEYS.RECEIPTS)
-          .then((r) => sendResponse({ ok: true, receipts: r?.[STORAGE_KEYS.RECEIPTS]?.list || [] }))
+        withStorageLock(() => chrome.storage.local.get(STORAGE_KEYS.RECEIPTS))
+          .then((r) => sendResponse({
+            ok: true,
+            receipts: r?.[STORAGE_KEYS.RECEIPTS]?.list || [],
+            guards: r?.[STORAGE_KEYS.RECEIPTS]?.guards || null
+          }))
           .catch((err) => sendResponse({ ok: false, error: err?.message || "Failed" }));
         return true;
 
@@ -1716,15 +1735,63 @@
     return Array.isArray(list) ? list : [];
   }
 
-  async function writeReceiptList(list) {
+  async function writeReceiptList(list, guards) {
     const trimmed = list
       .slice()
       .sort((a, b) => (Number(b?.at) || 0) - (Number(a?.at) || 0))
       .slice(0, RECEIPT_CAP);
     await chrome.storage.local.set({
-      [STORAGE_KEYS.RECEIPTS]: { updatedAt: Date.now(), list: trimmed }
+      [STORAGE_KEYS.RECEIPTS]: {
+        updatedAt: Date.now(),
+        list: trimmed,
+        // 9.1: the switches the run's `clearable` figures were measured
+        // through, kept at the ledger level because one run measures
+        // every sender in it through one set. Undefined leaves whatever
+        // the last verification stored, so a write that is not a
+        // verification (a clear marking its senders) cannot erase it.
+        ...(guards === undefined ? {} : { guards })
+      }
     });
     return trimmed;
+  }
+
+  // 9.1: remember that a Clear ran over these senders.
+  //
+  // rankReceipts orders the ignored senders by `since`, and a clear
+  // changes neither `since` nor `at`, so the button rebuilt the same
+  // first twenty-five every time and sender twenty-six was never
+  // reached. Stamped at start rather than at completion for the reason
+  // the X-ray's marker is: this popup will be closed long before the run
+  // finishes, and a marker that waits for a result is a marker that is
+  // never written.
+  async function recordReceiptsCleared(emails) {
+    const want = new Set(
+      (Array.isArray(emails) ? emails : [])
+        .map((e) => String(e || "").trim().toLowerCase())
+        .filter(Boolean)
+    );
+    if (!want.size) return;
+    try {
+      const existing = await readReceiptList();
+      let touched = 0;
+      const next = existing.map((r) => {
+        const email = String(r?.email || "").trim().toLowerCase();
+        if (!want.has(email)) return r;
+        touched++;
+        // The mail is on its way to Trash, so the measured reach is
+        // spent. Dropped rather than zeroed: absent means "not measured"
+        // everywhere else in this record, and the next check measures it
+        // again from scratch.
+        const next = { ...r, clearedAt: Date.now() };
+        delete next.clearable;
+        delete next.clearableExact;
+        return next;
+      });
+      if (!touched) return;
+      await writeReceiptList(next);
+    } catch (e) {
+      console.error("[GCC SW] recordReceiptsCleared failed:", e);
+    }
   }
 
   // One receipt per sender that came back `unsubscribed`. A repeat
@@ -1767,7 +1834,7 @@
   // Verdicts from a verification run. A receipt whose sender is not in
   // the ledger is ignored rather than invented: a verdict with no
   // unsubscribe date behind it has no window to be about.
-  async function recordVerifyResults(results) {
+  async function recordVerifyResults(results, guards) {
     if (!Array.isArray(results) || results.length === 0) return;
     try {
       const existing = await readReceiptList();
@@ -1796,7 +1863,16 @@
         // and the distinction was gone. Derived here rather than in the
         // engine because only the stored record knows what the last
         // verdict was; the engine sees one search.
-        if (verdict === "still_sending" && prev.verdict === "stopped") {
+        //
+        // 9.1: and it stays one. The rule shipped as an exact match on
+        // "stopped", so the FIRST recheck after a relapse (30 days
+        // later, by RECHECK_DAYS) saw prev.verdict === "relapsed", did
+        // not fire, and wrote plain "still_sending" over the top. The
+        // relapse survived exactly one cycle, then became
+        // indistinguishable from a list that never stopped, and the row
+        // quietly fell from the top of the ranking. A sender that
+        // relapsed and is still sending has not un-relapsed.
+        if (verdict === "still_sending" && (prev.verdict === "stopped" || prev.verdict === "relapsed")) {
           verdict = "relapsed";
         }
         // An `unknown` is a check that did not answer, so it must not
@@ -1840,7 +1916,19 @@
         touched++;
       }
       if (!touched) return;
-      await writeReceiptList([...byEmail.values()]);
+      // 9.1: every `clearable` above was measured through these
+      // switches, so the popup can stop printing the number once they
+      // move. Same contract the census has had since 9.0.
+      //
+      // Left UNDEFINED when the engine sent nothing, rather than run
+      // through the sanitizer: sanitizeScanGuards answers a missing
+      // input with every switch off, which is a real snapshot that
+      // happens to be false, and storing it would make every number
+      // read as stale against the defaults-on the user actually has.
+      await writeReceiptList(
+        [...byEmail.values()],
+        guards && typeof guards === "object" ? sanitizeScanGuards(guards) : undefined
+      );
     } catch (e) {
       console.error("[GCC SW] recordVerifyResults failed:", e);
     }
@@ -1929,15 +2017,16 @@
           // The switches every `reachable` above was measured through, so
           // the popup can say "your safety switches have changed since
           // this scan" instead of quietly printing a stale number.
+          //
+          // 9.1: through the same sanitiser the report and the smart
+          // scan use. The hand-rolled copy accepted any string as a
+          // minAge, so an empty one was stored as "" where every other
+          // surface stores null, and the popup's comparison reads a
+          // difference between "" and null as "the user changed a
+          // switch". Three surfaces comparing the same fact have to
+          // normalise it the same way or the check invents drift.
           guards: msg?.guards && typeof msg.guards === "object"
-            ? {
-              safeMode: msg.guards.safeMode === true,
-              minAge: typeof msg.guards.minAge === "string" ? msg.guards.minAge : null,
-              guardSkipStarred: msg.guards.guardSkipStarred === true,
-              guardSkipImportant: msg.guards.guardSkipImportant === true,
-              guardSkipUnread: msg.guards.guardSkipUnread === true,
-              guardSkipUserLabels: msg.guards.guardSkipUserLabels === true
-            }
+            ? sanitizeScanGuards(msg.guards)
             : null
         }
       });
@@ -2442,6 +2531,18 @@
         if (SMART_ACTION_NAMES.includes(raw?.action)) entry.action = raw.action;
         if (typeof raw?.reachable === "number" && Number.isFinite(raw.reachable)) {
           entry.reachable = Math.max(0, Math.min(999999, Math.round(raw.reachable)));
+          // 9.1: the switches THIS sender's reachable was measured
+          // through, on the sender rather than on the record.
+          //
+          // This list is union-merged across scans while the record's
+          // snapshot is replaced wholesale, so a sender the latest scan
+          // did not re-measure kept a count from an older set of guards
+          // and was then validated against the newest ones. The stale
+          // check answered "nothing has changed" and the card went on
+          // promising a number nobody had measured under those switches.
+          // A snapshot that does not travel with its measurement is not
+          // a snapshot of anything.
+          entry.guards = sanitizeScanGuards(guards);
         }
         byEmail[email] = entry;
       }

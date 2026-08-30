@@ -3,6 +3,70 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 9.1.0 - Say it before the click, not after
+
+Three screens in this extension put a number next to a button. Each
+number is measured through your safety switches, and each button reads
+those switches fresh at the moment you press it. When you change one in
+between, the number stops describing the button.
+
+The Mailbox Report learned to say so two releases back. Smart
+Suggestions learned it one release later. The sender census, added last
+release, shipped the half that records what it measured through and none
+of the half that checks. The record sat in storage with a note on it
+explaining what it was for and nothing read it.
+
+That check is on all three now, and the release is mostly this one idea
+applied everywhere it was missing.
+
+### Fixed
+- **The census no longer promises a count it cannot keep.** Untick Skip
+  Unread after running the census and every row went on saying "Clear
+  would take 12" while the button beside it would have deleted the
+  unread mail too. The rows now drop the promise, the button drops its
+  number, and a line appears saying the switches moved and the census
+  should be run again.
+- **Sender sizes under a megabyte no longer read as zero.** The Storage
+  X-ray works in tenths of a megabyte everywhere it measures and
+  everywhere it stores, and then rounded to whole megabytes on the way to
+  the screen. On a mailbox of ordinary small mail that is most senders: a
+  list of real names beside "at least 0 MB".
+- **The unsubscribe check no longer reports a sender as stopped when it
+  just proved otherwise.** A run whose only finding was a sender still
+  mailing from the Spam folder finished with "All 1 stopped." The closing
+  line counted one verdict and there are five.
+- **A sender that stopped and started again stays marked that way.** The
+  relapse was worked out from the previous verdict, and once a receipt
+  was marked as a relapse the next check thirty days later no longer
+  recognised it, wrote plain "still sending" over the top, and the fact
+  you had watched that list go quiet was gone.
+- **"Clear their mail" says how much mail, and refuses when the answer is
+  nothing.** The button is scoped to what arrived after each sender's
+  grace window closed, but your Minimum Age setting was still added on
+  top, and mail cannot be both newer than two weeks ago and older than
+  three months. The run opened Gmail, searched, found nothing and
+  finished. The measured figure was already on hand and now sits on the
+  button, which says which setting is in the way instead of starting.
+- **"Re-run for the rest" now reaches the rest.** Both the census clear
+  and the unsubscribe clear act on twenty-five senders at a time and
+  neither remembered what it had already taken, so pressing again
+  rebuilt the same twenty-five and sender twenty-six waited forever.
+- **A ticked sender that falls off the census list can be untangled.**
+  The ticks are remembered between sessions and feed the scheduled
+  sweep, so a sender ticked once and then not measured again by a later
+  census kept generating a delete rule with no checkbox anywhere to
+  clear it.
+- **The check button says what one press checks.** With forty receipts
+  past their grace window it said forty and checked twenty-five, which is
+  the cap the two buttons beside it have announced since they were
+  built.
+- **The receipt list no longer shows one verdict less than the run
+  found.** The panel re-read the ledger the instant the run announced it
+  was done, which raced the write of the last sender's answer.
+- **A suggestion carried over from an earlier scan is checked against the
+  switches it was actually measured under**, rather than the ones the
+  most recent scan happened to use.
+
 ## 9.0.0 - Count what the button clears
 
 The last release taught this extension to find the senders that actually

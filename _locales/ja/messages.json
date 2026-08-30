@@ -649,5 +649,13 @@
   "censusTotalMb": { "message": "$1 人の送信者で $2 件、$3 分です。" },
   "censusTotalMbFloor": { "message": "$1 人の送信者で少なくとも $2 件、少なくとも $3 分です。" },
   "censusTotalCount": { "message": "$1 人の送信者で $2 件です。" },
-  "censusTotalCountFloor": { "message": "$1 人の送信者で少なくとも $2 件です。" }
+  "censusTotalCountFloor": { "message": "$1 人の送信者で少なくとも $2 件です。" },
+
+  "censusGuardsChangedNote": { "message": "この集計以降に安全スイッチが変更されたため、これらの件数は削除時の動作と一致しません。もう一度スキャンしてください。" },
+  "censusPurgeStale": { "message": "$1人を選択 · 安全スイッチが変わったので、もう一度スキャンしてください" },
+  "receiptsPurgeStale": { "message": "もう一度確認してください：この確認のあとで安全スイッチが変更されました" },
+  "receiptsPurgeNothing": { "message": "削除できるものはありません：最低経過日数の設定がこれらの猟予期間より広すぎます" },
+  "receiptsPurgeTakes": { "message": "$1 件を削除 · 各猟予期間のあとに届いたものだけ" },
+  "receiptsPurgeTakesFloor": { "message": "少なくとも $1 件を削除 · 各猟予期間のあとに届いたものだけ" },
+  "receiptsNothingReachable": { "message": "削除できるものがありません：最低経過日数の設定が猟予期間より広すぎます" }
 }

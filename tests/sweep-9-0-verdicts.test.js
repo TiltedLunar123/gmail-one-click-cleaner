@@ -128,7 +128,12 @@ describe("the Spam verdict is read-only, and provably so", () => {
 describe("a relapse is not the same as never having stopped", () => {
   test("the worker promotes still_sending to relapsed off the stored verdict", () => {
     const fn = fnFrom(WORKER, "async function recordVerifyResults(", "async function ");
-    expect(fn).toContain('if (verdict === "still_sending" && prev.verdict === "stopped") {');
+    // 9.1: widened to include a receipt that is ALREADY a relapse. The
+    // exact match meant the first recheck after a relapse (30 days on,
+    // by RECHECK_DAYS) saw prev.verdict === "relapsed", did not fire,
+    // and wrote plain "still_sending" over the top. A sender that
+    // relapsed and is still sending has not un-relapsed.
+    expect(fn).toContain('if (verdict === "still_sending" && (prev.verdict === "stopped" || prev.verdict === "relapsed")) {');
     expect(fn).toContain('verdict = "relapsed";');
   });
 

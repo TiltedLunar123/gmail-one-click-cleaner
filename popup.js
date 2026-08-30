@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "9.0.0";
+  const POPUP_VERSION = "9.1.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -195,10 +195,21 @@ document.addEventListener("DOMContentLoaded", () => {
       exact: false,
       discovered: 0,
       checked: new Set(),
+      // 9.1: the guard settings every `reachable` was measured through,
+      // the way report.guards and smart.guards have carried theirs since
+      // 8.7 and 8.21. The engine has sent this and the worker has stored
+      // it since 9.0, under a comment saying the popup would use it to
+      // warn; there was no field here to put it in and no reader for it.
+      guards: null,
       running: null
     },
     receipts: {
       list: [],
+      // 9.1: the guard settings the run's `clearable` figures were
+      // measured through. The verdict beside them is measured raw and
+      // needs none of this; the Clear button's number does. See
+      // receiptsGuardsChanged.
+      guards: null,
       running: null
     },
 
@@ -541,6 +552,9 @@ document.addEventListener("DOMContentLoaded", () => {
     censusHint: $("censusHint"),
     censusScanBtn: $("censusScanBtn"),
     censusStatus: $("censusStatus"),
+    censusGuardNote: $("censusGuardNote"),
+    censusGuardNoteText: $("censusGuardNoteText"),
+    censusGuardNoteBtn: $("censusGuardNoteBtn"),
     censusList: $("censusList"),
     censusPurgeBtn: $("censusPurgeBtn"),
     censusPurgeSub: $("censusPurgeSub"),
@@ -3486,6 +3500,16 @@ document.addEventListener("DOMContentLoaded", () => {
     return t("receiptWaiting", "In its grace window");
   };
 
+  // 9.1: the receipts' copy of the check the report, the smart list and
+  // the census all carry. Only the `clearable` figures depend on it: the
+  // verdict is measured raw on purpose and is not affected by any switch.
+  const receiptsGuardsChanged = () => {
+    const measured = state.receipts.guards;
+    if (!measured) return false;
+    const live = liveReportGuards();
+    return REPORT_GUARD_FIELDS.some((k) => (measured[k] ?? null) !== (live[k] ?? null));
+  };
+
   const renderReceipts = () => {
     if (!elements.receiptsBlock) return;
     const list = GCC.receipts.rank(state.receipts.list);
@@ -3559,8 +3583,15 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.verifyBtn) {
       elements.verifyBtn.hidden = summary.due === 0;
       if (elements.verifyBtnSub) {
+        // 9.1: the number on the button is what one press checks.
+        // handleVerifyClick slices the due list to MAX_VERIFY_PER_RUN and
+        // this line quoted the whole ledger, so a user with forty due
+        // receipts read "40 ready" over a run that checked twenty-five
+        // and said nothing about the rest. Both buttons beside it have
+        // capped honestly since 8.26 and 9.0.
+        const willCheck = Math.min(summary.due, GCC.receipts.LIMITS.MAX_VERIFY_PER_RUN);
         elements.verifyBtnSub.textContent = state.subs.licenseActive
-          ? t("verifyDueSub", `${summary.due} ready · one search each, nothing is opened`, [String(summary.due)])
+          ? t("verifyDueSub", `${willCheck} ready · one search each, nothing is opened`, [String(willCheck)])
           : t("proPriceSub", "Pro · $9.99 lifetime");
       }
     }
@@ -3576,12 +3607,37 @@ document.addEventListener("DOMContentLoaded", () => {
         // cleared 25 and never mentioned the other 15. The census clear
         // beside it has shown a first-25 toast since 8.26; this is the
         // same promise kept in the same way.
+        //
+        // 9.1: and the number is the MEASURED one. 9.0 measured
+        // `clearable` through the same guards this button applies,
+        // stored it, and then printed only the scope. The gap that hides
+        // is a Minimum Age setting: one press of the Monthly preset sets
+        // it to three months, applyGlobalGuards staples `older_than:3m`
+        // onto a query that is already scoped `after:<grace window>`,
+        // and the two cannot both be true. The run matched nothing and
+        // the button had promised a scope, so there was no number to
+        // contradict it. Now there is.
         const reach = GCC.receipts.clearable(state.receipts.list);
-        elements.receiptsPurgeSub.textContent = t(
-          "receiptsPurgeSub",
-          `Only mail that arrived after each grace window closed · ${reach.senders} sender${reach.senders === 1 ? "" : "s"}`,
-          [String(reach.senders)]
-        );
+        const n = reach.count.toLocaleString();
+        let sub;
+        if (receiptsGuardsChanged()) {
+          sub = t("receiptsPurgeStale", "Scan again: your safety switches changed after this check");
+        } else if (reach.known === 0) {
+          // Nothing acted on carries a measurement, so the honest line is
+          // the scope with no number attached to it.
+          sub = t(
+            "receiptsPurgeSub",
+            `Only mail that arrived after each grace window closed · ${reach.senders} sender${reach.senders === 1 ? "" : "s"}`,
+            [String(reach.senders)]
+          );
+        } else if (reach.count === 0) {
+          sub = t("receiptsPurgeNothing", "Nothing to clear: your Minimum Age setting is wider than these grace windows");
+        } else {
+          sub = reach.exact
+            ? t("receiptsPurgeTakes", `Clears ${n} emails · only what arrived after each grace window`, [n])
+            : t("receiptsPurgeTakesFloor", `Clears at least ${n} emails · only what arrived after each grace window`, [n]);
+        }
+        elements.receiptsPurgeSub.textContent = sub;
       }
     }
   };
@@ -3590,6 +3646,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const res = await GCC.sendMessage({ type: "gmailCleanerGetReceipts" });
       state.receipts.list = Array.isArray(res?.receipts) ? res.receipts : [];
+      state.receipts.guards = res?.guards || null;
       renderReceipts();
     } catch (err) {
       log("warn", "receipts load failed", err);
@@ -3608,14 +3665,20 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       return;
     }
-    const due = GCC.receipts.rank(state.receipts.list)
-      .filter((r) => GCC.receipts.isDue(r))
+    const allDue = GCC.receipts.rank(state.receipts.list).filter((r) => GCC.receipts.isDue(r));
+    const due = allDue
       .slice(0, GCC.receipts.LIMITS.MAX_VERIFY_PER_RUN)
       .map((r) => ({ email: r.email, after: GCC.receipts.verifyDate(r.at) }))
       .filter((t2) => t2.after);
     if (!due.length) {
       showToast(t("noneDueYet", "nothing has finished its grace window yet"), "info");
       return;
+    }
+    // 9.1: say it when the cap bites, the way the census clear has since
+    // 8.26 and the receipts clear since 9.0. This was the third button
+    // with the same cap and the only one that applied it in silence.
+    if (allDue.length > due.length) {
+      showToast(t("firstTwentyFive", "running the first 25; re-run for the rest"), "info");
     }
     try {
       state.receipts.running = "unsubscribeVerify";
@@ -3658,6 +3721,12 @@ document.addEventListener("DOMContentLoaded", () => {
     // The engine flushes verdicts as it goes and the worker is what
     // merged them into the ledger; reading its copy is the only way the
     // popup can be sure it is showing what was actually stored.
+    //
+    // 9.1: and that read now queues behind the write it is racing. The
+    // engine flushes the last verdict and broadcasts "done" in the same
+    // synchronous block, so this read used to overtake a
+    // read-modify-write still sitting in the worker's storage chain and
+    // render a ledger one sender short.
     loadReceipts().catch(() => {});
   };
 
@@ -3683,6 +3752,17 @@ document.addEventListener("DOMContentLoaded", () => {
     }).catch(() => {});
   };
 
+  // 9.1: the X-ray's forgetXrayChecked, for the list that grew the same
+  // cap and never grew the same memory. A census clear takes the first
+  // twenty-five ticked senders and used to leave all forty ticked, so
+  // the toast said "re-run for the rest" and the next press took the
+  // identical twenty-five.
+  const forgetCensusChecked = (emails) => {
+    const done = new Set((emails || []).map((e) => String(e || "").toLowerCase()));
+    for (const email of done) state.census.checked.delete(email);
+    persistCensusSelection();
+  };
+
   const loadCensusSelection = async () => {
     try {
       const r = await storageGet("local", [STORAGE_KEYS.CENSUS_CHECKED]);
@@ -3695,12 +3775,77 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  // 9.1: a tick with no row is a tick nobody can take back.
+  //
+  // The set is persisted, and 9.0 wired it into the unattended scheduled
+  // sweep (censusSenders on the run config). The measurement budget is
+  // ten senders, twenty on the deep setting, so the next census
+  // routinely ranks a different ten: a sender ticked once and then
+  // dropped from the list keeps generating a delete rule on every
+  // scheduled sweep, with no checkbox anywhere in the UI to untick and
+  // no row to explain where the rule came from. Reconciled against what
+  // the census actually measured, on every load of either half.
+  const reconcileCensusSelection = () => {
+    const measured = new Set(
+      GCC.census.rankSenders(state.census.senders)
+        .filter((s) => s.measured)
+        .map((s) => s.email)
+    );
+    // An empty census means "not scanned yet", not "nothing measured".
+    // Dropping the ticks then would throw away a selection the user is
+    // about to come back to, which is the bug this fix is the twin of.
+    if (!measured.size) return;
+    let dropped = 0;
+    for (const email of [...state.census.checked]) {
+      if (!measured.has(email)) { state.census.checked.delete(email); dropped++; }
+    }
+    if (dropped) persistCensusSelection();
+  };
+
   const censusCountLabel = (sender) => {
     const n = Number(sender?.count) || 0;
     const shown = n.toLocaleString();
     return sender?.exact
       ? t("censusCountExact", `${shown} emails`, [shown])
       : t("censusCountFloor", `at least ${shown} emails`, [shown]);
+  };
+
+  // 9.1: have the safety switches moved since the census measured its
+  // reach numbers? The third copy of a check the Mailbox Report has had
+  // since 8.7 (renderGuardNote) and Smart Suggestions since 8.21
+  // (smartGuardsChanged), reusing the same pair of helpers over the same
+  // field list so the three surfaces cannot disagree about what
+  // "changed" means.
+  //
+  // This is the one that matters most of the three. The other two sit
+  // beside buttons that clean a category; this one sits beside a tick
+  // box that hands a sender's entire history older than six months to a
+  // delete run, and the number printed on it was measured through
+  // guards the run no longer applies. Untick Skip Unread after a census
+  // and the row went on promising the guarded figure while the run took
+  // the unguarded one.
+  //
+  // A census stored before 9.1 carries no snapshot, and that answers
+  // FALSE rather than TRUE: "cannot tell" must not blank a number that
+  // is very likely still right, and the next scan supplies the snapshot.
+  const censusGuardsChanged = () => {
+    const measured = state.census.guards;
+    if (!measured) return false;
+    const live = liveReportGuards();
+    return REPORT_GUARD_FIELDS.some((k) => (measured[k] ?? null) !== (live[k] ?? null));
+  };
+
+  const renderCensusGuardNote = () => {
+    const note = elements.censusGuardNote;
+    if (!note) return;
+    const show = state.census.updatedAt > 0 && censusGuardsChanged();
+    note.hidden = !show;
+    if (show && elements.censusGuardNoteText) {
+      elements.censusGuardNoteText.textContent = t(
+        "censusGuardsChangedNote",
+        "Your safety switches have changed since this census, so these counts no longer match what a clear would do. Scan again."
+      );
+    }
   };
 
   const renderCensusList = () => {
@@ -3762,7 +3907,11 @@ document.addEventListener("DOMContentLoaded", () => {
       // fills this mailbox" is what the census is FOR, and answering it
       // with a guarded count would make the whole list read as empty on
       // a mailbox full of unread mail.
-      if (Number.isFinite(sender.reachable)) {
+      // 9.1: and only while the guards it was measured through are
+      // still the ones set. Same rule as the smart card's promised
+      // count, for the same reason: a stale number here understates a
+      // delete in the one direction that costs mail.
+      if (Number.isFinite(sender.reachable) && !censusGuardsChanged()) {
         const reach = document.createElement("span");
         reach.className = "subs-row-meta subs-row-meta--reach";
         const n = sender.reachable.toLocaleString();
@@ -3811,6 +3960,11 @@ document.addEventListener("DOMContentLoaded", () => {
         sub = t("proPriceSub", "Pro · $9.99 lifetime");
       } else if (!picked) {
         sub = t("censusPurgeNone", "Pick the senders you want cleared");
+      } else if (censusGuardsChanged()) {
+        // 9.1: the measurement is stale in the direction that deletes
+        // more than it said. Drop the number and keep the scope, which
+        // is the only half still true.
+        sub = t("censusPurgeStale", `${picked} selected · scan again, your safety switches changed`, [String(picked)]);
       } else if (reach.known === 0) {
         // Nothing ticked has a measurement, so the honest line is the
         // scope, with no number attached to it.
@@ -3854,6 +4008,8 @@ document.addEventListener("DOMContentLoaded", () => {
             : t("censusTotalCountFloor", `${senders} senders account for at least ${count} emails.`, [senders, count]));
       }
     }
+    reconcileCensusSelection();
+    renderCensusGuardNote();
     renderCensusList();
     if (elements.censusUpsell) {
       const measured = state.census.senders.filter((s) => s.measured).length;
@@ -3879,6 +4035,7 @@ document.addEventListener("DOMContentLoaded", () => {
       state.census.totalMb = Number(census.totalMb) || 0;
       state.census.exact = census.exact === true;
       state.census.discovered = Number(census.discovered) || 0;
+      state.census.guards = census.guards || null;
       renderCensus();
     } catch (err) {
       log("warn", "census load failed", err);
@@ -3937,6 +4094,7 @@ document.addEventListener("DOMContentLoaded", () => {
       state.census.totalCount = Number(msg.totalCount) || 0;
       state.census.totalMb = Number(msg.totalMb) || 0;
       state.census.exact = msg.exact === true;
+      state.census.guards = msg.guards || null;
       renderCensus();
     } else {
       // A cancelled or failed census keeps whatever the last complete
@@ -3953,7 +4111,15 @@ document.addEventListener("DOMContentLoaded", () => {
   // let every global guard, the tag-before-delete and the recovery log
   // apply unchanged. Written once and shared by the census clear and
   // the receipts clear rather than copied a third and fourth time.
-  const startScopedCleanupRun = async ({ queries, setStatus, busyLabel, dryLabel, startedToast }) => {
+  // 9.1: `onStarted` is the X-ray's end-of-run bookkeeping, moved into
+  // the helper its two younger siblings already share. It runs once the
+  // engine is injected, receives the real config so a dry run can be
+  // told apart from a live one, and is where a list drops the senders
+  // this run just took. Without it, a capped run plus a remembered
+  // selection is a lie: the toast says "re-run for the rest", the next
+  // press rebuilds the identical first twenty-five, and the rest is
+  // never reached.
+  const startScopedCleanupRun = async ({ queries, setStatus, busyLabel, dryLabel, startedToast, onStarted }) => {
     if (state.isRunning) return false;
     if (!Array.isArray(queries) || !queries.length) return false;
 
@@ -4024,6 +4190,10 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       await bumpRunCount();
+      // A dry run takes nothing, so it leaves every selection alone.
+      if (typeof onStarted === "function") {
+        try { onStarted(config); } catch (e) { log("warn", "scoped run bookkeeping failed", e); }
+      }
       // "started", not "cleared". 8.9: nothing has moved yet -- the
       // engine was only just injected and the run can still be
       // cancelled, error out, or match nothing at all.
@@ -4074,7 +4244,8 @@ document.addEventListener("DOMContentLoaded", () => {
         ? t("cleaningOne", "Cleaning up 1 sender...")
         : t("cleaningMany", `Cleaning up ${capped.length} senders...`, [String(capped.length)]),
       dryLabel: t("censusDryCounting", "Dry run: counting what clearing those senders would remove..."),
-      startedToast: t("censusRunStarted", "clearing started")
+      startedToast: t("censusRunStarted", "clearing started"),
+      onStarted: (config) => { if (!config.dryRun) forgetCensusChecked(capped); }
     });
   };
 
@@ -4089,8 +4260,12 @@ document.addEventListener("DOMContentLoaded", () => {
     // is that it deletes only what arrived after that sender's grace
     // window closed, and those windows differ. Grouping them would take
     // one sender's mail from inside its own grace period.
-    const allIgnored = GCC.receipts.rank(state.receipts.list)
-      .filter((r) => GCC.receipts.IGNORED_VERDICTS.includes(r.verdict));
+    // 9.1: ordered so that a sender this button has already cleared for
+    // its current verdict goes last. rankReceipts sorts by `since`, and
+    // a clear changes neither `since` nor `at`, so "re-run for the rest"
+    // rebuilt the same first twenty-five and sender twenty-six waited
+    // out RECHECK_DAYS for a turn that never came.
+    const { ordered: allIgnored } = GCC.receipts.purgeOrder(state.receipts.list);
     const ignored = allIgnored.slice(0, GCC.receipts.LIMITS.MAX_VERIFY_PER_RUN);
     // 9.0: say so when the cap bites, the way the census clear has since
     // 8.26. Silently acting on 25 of 40 is the same defect as printing
@@ -4098,11 +4273,30 @@ document.addEventListener("DOMContentLoaded", () => {
     if (allIgnored.length > ignored.length) {
       showToast(t("firstTwentyFive", "running the first 25; re-run for the rest"), "info");
     }
+    // 9.1: refuse a run that cannot take anything, and say why.
+    //
+    // The purge query is scoped `after:<the day this sender's grace
+    // window closed>`, and applyGlobalGuards staples the Clean tab's
+    // Minimum Age onto it because the query carries no age of its own.
+    // `from:(x) after:2026/08/25 older_than:3m` is a contradiction: it
+    // matches nothing, the run opens Gmail, walks a search with no
+    // results and finishes with "0 cleaned". The reach was already
+    // measured through exactly these guards, so the answer is on hand
+    // and the honest thing is to spend nothing and name the setting.
+    const reach = GCC.receipts.clearable(state.receipts.list);
+    if (!receiptsGuardsChanged() && reach.known > 0 && reach.count === 0) {
+      showToast(
+        t("receiptsNothingReachable", "nothing to clear: your Minimum Age setting is wider than these grace windows"),
+        "warning"
+      );
+      return;
+    }
     const queries = ignored.map((r) => GCC.receipts.purgeQuery(r)).filter(Boolean);
     if (!queries.length) {
       showToast(t("nothingToClear", "nothing to clear"), "info");
       return;
     }
+    const acted = ignored.map((r) => r.email);
     await startScopedCleanupRun({
       queries,
       setStatus: setSubsStatus,
@@ -4112,7 +4306,11 @@ document.addEventListener("DOMContentLoaded", () => {
         [String(queries.length)]
       ),
       dryLabel: t("receiptsDryCounting", "Dry run: counting what those senders have sent since."),
-      startedToast: t("receiptsRunStarted", "clearing started")
+      startedToast: t("receiptsRunStarted", "clearing started"),
+      onStarted: (config) => {
+        if (config.dryRun) return;
+        GCC.sendMessage({ type: "gmailCleanerReceiptsCleared", senders: acted }).catch(() => {});
+      }
     });
   };
 
@@ -4828,7 +5026,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // message from that sender. The Mailbox Report has said "your safety
     // switches have changed" since 8.7; this is the same fact on the
     // surface where a single press acts on one sender's whole history.
-    const willTake = smartGuardsChanged() ? "" : GCC.smart.actionCountText(sender);
+    const willTake = smartGuardsChanged(sender) ? "" : GCC.smart.actionCountText(sender);
     if (willTake) {
       const promise = document.createElement("div");
       promise.className = "smart-will-take";
@@ -4852,8 +5050,15 @@ document.addEventListener("DOMContentLoaded", () => {
   // A scan stored before 8.21 has no snapshot. That answers FALSE, not
   // TRUE: "cannot tell" must not blank a number that is very likely
   // still correct, and the next scan supplies the snapshot anyway.
-  const smartGuardsChanged = () => {
-    const measured = state.smart.guards;
+  //
+  // 9.1: a sender may carry its own snapshot, and when it does, that is
+  // the one that counts. The stored list is union-merged across scans
+  // and the record-level snapshot is replaced by the newest scan, so a
+  // sender carried forward from an earlier scan was being validated
+  // against guards it was never measured under. Falls back to the
+  // record's for a scan stored before 9.1.
+  const smartGuardsChanged = (sender) => {
+    const measured = (sender && sender.guards) || state.smart.guards;
     if (!measured) return false;
     const live = liveReportGuards();
     return REPORT_GUARD_FIELDS.some((k) => (measured[k] ?? null) !== (live[k] ?? null));
@@ -4872,7 +5077,13 @@ document.addEventListener("DOMContentLoaded", () => {
     // count while this is true, and a number that disappears with no
     // explanation is its own small mystery. Same wording as the Mailbox
     // Report's, because it is the same fact.
-    if (smartGuardsChanged()) {
+    // 9.1: any sender whose own snapshot has moved counts, not just the
+    // record's. buildSmartCard drops a card's promised count off the
+    // per-sender check now, and a number that disappears with nothing
+    // said is the mystery this note exists to prevent.
+    const anyStale = smartGuardsChanged()
+      || state.smart.senders.some((s) => smartGuardsChanged(s));
+    if (anyStale) {
       if (elements.smartGuardNoteText) {
         elements.smartGuardNoteText.textContent = t(
           "smartGuardsChangedNote",
@@ -6269,7 +6480,18 @@ document.addEventListener("DOMContentLoaded", () => {
         // switch flipped afterwards makes the numbers describe a run
         // that is no longer the one the buttons would start. Re-render
         // so the note can say so before anything is clicked.
+        //
+        // 9.1: all THREE surfaces that hold a measured count, not just
+        // the one. Smart Suggestions grew the same check in 8.21 and the
+        // census in 9.1, and neither was repainted here, so both notes
+        // only appeared after something else happened to re-render the
+        // panel. A warning that arrives after the click is not a
+        // warning. The list is spelled out rather than counted, because
+        // a count is how the census came to be the third surface with
+        // this problem and the first without the fix.
         if (state.report.updatedAt) renderReport();
+        if (state.smart.scanned) renderSmartList();
+        if (state.census.updatedAt) renderCensus();
         scheduleAutosave();
       });
     });
@@ -6475,6 +6697,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     elements.reportGuardNoteBtn?.addEventListener("click", revealGuardSwitches);
     elements.smartGuardNoteBtn?.addEventListener("click", revealGuardSwitches);
+    elements.censusGuardNoteBtn?.addEventListener("click", revealGuardSwitches);
 
     // 8.6: a privacy claim the reader cannot check is just a claim. The
     // policy is hosted rather than bundled, so the link always resolves

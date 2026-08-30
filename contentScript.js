@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "9.0.0";
+  const GCC_CONTENT_VERSION = "9.1.0";
 
   // =========================
   // Timing & behavior constants
@@ -5697,6 +5697,19 @@
     return out;
   }
 
+  // The verdicts that mean the sender did not honour the request, and
+  // the only ones the Clear button acts on. Engine-local copy of
+  // GCC.receipts.IGNORED_VERDICTS; a test pins the two equal.
+  //
+  // 9.1: named, because the run's closing line counted the single
+  // literal "still_sending". 9.0 added `hidden_in_spam` (they kept
+  // sending, Gmail filed it as spam) and `relapsed` (they stopped, then
+  // started again) and neither reached this arithmetic, so a run whose
+  // only receipt came back hidden_in_spam ended with "All 1 stopped."
+  // printed over a verdict that says the opposite. A count off one
+  // literal is how a verdict set grows past the code that reads it.
+  const RECEIPT_IGNORED_VERDICTS = ["still_sending", "relapsed"];
+
   // The verdict, from one search. Engine-local copy of
   // GCC.receipts.verdictFor; a test pins the two.
   //
@@ -5728,6 +5741,21 @@
     const targets = buildVerifyTargets(rawTargets);
     const results = [];
 
+    // 9.1: the switches every `clearable` below is measured through,
+    // carried the way the census has carried its snapshot since 9.0.
+    // The verdict is measured RAW and needs none of this, but the Clear
+    // button's number goes through applyGlobalGuards, and that button
+    // reads the Clean tab live. Set Minimum Age to three months after a
+    // check and the row keeps promising a figure the run cannot reach.
+    const verifyGuards = {
+      safeMode: Boolean(CONFIG.safeMode),
+      minAge: CONFIG.minAge || null,
+      guardSkipStarred: Boolean(CONFIG.guardSkipStarred),
+      guardSkipImportant: Boolean(CONFIG.guardSkipImportant),
+      guardSkipUnread: Boolean(CONFIG.guardSkipUnread),
+      guardSkipUserLabels: Boolean(CONFIG.guardSkipUserLabels)
+    };
+
     // 8.19's rule, and this run has the same reason to obey it: the
     // popup is long gone by the time twenty-five searches finish, and a
     // verdict already reached is a fact worth keeping even if the tab
@@ -5741,7 +5769,8 @@
         if (hasChromeRuntime()) {
           chrome.runtime.sendMessage({
             type: "gmailCleanerRecordVerifyResults",
-            results: pending
+            results: pending,
+            guards: verifyGuards
           });
         }
       } catch (e) {
@@ -5866,20 +5895,47 @@
 
       reportResults();
 
-      const ignored = results.filter((r) => r.verdict === "still_sending").length;
+      // 9.1: counted off the verdict SETS, not one literal.
+      //
+      // The old arithmetic was `verdict === "still_sending"`, so both of
+      // 9.0's new verdicts fell through into the else branch and a run
+      // ended with "All N stopped." over a sender the same run had just
+      // proved was still mailing. hidden_in_spam gets its own clause
+      // rather than joining `ignored`, because there is no button behind
+      // it: the mail is in Spam and this product will not point a delete
+      // run at that folder. And "All N stopped" is now said only when
+      // every result really is one, so an `unknown` cannot pass for a
+      // clean answer either.
+      const ignored = results.filter((r) => RECEIPT_IGNORED_VERDICTS.includes(r.verdict)).length;
       const stopped = results.filter((r) => r.verdict === "stopped").length;
+      const spam = results.filter((r) => r.verdict === "hidden_in_spam").length;
+      const unknown = results.length - ignored - stopped - spam;
+      let status;
+      let detail;
+      if (ignored) {
+        status = `${ignored} of ${results.length} ignored your unsubscribe.`;
+        detail = spam
+          ? `Their mail since is queued up for one-click deletion. ${spam} more kept sending into Spam.`
+          : "Their mail since is queued up for one-click deletion.";
+      } else if (spam) {
+        status = `${spam} of ${results.length} kept sending, into Spam.`;
+        detail = "Gmail is filing their mail as spam, so a normal search never sees it. Nothing here is deleted: the Spam folder is the one place delete means gone for good.";
+      } else if (stopped === results.length) {
+        status = `All ${results.length} stopped.`;
+        detail = `${stopped} confirmed clear. Nothing new has arrived from any of them.`;
+      } else {
+        status = `${stopped} of ${results.length} confirmed stopped.`;
+        detail = `${unknown} did not answer, so those stay due and will be checked again.`;
+      }
       safeSendImmediate({
         runKind: "unsubscribeVerify",
         phase: "done",
-        status: ignored
-          ? `${ignored} of ${results.length} ignored your unsubscribe.`
-          : `All ${results.length} stopped.`,
-        detail: ignored
-          ? "Their mail since is queued up for one-click deletion."
-          : `${stopped} confirmed clear. Nothing new has arrived from any of them.`,
+        status,
+        detail,
         percent: 100,
         done: true,
-        verifyResults: results
+        verifyResults: results,
+        guards: verifyGuards
       });
     } catch (e) {
       if (e instanceof CancellationError) {
@@ -7361,7 +7417,15 @@
         censusSenders: senders,
         totalCount,
         totalMb,
-        exact: allExact
+        exact: allExact,
+        // 9.1: the same snapshot the worker gets, on the message the
+        // popup reads live. A popup that watched the scan takes its
+        // senders straight off this message and never touches storage
+        // until the next open, so without the snapshot here it has
+        // nothing to compare the switches against for the rest of its
+        // life. Sending it in only one of the two places is how the
+        // warning arrives after a reopen and not before it.
+        guards: censusGuards
       });
     } catch (e) {
       if (e instanceof CancellationError) {

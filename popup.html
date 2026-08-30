@@ -3015,6 +3015,20 @@
                rule this codebase keeps for the render half too. -->
           <p class="census-total" id="censusTotal" hidden></p>
 
+          <!-- 9.1: the census measures every "Clear would take N"
+               through the safety switches as they stood at scan time,
+               and the button beside it reads those switches live. Turn
+               one off afterwards and the row was still promising the
+               guarded number over a run that takes the unguarded one.
+               The Mailbox Report has said this since 8.7 and Smart
+               Suggestions since 8.21; the census shipped the snapshot
+               in 9.0 and nothing to say it with. -->
+          <div class="guard-note" id="censusGuardNote" hidden>
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6.5v5c0 4.5 3.4 8.3 8 9.5 4.6-1.2 8-5 8-9.5v-5Z"/></svg>
+            <span id="censusGuardNoteText"></span>
+            <button type="button" class="guard-note-btn" id="censusGuardNoteBtn" data-i18n="guardNoteBtn">Show guards</button>
+          </div>
+
           <div id="censusList" class="subs-list" role="list" aria-label="Top senders" data-i18n-label="censusListLabel"></div>
 
           <button id="censusPurgeBtn" class="subs-unsub-btn" type="button" hidden>
@@ -3660,10 +3674,10 @@
             class="badge"
             id="versionBadge"
             type="button"
-            aria-label="Version 9.0.0, see what's new"
+            aria-label="Version 9.1.0, see what's new"
             title="What's new in this version"
             data-i18n-title="whatsNewTitle"
-          >v9.0.0</button>
+          >v9.1.0</button>
           <button id="kbdHelpBtn" class="linkish" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" data-i18n-label="kbdTitle" data-i18n-title="kbdBtnTitle">
             <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/></svg>
           </button>
