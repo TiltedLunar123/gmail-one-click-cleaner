@@ -657,5 +657,16 @@
   "receiptsPurgeNothing": { "message": "Nothing to clear: your Minimum Age setting is wider than these grace windows" },
   "receiptsPurgeTakes": { "message": "Clears $1 emails · only what arrived after each grace window" },
   "receiptsPurgeTakesFloor": { "message": "Clears at least $1 emails · only what arrived after each grace window" },
-  "receiptsNothingReachable": { "message": "nothing to clear: your Minimum Age setting is wider than these grace windows" }
+  "receiptsNothingReachable": { "message": "nothing to clear: your Minimum Age setting is wider than these grace windows" },
+
+  "censusStaleNote": { "message": "This census is over a month old. Another month of mail has crossed the six month line since it ran, so a clear would take more than these counts say. Scan again." },
+  "censusPurgeStaleAge": { "message": "$1 selected · scan again, this census is over a month old" },
+  "censusExpired": { "message": "The last census was over three months old, so it was not used. Scan again to see who fills your mailbox now." },
+  "receiptIgnoredStale": { "message": "Ignored your unsubscribe when last checked" },
+  "receiptRelapsedStale": { "message": "Stopped, then started again when last checked" },
+  "receiptSpamStale": { "message": "Was still sending to Spam when last checked" },
+  "receiptStoppedStale": { "message": "Stopped when last checked" },
+  "receiptCheckedOn": { "message": "Last checked" },
+
+  "censusUnreadable": { "message": "The last census could not be read, so it was not used. Scan again to see who fills your mailbox now." }
 }

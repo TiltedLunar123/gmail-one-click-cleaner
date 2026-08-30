@@ -970,6 +970,50 @@
         <div class="btn-row" id="lastRunButtons" aria-label="Last run actions"></div>
       </section>
 
+      <!-- ON-DEVICE SENDER DATA (9.1)
+           Counts and dates only. The card exists so a user can see what
+           the extension is holding and confirm that the Erase button on
+           the Options page did what it said, which is why it is never
+           hidden when the stores are empty: a card that vanishes is a
+           worse answer than one that says nothing is stored. -->
+      <section class="card" aria-labelledby="stores-heading">
+        <div class="card-header">
+          <h2 id="stores-heading"><span class="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v6c0 1.6 3.4 2.9 7.5 2.9s7.5-1.3 7.5-2.9v-6"/><path d="M4.5 11.5v6c0 1.6 3.4 2.9 7.5 2.9s7.5-1.3 7.5-2.9v-6"/></svg></span> On-device sender data</h2>
+          <span id="storesTag" class="tag" role="status">reading...</span>
+        </div>
+
+        <div class="env-grid" role="list" aria-label="Stored sender data">
+          <div class="env-item" role="listitem">
+            <div class="env-label">Census senders</div>
+            <div class="env-value" id="storesCensusCount">-</div>
+          </div>
+          <div class="env-item" role="listitem">
+            <div class="env-label">Census updated</div>
+            <div class="env-value" id="storesCensusAt">-</div>
+          </div>
+          <div class="env-item" role="listitem">
+            <div class="env-label">Unsubscribe receipts</div>
+            <div class="env-value" id="storesReceiptCount">-</div>
+          </div>
+          <div class="env-item" role="listitem">
+            <div class="env-label">Receipts last written</div>
+            <div class="env-value" id="storesReceiptAt">-</div>
+          </div>
+          <div class="env-item" role="listitem">
+            <div class="env-label">Ticked senders</div>
+            <div class="env-value" id="storesTicked">-</div>
+          </div>
+        </div>
+
+        <p class="muted" style="margin-top: 12px;">
+          Counts only. No address is shown here or copied by Copy Diagnostics. A census is
+          not used once it is three months old, and is cleared for you. Receipts are kept
+          until you erase them, because a receipt is only useful once it is old. The
+          subscription, storage, suggestion and mailbox report scans keep their own sender
+          lists, which this card does not count and the Erase button does not clear.
+        </p>
+      </section>
+
       <!-- HISTORY -->
       <section class="card" aria-labelledby="history-heading">
         <div class="card-header">

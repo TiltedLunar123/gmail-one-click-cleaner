@@ -52,6 +52,13 @@
 
     runHistoryTableBody: "runHistoryTableBody",
 
+    storesTag: "storesTag",
+    storesCensusCount: "storesCensusCount",
+    storesCensusAt: "storesCensusAt",
+    storesReceiptCount: "storesReceiptCount",
+    storesReceiptAt: "storesReceiptAt",
+    storesTicked: "storesTicked",
+
     copyLogBtn: "copyLogBtn",
     clearLogBtn: "clearLogBtn",
 
@@ -104,6 +111,13 @@
     lastRunButtons: GCC.$(SELECTORS.lastRunButtons),
 
     runHistoryTableBody: GCC.$(SELECTORS.runHistoryTableBody),
+
+    storesTag: GCC.$(SELECTORS.storesTag),
+    storesCensusCount: GCC.$(SELECTORS.storesCensusCount),
+    storesCensusAt: GCC.$(SELECTORS.storesCensusAt),
+    storesReceiptCount: GCC.$(SELECTORS.storesReceiptCount),
+    storesReceiptAt: GCC.$(SELECTORS.storesReceiptAt),
+    storesTicked: GCC.$(SELECTORS.storesTicked),
 
     copyLogBtn: GCC.$(SELECTORS.copyLogBtn),
     clearLogBtn: GCC.$(SELECTORS.clearLogBtn),
@@ -541,6 +555,91 @@
   // under "layoutChangeNotice" ({ at, detail }). The card stays hidden
   // when the key is empty; when set, it shows how long ago Gmail moved
   // and the run's own plain-words explanation.
+  // 9.1: what the extension is holding that came out of the user's mail.
+  //
+  // Counts and dates, never an address, and the mechanism for that is
+  // narrower than it looks: copyLog joins the in-memory logHistory array,
+  // and addLog is the only thing that appends to it. Writing a number
+  // into a DOM node does not reach the clipboard and calling addLog does,
+  // and the two look identical at the call site. So the rule this
+  // function keeps is simply that it never calls addLog, and a test pins
+  // that over the extracted body.
+  //
+  // Read straight from storage rather than through the worker messages,
+  // which is this page's own convention for runHistory and the layout
+  // notice. It also gets both timestamps, which gmailCleanerGetReceipts
+  // does not forward, without widening a message for a diagnostics
+  // stamp, and it keeps a UI read out of the worker's storage queue.
+  const renderStores = async () => {
+    if (!elements.storesTag) return;
+    if (!GCC.hasChromeStorage("local")) return;
+
+    try {
+      const r = await GCC.storageGet("local", [
+        "senderCensus", "unsubReceipts",
+        "censusCheckedEmails", "xrayCheckedEmails", "smartCheckedEmails", "subsCheckedEmails"
+      ]);
+      const census = r?.senderCensus || null;
+      const receipts = r?.unsubReceipts || null;
+      const ticks = [
+        ["census", r?.censusCheckedEmails],
+        ["storage", r?.xrayCheckedEmails],
+        ["suggested", r?.smartCheckedEmails],
+        ["subscriptions", r?.subsCheckedEmails]
+      ].map(([label, list]) => [label, Array.isArray(list) ? list.length : 0]);
+
+      // senders.length, deliberately not GCC.census.totals().senders,
+      // which filters to the measured ones: on a partial scan that would
+      // report a smaller number than the erase button is about to take.
+      const censusCount = Array.isArray(census?.senders) ? census.senders.length : 0;
+      const censusAt = Number(census?.updatedAt) || 0;
+      const receiptList = Array.isArray(receipts?.list) ? receipts.list : [];
+      const receiptAt = Number(receipts?.updatedAt) || 0;
+      const tickTotal = ticks.reduce((sum, [, n]) => sum + n, 0);
+
+      const set = (el, text, absolute) => {
+        if (!el) return;
+        el.textContent = text;
+        if (absolute) el.title = absolute;
+      };
+
+      set(elements.storesCensusCount, censusCount ? `${censusCount} senders` : "none stored");
+      // relativeTime and formatDate both answer "-" for 0, so a
+      // never-written or just-erased store needs no branch of its own.
+      set(elements.storesCensusAt, GCC.relativeTime(censusAt), censusAt ? GCC.formatDate(censusAt) : "");
+
+      const due = receiptList.length ? GCC.receipts.summary(receiptList).due : 0;
+      set(
+        elements.storesReceiptCount,
+        receiptList.length ? `${receiptList.length} receipts, ${due} ready to check` : "none stored"
+      );
+      // "last written", not "last checked": a clear that adds no receipt
+      // still moves this stamp.
+      set(elements.storesReceiptAt, GCC.relativeTime(receiptAt), receiptAt ? GCC.formatDate(receiptAt) : "");
+
+      set(
+        elements.storesTicked,
+        tickTotal ? ticks.map(([label, n]) => `${label} ${n}`).join(" · ") : "none ticked"
+      );
+
+      const nothing = !censusCount && !receiptList.length && !tickTotal;
+      const expired = Boolean(census) && GCC.census.isExpired(census);
+      elements.storesTag.className = expired ? "tag tag-warning" : (nothing ? "tag" : "tag tag-primary");
+      // "these are empty", not "nothing is stored". The card covers the
+      // two stores the Erase button clears and the four tick lists that
+      // go with them; the mailbox report, the subscription, storage and
+      // suggestion scans and the suggestion feedback all hold sender
+      // addresses too and are outside both this card and that button. A
+      // chip reading "nothing stored" over a mailbox report full of top
+      // senders would be the kind of claim this card exists to avoid.
+      elements.storesTag.textContent = expired
+        ? "census expired, not used"
+        : (nothing ? "these are empty" : "current");
+    } catch (err) {
+      console.warn("[Diagnostics] Failed to read stored sender data:", err);
+    }
+  };
+
   const renderLayoutChangeNotice = async () => {
     if (!elements.layoutChangeCard) return;
     if (!GCC.hasChromeStorage("local")) return;
@@ -919,10 +1018,19 @@
         target: { tabId: tab.id },
         func: () => {
           const now = new Date().toISOString();
-          console.log("[GmailCleaner][Diagnostics] Inject ping at", now, "URL:", location.href);
+          console.log("[GmailCleaner][Diagnostics] Inject ping at", now);
+          // 9.1: the title and the full URL used to come back here and
+          // go straight into the log that Copy Diagnostics puts on the
+          // clipboard. A Gmail tab title reads "Inbox (12) -
+          // you@gmail.com - Gmail", and a Gmail search URL carries the
+          // whole query in its fragment, so a user who had just searched
+          // for a sender copied both their own address and that one into
+          // whatever they pasted it in to. Origin and path answer the
+          // only question this button asks, which is whether the engine
+          // is attached to the right kind of page.
           return {
-            title: document.title,
-            href: location.href,
+            origin: location.origin,
+            path: location.pathname,
             time: now,
             attached: !!window.GCC_ATTACHED
           };
@@ -981,6 +1089,14 @@
           renderRunHistory().catch(console.error);
           addLog("Received completion stats from cleaner run", "success");
         }
+        // A census or a verify run that just finished changes both the
+        // counts and the freshness this card is about, and a card whose
+        // whole subject is staleness must not go stale in front of the
+        // user. Every terminal phase, not just the one that carries
+        // stats: a cancelled census still wrote whatever it reached.
+        if (msg.done || ["done", "cancelled", "error"].includes(msg.phase)) {
+          renderStores().catch(console.error);
+        }
       });
     }
 
@@ -1024,7 +1140,8 @@
     await Promise.allSettled([
       renderLastRunFromStorage(),
       renderRunHistory(),
-      renderLayoutChangeNotice()
+      renderLayoutChangeNotice(),
+      renderStores()
     ]);
 
     addLog(`Diagnostics page initialized (v${DIAGNOSTICS_VERSION})`, "success");

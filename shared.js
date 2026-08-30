@@ -1510,6 +1510,37 @@ const GCC = (() => {
     return { verdict: "stopped", since: 0, sinceExact: true };
   };
 
+  // 9.1: the receipt never goes stale. The ANSWER does.
+  //
+  // Nothing in this store is ever deleted for its age, at any threshold,
+  // on any path, and that is a decision rather than an omission. Every
+  // clock on a receipt runs the wrong way for a retention rule. `at`
+  // measures how long the receipt has been USEFUL: receiptIsDue refuses
+  // to check one until the grace window closes and the verify queue is
+  // ordered oldest first, so the record nearest any age cutoff is by
+  // construction the next one the user would act on. `checkedAt` is not
+  // a liveness signal either, because an inconclusive check writes 0 on
+  // purpose, so "drop anything unverified in N days" would delete
+  // exactly the receipts whose checks keep failing.
+  //
+  // What is perishable is the verdict. `at` is a fact about something
+  // the user did; `verdict` plus `since` is a claim about the world
+  // measured on one day by one search, and that claim already has a
+  // documented shelf life. So this needs no threshold of its own: the
+  // moment a receipt becomes due for a recheck IS the moment its last
+  // answer stopped being current. A second constant would be a second
+  // answer to one question, and the two would drift.
+  //
+  // The number is what actually rots. receiptVerifyQuery anchors its
+  // search at `after:<the day the grace window closed>`, so a `since`
+  // count measured a month ago answered "did they keep mailing after I
+  // asked them to stop". Read a year later, the same figure is quietly
+  // answering "how much has this sender sent me since last spring". A
+  // stale verdict is therefore shown WITHOUT its count rather than with
+  // an aged one.
+  const receiptVerdictIsStale = (receipt, now = Date.now()) =>
+    Boolean(receipt?.verdict) && receiptIsDue(receipt, now);
+
   const sanitizeReceipt = (raw) => {
     const email = String(raw?.email || "").trim().toLowerCase();
     if (!email || email.length > 320 || !STORAGE_EMAIL_RE.test(email)) return null;
@@ -1576,17 +1607,35 @@ const GCC = (() => {
   // stop. `hidden_in_spam` sits below both: they did not honour it
   // either, but there is no button under it and nothing in the inbox to
   // act on, so it must not push a row with work to do off the screen.
-  const rankReceipts = (receipts) => {
+  // 9.1: `verdictStale` is stamped here, on the way out, as an ADDED
+  // FIELD and never a filter. Nothing leaves the list, so summary,
+  // purgeOrder, clearable and the count the erase button is about to
+  // delete all keep describing the same set of receipts. A filter would
+  // also quietly empty the fixtures the 9.0 and 9.1 suites are built on
+  // (they use dates 40 and 60 days back), turning those assertions green
+  // by vacuity instead of red.
+  //
+  // This is the chokepoint because every shipped consumer passes through
+  // it: receiptsSummary, receiptsPurgeOrder and receiptsClearable all
+  // call it, and the popup calls it directly. It is deliberately NOT
+  // sanitizeReceipt, which is the tighter funnel: sanitize is a shape
+  // validator with no clock, two parity fixtures feed it `at: 1`, and
+  // mixing shape with time would fail them for a reason that has nothing
+  // to do with what they pin.
+  const rankReceipts = (receipts, now = Date.now()) => {
     const order = { relapsed: 0, still_sending: 1, hidden_in_spam: 2, unknown: 3, "": 4, stopped: 5 };
     return (Array.isArray(receipts) ? receipts : [])
       .map(sanitizeReceipt)
       .filter(Boolean)
+      .map((r) => ({ ...r, verdictStale: receiptVerdictIsStale(r, now) }))
       .sort((a, b) => (order[a.verdict] ?? 4) - (order[b.verdict] ?? 4) || b.since - a.since || b.at - a.at)
       .slice(0, RECEIPT_LIMITS.MAX);
   };
 
   const receiptsSummary = (receipts, now = Date.now()) => {
-    const list = rankReceipts(receipts);
+    // 9.1: its own `now` goes through, so a caller that pins the clock
+    // pins it for the staleness flag too rather than for half the answer.
+    const list = rankReceipts(receipts, now);
     let due = 0;
     let stillSending = 0;
     let stopped = 0;
@@ -1653,22 +1702,30 @@ const GCC = (() => {
   // The senders a Clear would act on, in the order it will take them.
   // Uncleared first, so pressing the button twice reaches the second
   // twenty-five instead of the first twenty-five again.
-  const receiptsPurgeOrder = (receipts) => {
-    const ignored = rankReceipts(receipts).filter((r) => RECEIPT_IGNORED_VERDICTS.includes(r.verdict));
+  const receiptsPurgeOrder = (receipts, now = Date.now()) => {
+    const ignored = rankReceipts(receipts, now).filter((r) => RECEIPT_IGNORED_VERDICTS.includes(r.verdict));
     const pending = ignored.filter((r) => !receiptWasCleared(r));
     const done = ignored.filter(receiptWasCleared);
     return { ordered: pending.concat(done), pending: pending.length, cleared: done.length };
   };
 
-  const receiptsClearable = (receipts) => {
-    const { ordered, pending, cleared } = receiptsPurgeOrder(receipts);
+  const receiptsClearable = (receipts, now = Date.now()) => {
+    const { ordered, pending, cleared } = receiptsPurgeOrder(receipts, now);
     const acting = ordered.slice(0, RECEIPT_LIMITS.MAX_VERIFY_PER_RUN);
     let count = 0;
     let exact = true;
     let known = 0;
     let unknown = 0;
     for (const r of acting) {
-      if (!Number.isFinite(r.clearable)) { unknown++; continue; }
+      // 9.1: a stale verdict takes its `clearable` with it, and this is
+      // the more important half of that rule rather than an afterthought.
+      // Both numbers were measured by the same run on the same day, so
+      // if the verdict is too old to print then the figure beside the
+      // DELETE button is too old to print, and that is the one that
+      // costs something to get wrong. Reported as unknown rather than as
+      // zero: unknown is what "not measured" means everywhere else in
+      // this record, and a zero would claim the button can take nothing.
+      if (!Number.isFinite(r.clearable) || r.verdictStale) { unknown++; continue; }
       known++;
       count += r.clearable;
       if (!r.clearableExact) exact = false;
@@ -1699,6 +1756,7 @@ const GCC = (() => {
     verifyQuery: receiptVerifyQuery,
     purgeQuery: receiptPurgeQuery,
     isDue: receiptIsDue,
+    verdictStale: receiptVerdictIsStale,
     verdictFor: receiptVerdictFor,
     sanitize: sanitizeReceipt,
     merge: mergeReceipts,
@@ -2037,6 +2095,30 @@ const GCC = (() => {
     ROW_SAMPLE_CAP: 100,
     MAX_COUNT: 10000000,
     MAX_RULE_SENDERS: 25,
+    // 9.1: two thresholds on one clock, the `updatedAt` the worker
+    // stamps on a completed scan.
+    //
+    // STALE_DAYS is when the numbers stop being printable. The census
+    // clear is scoped `older_than:6m`, so every month that passes pushes
+    // another month of a sender's mail across that line: the stored
+    // count UNDERSTATES what a clear would take, which is the one
+    // direction that costs mail. 30 is also RECHECK_DAYS, so the
+    // extension gives one answer to "how long is a measurement current"
+    // rather than two. Shorter would put the warning in front of anyone
+    // who scans monthly, and a warning shown every ordinary session is a
+    // warning nobody reads.
+    //
+    // MAX_AGE_DAYS is when the record stops being served at all. What
+    // survives from 30 to 90 days is not a measurement, it is the user's
+    // sender list and their ticks, and a tick is an instruction rather
+    // than a number: "stop keeping old Groupon mail" means the same
+    // thing in May as it did in March. 90 is three recheck cycles, past
+    // which a user has not opened the feature in a quarter and cannot be
+    // assumed to remember what they ticked. Before this there was no
+    // ceiling at all on that path: a tick from last year still built a
+    // delete rule on every unattended sweep.
+    STALE_DAYS: 30,
+    MAX_AGE_DAYS: 90,
     // Deliberately the same list STORAGE_XRAY_LIMITS carries. A census
     // clear runs through the same chunker, which drops an age it does
     // not recognise rather than refusing it, so a wider list here would
@@ -2220,6 +2302,36 @@ const GCC = (() => {
   // a sender measured before 8.27 has no such field, and an absent
   // reachable is NOT zero, it is unknown, so it is reported separately
   // rather than quietly summed as nothing.
+  // 9.1: how old the stored census is, asked of the whole record rather
+  // than of the sender array, because the array carries no clock and
+  // never has.
+  //
+  // The two predicates resolve "cannot tell" in OPPOSITE directions, and
+  // that is the interesting part. isStale decides whether to print a
+  // number, so a record with no readable stamp answers false: 8.21's
+  // rule is that "cannot tell" must not blank a figure that is very
+  // likely still right. isExpired decides whether to keep acting on a
+  // list of addresses that becomes delete rules on an unattended sweep,
+  // so the same uncertainty answers true. Same question, and the answer
+  // follows what the answer is used for.
+  const CENSUS_DAY_MS = 24 * 60 * 60 * 1000;
+
+  const censusIsStale = (record, now = Date.now()) => {
+    const at = Number(record?.updatedAt) || 0;
+    if (!(at > 0) || at > now) return false;
+    return now - at >= CENSUS_LIMITS.STALE_DAYS * CENSUS_DAY_MS;
+  };
+
+  const censusIsExpired = (record, now = Date.now()) => {
+    if (!record || typeof record !== "object" || !Array.isArray(record.senders)) return true;
+    const at = Number(record.updatedAt) || 0;
+    if (!(at > 0)) return true;
+    // A stamp from the future is a clock that cannot be trusted, and an
+    // untrustworthy clock on this predicate has to fail closed.
+    if (at > now) return true;
+    return now - at >= CENSUS_LIMITS.MAX_AGE_DAYS * CENSUS_DAY_MS;
+  };
+
   const censusClearable = (senders, emails) => {
     const want = new Set(
       (Array.isArray(emails) ? emails : [])
@@ -2251,6 +2363,8 @@ const GCC = (() => {
     purgeQueries: censusPurgeQueries,
     rankSenders: rankCensusSenders,
     totals: censusTotals,
+    isStale: censusIsStale,
+    isExpired: censusIsExpired,
     clearable: censusClearable
   });
 

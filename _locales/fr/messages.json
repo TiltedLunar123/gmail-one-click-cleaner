@@ -657,5 +657,16 @@
   "receiptsPurgeNothing": { "message": "Rien à nettoyer : votre âge minimum est plus large que ces délais de grâce" },
   "receiptsPurgeTakes": { "message": "Supprime $1 e-mails · uniquement ce qui est arrivé après chaque délai de grâce" },
   "receiptsPurgeTakesFloor": { "message": "Supprime au moins $1 e-mails · uniquement ce qui est arrivé après chaque délai de grâce" },
-  "receiptsNothingReachable": { "message": "rien à nettoyer : votre âge minimum est plus large que ces délais de grâce" }
+  "receiptsNothingReachable": { "message": "rien à nettoyer : votre âge minimum est plus large que ces délais de grâce" },
+
+  "censusStaleNote": { "message": "Ce recensement a plus d'un mois. Un mois de courrier de plus a franchi la limite des six mois depuis, donc un nettoyage prendrait plus que ce que disent ces chiffres. Relancez l'analyse." },
+  "censusPurgeStaleAge": { "message": "$1 sélectionnés · relancez l'analyse, ce recensement a plus d'un mois" },
+  "censusExpired": { "message": "Le dernier recensement avait plus de trois mois, il n'a donc pas été utilisé. Relancez l'analyse pour voir qui remplit votre boîte aujourd'hui." },
+  "receiptIgnoredStale": { "message": "A ignoré votre désabonnement lors du dernier contrôle" },
+  "receiptRelapsedStale": { "message": "Avait cessé puis recommencé lors du dernier contrôle" },
+  "receiptSpamStale": { "message": "Envoyait encore vers les spams lors du dernier contrôle" },
+  "receiptStoppedStale": { "message": "Arrêté lors du dernier contrôle" },
+  "receiptCheckedOn": { "message": "Dernier contrôle" },
+
+  "censusUnreadable": { "message": "Le dernier recensement n'a pas pu être lu, il n'a donc pas été utilisé. Relancez l'analyse pour voir qui remplit votre boîte aujourd'hui." }
 }

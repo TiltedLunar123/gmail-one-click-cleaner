@@ -78,7 +78,54 @@
     // 8.26 census ticks, written by the popup. The worker reads them so
     // a SCHEDULED sweep carries the same extra rules a hand-started run
     // does; see runScheduledCleanup.
-    CENSUS_CHECKED: "censusCheckedEmails"
+    CENSUS_CHECKED: "censusCheckedEmails",
+
+    // 9.1: the other three tick lists, named here for the first time.
+    // The worker does not read them; it erases them. Each is a bare
+    // array of the user's real correspondents written by the popup, and
+    // a control that erases the census ticks and leaves these three
+    // behind would be describing an erase it does not perform. Spellings
+    // are pinned equal to popup.js's own declarations by a test, because
+    // a typo here would erase nothing and nothing would say so.
+    XRAY_CHECKED: "xrayCheckedEmails",
+    SMART_CHECKED: "smartCheckedEmails",
+    SUBS_CHECKED: "subsCheckedEmails"
+  });
+
+  // 9.1: everything the Erase Stored Sender Data button removes.
+  //
+  // Enumerated by name and never counted. A count says "six keys are
+  // erased", never "all the keys are erased", so it stays green on the
+  // day a seventh store is added and forgotten, and this codebase has
+  // been bitten by a count pin three times.
+  //
+  // Written as neutral values rather than removed. `null` is the only
+  // erase precedent the extension has, and it is what every reader here
+  // already handles: `|| null` on the census, `?.list || []` on the
+  // receipts, a failed Array.isArray on each tick list. chrome.storage
+  // .local.clear() is the one thing that must never be used: it would
+  // take notifyOnComplete, runHistory, the recovery log and the licence
+  // cache with it, which is 7.15's restoreDefaults bug at a larger
+  // scale.
+  const ERASE_KEYS = Object.freeze([
+    STORAGE_KEYS.CENSUS,
+    STORAGE_KEYS.RECEIPTS,
+    STORAGE_KEYS.CENSUS_CHECKED,
+    STORAGE_KEYS.XRAY_CHECKED,
+    STORAGE_KEYS.SMART_CHECKED,
+    STORAGE_KEYS.SUBS_CHECKED
+  ]);
+
+  // The two stores are records; the four tick lists are arrays. Reading
+  // an erased store must look exactly like reading one that was never
+  // written, and those are the two shapes that do.
+  const ERASE_VALUES = Object.freeze({
+    [STORAGE_KEYS.CENSUS]: null,
+    [STORAGE_KEYS.RECEIPTS]: null,
+    [STORAGE_KEYS.CENSUS_CHECKED]: [],
+    [STORAGE_KEYS.XRAY_CHECKED]: [],
+    [STORAGE_KEYS.SMART_CHECKED]: [],
+    [STORAGE_KEYS.SUBS_CHECKED]: []
   });
 
   // Mirrors GCC.receipts.VERDICTS. Kept as its own literal because the
@@ -357,6 +404,9 @@
   chrome.alarms.onAlarm.addListener(async (alarm) => {
     if (alarm.name === STATS_CLEANUP_ALARM) {
       await pruneOldStats();
+      // 9.1: same alarm, same job. A census past its age is already
+      // refused on every read; this is what takes it off the disk.
+      await pruneExpiredCensus();
       return;
     }
 
@@ -1117,6 +1167,15 @@
           .catch((err) => sendResponse({ ok: false, error: err?.message || "clear failed" }));
         return true;
 
+      // 9.1: the Options page's Erase Stored Sender Data button. Locked
+      // here rather than inside, and it answers with the key LIST so a
+      // test can enumerate what was taken instead of counting it.
+      case "gmailCleanerEraseStores":
+        withStorageLock(() => eraseSenderStores())
+          .then((keys) => sendResponse({ ok: true, keys }))
+          .catch((err) => sendResponse({ ok: false, error: err?.message || "erase failed" }));
+        return true;
+
       // Stats retrieval
       case "gmailCleanerGetStats":
         getStats().then(stats => sendResponse({ ok: true, stats }));
@@ -1252,9 +1311,34 @@
           .then(() => sendResponse({ ok: true }));
         return true;
 
+      // 9.1: through the queue, like its receipts twin, and through the
+      // age check. An expired record is answered as `census: null` with
+      // one extra flag: null is the shape the popup has always handled
+      // (it means "nothing to show"), and the flag is the only thing it
+      // needs to tell "never scanned" from "scanned, and too long ago to
+      // use", which are the same picture with different sentences under
+      // them.
       case "gmailCleanerGetCensus":
-        chrome.storage.local.get(STORAGE_KEYS.CENSUS)
-          .then((r) => sendResponse({ ok: true, census: r?.[STORAGE_KEYS.CENSUS] || null }))
+        withStorageLock(() => chrome.storage.local.get(STORAGE_KEYS.CENSUS))
+          .then((r) => {
+            const record = r?.[STORAGE_KEYS.CENSUS] || null;
+            if (censusRecordExpired(record)) {
+              // `expired` says only "there was a record and it was
+              // refused". `aged` says the refusal was about its AGE,
+              // which is the only reason the popup can put a number of
+              // months on. A record refused for an unreadable or future
+              // stamp is refused just as firmly and gets the sentence
+              // that does not claim to know how old it was.
+              sendResponse({
+                ok: true,
+                census: null,
+                expired: Boolean(record),
+                aged: censusRecordAgedOut(record)
+              });
+              return;
+            }
+            sendResponse({ ok: true, census: record });
+          })
           .catch((err) => sendResponse({ ok: false, error: err?.message || "Failed" }));
         return true;
 
@@ -1946,12 +2030,62 @@
   // would be a different cleanup wearing the same name.
   const CENSUS_RULE_SENDER_CAP = 25;
 
+  // 9.1: how old a stored census may be before it stops being used.
+  // Mirrors GCC.census.LIMITS.MAX_AGE_DAYS; a test pins the two equal,
+  // because this file cannot load shared.js and a number that lives in
+  // two places and is checked in one is how the same defect has survived
+  // a release here more than once.
+  const CENSUS_MAX_AGE_DAYS = 90;
+
+  // The worker's copy of GCC.census.isExpired, and it has to fail closed
+  // for the same reason: what it gates is not a number on a screen, it
+  // is a list of addresses that readCensusChecked below turns into
+  // `from:(...) older_than:6m` delete rules on a sweep nobody is
+  // watching. A record it cannot read, a record with no stamp and a
+  // record stamped in the future all count as expired.
+  function censusRecordExpired(record, now = Date.now()) {
+    if (!record || typeof record !== "object" || !Array.isArray(record.senders)) return true;
+    const at = Number(record.updatedAt) || 0;
+    if (!(at > 0)) return true;
+    if (at > now) return true;
+    return now - at >= CENSUS_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+  }
+
+  // The same question asked for a DELETE rather than for a read, and the
+  // answer has to be narrower.
+  //
+  // censusRecordExpired fails closed: it treats a record it cannot read,
+  // one with no stamp, and one stamped in the future as expired, because
+  // refusing to USE a record it cannot vouch for costs nothing. Reusing
+  // that predicate as the trigger for erasing it from disk turns the
+  // same caution into data loss: a clock that ran fast and was then
+  // corrected leaves every stamp in the future, and the housekeeping
+  // alarm would destroy a census taken an hour ago along with the ticks
+  // the user had set on it. This one deletes only on a stamp it can read
+  // and an age it can prove, which is the honest reading of "aged out".
+  function censusRecordAgedOut(record, now = Date.now()) {
+    if (!record || typeof record !== "object") return false;
+    const at = Number(record.updatedAt) || 0;
+    if (!(at > 0) || at > now) return false;
+    return now - at >= CENSUS_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+  }
+
   // What the popup ticked, read back for the scheduled path. Anything
   // that is not a well-formed address is dropped rather than passed on:
   // these become `from:(...)` groups in a delete run.
+  //
+  // 9.1: and only while the census those ticks are ABOUT is still live.
+  // A tick is a statement about a census, so when there is no live
+  // census there is no statement. Before this, the only gate between a
+  // stored tick and an unattended delete was the licence: this function
+  // never looked at the census, never looked at a clock, and a sender
+  // ticked a year ago still built a rule on every sweep. The check comes
+  // before the address loop rather than after it, so an expired census
+  // costs nothing to skip.
   async function readCensusChecked() {
     try {
-      const r = await chrome.storage.local.get(STORAGE_KEYS.CENSUS_CHECKED);
+      const r = await chrome.storage.local.get([STORAGE_KEYS.CENSUS, STORAGE_KEYS.CENSUS_CHECKED]);
+      if (censusRecordExpired(r?.[STORAGE_KEYS.CENSUS])) return [];
       const list = r?.[STORAGE_KEYS.CENSUS_CHECKED];
       if (!Array.isArray(list)) return [];
       const out = [];
@@ -1969,6 +2103,65 @@
       // An unreadable tick list means no extra rules, never all of them.
       console.warn("[GCC SW] census tick read failed:", e?.message || e);
       return [];
+    }
+  }
+
+  // 9.1: the erase, and the housekeeping that does the same job slowly.
+  //
+  // LOCKED(caller): the router takes the lock, the way it does for
+  // clearUndoLog. withStorageLock is a plain promise chain with no
+  // re-entrancy, so a second lock taken in here hangs the worker for
+  // good.
+  //
+  // It has to run in the worker and not from the options page. All three
+  // receipts writers are read-modify-write inside that queue, so an
+  // unlocked erase landing between readReceiptList and its set is
+  // overwritten in full: the whole pre-erase ledger, addresses and all,
+  // comes back and the confirmation appears to have done nothing. That
+  // is 8.16's clearUndoLog bug verbatim.
+  //
+  // One set, not six, so there is no window in which the census is gone
+  // and the ticks that delete on its behalf are still there. It does not
+  // catch: 8.20's rule is that a surface must not report success over a
+  // write that did not land, and the only way the options page can know
+  // is if this throws.
+  async function eraseSenderStores() {
+    await chrome.storage.local.set({ ...ERASE_VALUES });
+    return ERASE_KEYS;
+  }
+
+  // The same rule the popup applies on read, applied to disk on the
+  // daily housekeeping alarm, so a census that ages out is eventually
+  // gone rather than merely ignored. A user who never opens the popup
+  // again still stops storing it.
+  //
+  // Expiry NEVER writes on a read path. A prune inside the census read
+  // handler would be a new unlocked writer of a key the queue owns, and
+  // the early return when nothing aged out is pruneOldStats' own stated
+  // rule: skipping the write is not an optimisation, it removes the only
+  // way this function can lose a concurrent write at all.
+  async function pruneExpiredCensus() {
+    try {
+      await withStorageLock(async () => {
+        const r = await chrome.storage.local.get(STORAGE_KEYS.CENSUS);
+        const record = r?.[STORAGE_KEYS.CENSUS];
+        if (record === null || record === undefined) return;
+        // censusRecordAgedOut, not censusRecordExpired: see the comment
+        // on the pair. The read side refuses anything it cannot vouch
+        // for; the delete side removes only what it can prove is old.
+        if (!censusRecordAgedOut(record)) return;
+        await chrome.storage.local.set({
+          [STORAGE_KEYS.CENSUS]: null,
+          // The ticks go with it. They are a statement about this census
+          // and there is no longer a census for them to be about, and
+          // leaving them would keep them arming scheduled sweeps that
+          // readCensusChecked now refuses anyway. Dropping both together
+          // means the two never disagree about what exists.
+          [STORAGE_KEYS.CENSUS_CHECKED]: []
+        });
+      });
+    } catch (e) {
+      console.error("[GCC SW] pruneExpiredCensus failed:", e);
     }
   }
 

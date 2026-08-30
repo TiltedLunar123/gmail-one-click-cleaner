@@ -1,6 +1,6 @@
 # Gmail One-Click Cleaner privacy policy
 
-**Effective 2026-07-28.**
+**Effective 2026-08-30.**
 
 The extension has no analytics, no telemetry, no error reporting, no account system, and
 no ability to send your mail anywhere: the extension itself issues no network requests at
@@ -19,16 +19,46 @@ exactly why.
   have already acted on; Smart Suggestions and Auto-Pilot rank suggestions from it, and it
   reads your Sent mail to notice senders you actually reply to. The sender census stores the
   addresses and display names it measured, and the senders you tick in that list are stored
-  too, because a cleanup run uses them. Each census replaces the one before it. None of it is
-  transmitted, and it is removed when you uninstall.
+  too, because a cleanup run uses them. Each census replaces the one before it, and a census
+  also ages out on its own. Once it is a month old the extension stops printing what a clear
+  would take from each sender, because another month of mail has crossed the six month line it
+  clears on and that stored figure now understates it. The list, the ticks and each sender's
+  own volume are kept and still shown; it is the number attached to the delete button that
+  goes. Once it is three months old it is not used
+  at all: it stops being read, the senders you had ticked in it are dropped, scheduled
+  cleanups stop clearing them, and the record is overwritten with an empty value the next time
+  the extension runs its daily housekeeping. None of it is transmitted, and it is removed when
+  you uninstall.
 
 - **Unsubscribe receipts.** A successful unsubscribe also writes a dated receipt on the
   device: the sender's address, a display name if one is already known, and the time, plus a
   later verdict if you check whether they stopped. The newest 200 receipts are kept and older
   ones drop off. This is the one thing here that is meant to be kept rather than refreshed,
-  because the whole point of a receipt is to still be there weeks later when the check runs.
-  None of it is transmitted. Uninstalling removes it, and unsubscribing from the same sender
-  again replaces that sender's receipt.
+  because the whole point of a receipt is to still be there weeks later when the check runs,
+  so no receipt is ever deleted for being old. What expires is the answer, not the receipt. A
+  verdict is a measurement of one search taken on one day, so once a receipt is due to be
+  checked again the extension drops the count beside the verdict and marks the answer as the
+  last one it took: "Ignored your unsubscribe when last checked" rather than a figure that
+  would now be counting a different span of mail. The receipt stays, its date is unchanged, and it stays in
+  the queue to be checked. None of it is transmitted. Uninstalling removes it, unsubscribing
+  from the same sender again replaces that sender's receipt, and the erase control below
+  removes the whole ledger on demand.
+
+- **Erasing it yourself.** The Options page has an Erase Stored Sender Data button. It removes
+  six things from this browser in one write: the sender census, the unsubscribe receipt
+  ledger, and the four lists of senders you have ticked in the census, storage, suggestion and
+  subscription panels. Every one of those holds real addresses. It asks you to confirm first,
+  and it tells you the consequence you would otherwise find out later, which is that scheduled
+  cleanups stop clearing the census senders you had ticked. What it does not reach, named
+  rather than counted, because this is the kind of list that grows. Your cleanup history and
+  your recovery log keep the search queries that past runs used, and a census clear or a
+  receipts clear is an ordinary cleanup run, so those queries can contain the addresses those
+  runs acted on; the recovery log has its own Clear button on the Stats page. The subscription,
+  storage and suggestion scan results stay until you run those scans again or uninstall, since
+  the button clears the senders you ticked in them rather than the scans themselves. The
+  mailbox report keeps the top senders it found, and the suggestion feedback keeps the senders
+  you have approved or dismissed. Exporting your settings does not back any of this up, so an
+  export is not a way to undo the erase and a settings backup is not a way to get it back.
 
 - **What your browser syncs.** Your settings, cleanup rules, custom rules, protected
   keywords, schedules, Auto-Pilot configuration, your sender whitelist and your Pro license

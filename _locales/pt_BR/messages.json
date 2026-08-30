@@ -657,5 +657,16 @@
   "receiptsPurgeNothing": { "message": "Nada para limpar: sua idade mínima está mais ampla que estes prazos de carência" },
   "receiptsPurgeTakes": { "message": "Apaga $1 e-mails · só o que chegou depois de cada prazo de carência" },
   "receiptsPurgeTakesFloor": { "message": "Apaga pelo menos $1 e-mails · só o que chegou depois de cada prazo de carência" },
-  "receiptsNothingReachable": { "message": "nada para limpar: sua idade mínima está mais ampla que estes prazos de carência" }
+  "receiptsNothingReachable": { "message": "nada para limpar: sua idade mínima está mais ampla que estes prazos de carência" },
+
+  "censusStaleNote": { "message": "Este censo tem mais de um mês. Desde então mais um mês de e-mail cruzou a linha dos seis meses, então uma limpeza levaria mais do que estes números dizem. Escaneie de novo." },
+  "censusPurgeStaleAge": { "message": "$1 selecionados · escaneie de novo, este censo tem mais de um mês" },
+  "censusExpired": { "message": "O último censo tinha mais de três meses, então não foi usado. Escaneie de novo para ver quem enche sua caixa agora." },
+  "receiptIgnoredStale": { "message": "Ignorou seu descadastro na última checagem" },
+  "receiptRelapsedStale": { "message": "Tinha parado e voltou a enviar na última checagem" },
+  "receiptSpamStale": { "message": "Ainda mandava para o Spam na última checagem" },
+  "receiptStoppedStale": { "message": "Parado na última checagem" },
+  "receiptCheckedOn": { "message": "Última checagem" },
+
+  "censusUnreadable": { "message": "O último censo não pôde ser lido, então não foi usado. Escaneie de novo para ver quem enche sua caixa agora." }
 }

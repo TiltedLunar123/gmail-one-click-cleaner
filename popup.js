@@ -79,6 +79,19 @@ document.addEventListener("DOMContentLoaded", () => {
     // 8.26: which census senders are ticked. Local: it is a list of
     // the user's correspondents, and sync replicates to the account.
     CENSUS_CHECKED: "censusCheckedEmails",
+    // 9.1: the worker's two records. The popup never writes either and
+    // reads them through messages; these are here so it can ask the
+    // census its age before arming the ticks, and so it can notice an
+    // erase landing from the Options page. Spellings pinned equal to
+    // background.js by a test that evaluates both objects, because a
+    // key that is merely ABSENT reads as `undefined`, and
+    // `storageGet("local", [undefined])` and `isExpired(undefined)`
+    // both fail silently in the safe-looking direction: the ticks are
+    // dropped on every open, on a census of any age, and nothing says
+    // so. A source grep for the call cannot see that; only evaluating
+    // the object can.
+    CENSUS: "senderCensus",
+    RECEIPTS: "unsubReceipts",
     // 8.12: and the age those ticks were chosen under. Restoring the
     // selection without it re-armed the next purge at the 6-month
     // default, which is WIDER than anything else the select offers.
@@ -201,6 +214,13 @@ document.addEventListener("DOMContentLoaded", () => {
       // it since 9.0, under a comment saying the popup would use it to
       // warn; there was no field here to put it in and no reader for it.
       guards: null,
+      // 9.1: when the WORKER stamped this census, which is a different
+      // fact from `updatedAt` above. That one is set client-side when a
+      // scan finishes and is what the stamp on screen reads; this one
+      // comes off disk and is the only clock the age predicates are
+      // allowed to see. Two clocks for one fact disagree in exactly the
+      // window that matters, which is the popup that watched the scan.
+      storedAt: 0,
       running: null
     },
     receipts: {
@@ -3472,6 +3492,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const receiptVerdictLabel = (r) => {
     const n = (Number(r.since) || 0).toLocaleString();
+    // 9.1: an answer past its recheck window loses its number and moves
+    // to past tense. The receipt is untouched, its date is unchanged and
+    // it stays in the queue to be checked; the only thing that goes is a
+    // figure that has quietly changed the question it answers. `since`
+    // was counted against a search anchored at the day the grace window
+    // closed, so months later "42 since" is no longer telling the user
+    // whether the sender ignored them, it is telling them how much that
+    // sender sends. `Could not tell` and the two unsettled labels are
+    // left alone: there is no number in them to drop.
+    if (r.verdictStale) {
+      if (r.verdict === "still_sending") return t("receiptIgnoredStale", "Ignored your unsubscribe when last checked");
+      if (r.verdict === "relapsed") return t("receiptRelapsedStale", "Stopped, then started again when last checked");
+      if (r.verdict === "hidden_in_spam") return t("receiptSpamStale", "Was still sending to Spam when last checked");
+      if (r.verdict === "stopped") return t("receiptStoppedStale", "Stopped when last checked");
+    }
     if (r.verdict === "still_sending") {
       return r.sinceExact
         ? t("receiptIgnored", `Ignored you · ${n} since`, [n])
@@ -3575,6 +3610,13 @@ document.addEventListener("DOMContentLoaded", () => {
         meta.textContent = `${receiptVerdictLabel(r)} · ${t("receiptSince", "unsubscribed")} ${GCC.relativeTime(r.at)}`;
         text.appendChild(meta);
 
+        // 9.1: the row said "when last checked" and the user had no way
+        // to ask when that was. One hover, and no extra line on a panel
+        // that is already dense.
+        if (r.verdictStale && r.checkedAt > 0) {
+          row.title = `${t("receiptCheckedOn", "Last checked")} ${GCC.formatDate(r.checkedAt)}`;
+        }
+
         row.appendChild(text);
         elements.receiptsList.appendChild(row);
       }
@@ -3622,9 +3664,16 @@ document.addEventListener("DOMContentLoaded", () => {
         let sub;
         if (receiptsGuardsChanged()) {
           sub = t("receiptsPurgeStale", "Scan again: your safety switches changed after this check");
-        } else if (reach.known === 0) {
-          // Nothing acted on carries a measurement, so the honest line is
-          // the scope with no number attached to it.
+        } else if (reach.unknown > 0) {
+          // 9.1: ANY unmeasured sender in the acting set, not just an
+          // entirely unmeasured one. The run takes every ignored sender
+          // it can build a query for, and `clearable` only sums the ones
+          // it has a current figure for, so a mix of one fresh sender and
+          // one whose verdict has gone stale would print the fresh
+          // sender's number over a run that clears both. A partial total
+          // on a delete button is worse than no total: it reads as the
+          // whole answer. So the scope line covers the mixed case as well
+          // as the empty one.
           sub = t(
             "receiptsPurgeSub",
             `Only mail that arrived after each grace window closed · ${reach.senders} sender${reach.senders === 1 ? "" : "s"}`,
@@ -3763,9 +3812,22 @@ document.addEventListener("DOMContentLoaded", () => {
     persistCensusSelection();
   };
 
+  // 9.1: and only while the census those ticks are ABOUT is still live.
+  //
+  // This is the manual half of the gate the worker applies to the
+  // scheduled half in readCensusChecked, and it belongs here rather than
+  // in buildConfig because this is the function init awaits. loadCensus
+  // is fire and forget, so a Run started in the first moments after the
+  // popup opens would otherwise carry ticks that the census read had not
+  // yet had a chance to disown. Both keys come out of one get, so the
+  // ticks and the record they depend on cannot be read a moment apart.
   const loadCensusSelection = async () => {
     try {
-      const r = await storageGet("local", [STORAGE_KEYS.CENSUS_CHECKED]);
+      const r = await storageGet("local", [STORAGE_KEYS.CENSUS_CHECKED, STORAGE_KEYS.CENSUS]);
+      if (GCC.census.isExpired(r?.[STORAGE_KEYS.CENSUS])) {
+        state.census.checked = new Set();
+        return;
+      }
       const list = r?.[STORAGE_KEYS.CENSUS_CHECKED];
       state.census.checked = new Set(
         Array.isArray(list) ? list.filter((e) => typeof e === "string") : []
@@ -3835,15 +3897,28 @@ document.addEventListener("DOMContentLoaded", () => {
     return REPORT_GUARD_FIELDS.some((k) => (measured[k] ?? null) !== (live[k] ?? null));
   };
 
+  // 9.1: the second reason to distrust the same numbers, on the same
+  // note element. The switches moving is the louder one and wins when
+  // both are true, because it is about a delete that would reach mail
+  // the count never included, while age only means the count is low.
+  const censusIsStale = () => GCC.census.isStale({ updatedAt: state.census.storedAt });
+
   const renderCensusGuardNote = () => {
     const note = elements.censusGuardNote;
     if (!note) return;
-    const show = state.census.updatedAt > 0 && censusGuardsChanged();
-    note.hidden = !show;
-    if (show && elements.censusGuardNoteText) {
+    const guardsMoved = state.census.updatedAt > 0 && censusGuardsChanged();
+    const aged = state.census.updatedAt > 0 && censusIsStale();
+    note.hidden = !(guardsMoved || aged);
+    if (!elements.censusGuardNoteText) return;
+    if (guardsMoved) {
       elements.censusGuardNoteText.textContent = t(
         "censusGuardsChangedNote",
         "Your safety switches have changed since this census, so these counts no longer match what a clear would do. Scan again."
+      );
+    } else if (aged) {
+      elements.censusGuardNoteText.textContent = t(
+        "censusStaleNote",
+        "This census is over a month old. Another month of mail has crossed the six month line since it ran, so a clear would take more than these counts say. Scan again."
       );
     }
   };
@@ -3911,7 +3986,9 @@ document.addEventListener("DOMContentLoaded", () => {
       // still the ones set. Same rule as the smart card's promised
       // count, for the same reason: a stale number here understates a
       // delete in the one direction that costs mail.
-      if (Number.isFinite(sender.reachable) && !censusGuardsChanged()) {
+      // 9.1: and only while the census is young enough for the figure to
+      // still be a floor rather than an understatement.
+      if (Number.isFinite(sender.reachable) && !censusGuardsChanged() && !censusIsStale()) {
         const reach = document.createElement("span");
         reach.className = "subs-row-meta subs-row-meta--reach";
         const n = sender.reachable.toLocaleString();
@@ -3965,6 +4042,10 @@ document.addEventListener("DOMContentLoaded", () => {
         // more than it said. Drop the number and keep the scope, which
         // is the only half still true.
         sub = t("censusPurgeStale", `${picked} selected · scan again, your safety switches changed`, [String(picked)]);
+      } else if (censusIsStale()) {
+        // 9.1: same move, the other reason. The scope is still true and
+        // the number is not, so the number goes.
+        sub = t("censusPurgeStaleAge", `${picked} selected · scan again, this census is over a month old`, [String(picked)]);
       } else if (reach.known === 0) {
         // Nothing ticked has a measurement, so the honest line is the
         // scope, with no number attached to it.
@@ -4024,13 +4105,55 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  // 9.1: a census the worker refused for its age comes back as a null
+  // census with `expired` set. Null is the shape this function has always
+  // handled and the panel it produces is the right one (it reads as
+  // unscanned, which is what an unusable census amounts to). The flag is
+  // there for the one thing null cannot say, which is why the list the
+  // user remembers is not on screen.
   const loadCensus = async () => {
     try {
       const res = await GCC.sendMessage({ type: "gmailCleanerGetCensus" });
-      const census = res?.census;
-      if (!census) return;
+      if (res?.ok !== true) return;
+      const census = res.census;
+      if (!census) {
+        if (!res.expired) return;
+        // The ticks go with it. They are a statement about a census, and
+        // the worker has already stopped honouring them on the scheduled
+        // path; this is the same fact on the surface where the user can
+        // see it, and it stops the popup writing them back.
+        forgetCensusChecked([...state.census.checked]);
+        state.census.senders = [];
+        state.census.updatedAt = 0;
+        state.census.storedAt = 0;
+        state.census.totalCount = 0;
+        state.census.totalMb = 0;
+        state.census.exact = false;
+        state.census.discovered = 0;
+        state.census.guards = null;
+        // Two sentences, because the worker refuses a census for two
+        // different reasons and only one of them is an age. A record
+        // with an unreadable or future stamp is refused just as firmly,
+        // and telling that user it was "over three months old" would be
+        // inventing a fact to fill a sentence.
+        setCensusStatus(res.aged
+          ? t(
+            "censusExpired",
+            "The last census was over three months old, so it was not used. Scan again to see who fills your mailbox now."
+          )
+          : t(
+            "censusUnreadable",
+            "The last census could not be read, so it was not used. Scan again to see who fills your mailbox now."
+          ));
+        renderCensus();
+        return;
+      }
       state.census.senders = Array.isArray(census.senders) ? census.senders : [];
       state.census.updatedAt = Number(census.updatedAt) || 0;
+      // The worker's stamp, kept separately from the one above because
+      // handleCensusProgress sets that one client-side. Only this one is
+      // ever read by an age predicate.
+      state.census.storedAt = Number(census.updatedAt) || 0;
       state.census.totalCount = Number(census.totalCount) || 0;
       state.census.totalMb = Number(census.totalMb) || 0;
       state.census.exact = census.exact === true;
@@ -4040,6 +4163,20 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (err) {
       log("warn", "census load failed", err);
     }
+  };
+
+  // 9.1: pull the worker's stamp back after a scan, so the clock the age
+  // predicates read is always the one on disk. Fire and forget: a failure
+  // leaves the optimistic Date.now() set above, which is at worst a few
+  // seconds out and is never old enough to matter to a 30 day threshold.
+  const refreshCensusStamp = () => {
+    GCC.sendMessage({ type: "gmailCleanerGetCensus" })
+      .then((res) => {
+        const at = Number(res?.census?.updatedAt) || 0;
+        if (!at) return;
+        state.census.storedAt = at;
+      })
+      .catch(() => {});
   };
 
   const handleCensusScan = async () => {
@@ -4091,11 +4228,20 @@ document.addEventListener("DOMContentLoaded", () => {
     if (Array.isArray(msg.censusSenders)) {
       state.census.senders = msg.censusSenders;
       state.census.updatedAt = Date.now();
+      // 9.1: a scan that just finished is by definition not stale, and
+      // this is the honest way to say so. The stamp the age predicates
+      // read comes off DISK, so setting it from Date.now() here would be
+      // a second clock for one fact; re-reading the worker's copy queues
+      // behind the write the engine just triggered and lands the real
+      // one. A read that fails leaves storedAt at 0, which reads as
+      // "cannot tell" and blanks nothing.
+      state.census.storedAt = Date.now();
       state.census.totalCount = Number(msg.totalCount) || 0;
       state.census.totalMb = Number(msg.totalMb) || 0;
       state.census.exact = msg.exact === true;
       state.census.guards = msg.guards || null;
       renderCensus();
+      refreshCensusStamp();
     } else {
       // A cancelled or failed census keeps whatever the last complete
       // one stored. 8.16: a terminal message is not a completion, and
@@ -4284,7 +4430,15 @@ document.addEventListener("DOMContentLoaded", () => {
     // measured through exactly these guards, so the answer is on hand
     // and the honest thing is to spend nothing and name the setting.
     const reach = GCC.receipts.clearable(state.receipts.list);
-    if (!receiptsGuardsChanged() && reach.known > 0 && reach.count === 0) {
+    //
+    // 9.1: `unknown === 0` is load-bearing. Refusing on `known > 0 &&
+    // count === 0` alone would turn away a run that had real work in it:
+    // one sender measured at zero plus one whose verdict went stale
+    // gives known 1, count 0, and the stale sender's mail is exactly
+    // what the press would have taken. The refusal is only honest when
+    // every sender in the acting set has a current measurement and all
+    // of them are zero.
+    if (!receiptsGuardsChanged() && reach.unknown === 0 && reach.known > 0 && reach.count === 0) {
       showToast(
         t("receiptsNothingReachable", "nothing to clear: your Minimum Age setting is wider than these grace windows"),
         "warning"
@@ -6811,6 +6965,87 @@ document.addEventListener("DOMContentLoaded", () => {
     setupKeyboardShortcuts();
     setupRuntimeMessages();
     wireAutosave();
+    wireStoreErasureWatch();
+  };
+
+  // 9.1: an erase run from the Options page has to reach an open popup.
+  //
+  // Locking the erase in the worker protects the two stores and does
+  // nothing at all for the four tick lists, because the popup writes
+  // those itself from checkbox handlers through an unlocked storageSet.
+  // A popup left open across an erase keeps its in-memory Sets and the
+  // ticked boxes on screen, and the next tick writes the entire
+  // pre-erase set straight back with nothing connecting the two events.
+  // The user would have confirmed a destructive action, watched it
+  // report success, and kept the addresses.
+  //
+  // Both are only open together in a detached popup window, since the
+  // popup closes when focus moves to the options tab, but "usually
+  // impossible" is not a guarantee and this is four lines.
+  const wireStoreErasureWatch = () => {
+    if (!chrome?.storage?.onChanged?.addListener) return;
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== "local" || !changes) return;
+
+      // Only a real erase, and this has to be exact rather than
+      // approximate. onChanged fires in the context that made the write,
+      // so an ordinary tick from this very popup arrives here too, and
+      // the first version of this listener reacted to any tick key going
+      // empty. Unticking your last census sender would then have
+      // repainted the X-ray, suggestion and subscription lists from
+      // their open-time snapshots, and those snapshots are not the live
+      // ticks: the comment above forgetXrayChecked says it outright, the
+      // purge reads the checkboxes off the DOM and `state.xray.checked`
+      // is only ever assigned at load. So a user who had just ticked
+      // twelve senders would have watched all twelve clear themselves
+      // for unticking something on another tab.
+      //
+      // eraseSenderStores writes all six keys in ONE set, and the popup
+      // never writes the two record keys at all: it reads them through
+      // messages. So both records arriving null in the same batch is a
+      // signature nothing else in the extension can produce.
+      const nulled = (key) => Object.prototype.hasOwnProperty.call(changes, key)
+        && !changes[key].newValue;
+      const censusGone = nulled(STORAGE_KEYS.CENSUS);
+      const receiptsGone = nulled(STORAGE_KEYS.RECEIPTS);
+      if (!censusGone && !receiptsGone) return;
+
+      // Each record answers for its own panel. A null census does NOT
+      // only come from the erase: the daily housekeeping prune nulls it
+      // alone when it ages past ninety days, and receipts are untouched
+      // by that. Requiring both would have left an open popup showing a
+      // census the worker had just deleted, with its ticks still armed
+      // and buildConfig still sending them, which is the exact case the
+      // unattended half of this feature exists to prevent.
+      if (censusGone) {
+        state.census.senders = [];
+        state.census.updatedAt = 0;
+        state.census.storedAt = 0;
+        state.census.guards = null;
+        state.census.checked = new Set();
+        renderCensus();
+      }
+      if (receiptsGone) {
+        state.receipts.list = [];
+        state.receipts.guards = null;
+        renderReceipts();
+      }
+
+      // The other three tick lists belong to scans this write says
+      // nothing about, so they go only on the erase signature: both
+      // records null in one batch, which is what eraseSenderStores'
+      // single set produces and which nothing else can.
+      if (!censusGone || !receiptsGone) return;
+      state.xray.checked = new Set();
+      state.smart.checked = new Set();
+      state.subs.checked = new Set();
+      // Re-render rather than only clearing state: these lists read
+      // their targets off the live checkboxes, so a tick left painted on
+      // screen is still a tick that would run.
+      renderXrayList();
+      renderSmartList();
+      renderSubsList();
+    });
   };
 
   // 8.9: the badge doubles as the way into the release notes. The page

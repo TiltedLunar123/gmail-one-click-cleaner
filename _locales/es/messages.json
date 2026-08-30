@@ -657,5 +657,16 @@
   "receiptsPurgeNothing": { "message": "Nada que limpiar: tu ajuste de antigüedad mínima es más amplio que estos plazos de gracia" },
   "receiptsPurgeTakes": { "message": "Borra $1 correos · solo lo llegado tras cada plazo de gracia" },
   "receiptsPurgeTakesFloor": { "message": "Borra al menos $1 correos · solo lo llegado tras cada plazo de gracia" },
-  "receiptsNothingReachable": { "message": "nada que limpiar: tu antigüedad mínima es más amplia que estos plazos de gracia" }
+  "receiptsNothingReachable": { "message": "nada que limpiar: tu antigüedad mínima es más amplia que estos plazos de gracia" },
+
+  "censusStaleNote": { "message": "Este censo tiene más de un mes. Desde entonces otro mes de correo ha cruzado la línea de seis meses, así que una limpieza se llevaría más de lo que dicen estas cifras. Vuelve a escanear." },
+  "censusPurgeStaleAge": { "message": "$1 seleccionados · vuelve a escanear, este censo tiene más de un mes" },
+  "censusExpired": { "message": "El último censo tenía más de tres meses, así que no se usó. Vuelve a escanear para ver quién llena tu buzón ahora." },
+  "receiptIgnoredStale": { "message": "Ignoró tu baja en la última comprobación" },
+  "receiptRelapsedStale": { "message": "Paró y volvió a empezar en la última comprobación" },
+  "receiptSpamStale": { "message": "Seguía enviando a Spam en la última comprobación" },
+  "receiptStoppedStale": { "message": "Parado en la última comprobación" },
+  "receiptCheckedOn": { "message": "Última comprobación" },
+
+  "censusUnreadable": { "message": "El último censo no se pudo leer, así que no se usó. Vuelve a escanear para ver quién llena tu buzón ahora." }
 }

@@ -196,9 +196,15 @@ describe("the receipts Clear button says what it will take", () => {
   test("clearable reports how many of its senders were actually measured", () => {
     const GCC = loadShared();
     const at = Date.now() - 40 * 24 * 60 * 60 * 1000;
+    // 9.1 retention: both carry a fresh `checkedAt`. Without one they
+    // read as never checked, receiptIsDue answers true, and their
+    // verdicts count as stale, which now takes the `clearable` figure
+    // with it. That is the intended rule and not what this test is
+    // about: it is about a measured sender against an unmeasured one.
+    const checkedAt = Date.now() - 24 * 60 * 60 * 1000;
     const reach = GCC.receipts.clearable([
-      { email: "a@x.com", at, verdict: "still_sending", since: 9, clearable: 4, clearableExact: true },
-      { email: "b@x.com", at, verdict: "still_sending", since: 3 }
+      { email: "a@x.com", at, checkedAt, verdict: "still_sending", since: 9, clearable: 4, clearableExact: true },
+      { email: "b@x.com", at, checkedAt, verdict: "still_sending", since: 3 }
     ]);
     expect(reach.known).toBe(1);
     expect(reach.unknown).toBe(1);

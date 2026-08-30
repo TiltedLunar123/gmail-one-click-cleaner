@@ -657,5 +657,16 @@
   "receiptsPurgeNothing": { "message": "削除できるものはありません：最低経過日数の設定がこれらの猟予期間より広すぎます" },
   "receiptsPurgeTakes": { "message": "$1 件を削除 · 各猟予期間のあとに届いたものだけ" },
   "receiptsPurgeTakesFloor": { "message": "少なくとも $1 件を削除 · 各猟予期間のあとに届いたものだけ" },
-  "receiptsNothingReachable": { "message": "削除できるものがありません：最低経過日数の設定が猟予期間より広すぎます" }
+  "receiptsNothingReachable": { "message": "削除できるものがありません：最低経過日数の設定が猟予期間より広すぎます" },
+
+  "censusStaleNote": { "message": "この集計は1か月以上前のものです。それ以降さらに1か月分のメールが6か月の線を越えたため、削除はこの件数より多く消します。もう一度スキャンしてください。" },
+  "censusPurgeStaleAge": { "message": "$1人を選択 · この集計は1か月以上前です。もう一度スキャンしてください" },
+  "censusExpired": { "message": "前回の集計は3か月以上前だったため使用しませんでした。今あなたの受信トレイを埋めているのが誰かを見るには、もう一度スキャンしてください。" },
+  "receiptIgnoredStale": { "message": "前回の確認時、配信停止は無視されていました" },
+  "receiptRelapsedStale": { "message": "前回の確認時、いったん止まってまた再開していました" },
+  "receiptSpamStale": { "message": "前回の確認時、まだ迷惑メールに届いていました" },
+  "receiptStoppedStale": { "message": "前回の確認時は停止していました" },
+  "receiptCheckedOn": { "message": "最終確認" },
+
+  "censusUnreadable": { "message": "前回の集計を読み取れなかったため、使用しませんでした。今あなたの受信トレイを埋めているのが誰かを見るには、もう一度スキャンしてください。" }
 }

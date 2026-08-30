@@ -16,10 +16,59 @@ release, shipped the half that records what it measured through and none
 of the half that checks. The record sat in storage with a note on it
 explaining what it was for and nothing read it.
 
-That check is on all three now, and the release is mostly this one idea
-applied everywhere it was missing.
+That check is on all three now, and most of this release is that one
+idea applied everywhere it was missing.
+
+The rest of it is about time rather than switches. Two of the lists this
+extension builds are made from your mail: the sender census, which is who
+fills your mailbox, and the unsubscribe receipts, which is who you asked
+to stop. Both hold real addresses, both sat here with no end date, and
+there was no button anywhere that removed them. There is one now, and the
+two stores age out on their own besides. They age out differently,
+because a census is a photograph and goes out of date, while a receipt is
+a record of something you did whose whole value is being old enough to
+prove a sender ignored you.
+
+### Added
+- **Erase Stored Sender Data, on the Options page.** One button, with a
+  confirmation that says what it takes and what it leaves. It removes the
+  sender census, the unsubscribe receipt ledger, and the four lists of
+  senders you have ticked in the census, storage, suggestion and
+  subscription panels. It also names the consequence you would otherwise
+  meet weeks later, which is that scheduled cleanups stop clearing the
+  census senders you had ticked.
+- **A card on the Diagnostics page for what is stored.** How many senders
+  the census holds, how many receipts, how many senders you have ticked,
+  and when each was last written. Counts and dates only: no address
+  appears there, and none is copied by Copy Diagnostics.
+
+### Changed
+- **A census older than a month stops printing its counts.** It keeps the
+  list and your ticks. The numbers go, because the clear it feeds only
+  takes mail older than six months, so every month that passes pushes
+  more of that sender's mail across the line and the stored figure
+  understates what a clear would take. Understating a delete is the one
+  direction that costs mail, and this extension would rather say nothing
+  than say it low.
+- **A census older than three months is not used at all.** It stops being
+  read, the senders you had ticked in it are dropped, and scheduled
+  cleanups stop clearing them. That path had no upper bound before: a
+  sender ticked last year still built a delete rule on every unattended
+  sweep, off a census that had been replaced a dozen times since.
+- **An unsubscribe verdict past its recheck window is shown without its
+  number.** "Ignored your unsubscribe when last checked" rather than a
+  count. That count was measured against a search anchored to the day
+  your grace window closed, so read months later the same figure has
+  quietly stopped answering "did they ignore me" and started answering
+  "how much does this sender send". No receipt is ever deleted for its
+  age: the date stays, and it stays in the queue to be checked.
 
 ### Fixed
+- **The diagnostics Test Inject button no longer logs the Gmail tab's
+  title and full address.** A Gmail tab title contains your own email
+  address and a search URL carries whatever you last searched for, and
+  both went into the log that Copy Diagnostics puts on your clipboard. It
+  logs the origin, the path, and whether the engine is attached.
 - **The census no longer promises a count it cannot keep.** Untick Skip
   Unread after running the census and every row went on saying "Clear
   would take 12" while the button beside it would have deleted the

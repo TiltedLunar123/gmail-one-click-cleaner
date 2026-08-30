@@ -657,5 +657,16 @@
   "receiptsPurgeNothing": { "message": "Nichts zu löschen: deine Mindestalter-Einstellung ist weiter als diese Schonfristen" },
   "receiptsPurgeTakes": { "message": "Löscht $1 E-Mails · nur was nach jeder Schonfrist ankam" },
   "receiptsPurgeTakesFloor": { "message": "Löscht mindestens $1 E-Mails · nur was nach jeder Schonfrist ankam" },
-  "receiptsNothingReachable": { "message": "nichts zu löschen: dein Mindestalter ist weiter als diese Schonfristen" }
+  "receiptsNothingReachable": { "message": "nichts zu löschen: dein Mindestalter ist weiter als diese Schonfristen" },
+
+  "censusStaleNote": { "message": "Diese Zählung ist über einen Monat alt. Seitdem hat ein weiterer Monat Mail die Sechs-Monats-Grenze überschritten, also würde ein Löschen mehr erfassen als diese Zahlen sagen. Scanne erneut." },
+  "censusPurgeStaleAge": { "message": "$1 ausgewählt · scanne erneut, diese Zählung ist über einen Monat alt" },
+  "censusExpired": { "message": "Die letzte Zählung war über drei Monate alt und wurde nicht verwendet. Scanne erneut, um zu sehen, wer dein Postfach jetzt füllt." },
+  "receiptIgnoredStale": { "message": "Hat deine Abmeldung bei der letzten Prüfung ignoriert" },
+  "receiptRelapsedStale": { "message": "Hatte aufgehört und bei der letzten Prüfung wieder angefangen" },
+  "receiptSpamStale": { "message": "Schickte bei der letzten Prüfung weiter in den Spam" },
+  "receiptStoppedStale": { "message": "Bei der letzten Prüfung gestoppt" },
+  "receiptCheckedOn": { "message": "Zuletzt geprüft" },
+
+  "censusUnreadable": { "message": "Die letzte Zählung konnte nicht gelesen werden und wurde nicht verwendet. Scanne erneut, um zu sehen, wer dein Postfach jetzt füllt." }
 }

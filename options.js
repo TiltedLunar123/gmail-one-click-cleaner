@@ -754,22 +754,34 @@
   // Restore Defaults
   // =========================
 
-  const showConfirmDialog = () =>
+  // 9.1: it takes its words rather than owning them.
+  //
+  // The title, body and button label were hardcoded to the restore
+  // wording, so a second caller would have shown a destructive dialog
+  // asking about somebody else's action. Every string is required and
+  // neither caller has a default: with defaults, a future third caller
+  // silently inherits the wrong words on exactly the kind of button
+  // where that matters. `dialog.returnValue` is cleared before the modal
+  // opens, because a leftover "confirm" from the previous dialog would
+  // resolve the next one on its own, which is an erase running without
+  // consent.
+  const showConfirmDialog = ({ title, body, confirmLabel, fallback }) =>
     new Promise((resolve) => {
       const dialog = /** @type {HTMLDialogElement|null} */ (GCC.$("confirmDialog"));
 
       if (!dialog || typeof dialog.showModal !== "function") {
-        resolve(
-          confirm(
-            "Restore default rules and settings?\n\nThis replaces your current settings.\n" +
-              "This cannot be undone unless you have a backup."
-          )
-        );
+        resolve(confirm(fallback));
         return;
       }
 
+      const titleEl = GCC.$("dialog-title");
+      const bodyEl = GCC.$("dialog-body");
       const cancelBtn = GCC.$("dialogCancelBtn");
       const confirmBtn = GCC.$("dialogConfirmBtn");
+      if (titleEl) titleEl.textContent = title;
+      if (bodyEl) bodyEl.textContent = body;
+      if (confirmBtn) confirmBtn.textContent = confirmLabel;
+      dialog.returnValue = "";
 
       const cleanup = () => {
         cancelBtn?.removeEventListener("click", onCancel);
@@ -793,7 +805,14 @@
     });
 
   const restoreDefaults = async () => {
-    const confirmed = await showConfirmDialog();
+    const confirmed = await showConfirmDialog({
+      title: "Restore Default Rules?",
+      body: "This will replace all your custom rules with the original defaults. "
+        + "This action cannot be undone unless you have a backup.",
+      confirmLabel: "Restore Defaults",
+      fallback: "Restore default rules and settings?\n\nThis replaces your current settings.\n"
+        + "This cannot be undone unless you have a backup."
+    });
     if (!confirmed) return;
 
     // 7.15: this used to pass empty arrays here, which silently emptied
@@ -829,6 +848,70 @@
 
     GCC.showToast("Settings restored to defaults", "success");
     srStatus("Defaults restored.");
+  };
+
+  // =========================
+  // Erase Stored Sender Data (9.1)
+  // =========================
+  //
+  // The two stores built from the user's mail, plus the four lists of
+  // senders they have ticked. It goes through the worker rather than
+  // writing storage from here, and that is not tidiness: all three
+  // receipts writers are read-modify-write inside the worker's storage
+  // queue, so an unlocked erase from this page landing between the read
+  // and the write is overwritten in full. The whole ledger, addresses
+  // and all, would come back and the button would appear to have done
+  // nothing. That is 8.16's clearUndoLog bug verbatim.
+  //
+  // The dialog names the consequence the user would otherwise discover
+  // weeks later, which is that scheduled cleanups stop clearing the
+  // census senders they had ticked.
+  const eraseStoredData = async () => {
+    const confirmed = await showConfirmDialog({
+      title: "Erase Stored Sender Data?",
+      // It names what it takes, the consequence the user would otherwise
+      // meet weeks later, and the address-bearing stores it does NOT
+      // reach. The last part matters: a sentence that lists only rules
+      // and history as untouched reads as a claim that everything else
+      // went, and the subscription, storage, suggestion and mailbox
+      // report scans all keep sender lists of their own.
+      body: "This removes the sender census, your unsubscribe receipts, and the senders you "
+        + "ticked in the census, storage, suggestion and subscription lists. Scheduled "
+        + "cleanups will stop clearing those ticked senders. It does not touch your rules, "
+        + "whitelist, recovery log or cleanup history, and it does not clear the subscription, "
+        + "storage, suggestion or mailbox report scans themselves, which keep their own sender "
+        + "lists until you run them again. A config export does not back any of this up.",
+      confirmLabel: "Erase",
+      fallback: "Erase stored sender data?\n\nThis removes the sender census, your unsubscribe "
+        + "receipts and the senders you ticked in those lists.\nScheduled cleanups will stop "
+        + "clearing those senders.\nThis cannot be undone."
+    });
+    if (!confirmed) return;
+
+    const btn = GCC.$("eraseStoresBtn");
+    if (btn) btn.disabled = true;
+    try {
+      // resp.ok, not a bare await: GCC.sendMessage resolves an error
+      // rather than rejecting, so awaiting it successfully says nothing
+      // about whether the write landed. 8.20's lesson.
+      const resp = await GCC.sendMessage({ type: "gmailCleanerEraseStores" });
+      if (resp?.ok) {
+        GCC.showToast("Stored sender data erased", "success");
+        srStatus("Sender census, unsubscribe receipts and ticked senders erased.");
+      } else {
+        GCC.showToast("Nothing was erased. The write did not go through.", "error", 8000);
+        srStatus("Erase failed. Nothing was removed.");
+      }
+    } catch (e) {
+      GCC.showToast("Nothing was erased. The write did not go through.", "error", 8000);
+      srStatus("Erase failed. Nothing was removed.");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+    // Deliberately no markUnsaved: this write is immediate and is not
+    // part of collectAllData, so arming the dirty flag would point the
+    // user at a Save button that writes sync rules and knows nothing
+    // about the erase.
   };
 
   // =========================
@@ -1214,6 +1297,9 @@
 
     const restoreBtn = GCC.$("restoreDefaultsBtn");
     restoreBtn?.addEventListener("click", restoreDefaults);
+
+    const eraseBtn = GCC.$("eraseStoresBtn");
+    eraseBtn?.addEventListener("click", eraseStoredData);
 
     const exportBtn = GCC.$("exportBtn");
     exportBtn?.addEventListener("click", exportConfig);
