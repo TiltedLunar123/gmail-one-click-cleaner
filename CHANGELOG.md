@@ -3,6 +3,52 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 9.2.0 - Be where the mailbox is
+
+Everything this extension does has lived behind the toolbar icon, and
+Chrome folds that icon into the puzzle-piece menu until you pin it. So
+the mailbox report, the storage x-ray and the whole recovery net sat one
+click behind a button plenty of people never found. An install could go
+months without ever scanning anything, which is a strange thing to be
+true of a cleaner.
+
+There is a small button in the corner of Gmail now. It draws inside a
+shadow root, so nothing it defines can reach Gmail's page and nothing on
+that page can reach into it. It reads no mail and walks none of Gmail's
+interface. The only thing it can start is the free read-only report,
+which is the same scan the popup runs and the one worth running first.
+Anything that moves mail stays in the popup, behind the confirmations
+that are already there.
+
+The first mailbox you open after installing gets a greeting, once. After
+that the button sits closed until you click it, and it opens on whatever
+the last scan found.
+
+### Added
+- **A cleaner button in the corner of Gmail.** Small, in the bottom right,
+  and it opens a panel rather than doing anything on its own. Escape
+  closes it. It never appears on a copy of the extension that was planted
+  by other software rather than installed from a store, which is the same
+  rule that keeps scheduled sweeps off those copies.
+- **The free mailbox report, started from inside Gmail.** One click, the
+  same read-only scan the popup runs, measured through the same safety
+  switches so the counts describe what the popup's buttons would do. The
+  panel then shows how many emails are old enough to clear, how many
+  megabytes are sitting in old and large mail, and the three biggest
+  steps by count.
+- **Cleaner button inside Gmail, on the Options page.** A switch, on by
+  default. The panel can also hide the button for 30 days, and turning
+  the switch back on clears that too, because a switch that reads on
+  while the button stays gone is a switch that lies.
+
+### Changed
+- The panel refuses to start a scan when anything else is already running
+  in that tab, and says so, instead of injecting a second engine on top
+  of the first.
+- The scan the button starts runs in the tab the click came from. Never
+  "whichever Gmail tab is active": with two accounts signed in, that is
+  how you measure one mailbox and report on the other.
+
 ## 9.1.0 - Say it before the click, not after
 
 Three screens in this extension put a number next to a button. Each

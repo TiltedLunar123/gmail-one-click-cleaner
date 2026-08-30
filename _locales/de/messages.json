@@ -668,5 +668,32 @@
   "receiptStoppedStale": { "message": "Bei der letzten Prüfung gestoppt" },
   "receiptCheckedOn": { "message": "Zuletzt geprüft" },
 
-  "censusUnreadable": { "message": "Die letzte Zählung konnte nicht gelesen werden und wurde nicht verwendet. Scanne erneut, um zu sehen, wer dein Postfach jetzt füllt." }
+  "censusUnreadable": { "message": "Die letzte Zählung konnte nicht gelesen werden und wurde nicht verwendet. Scanne erneut, um zu sehen, wer dein Postfach jetzt füllt." },
+
+  "launcherPill": { "message": "Gmail aufräumen" },
+  "launcherHide": { "message": "Ausblenden" },
+  "launcherClose": { "message": "Schließen" },
+  "launcherGreetTitle": { "message": "Ihr Gmail-Cleaner ist bereit" },
+  "launcherGreetBody": { "message": "Es wurde noch nichts geprüft. Der Scan ist kostenlos und liest nur: Er zählt, was gefahrlos weg kann, und verschiebt nichts." },
+  "launcherIdleTitle": { "message": "Dieses Postfach aufräumen" },
+  "launcherScanCta": { "message": "Dieses Postfach scannen" },
+  "launcherNotNow": { "message": "Jetzt nicht" },
+  "launcherPinHint": { "message": "Heften Sie die Erweiterung an die Symbolleiste, um alle Funktionen zu erreichen." },
+  "launcherScanningTitle": { "message": "Postfach wird gelesen" },
+  "launcherScanningBody": { "message": "Ein paar Suchen, nichts wird geöffnet und nichts verschoben. Einen Moment bitte." },
+  "launcherResultTitle": { "message": "Was in diesem Postfach liegt" },
+  "launcherStatEmails": { "message": "E-Mails alt genug zum Aufräumen" },
+  "launcherStatStorage": { "message": "in alter, großer Post" },
+  "launcherResultFoot": { "message": "Ein Pluszeichen bedeutet mindestens so viele. Jede Zahl stammt aus der Suche von Gmail selbst." },
+  "launcherResultEmpty": { "message": "Noch nichts alt genug zum Aufräumen. Das ist ein sauberes Postfach." },
+  "launcherOpenCta": { "message": "Cleaner öffnen" },
+  "launcherRescan": { "message": "Erneut scannen" },
+  "launcherBusy": { "message": "In diesem Tab läuft bereits etwas. Versuchen Sie es danach noch einmal." },
+  "launcherScanFailed": { "message": "Der Scan lässt sich hier nicht starten. Öffnen Sie die Erweiterung stattdessen über die Symbolleiste." },
+  "launcherScanSlow": { "message": "Der Scan dauert länger als üblich. Öffnen Sie die Erweiterung über die Symbolleiste, um ihn zu verfolgen." },
+  "launcherStale": { "message": "Die Erweiterung wurde aktualisiert. Laden Sie Gmail neu, um diese Schaltfläche zu nutzen." },
+  "launcherHideAsk": { "message": "Diese Schaltfläche ausblenden?" },
+  "launcherHide30": { "message": "Für 30 Tage" },
+  "launcherHideOff": { "message": "Ganz abschalten" },
+  "launcherHiddenNote": { "message": "In den Einstellungen gibt es einen Schalter, der sie zurückholt." }
 }

@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const OPTIONS_VERSION = "9.1.0";
+  const OPTIONS_VERSION = "9.2.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -1332,6 +1332,7 @@
     wireSnoozeControls();
     await loadSnoozeStatus();
     wireNotificationsToggle();
+    wireLauncherToggle();
     console.log("[Gmail Cleaner] Options page ready.");
   };
 
@@ -1675,6 +1676,54 @@
         return;
       }
       GCC.showToast(wanted ? "Notifications on" : "Notifications off", "info");
+    });
+  }
+
+  // =========================
+  // In-Gmail launcher toggle (9.2)
+  // =========================
+  //
+  // The only way back after "Turn it off" in the panel, so it has to be
+  // the whole way back: the panel can also hide the button for 30 days,
+  // and a switch that reads ON while a snooze keeps the button gone for
+  // another month is a control that lies. Turning it on clears both.
+  async function wireLauncherToggle() {
+    const el = GCC.$("gmailLauncherEnabled");
+    if (!el) return;
+    const stored = await GCC.storageGet("local", "gmailLauncher");
+    const rec = stored?.gmailLauncher;
+    // Absent reads as on, the same default the service worker applies.
+    el.checked = !rec || rec.enabled !== false;
+
+    el.addEventListener("change", async () => {
+      const wanted = el.checked;
+      try {
+        // Re-read rather than patching the snapshot above: the panel in a
+        // Gmail tab writes this same record, and it may have written a
+        // greeting or a snooze since this page loaded.
+        const fresh = await GCC.storageGet("local", "gmailLauncher");
+        const prev = fresh?.gmailLauncher && typeof fresh.gmailLauncher === "object"
+          ? fresh.gmailLauncher
+          : {};
+        await GCC.storageSet("local", {
+          gmailLauncher: {
+            ...prev,
+            enabled: wanted,
+            hideUntil: wanted ? 0 : Number(prev.hideUntil) || 0
+          }
+        });
+      } catch (e) {
+        el.checked = !wanted;
+        console.warn("[Options] launcher preference not saved:", e?.message || e);
+        GCC.showToast("Could not save that preference. Nothing was changed.", "error");
+        return;
+      }
+      // The content script already ran and stood down in every open
+      // mailbox, so say what has to happen for the switch to show.
+      GCC.showToast(
+        wanted ? "Gmail button on. Reload Gmail to see it." : "Gmail button off",
+        "info"
+      );
     });
   }
 

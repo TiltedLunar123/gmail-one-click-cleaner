@@ -668,5 +668,32 @@
   "receiptStoppedStale": { "message": "Parado en la última comprobación" },
   "receiptCheckedOn": { "message": "Última comprobación" },
 
-  "censusUnreadable": { "message": "El último censo no se pudo leer, así que no se usó. Vuelve a escanear para ver quién llena tu buzón ahora." }
+  "censusUnreadable": { "message": "El último censo no se pudo leer, así que no se usó. Vuelve a escanear para ver quién llena tu buzón ahora." },
+
+  "launcherPill": { "message": "Limpiar Gmail" },
+  "launcherHide": { "message": "Ocultar" },
+  "launcherClose": { "message": "Cerrar" },
+  "launcherGreetTitle": { "message": "Tu limpiador de Gmail está listo" },
+  "launcherGreetBody": { "message": "Todavía no se ha analizado nada. El análisis es gratuito y de solo lectura: cuenta lo que se puede borrar sin riesgo y no mueve nada." },
+  "launcherIdleTitle": { "message": "Limpia este buzón" },
+  "launcherScanCta": { "message": "Analizar este buzón" },
+  "launcherNotNow": { "message": "Ahora no" },
+  "launcherPinHint": { "message": "Fija la extensión en la barra de herramientas del navegador para llegar a todas las funciones." },
+  "launcherScanningTitle": { "message": "Leyendo tu buzón" },
+  "launcherScanningBody": { "message": "Unas cuantas búsquedas, nada se abre y nada se mueve. Dale un momento." },
+  "launcherResultTitle": { "message": "Lo que guarda este buzón" },
+  "launcherStatEmails": { "message": "correos con antigüedad suficiente para borrar" },
+  "launcherStatStorage": { "message": "en correo antiguo y pesado" },
+  "launcherResultFoot": { "message": "Un signo más significa al menos esa cantidad. Cada cifra viene de la búsqueda del propio Gmail." },
+  "launcherResultEmpty": { "message": "Todavía no hay nada con antigüedad suficiente. Este buzón está limpio." },
+  "launcherOpenCta": { "message": "Abrir el limpiador" },
+  "launcherRescan": { "message": "Analizar de nuevo" },
+  "launcherBusy": { "message": "Ya hay algo en marcha en esta pestaña. Inténtalo cuando termine." },
+  "launcherScanFailed": { "message": "No se pudo iniciar el análisis aquí. Abre la extensión desde la barra de herramientas." },
+  "launcherScanSlow": { "message": "El análisis está tardando más de lo normal. Abre la extensión desde la barra de herramientas para seguirlo." },
+  "launcherStale": { "message": "La extensión se actualizó. Recarga Gmail para usar este botón." },
+  "launcherHideAsk": { "message": "¿Ocultar este botón?" },
+  "launcherHide30": { "message": "Durante 30 días" },
+  "launcherHideOff": { "message": "Desactivarlo" },
+  "launcherHiddenNote": { "message": "Ajustes tiene un interruptor para recuperarlo." }
 }
