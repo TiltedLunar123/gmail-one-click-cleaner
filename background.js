@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "9.2.0";
+  const SW_VERSION = "9.3.0";
 
   // =========================
   // Storage Keys
@@ -346,6 +346,17 @@
     // using the extension for a year, and the flag is what the launcher
     // clears the first time it draws the welcome.
     if (details.reason === "install") await armLauncherGreeting();
+
+    // 9.3: and put it in the mailboxes that are open right now. Both
+    // reasons: a fresh install has never drawn it anywhere, and an
+    // update has left an orphan in every open Gmail tab. Deliberately
+    // not awaited. It talks to tabs that may be discarded, mid-navigation
+    // or unresponsive, and holding the install handler open on one of
+    // those would delay the alarms below for no gain.
+    if (details.reason === "install" || details.reason === "update") {
+      injectLauncherIntoOpenMailboxes()
+        .catch((e) => console.warn("[GCC SW] launcher backfill failed:", e?.message || e));
+    }
 
     // Restore saved schedules
     await restoreScheduledAlarms();
@@ -3699,6 +3710,57 @@
   // else, so the mailbox test comes first.
   function launcherAccountOf(url) {
     return isMailboxTab(url) ? gmailAccountOf(url) : "";
+  }
+
+  // 9.3: the mailbox that was already open.
+  //
+  // A declared content script runs when a page navigates, and Chrome does
+  // not go back and run it in pages that are already loaded. So 9.2
+  // shipped a surface that appears on the NEXT Gmail load, and the tab
+  // somebody is looking at while they decide to install a Gmail cleaner
+  // is, overwhelmingly, their mailbox. The one feature built to close the
+  // activation gap was missing from the single most likely install
+  // context, and the greeting it arms sat unspent behind it.
+  //
+  // An update is the same shape with a worse ending: the old copy's
+  // isolated world is torn down, the manifest does not re-run the new
+  // one, and every open Gmail tab keeps an orphan whose buttons reach
+  // nothing until it is reloaded.
+  //
+  // gmailLauncher.js is built to be injected: it refuses a subframe,
+  // refuses a path that is not /mail/, and asks any host node it finds
+  // whether a live world still owns it before it draws. Nothing here
+  // decides whether the button may show; the launcher asks
+  // launcherState for that as usual, and a hidden one costs one message
+  // and stops.
+  async function injectLauncherIntoOpenMailboxes() {
+    if (typeof chrome.scripting?.executeScript !== "function") return;
+    let tabs = [];
+    try {
+      tabs = await chrome.tabs.query({ url: "https://mail.google.com/*" });
+    } catch (e) {
+      // A browser mid-startup, or a build without the permission. The
+      // manifest still injects on the next Gmail load, which is the
+      // behaviour every version before this one had.
+      console.warn("[GCC SW] could not list Gmail tabs for the launcher:", e?.message || e);
+      return;
+    }
+    // Chat is served from this origin and is not a mailbox; isMailboxTab
+    // draws the same line the launcher and the engine draw.
+    for (const tab of (tabs || []).filter((t) => isMailboxTab(t?.url))) {
+      if (typeof tab.id !== "number") continue;
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ["gmailLauncher.js"]
+        });
+      } catch (e) {
+        // One tab refusing (a discarded tab, a page mid-navigation, a
+        // window the profile cannot script) is not a reason to skip the
+        // rest. Per tab, never a bail.
+        console.warn(`[GCC SW] launcher injection skipped for tab ${tab.id}:`, e?.message || e);
+      }
+    }
   }
 
   async function launcherState(tab) {

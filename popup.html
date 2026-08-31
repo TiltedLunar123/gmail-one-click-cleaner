@@ -492,9 +492,14 @@
     /* Tab bar: sits under the header; the active panel is the only
        scroll container in the popup. */
     .tab-bar {
+      /* Declared once and read by the sliding pill further down, which
+         has to land exactly on a tab and cannot work that out on its
+         own. See the @supports :has() block. */
+      --tab-gap: 3px;
+      --tab-pad: 2px;
       display: flex;
-      gap: 3px;
-      padding: 2px;
+      gap: var(--tab-gap);
+      padding: var(--tab-pad);
       margin-bottom: 8px;
       background: var(--bg-input);
       border: 1px solid var(--border);
@@ -2440,6 +2445,17 @@
        Guarded on :has() support: without it the pill cannot know which
        tab is live, so we leave the original per-tab background alone
        and nothing is lost. */
+    /* 9.3: the pill is derived from the same two numbers the flex row is
+       laid out with, because it was derived from neither and drifted.
+       A tab is (content width - the gaps) / 4; the pill was
+       (padding-box - 8px) / 4, which is 1.25px wider, and translateX(N%)
+       steps by the PILL's width while the tabs step by their own width
+       plus a gap. The error compounds left to right: at a 440px popup the
+       fourth tab's pill started 4.25px before its tab and stopped 3px
+       short of it, on the one control every session begins with.
+       --tab-gap and --tab-pad are declared on .tab-bar above and used by
+       `gap` and `padding` there, so the pill cannot be edited out of step
+       with the row again. */
     @supports selector(:has(*)) {
       .tab-bar { position: relative; isolation: isolate; }
       .tab-bar::after {
@@ -2448,8 +2464,8 @@
         z-index: 0;
         top: 4px;
         bottom: 4px;
-        left: 4px;
-        width: calc((100% - 8px) / 4);
+        left: var(--tab-pad);
+        width: calc((100% - var(--tab-pad) * 2 - var(--tab-gap) * 3) / 4);
         border-radius: var(--r-sm);
         background: var(--primary);
         box-shadow: 0 8px 18px -14px var(--primary-glow);
@@ -2462,9 +2478,15 @@
         box-shadow: none;
       }
       .tab-bar:has(#tabReport[aria-selected="true"])::after { transform: translateX(0); }
-      .tab-bar:has(#tabClean[aria-selected="true"])::after { transform: translateX(100%); }
-      .tab-bar:has(#tabUnsubscribe[aria-selected="true"])::after { transform: translateX(200%); }
-      .tab-bar:has(#tabStorage[aria-selected="true"])::after { transform: translateX(300%); }
+      .tab-bar:has(#tabClean[aria-selected="true"])::after {
+        transform: translateX(calc(100% + var(--tab-gap)));
+      }
+      .tab-bar:has(#tabUnsubscribe[aria-selected="true"])::after {
+        transform: translateX(calc(200% + var(--tab-gap) * 2));
+      }
+      .tab-bar:has(#tabStorage[aria-selected="true"])::after {
+        transform: translateX(calc(300% + var(--tab-gap) * 3));
+      }
       /* A tab being hovered while another is selected should not look
          like a second selection sitting next to the pill. */
       .tab-bar [role="tab"]:hover:not([aria-selected="true"]) { background: var(--wash-strong); }
@@ -3674,10 +3696,10 @@
             class="badge"
             id="versionBadge"
             type="button"
-            aria-label="Version 9.2.0, see what's new"
+            aria-label="Version 9.3.0, see what's new"
             title="What's new in this version"
             data-i18n-title="whatsNewTitle"
-          >v9.2.0</button>
+          >v9.3.0</button>
           <button id="kbdHelpBtn" class="linkish" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" data-i18n-label="kbdTitle" data-i18n-title="kbdBtnTitle">
             <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/></svg>
           </button>

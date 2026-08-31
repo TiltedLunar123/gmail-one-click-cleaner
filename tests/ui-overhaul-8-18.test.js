@@ -252,8 +252,26 @@ describe("8.18 tab ink bar", () => {
     for (const id of ids) {
       expect(css).toMatch(new RegExp(`\\.tab-bar:has\\(#${id}\\[aria-selected="true"\\]\\)::after`));
     }
-    // Four tabs, four quarter-width positions.
-    expect(css).toMatch(/width:\s*calc\(\(100% - 8px\) \/ 4\)/);
+    // Four tabs, four positions, and the pill a quarter of the row.
+    //
+    // 9.3: this used to pin the literal `calc((100% - 8px) / 4)`, which
+    // is the arithmetic that was WRONG. The row is a flex line with its
+    // own padding and gaps, and the pill was derived from neither, so it
+    // was 1.25px wider than a tab and stepped by its own width while the
+    // tabs step by their width plus a gap. Pinning the broken string
+    // meant the correct fix arrived as a red test. What has to be true is
+    // that the pill is derived from the same two lengths the row is laid
+    // out with, so pin that instead.
+    expect(css).toMatch(/--tab-gap:\s*\d/);
+    expect(css).toMatch(/--tab-pad:\s*\d/);
+    expect(css).toMatch(/gap:\s*var\(--tab-gap\)/);
+    expect(css).toMatch(/padding:\s*var\(--tab-pad\)/);
+    expect(css).toMatch(/width:\s*calc\(\(100% - var\(--tab-pad\) \* 2 - var\(--tab-gap\) \* 3\) \/ 4\)/);
+    // And each step carries the gap the previous tab put between them.
+    for (const [id, step] of [["tabClean", "100%"], ["tabUnsubscribe", "200%"], ["tabStorage", "300%"]]) {
+      const at = css.indexOf(`.tab-bar:has(#${id}[aria-selected="true"])::after`);
+      expect(css.slice(at, at + 220)).toContain(`translateX(calc(${step} + var(--tab-gap)`);
+    }
   });
 });
 
