@@ -6,13 +6,124 @@
 // even of a file inside the package, would end the extension's
 // no-network-calls promise.
 //
-// Carries the newest 12 of 85 releases; the page says so
+// Carries the newest 12 of 86 releases; the page says so
 // and links the full log on GitHub.
 
 // eslint-disable-next-line no-unused-vars
 var GCC_CHANGELOG = {
-  "total": 85,
+  "total": 86,
   "entries": [
+    {
+      "version": "9.3.0",
+      "title": "Reach the mailbox that is already open",
+      "intro": [
+        "Last release put a cleaner button in the corner of Gmail, because everything this extension does had been sitting behind a toolbar icon Chrome hides until you pin it. It worked on the next Gmail you opened. It did not work on the Gmail you already had open, which for most people is the tab they were looking at when they installed it. A browser only runs a page script when the page loads, and it does not go back and run it in tabs that loaded earlier, so the one thing built for that moment was missing from it. The button and its one-time greeting now arrive in the mailboxes that are open right now, on a fresh install and on an update.",
+        "The rest is a sweep. The panel was printing \"0+ MB\" on any mailbox whose old mail is all small, the selection pill on the popup's tabs was landing a few pixels off the tab it selects, a custom rule written with brackets was skipping a warning it should have got, and four places in the engine could still read the conversation list Gmail leaves behind for a moment while it renders a search."
+      ],
+      "sections": [
+        {
+          "name": "Fixed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "The Gmail button reaches tabs that were already open."
+                ],
+                [
+                  "",
+                  " On install and on update, rather than on the next Gmail page load. Nothing new is asked for: the extension already had permission for mail.google.com, and the button still decides nothing for itself."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "An update no longer leaves a dead button in Gmail."
+                ],
+                [
+                  "",
+                  " Updating an extension cuts off the copy of the page script that is already running, and that copy was still watching the page. When the fresh copy cleared the old button out of the way, the cut-off one put it straight back: a button that looks right and answers nothing, holding the spot the working copy needed. The tab had to be reloaded to get out of it."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "\"0+ MB\" is gone from the panel."
+                ],
+                [
+                  "",
+                  " Storage figures come from large mail specifically, and plenty of cluttered mailboxes hold none of it. Zero is not a smaller answer there, it is not an answer, so the panel drops the line the way the popup already did and gives the room to the count beside it."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The selection pill lands on the tab it selects."
+                ],
+                [
+                  "",
+                  " It was drawn from different measurements than the row of tabs it sits behind, so it was slightly too wide and stepped slightly too short, and the error added up from left to right: the first tab's pill overhung by 3px and the last one fell 3px short. Both are built from the same two numbers now."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "A grouped custom rule gets the same warning a plain one does."
+                ],
+                [
+                  "",
+                  " Gmail treats "
+                ],
+                [
+                  "c",
+                  "(in:inbox)"
+                ],
+                [
+                  "",
+                  " and "
+                ],
+                [
+                  "c",
+                  "{in:inbox in:all}"
+                ],
+                [
+                  "",
+                  " exactly as it treats "
+                ],
+                [
+                  "c",
+                  "in:inbox"
+                ],
+                [
+                  "",
+                  ", and the check that says \"this rule has no age limit, so it will act on mail that arrived today\" was only reading the plain form. The refusal that blocks genuinely unsafe rules already handled both."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Four more places that could read the wrong conversation list."
+                ],
+                [
+                  "",
+                  " While Gmail renders a search it leaves the previous list on the page for a moment. Version 8.25 kept the row lookups away from it. Left behind were the link that selects every conversation matching a search, the Unsubscribe control in an opened message, the check for whether a whole result set is selected, and the check for whether a page came back empty. Two of those hand back something the extension then clicks, and unsubscribing cannot be undone. None of them can reach the leftover now, and the shortcut that let them is gone from the file rather than avoided by habit."
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "9.2.0",
       "title": "Be where the mailbox is",
@@ -1290,32 +1401,6 @@ var GCC_CHANGELOG = {
           "items": [
             {
               "text": "The check that keeps Trash, Spam and starred mail out of a bulk delete had a broken escape in it. Nothing was getting through, because none of the terms it guards needs escaping, but the first one that did would have slipped past in silence."
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "version": "8.18.1",
-      "title": "The privacy policy lives with the source now",
-      "sections": [
-        {
-          "name": "Changed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "The Privacy policy link opens the policy in this repository"
-                ],
-                [
-                  "",
-                  " instead of a page on another site. Same policy, same effective date, now version-controlled alongside the code it describes, so a change to what the extension does and a change to the document saying so land in the same commit. The terms of use moved with it."
-                ]
-              ]
-            },
-            {
-              "text": "The first claim in that policy is that the extension makes no network requests, and the policy now shows you the one-line command that checks it for yourself."
             }
           ]
         }

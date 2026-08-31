@@ -3,6 +3,62 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 9.3.0 - Reach the mailbox that is already open
+
+Last release put a cleaner button in the corner of Gmail, because
+everything this extension does had been sitting behind a toolbar icon
+Chrome hides until you pin it. It worked on the next Gmail you opened. It
+did not work on the Gmail you already had open, which for most people is
+the tab they were looking at when they installed it. A browser only runs a
+page script when the page loads, and it does not go back and run it in
+tabs that loaded earlier, so the one thing built for that moment was
+missing from it. The button and its one-time greeting now arrive in the
+mailboxes that are open right now, on a fresh install and on an update.
+
+The rest is a sweep. The panel was printing "0+ MB" on any mailbox whose
+old mail is all small, the selection pill on the popup's tabs was landing
+a few pixels off the tab it selects, a custom rule written with brackets
+was skipping a warning it should have got, and four places in the engine
+could still read the conversation list Gmail leaves behind for a moment
+while it renders a search.
+
+### Fixed
+- **The Gmail button reaches tabs that were already open.** On install and
+  on update, rather than on the next Gmail page load. Nothing new is asked
+  for: the extension already had permission for mail.google.com, and the
+  button still decides nothing for itself.
+- **An update no longer leaves a dead button in Gmail.** Updating an
+  extension cuts off the copy of the page script that is already running,
+  and that copy was still watching the page. When the fresh copy cleared
+  the old button out of the way, the cut-off one put it straight back: a
+  button that looks right and answers nothing, holding the spot the
+  working copy needed. The tab had to be reloaded to get out of it.
+- **"0+ MB" is gone from the panel.** Storage figures come from large mail
+  specifically, and plenty of cluttered mailboxes hold none of it. Zero is
+  not a smaller answer there, it is not an answer, so the panel drops the
+  line the way the popup already did and gives the room to the count
+  beside it.
+- **The selection pill lands on the tab it selects.** It was drawn from
+  different measurements than the row of tabs it sits behind, so it was
+  slightly too wide and stepped slightly too short, and the error added up
+  from left to right: the first tab's pill overhung by 3px and the last
+  one fell 3px short. Both are built from the same two numbers now.
+- **A grouped custom rule gets the same warning a plain one does.** Gmail
+  treats `(in:inbox)` and `{in:inbox in:all}` exactly as it treats
+  `in:inbox`, and the check that says "this rule has no age limit, so it
+  will act on mail that arrived today" was only reading the plain form.
+  The refusal that blocks genuinely unsafe rules already handled both.
+- **Four more places that could read the wrong conversation list.** While
+  Gmail renders a search it leaves the previous list on the page for a
+  moment. Version 8.25 kept the row lookups away from it. Left behind were
+  the link that selects every conversation matching a search, the
+  Unsubscribe control in an opened message, the check for whether a whole
+  result set is selected, and the check for whether a page came back
+  empty. Two of those hand back something the extension then clicks, and
+  unsubscribing cannot be undone. None of them can reach the leftover now,
+  and the shortcut that let them is gone from the file rather than avoided
+  by habit.
+
 ## 9.2.0 - Be where the mailbox is
 
 Everything this extension does has lived behind the toolbar icon, and
