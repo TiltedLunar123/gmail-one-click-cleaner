@@ -330,6 +330,21 @@
   };
 
   let shadow = null;
+  // The <body> watcher, kept so it can be cut loose. See watchForRemoval.
+  let watcher = null;
+
+  // Whether the world this copy was built in is still connected to the
+  // extension. chrome.runtime.id goes undefined once an update or a
+  // reload has replaced this content script, and that is the only signal
+  // a page-side script gets: its own DOM listeners, timers and observers
+  // all keep running as if nothing had happened.
+  const worldIsLive = () => {
+    try {
+      return Boolean(chrome.runtime?.id);
+    } catch {
+      return false;
+    }
+  };
 
   // =========================
   // Icon
@@ -508,16 +523,26 @@
         text: t("launcherResultEmpty", "Nothing old enough to clear yet. That is a clean mailbox.")
       }));
     } else {
-      nodes.push(el("div", { class: "stats" }, [
+      const stats = [
         el("div", { class: "stat" }, [
           el("b", { text: fmtCount(report.cleanableCount, report.cleanableAtLeast) }),
           el("span", { text: t("launcherStatEmails", "emails old enough to clear") })
-        ]),
-        el("div", { class: "stat" }, [
+        ])
+      ];
+      // Only when there is large mail to report. estMb is a floor times a
+      // count, so it is zero on any mailbox whose old mail is all small:
+      // plenty of stale promotions, no big attachments. Printing that as
+      // "0+ MB in old, large mail" is not a smaller claim than 340, it is
+      // a claim about nothing, with a plus sign on it. The popup has
+      // dropped the same line at zero since 8.0; the stat left standing
+      // takes the whole row.
+      if (num(report.largeMb) > 0) {
+        stats.push(el("div", { class: "stat" }, [
           el("b", { text: `${fmtCount(report.largeMb, true)} MB` }),
           el("span", { text: t("launcherStatStorage", "in old, large mail") })
-        ])
-      ]));
+        ]));
+      }
+      nodes.push(el("div", { class: "stats" }, stats));
       nodes.push(el("div", { class: "rows" }, rows));
     }
 
@@ -617,8 +642,14 @@
     render();
   };
 
+  const stopWatching = () => {
+    if (watcher) watcher.disconnect();
+    watcher = null;
+  };
+
   const unmount = () => {
     stopPolling();
+    stopWatching();
     shadow = null;
     document.getElementById(HOST_ID)?.remove();
   };
@@ -627,16 +658,30 @@
   // sits directly under <body> and has never been observed to go, but a
   // button that silently disappears is indistinguishable from a broken
   // extension, so this puts it back instead.
+  //
+  // 9.3: unless this copy is the orphan. A MutationObserver is a DOM
+  // API, so an update tears down the isolated world this one was built
+  // in and leaves the observer watching. The replacement copy's FIRST
+  // act is to remove the orphan host, which is a childList mutation on
+  // <body>, so the dead copy would see its button go and put another one
+  // back: a pill whose every click reaches nothing, holding the id the
+  // live copy checks, so the copy that could have worked stands down and
+  // the tab needs a reload. "Is the node there" and "is anything still
+  // driving it" are different questions here too.
   const watchForRemoval = () => {
     if (typeof MutationObserver !== "function" || !document.body) return;
-    const observer = new MutationObserver(() => {
+    watcher = new MutationObserver(() => {
       if (!shadow) return;
-      if (!document.getElementById(HOST_ID)) {
+      if (document.getElementById(HOST_ID)) return;
+      if (!worldIsLive()) {
         shadow = null;
-        mount();
+        stopWatching();
+        return;
       }
+      shadow = null;
+      mount();
     });
-    observer.observe(document.body, { childList: true });
+    watcher.observe(document.body, { childList: true });
   };
 
   // =========================
