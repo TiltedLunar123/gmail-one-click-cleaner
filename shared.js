@@ -788,8 +788,16 @@ const GCC = (() => {
       }
     }
 
+    // 9.3: the same anchor as the loop above, for the third time. The
+    // refusal learned "(" in 7.14.2 and "{" in 7.15 because Gmail groups
+    // with both, and this loop was left on whitespace alone, so
+    // `(in:inbox) is:read` and `{in:inbox in:all}` were saved without the
+    // one line that says the rule will archive mail that arrived this
+    // morning. The stricter check refuses the query outright; this is the
+    // check that only warns, which makes it the one a grouped query can
+    // still walk past unnoticed.
     for (const token of AGE_REQUIRED_TOKENS) {
-      const re = new RegExp(`(^|\\s)${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+      const re = new RegExp(`(^|[\\s({])${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
       if (re.test(lower) && !AGE_QUALIFIERS.test(lower)) {
         warnings.push(`Query uses "${token}" with no age filter; consider adding "older_than:" so recent mail is protected.`);
       }
