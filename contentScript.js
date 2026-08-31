@@ -1401,31 +1401,38 @@
     messageBody: "div.a3s"
   });
 
-  const getMainRoot = () => qs(SELECTORS.main) || document;
-
-  // The same lookup with the fallback taken away, for anything that
-  // reads or clicks CONVERSATION ROWS.
+  // The one main lookup, and it refuses rather than widening.
   //
   // 8.22 found that Gmail leaves the previous conversation list in the
   // page when it renders a search: laid out, not rendered, outside
   // div[role="main"] and ahead of the results in document order, with
-  // its own grid and its own toolbar. Every row lookup was scoped to
-  // main because of it -- but `getMainRoot()` answers `document` when
-  // main is missing, and that hands the stale grid straight back. The
-  // window is narrow (openSearch will not return until main exists) and
-  // it is the same width as a Gmail render, which is exactly how 8.22
-  // arrived.
+  // its own grid, its own selection bar, its own toolbar and its own
+  // reading view. Every row lookup was scoped to main because of it, and
+  // 8.25 found that the helper doing that scoping, `getMainRoot()`, was
+  // written `qs(main) || document` and handed the stale list straight
+  // back whenever main was missing. The window is narrow (openSearch
+  // will not return until main exists) and it is the same width as a
+  // Gmail render, which is exactly how 8.22 arrived.
   //
-  // What sits behind these five call sites is the reason to close it
-  // rather than note it: rows get TICKED and then deleted, rows get
-  // SAMPLED into the undo log and the unsubscribe list, and a row gets
-  // OPENED so its unsubscribe control can be driven. Unsubscribing
-  // cannot be undone, and a sender read off a list the query never
-  // matched is a sender the user never chose.
+  // 8.25 moved the five ROW readers off the fallback and left the helper
+  // standing for four others, on the reading that those did not touch
+  // rows. Two of them return a control that gets CLICKED: the
+  // select-all-matching link, whose click is what turns a page delete
+  // into a whole-result-set delete, and the header Unsubscribe control,
+  // which cannot be undone. The third answers whether the whole match
+  // set is selected, and read a SPENT banner in the leftover as proof
+  // that a selection this page never made had landed. The fourth
+  // answers whether the page is empty, and ended queries on somebody
+  // else's empty state. Not touching a row was never the property that
+  // mattered; acting on the answer was.
   //
-  // Refusing is the answer that already exists here: getGridRowCount has
-  // returned null on a missing main since it was written, and every
-  // caller reads a null count as "could not tell" rather than as zero.
+  // So the fallback does not exist any more, rather than being avoided
+  // by convention. Refusing is the answer this file already had:
+  // getGridRowCount has returned null on a missing main since it was
+  // written, and every caller reads a null count as "could not tell"
+  // rather than as zero. `qs(sel, null)` throws inside its own try and
+  // answers null, so a null root propagates as "found nothing" through
+  // every lookup below without a guard at each one.
   const getListRoot = () => qs(SELECTORS.main);
 
   const findToolbarRoot = () => qsFirst(SELECTORS.toolbar);
@@ -1846,9 +1853,10 @@
     // caller raises: the fallback that exists to rescue a run instead
     // guaranteed it stopped. Selecting rows from a list the query never
     // matched is the worse half, and scoping ends both.
-    // 8.25: getListRoot, not getMainRoot. See getListRoot: the `||
-    // document` fallback put the stale grid back in reach of the one
-    // pass in this file that CLICKS every checkbox it finds.
+    // 8.25: scoped, and refusing rather than widening. See getListRoot:
+    // the `|| document` fallback this replaced put the stale grid back
+    // in reach of the one pass in this file that CLICKS every checkbox
+    // it finds. 9.3 took the fallback out of the file entirely.
     const listRoot = getListRoot();
     if (!listRoot) return 0;
     const grid = qs(SELECTORS.grid, listRoot);
@@ -2013,7 +2021,10 @@
    * @returns {Element | null}
    */
   function findSelectAllConversationsLink() {
-    const mainRoot = getMainRoot();
+    // 9.3: getListRoot. This returns a link the caller CLICKS, and the
+    // click is what turns "delete this page" into "delete everything
+    // matching". Off the leftover it is the previous search's offer.
+    const mainRoot = getListRoot();
 
     // Look in selection banner area first
     const bannerAreas = [];
@@ -2210,7 +2221,11 @@
     const offer = findSelectAllConversationsLink();
     if (offer && looksLikeSelectAllOffer(getTextContent(offer))) return false;
 
-    const mainRoot = getMainRoot();
+    // 9.3: getListRoot. The disproof above is "the offer is still on
+    // screen", and a leftover banner from a search whose select-all DID
+    // land has no offer left in it to disprove anything with, so the
+    // scan below read its confirmation as this page's.
+    const mainRoot = getListRoot();
     const spans = qsa("span", mainRoot);
 
     for (const span of spans) {
@@ -3433,7 +3448,12 @@
   // =========================
 
   function hasNoResults() {
-    const mainRoot = getMainRoot();
+    // 9.3: getListRoot, so a missing main answers false and not true.
+    // Both are "could not tell", but true ENDS the query, and ending it
+    // on an empty state left behind by the previous search loses the run
+    // with nothing on screen to explain it. False carries on, and every
+    // row lookup after this has refused a missing main since 8.25.
+    const mainRoot = getListRoot();
 
     // Check for empty grid (works regardless of language)
     const grid = qs(SELECTORS.grid, mainRoot);
@@ -5184,7 +5204,12 @@
   // inside the message body (sender-controlled markup) and inside list
   // rows (inline row actions).
   function findHeaderUnsubscribeControl() {
-    const main = getMainRoot();
+    // 9.3: getListRoot. Every other guard here asks WHOSE markup a
+    // control is (never the message body, never a list row); none asked
+    // whether it belongs to the message on screen now. The first pass
+    // is self-scoped by its selector, the other two were not, and this
+    // control gets clicked.
+    const main = getListRoot();
     for (const el of qsa(SELECTORS.headerUnsubscribe.join(", "), main)) {
       if (el.closest(SELECTORS.messageBody)) continue;
       if (el.closest('tr[role="row"]')) continue;
