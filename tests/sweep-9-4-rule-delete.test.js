@@ -155,3 +155,81 @@ describe("deleting a rule removes the rule that was clicked", () => {
     expect(stored[0].action).toBe("archive");
   });
 });
+
+describe("a rule can be reordered without a mouse", () => {
+  // Reordering was drag-and-drop only, and the one affordance for it was
+  // a span carrying aria-hidden and no tabindex. The order of a user's
+  // own rules is the order they run in, and it could not be changed at
+  // all from the keyboard.
+  const press = (el, key) => {
+    const e = new window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+    el.dispatchEvent(e);
+    return e;
+  };
+
+  test("the handle is a focusable control, not a decoration", async () => {
+    await api.renderCustomRules();
+    const handle = rows()[0].querySelector(".drag-handle");
+    expect(handle.tagName).toBe("BUTTON");
+    expect(handle.getAttribute("aria-hidden")).toBeNull();
+    expect(handle.getAttribute("aria-label")).toMatch(/arrow keys/i);
+  });
+
+  test("ArrowDown moves the rule down one place", async () => {
+    await api.renderCustomRules();
+    press(rows()[0].querySelector(".drag-handle"), "ArrowDown");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(queries()).toEqual([
+      "from:b@x.com older_than:1y",
+      "from:a@x.com older_than:1y",
+      "from:c@x.com older_than:1y"
+    ]);
+  });
+
+  test("ArrowUp moves it back", async () => {
+    await api.renderCustomRules();
+    press(rows()[2].querySelector(".drag-handle"), "ArrowUp");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(queries()).toEqual([
+      "from:a@x.com older_than:1y",
+      "from:c@x.com older_than:1y",
+      "from:b@x.com older_than:1y"
+    ]);
+  });
+
+  test("the ends do not wrap or lose a rule", async () => {
+    await api.renderCustomRules();
+    press(rows()[0].querySelector(".drag-handle"), "ArrowUp");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(queries()).toHaveLength(3);
+    expect(queries()[0]).toBe("from:a@x.com older_than:1y");
+
+    press(rows()[2].querySelector(".drag-handle"), "ArrowDown");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(queries()).toHaveLength(3);
+    expect(queries()[2]).toBe("from:c@x.com older_than:1y");
+  });
+
+  test("focus follows the rule, so a held key keeps moving it", async () => {
+    await api.renderCustomRules();
+    press(rows()[0].querySelector(".drag-handle"), "ArrowDown");
+    await new Promise((r) => setTimeout(r, 0));
+    // Row 1 is now the rule that just moved.
+    expect(document.activeElement).toBe(rows()[1].querySelector(".drag-handle"));
+  });
+
+  test("the arrow key is consumed so the page does not scroll under it", async () => {
+    await api.renderCustomRules();
+    const e = press(rows()[0].querySelector(".drag-handle"), "ArrowDown");
+    expect(e.defaultPrevented).toBe(true);
+  });
+
+  test("a list that shifted underneath still moves the clicked rule", async () => {
+    await api.renderCustomRules();
+    stored = [rule("from:b@x.com older_than:1y"), rule("from:c@x.com older_than:1y")];
+    // Row 0 shows "a", which storage no longer has.
+    press(rows()[0].querySelector(".drag-handle"), "ArrowDown");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(queries()).toEqual(["from:b@x.com older_than:1y", "from:c@x.com older_than:1y"]);
+  });
+});

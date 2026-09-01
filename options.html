@@ -922,13 +922,27 @@
       line-height: 1;
     }
 
+    /* 9.4: this became a real button so the arrow keys can move a rule.
+       The resets keep it looking exactly like the span it replaced; the
+       focus ring is the part that has to be visible, because it is now
+       a tab stop and the whole point is reaching it without a mouse. */
     .drag-handle {
       color: var(--text-dim);
       cursor: grab;
       padding: 0 4px;
       user-select: none;
+      background: none;
+      border: 0;
+      font: inherit;
+      line-height: inherit;
     }
     .drag-handle:active { cursor: grabbing; }
+    .drag-handle:hover { color: var(--text-main); }
+    .drag-handle:focus-visible {
+      outline: 2px solid var(--primary);
+      outline-offset: 2px;
+      border-radius: var(--radius-sm);
+    }
 
     .rule-query {
       flex: 1;

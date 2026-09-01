@@ -1427,11 +1427,49 @@
       row.dataset.idx = String(idx);
       row.setAttribute("role", "listitem");
 
-      const handle = document.createElement("span");
+      // 9.4: reordering was drag-and-drop and nothing else, and the one
+      // affordance for it was a span marked aria-hidden with no tabindex.
+      // So the order of a user's own rules, which is the order they run
+      // in, could not be changed at all without a mouse. The handle is a
+      // real button now and the arrow keys move the row. The drag path
+      // below is untouched.
+      const handle = document.createElement("button");
+      handle.type = "button";
       handle.className = "drag-handle";
-      handle.setAttribute("aria-hidden", "true");
       handle.textContent = "\u2630"; // hamburger glyph
-      handle.title = "Drag to reorder";
+      handle.title = "Drag to reorder, or use the arrow keys";
+      handle.setAttribute(
+        "aria-label",
+        `Reorder rule ${idx + 1}: ${rule.query}. Use the up and down arrow keys to move it.`
+      );
+
+      // Move by identity, for the reason the delete below spells out: a
+      // render-time index and a freshly read list only agree while
+      // nothing has changed in between.
+      const moveBy = async (delta) => {
+        const allRules = await loadCustomRules();
+        const from = allRules.findIndex(
+          (r) => r?.query === rule.query && r?.action === rule.action
+        );
+        if (from === -1) { await renderCustomRules(); return; }
+        const to = from + delta;
+        if (to < 0 || to >= allRules.length) return;
+        const [moved] = allRules.splice(from, 1);
+        allRules.splice(to, 0, moved);
+        try { await saveCustomRules(allRules); } catch { return; }
+        await renderCustomRules();
+        // The row moved, so the button the user was on is gone. Put focus
+        // on the same rule in its new place, or holding an arrow key down
+        // moves one row and then does nothing.
+        const rows = [...container.querySelectorAll(".custom-rule-row")];
+        rows[to]?.querySelector(".drag-handle")?.focus();
+      };
+
+      handle.addEventListener("keydown", (e) => {
+        if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+        e.preventDefault();
+        moveBy(e.key === "ArrowUp" ? -1 : 1);
+      });
 
       const query = document.createElement("code");
       query.className = "rule-query";
