@@ -6,13 +6,160 @@
 // even of a file inside the package, would end the extension's
 // no-network-calls promise.
 //
-// Carries the newest 12 of 86 releases; the page says so
+// Carries the newest 12 of 87 releases; the page says so
 // and links the full log on GitHub.
 
 // eslint-disable-next-line no-unused-vars
 var GCC_CHANGELOG = {
-  "total": 86,
+  "total": 87,
   "entries": [
+    {
+      "version": "9.4.0",
+      "title": "Ask whose markup it is before clicking it",
+      "intro": [
+        "The unsubscribe run asks three times whether a control belongs to Gmail before it clicks the first one, because a link inside a message was written by whoever sent it and following one takes the tab somewhere they chose. The confirmation that comes next asked nothing at all. It looked for the dialog anywhere on the page, and a sender who puts a dialog in their own message wins that search, because their copy is higher up the page than the one Gmail adds. So a stranger could get their link clicked, in a signed-in mailbox, without the person who owns it touching anything. The same unscoped search sat in the confirmation for a bulk delete, which is the click that turns a page into a whole result set.",
+        "The rest of the release is a sweep, and most of it is the extension being made to stop saying things it had not established."
+      ],
+      "sections": [
+        {
+          "name": "Fixed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "A message can no longer supply the dialog its own unsubscribe gets confirmed in."
+                ],
+                [
+                  "",
+                  " One rule now answers \"is this Gmail's or the sender's\" for the dialog, for the buttons inside it, and for the bulk-delete confirmation, which had the same gap and the larger consequence."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The Skip to main action link works."
+                ],
+                [
+                  "",
+                  " It is the first thing a keyboard reaches in the popup and it pointed at the Run button, which lives on the Clean tab, and the popup opens on Report. So the one control added for people not using a mouse did nothing at all on the tab it opens on. It goes to whichever tab you are actually looking at now."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "A rule in the mailbox report shows the whole line it was cutting off."
+                ],
+                [
+                  "",
+                  " The description is one line and six of the ten steps were too long for it, and the part that got cut was the end, which is where it says whether the step deletes or archives."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Custom rules can be reordered without a mouse, and deleting one removes the one you clicked."
+                ],
+                [
+                  "",
+                  " The order was drag-only, and the handle was marked as decoration, so the order rules run in could not be changed from a keyboard. The delete worked by counting from the top of the list, which is the wrong rule as soon as anything else has changed the list, and there is no undo for a rule you wrote."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Importing a backup runs the same checks as typing."
+                ],
+                [
+                  "",
+                  " It was the one way into this extension that skipped them, so a file could restore a rule the page refuses to accept, including ones aimed at Starred mail, Trash and Spam, and could set a schedule to run more often than any control here offers. The import summary counted those as restored."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The unsubscribe ledger stops losing the record it keeps."
+                ],
+                [
+                  "",
+                  " The snapshot of which safety switches a figure was measured through is what lets the extension stop showing that figure once they change, and every write that was not a verification deleted it. A recheck that could not measure kept the previous number and stamped the new date on it."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The receipts list is not emptied by a failed read."
+                ],
+                [
+                  "",
+                  " A storage read that did not answer looked exactly like having never unsubscribed from anything, and hid the whole panel."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The Gmail button stops calling a mailbox clean when it did not measure one."
+                ],
+                [
+                  "",
+                  " A scan whose searches timed out, and a mailbox holding old mail that falls outside the steps the panel lists, both produced \"That is a clean mailbox\". They say what happened now, and the second shows the count it had all along."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "A popup watching one mailbox ignores a run in another."
+                ],
+                [
+                  "",
+                  " With two accounts signed in, a scan in the other tab could end this one's progress and put its numbers on screen."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Safe Mode, the default skips and the paid feature list say what the code does."
+                ],
+                [
+                  "",
+                  " Safe Mode protects receipts and shipping by subject and skips Updates and Forums rules; three places described it three different ways and none had both halves. Four skip switches ship on and the welcome named two. The paid list has been eight features since 9.0 and the store page and the popup's own pitch still said six."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Smaller things."
+                ],
+                [
+                  "",
+                  " The Rule Intensity list recommended an option three lines above the one it selects. Settings told Firefox users that Chrome would show their notification. The read-me stated a fixed Auto-Pilot sweep size that Pro Settings lets you change. The Clear button blamed a setting that ships empty. The Gmail panel put the cursor on its close button instead of its main one, and lost it entirely when you pressed Hide."
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "9.3.0",
       "title": "Reach the mailbox that is already open",
@@ -1331,76 +1478,6 @@ var GCC_CHANGELOG = {
                   " The \"Restore Default Rules?\" confirmation had a fixed dark panel behind theme-coloured text, so Cancel was invisible and the only readable choice was the destructive one. The tooltips on the Diagnostics page had the same problem (they only appear on hover, which is how both went unnoticed for so long). Both follow the theme now. They shift a little in the dark theme too, because they use the shared surface colours instead of their own."
                 ]
               ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "version": "8.19.0",
-      "title": "Things that happened while nobody was watching",
-      "intro": [
-        "Four fixes, and three of them are the same problem: the extension worked out something true and then wrote it down somewhere that stops existing the moment you look away."
-      ],
-      "sections": [
-        {
-          "name": "Fixed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "Your three free unsubscribes are counted properly now."
-                ],
-                [
-                  "",
-                  " They used to be counted by the popup, and a popup closes the instant you click anything else. An unsubscribe run opens one message per sender, so most runs finished with the popup already gone and the count never moved. If you clicked into Gmail to watch it work, you kept getting three. The count is kept by the background worker now, which is still there when the run ends. Nothing else changed: only senders that really came back unsubscribed cost anything, and a sender with no one-click link is still free."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Stopping an unsubscribe run no longer throws away what it already did."
-                ],
-                [
-                  "",
-                  " Cancel at the eighth of ten senders and the seven that were genuinely unsubscribed went unrecorded: no marks on the list, nothing in your totals. You cannot un-unsubscribe from a mailing list, so those are worth keeping, and they are kept now. They do count against the free three, because they happened."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A rule that Gmail throttled for too long is reported as unfinished."
-                ],
-                [
-                  "",
-                  " The cleaner gives up on a rule after five minutes of rate limiting and moves to the next one, which is the right call, but the run then reported itself as complete. That let the Mailbox Report mark the step Cleared and take away its Run button, the Storage X-ray mark a sender Purged, and a suggestion stop being suggested, all over mail that was still there. Two of the three ways a rule can stop early already said so. The third does now."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Small text on coloured chips is readable in the light theme."
-                ],
-                [
-                  "",
-                  " A chip tints its own background, so its label was landing on a ground its own colour had already darkened. Every tag, the PRO badge on an active licence, the Cleared mark on a report step and the Apply button on a suggestion were below the readable-contrast bar. They are all above it now, in both themes, and the dark theme looks exactly as it did."
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "name": "Internal",
-          "items": [
-            {
-              "text": "The check that keeps Trash, Spam and starred mail out of a bulk delete had a broken escape in it. Nothing was getting through, because none of the terms it guards needs escaping, but the first one that did would have slipped past in silence."
             }
           ]
         }
