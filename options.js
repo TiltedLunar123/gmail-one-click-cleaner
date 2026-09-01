@@ -924,16 +924,55 @@
   //   3 = adds protectKeywords (6.1 subject shield)
   const EXPORT_FORMAT_VERSION = 3;
 
+  // 9.4: both of these asked whether a field was PRESENT and never
+  // whether its value was one the page would have accepted. An import is
+  // a write path like any other, and it was the only one that skipped
+  // the checks the Save path applies, so a file could restore exactly
+  // what the page refuses to let anyone type.
+  //
+  // The import UI compounded it: summarizeImport counts what the write
+  // set contains, so a rule these filters let through was reported as
+  // kept, and the run finished with "imported successfully".
+
   const normalizeCustomRules = (rules) => {
     if (!Array.isArray(rules)) return [];
-    return rules.filter(
-      (r) => r && typeof r === "object" && typeof r.query === "string" && r.query.trim() !== ""
-    );
+    return rules.filter((r) => {
+      if (!r || typeof r !== "object") return false;
+      if (typeof r.query !== "string" || r.query.trim() === "") return false;
+      // The same gate the Add and the template paths run. It is what
+      // refuses is:starred, in:trash and in:spam, which is to say the
+      // queries whose whole point is that a cleanup run must not touch
+      // them. Without it a shared config file could put one back.
+      const check = GCC.validateGmailQuery(r.query.trim());
+      if (check && check.valid === false) return false;
+      // An action outside the two the engine knows is a rule that either
+      // does nothing or does the other thing.
+      if (r.action !== undefined && r.action !== "delete" && r.action !== "archive") return false;
+      return true;
+    });
   };
+
+  // Every frequency the Frequency select offers. An imported schedule
+  // does not go through that select, and restoreScheduledAlarms hands
+  // intervalMinutes straight to chrome.alarms.create, so a file could
+  // arm a run far more often than any control on this page allows.
+  const SCHEDULE_INTERVALS = Object.freeze([1440, 10080, 43200]);
 
   const normalizeSchedules = (schedules) => {
     if (!Array.isArray(schedules)) return [];
-    return schedules.filter((s) => s && typeof s === "object" && typeof s.id === "string" && s.id !== "");
+    return schedules.filter((s) => {
+      if (!s || typeof s !== "object") return false;
+      if (typeof s.id !== "string" || s.id === "") return false;
+      // Absent is fine and always has been: restoreScheduledAlarms reads
+      // `schedule.intervalMinutes || 10080`, so a schedule with no
+      // frequency runs weekly. What was never checked is a frequency
+      // that IS there and is not one this page can produce.
+      if (s.intervalMinutes !== undefined && s.intervalMinutes !== null
+        && !SCHEDULE_INTERVALS.includes(Number(s.intervalMinutes))) return false;
+      if (s.action !== undefined && s.action !== "delete" && s.action !== "archive") return false;
+      if (s.intensity !== undefined && !RULE_KEYS.includes(s.intensity)) return false;
+      return true;
+    });
   };
 
   const buildExportPayload = (current, extras = {}) => ({
