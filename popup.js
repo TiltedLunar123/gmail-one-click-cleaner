@@ -3689,7 +3689,15 @@ document.addEventListener("DOMContentLoaded", () => {
             [String(reach.senders)]
           );
         } else if (reach.count === 0) {
-          sub = t("receiptsPurgeNothing", "Nothing to clear: your Minimum Age setting is wider than these grace windows");
+          // 9.4: this blamed Minimum Age whatever the reason. Minimum Age
+          // ships EMPTY, so on a default install it is never the cause,
+          // and the usual one is Skip Unread, which is on. Sending
+          // someone to a setting that is already unset to fix a number is
+          // worse than not explaining it. Name the setting only when it
+          // is actually set; otherwise say the plain fact.
+          sub = state.receipts.guards?.minAge
+            ? t("receiptsPurgeNothing", "Nothing to clear: your Minimum Age setting is wider than these grace windows")
+            : t("receiptsPurgeNothingGuards", "Nothing to clear: your safety switches hold back everything in these grace windows");
         } else {
           sub = reach.exact
             ? t("receiptsPurgeTakes", `Clears ${n} emails · only what arrived after each grace window`, [n])
@@ -3703,8 +3711,21 @@ document.addEventListener("DOMContentLoaded", () => {
   const loadReceipts = async () => {
     try {
       const res = await GCC.sendMessage({ type: "gmailCleanerGetReceipts" });
-      state.receipts.list = Array.isArray(res?.receipts) ? res.receipts : [];
-      state.receipts.guards = res?.guards || null;
+      // 9.4: this read res.receipts without asking whether the read
+      // worked. GCC.sendMessage resolves {error, code:"send_failed"}
+      // rather than rejecting, and the worker answers {ok:false} when the
+      // storage read throws, so both failures arrived here as "no
+      // receipts" and the panel hid itself. A Pro user who has
+      // unsubscribed from forty lists was shown the same screen as
+      // someone who never has, and the ledger is the only record that
+      // they did. A failed read is not an empty ledger: leave what is
+      // already on screen and try again on the next open.
+      if (!res || res.ok === false || res.error) {
+        log("warn", "receipts load refused", res?.error || res?.code || "not ok");
+        return;
+      }
+      state.receipts.list = Array.isArray(res.receipts) ? res.receipts : [];
+      state.receipts.guards = res.guards || null;
       renderReceipts();
     } catch (err) {
       log("warn", "receipts load failed", err);

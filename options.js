@@ -1410,10 +1410,27 @@
       deleteBtn.setAttribute("aria-label", "Remove rule");
       deleteBtn.title = "Remove rule";
       deleteBtn.addEventListener("click", async () => {
+        // 9.4: this spliced the RENDER-time index out of a list it had
+        // just re-read from storage, so the two only line up while
+        // nothing has changed in between. renderCustomRules() below is
+        // not awaited, a second Options tab writes to the same key, and
+        // an import replaces the list wholesale, so a stale index is
+        // reachable in ordinary use and what it removes is a different
+        // rule the user wrote. Delete by identity: find the rule this row
+        // is actually showing.
         const allRules = await loadCustomRules();
-        allRules.splice(idx, 1);
+        const at = allRules.findIndex(
+          (r) => r?.query === rule.query && r?.action === rule.action
+        );
+        if (at === -1) {
+          // Already gone. Re-render so the row the user clicked leaves,
+          // and say nothing was removed rather than removing something.
+          await renderCustomRules();
+          return;
+        }
+        allRules.splice(at, 1);
         try { await saveCustomRules(allRules); } catch { return; }
-        renderCustomRules();
+        await renderCustomRules();
         GCC.showToast("Rule removed", "success");
       });
 
