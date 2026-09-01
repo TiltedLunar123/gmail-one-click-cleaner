@@ -174,6 +174,14 @@ document.addEventListener("DOMContentLoaded", () => {
     // next click is then allowed to clear the flags regardless.
     runBannerVisible: false,
     runBannerTabId: null,
+    // 9.4: the Gmail tab this popup injected its current auxiliary run
+    // into. Progress messages carry a runKind but nothing that says
+    // which mailbox they came from, and the listener was throwing the
+    // sender away, so with two accounts signed in a run in the other tab
+    // ended this one's spinner and put its numbers on screen. Null means
+    // this popup started nothing and has no expectation, which is the
+    // case when the in-Gmail launcher started the scan.
+    auxRunTabId: null,
     resetArmed: false,
     resetArmTimer: null,
 
@@ -2564,6 +2572,9 @@ document.addEventListener("DOMContentLoaded", () => {
       target: { tabId: gmailTab.id },
       files: ["contentScript.js"]
     });
+    // The one place all five auxiliary run kinds pass through, so the
+    // one place worth recording which mailbox this popup is watching.
+    state.auxRunTabId = gmailTab.id;
     return gmailTab.id;
   };
 
@@ -6144,9 +6155,41 @@ document.addEventListener("DOMContentLoaded", () => {
   const setupRuntimeMessages = () => {
     if (!GCC.hasChrome() || !chrome.runtime?.onMessage?.addListener) return;
 
-    chrome.runtime.onMessage.addListener((msg) => {
+    chrome.runtime.onMessage.addListener((msg, sender) => {
       try {
         if (!msg || typeof msg !== "object") return;
+
+        // 9.4: which mailbox is this about? A progress message carries a
+        // runKind and no account, and this listener took the second
+        // argument off the signature entirely, so with two accounts
+        // signed in a run in the OTHER tab ended this popup's spinner
+        // and rendered its counts. That is the thing the README promises
+        // does not happen: a report is only shown back in the mailbox it
+        // was measured in.
+        //
+        // Only refuse when this popup actually started something and the
+        // message came from somewhere else. auxRunTabId is null when the
+        // in-Gmail launcher started the scan, and those messages are as
+        // welcome as they ever were.
+        const fromTab = sender?.tab?.id;
+        if (
+          msg.runKind &&
+          state.auxRunTabId !== null &&
+          typeof fromTab === "number" &&
+          fromTab !== state.auxRunTabId
+        ) {
+          return;
+        }
+        // A run that ended is no longer an expectation. Cleared here so
+        // the next launcher-started scan in any tab is watched again
+        // rather than refused by a stale tab id.
+        if (
+          msg.runKind &&
+          fromTab === state.auxRunTabId &&
+          (msg.done || msg.phase === "done" || msg.phase === "cancelled" || msg.phase === "error")
+        ) {
+          state.auxRunTabId = null;
+        }
 
         // The engine and progress page broadcast a single message type --
         // "gmailCleanerProgress" -- and encode lifecycle in `phase`
