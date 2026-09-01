@@ -26,7 +26,7 @@
 (() => {
   "use strict";
 
-  const LAUNCHER_VERSION = "9.3.0";
+  const LAUNCHER_VERSION = "9.4.0";
 
   // One host node, one id. A second injection (an extension update
   // re-running the script into a live tab) finds this and stands down
@@ -408,7 +408,8 @@
     class: "link",
     type: "button",
     text: t("launcherHide", "Hide"),
-    onclick: () => setView("hide")
+    // A click, so focus follows into the panel it just replaced.
+    onclick: () => setView("hide", true)
   });
 
   const pinHintLine = () => (state.pinHint
@@ -519,9 +520,43 @@
     const nodes = [header(t("launcherResultTitle", "What this mailbox is holding"))];
 
     if (!rows.length) {
-      nodes.push(el("p", {
-        text: t("launcherResultEmpty", "Nothing old enough to clear yet. That is a clean mailbox.")
-      }));
+      // 9.4: this said "That is a clean mailbox" whenever every band was
+      // zero, which is a positive claim about someone's mail that the
+      // scan may not have earned. Two shapes reach it. A scan whose
+      // searches timed out stores ten bands at zero and measured:false,
+      // and the popup shows those as unmeasured rows with a "N of 12
+      // searches timed out" note, while this surface turned the same
+      // record into an all-clear. And a mailbox can have a headline count
+      // of old mail that lands in none of the named steps, which is the
+      // case the popup's own 8.5.1 fix exists for: the number is right
+      // there in cleanableCount and the panel dropped it on the floor.
+      const failed = num(report.failedQueries);
+      const cleanable = num(report.cleanableCount);
+      if (failed > 0) {
+        nodes.push(el("p", {
+          text: t(
+            "launcherResultUnmeasured",
+            "Some searches did not finish, so this is not a full answer yet. Try scanning again."
+          )
+        }));
+      } else if (cleanable > 0) {
+        nodes.push(el("p", {
+          text: t(
+            "launcherResultNoBands",
+            "There is old mail here, but none of it falls into the steps this panel lists. Open the cleaner for the full report."
+          )
+        }));
+        nodes.push(el("div", { class: "stats" }, [
+          el("div", { class: "stat" }, [
+            el("b", { text: fmtCount(report.cleanableCount, report.cleanableAtLeast) }),
+            el("span", { text: t("launcherStatEmails", "emails old enough to clear") })
+          ])
+        ]));
+      } else {
+        nodes.push(el("p", {
+          text: t("launcherResultEmpty", "Nothing old enough to clear yet. That is a clean mailbox.")
+        }));
+      }
     } else {
       const stats = [
         el("div", { class: "stat" }, [
@@ -602,13 +637,30 @@
     }, (VIEWS[state.view] || viewIdle)());
     shadow.appendChild(panel);
     if (!takeFocus) return;
-    const focusable = panel.querySelector(".cta, .ghost, .icon-btn");
+    // 9.4: this was one querySelector over ".cta, .ghost, .icon-btn",
+    // which reads as a priority list and is not one: a selector list
+    // returns the first match in DOCUMENT order, and the header's close
+    // button comes before the panel's primary action every time. So
+    // opening the panel put the caret on the X. Ask in the order the
+    // list was written in.
+    let focusable = null;
+    for (const selector of [".cta", ".ghost", ".icon-btn"]) {
+      focusable = panel.querySelector(selector);
+      if (focusable) break;
+    }
     if (focusable && typeof focusable.focus === "function") focusable.focus();
   };
 
-  const setView = (view) => {
+  // 9.4: render() rebuilds the whole shadow tree, so whatever had focus
+  // is gone. The comment above is right that an async change must not
+  // steal the caret out of Gmail, but a view change the user asked for
+  // by pressing a button in this panel is not that: it destroyed the
+  // control they just used and left focus on the document, so a keyboard
+  // user pressing Hide had to tab back in from the top of Gmail. The
+  // default stays false; the handlers that ARE a click pass true.
+  const setView = (view, takeFocus) => {
     state.view = view;
-    render();
+    render(takeFocus === true);
   };
 
   // =========================
@@ -779,7 +831,7 @@
     stopPolling();
     state.baselineAt = Number(state.report?.updatedAt) || 0;
     state.open = true;
-    setView("scanning");
+    setView("scanning", true);
 
     const resp = await send({ type: "gmailCleanerLauncherScan" });
     if (!resp) return setView("stale");

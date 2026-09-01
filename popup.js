@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "9.3.0";
+  const POPUP_VERSION = "9.4.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -174,6 +174,14 @@ document.addEventListener("DOMContentLoaded", () => {
     // next click is then allowed to clear the flags regardless.
     runBannerVisible: false,
     runBannerTabId: null,
+    // 9.4: the Gmail tab this popup injected its current auxiliary run
+    // into. Progress messages carry a runKind but nothing that says
+    // which mailbox they came from, and the listener was throwing the
+    // sender away, so with two accounts signed in a run in the other tab
+    // ended this one's spinner and put its numbers on screen. Null means
+    // this popup started nothing and has no expectation, which is the
+    // case when the in-Gmail launcher started the scan.
+    auxRunTabId: null,
     resetArmed: false,
     resetArmTimer: null,
 
@@ -532,6 +540,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // 7.13 install-source guard
     installSourceBanner: $("installSourceBanner"),
     installSourceStoreBtn: $("installSourceStoreBtn"),
+    skipLink: $("skipLink"),
     kbdHelpBtn: $("kbdHelpBtn"),
     versionBadge: $("versionBadge"),
     kbdHelp: $("keyboardHelp"),
@@ -2563,6 +2572,9 @@ document.addEventListener("DOMContentLoaded", () => {
       target: { tabId: gmailTab.id },
       files: ["contentScript.js"]
     });
+    // The one place all five auxiliary run kinds pass through, so the
+    // one place worth recording which mailbox this popup is watching.
+    state.auxRunTabId = gmailTab.id;
     return gmailTab.id;
   };
 
@@ -3076,6 +3088,14 @@ document.addEventListener("DOMContentLoaded", () => {
           ? t("reportActionArchive", "archives")
           : t("reportActionDelete", "to Trash")
       ].filter(Boolean).join(" · ");
+      // 9.4: this line is nowrap + ellipsis, and measured in Chrome at
+      // both 380 and 440 six of the ten bands clip. What gets cut is the
+      // tail, and the tail is the action: "10 to 25 MB, older than 6
+      // months - to Trash" reaches the reader as "...older than 6 months
+      // - to". Whether a step deletes or archives is the half of that
+      // sentence the row exists to answer, and there was no title, so
+      // there was no way to read it at all.
+      meta.title = meta.textContent;
       main.appendChild(title);
       main.appendChild(meta);
 
@@ -3680,7 +3700,15 @@ document.addEventListener("DOMContentLoaded", () => {
             [String(reach.senders)]
           );
         } else if (reach.count === 0) {
-          sub = t("receiptsPurgeNothing", "Nothing to clear: your Minimum Age setting is wider than these grace windows");
+          // 9.4: this blamed Minimum Age whatever the reason. Minimum Age
+          // ships EMPTY, so on a default install it is never the cause,
+          // and the usual one is Skip Unread, which is on. Sending
+          // someone to a setting that is already unset to fix a number is
+          // worse than not explaining it. Name the setting only when it
+          // is actually set; otherwise say the plain fact.
+          sub = state.receipts.guards?.minAge
+            ? t("receiptsPurgeNothing", "Nothing to clear: your Minimum Age setting is wider than these grace windows")
+            : t("receiptsPurgeNothingGuards", "Nothing to clear: your safety switches hold back everything in these grace windows");
         } else {
           sub = reach.exact
             ? t("receiptsPurgeTakes", `Clears ${n} emails · only what arrived after each grace window`, [n])
@@ -3694,8 +3722,21 @@ document.addEventListener("DOMContentLoaded", () => {
   const loadReceipts = async () => {
     try {
       const res = await GCC.sendMessage({ type: "gmailCleanerGetReceipts" });
-      state.receipts.list = Array.isArray(res?.receipts) ? res.receipts : [];
-      state.receipts.guards = res?.guards || null;
+      // 9.4: this read res.receipts without asking whether the read
+      // worked. GCC.sendMessage resolves {error, code:"send_failed"}
+      // rather than rejecting, and the worker answers {ok:false} when the
+      // storage read throws, so both failures arrived here as "no
+      // receipts" and the panel hid itself. A Pro user who has
+      // unsubscribed from forty lists was shown the same screen as
+      // someone who never has, and the ledger is the only record that
+      // they did. A failed read is not an empty ledger: leave what is
+      // already on screen and try again on the next open.
+      if (!res || res.ok === false || res.error) {
+        log("warn", "receipts load refused", res?.error || res?.code || "not ok");
+        return;
+      }
+      state.receipts.list = Array.isArray(res.receipts) ? res.receipts : [];
+      state.receipts.guards = res.guards || null;
       renderReceipts();
     } catch (err) {
       log("warn", "receipts load failed", err);
@@ -6114,9 +6155,41 @@ document.addEventListener("DOMContentLoaded", () => {
   const setupRuntimeMessages = () => {
     if (!GCC.hasChrome() || !chrome.runtime?.onMessage?.addListener) return;
 
-    chrome.runtime.onMessage.addListener((msg) => {
+    chrome.runtime.onMessage.addListener((msg, sender) => {
       try {
         if (!msg || typeof msg !== "object") return;
+
+        // 9.4: which mailbox is this about? A progress message carries a
+        // runKind and no account, and this listener took the second
+        // argument off the signature entirely, so with two accounts
+        // signed in a run in the OTHER tab ended this popup's spinner
+        // and rendered its counts. That is the thing the README promises
+        // does not happen: a report is only shown back in the mailbox it
+        // was measured in.
+        //
+        // Only refuse when this popup actually started something and the
+        // message came from somewhere else. auxRunTabId is null when the
+        // in-Gmail launcher started the scan, and those messages are as
+        // welcome as they ever were.
+        const fromTab = sender?.tab?.id;
+        if (
+          msg.runKind &&
+          state.auxRunTabId !== null &&
+          typeof fromTab === "number" &&
+          fromTab !== state.auxRunTabId
+        ) {
+          return;
+        }
+        // A run that ended is no longer an expectation. Cleared here so
+        // the next launcher-started scan in any tab is watched again
+        // rather than refused by a stale tab id.
+        if (
+          msg.runKind &&
+          fromTab === state.auxRunTabId &&
+          (msg.done || msg.phase === "done" || msg.phase === "cancelled" || msg.phase === "error")
+        ) {
+          state.auxRunTabId = null;
+        }
 
         // The engine and progress page broadcast a single message type --
         // "gmailCleanerProgress" -- and encode lifecycle in `phase`
@@ -6718,7 +6791,30 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  // 9.4: the skip link. Its target used to be written into the href, so
+  // it named one panel's button and the popup opens on a different tab,
+  // which left the first focusable control in the popup doing nothing at
+  // all for the keyboard user it was added for. The visible panel names
+  // its own primary action; resolve it when the link is used, because
+  // which tab is selected is not knowable when the markup is written.
+  const focusMainAction = () => {
+    const panel = document.querySelector(".tab-panel:not([hidden])");
+    const target = panel && document.getElementById(panel.dataset.mainAction || "");
+    // The panel itself is the honest fallback: it carries tabindex="0"
+    // and is labelled by its tab, so focus still lands past the header
+    // even if a panel's named action is missing or has been hidden by
+    // the tier the user is on.
+    const landing = target && target.offsetParent !== null ? target : panel;
+    if (landing && typeof landing.focus === "function") landing.focus();
+  };
+
   const setupEventListeners = () => {
+    elements.skipLink?.addEventListener("click", (e) => {
+      // href="#" would otherwise put a bare hash on the popup's URL.
+      e.preventDefault();
+      focusMainAction();
+    });
+
     elements.runBtn.addEventListener("click", runCleanup);
 
     // 8.0 Mailbox Report.

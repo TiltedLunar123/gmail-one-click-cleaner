@@ -922,13 +922,27 @@
       line-height: 1;
     }
 
+    /* 9.4: this became a real button so the arrow keys can move a rule.
+       The resets keep it looking exactly like the span it replaced; the
+       focus ring is the part that has to be visible, because it is now
+       a tab stop and the whole point is reaching it without a mouse. */
     .drag-handle {
       color: var(--text-dim);
       cursor: grab;
       padding: 0 4px;
       user-select: none;
+      background: none;
+      border: 0;
+      font: inherit;
+      line-height: inherit;
     }
     .drag-handle:active { cursor: grabbing; }
+    .drag-handle:hover { color: var(--text-main); }
+    .drag-handle:focus-visible {
+      outline: 2px solid var(--primary);
+      outline-offset: 2px;
+      border-radius: var(--radius-sm);
+    }
 
     .rule-query {
       flex: 1;
@@ -1081,8 +1095,10 @@
         <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
         In live runs (not Dry-Run), matching conversations are first tagged with labels like
         <code>GmailCleaner - Promotions</code> or <code>GmailCleaner - Big attachments</code>
-        so you can search and audit them later. In Safe Mode, rules that include
-        <code>category:updates</code> or <code>category:forums</code> are automatically skipped.
+        so you can search and audit them later. Safe Mode does two things: every query gains a
+        negative <code>subject:</code> clause that protects receipts, invoices, orders, shipping,
+        tracking, delivery, confirmations, refunds and returns, and rules that include
+        <code>category:updates</code> or <code>category:forums</code> are skipped entirely.
         Global guardrails such as <code>skip starred</code> and <code>skip important</code>
         are layered on top of whatever you put here.
       </div>
@@ -1273,7 +1289,9 @@
           <div class="setting-content">
             <label for="notifyOnComplete" class="setting-label">Desktop notification on cleanup complete</label>
             <p class="hint" id="notify-description" style="margin-top: 4px; margin-bottom: 0">
-              When enabled, Chrome will surface a notification when a cleanup finishes, even if you've moved away from the progress tab.
+              <!-- 9.4: said "Chrome will surface", on a page the Firefox
+                   build ships unchanged. -->
+              When enabled, your browser will show a notification when a cleanup finishes, even if you've moved away from the progress tab.
             </p>
           </div>
         </div>

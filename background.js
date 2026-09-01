@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "9.3.0";
+  const SW_VERSION = "9.4.0";
 
   // =========================
   // Storage Keys
@@ -1891,16 +1891,40 @@
       .slice()
       .sort((a, b) => (Number(b?.at) || 0) - (Number(a?.at) || 0))
       .slice(0, RECEIPT_CAP);
+    // 9.1: the switches the run's `clearable` figures were measured
+    // through, kept at the ledger level because one run measures every
+    // sender in it through one set. Undefined means "leave whatever the
+    // last verification stored", so a write that is not a verification
+    // cannot erase it.
+    //
+    // 9.4: it erased it every time. storage.local.set REPLACES the value
+    // under a key, it does not merge into it, so leaving the property
+    // off the new object deletes the stored snapshot rather than keeping
+    // it, and the comment above described the opposite of what ran.
+    // Every unsubscribe run (recordReceipts) and every Clear
+    // (recordReceiptsCleared) passes no guards, and so did a
+    // verification whose engine sent none. The snapshot exists so the
+    // popup can stop printing a `clearable` once the switches move, so
+    // losing it silently turns that protection off and the numbers go on
+    // being shown against guards they were never measured through. Carry
+    // it forward explicitly; there is no other way to say "unchanged".
+    let carried = guards;
+    if (carried === undefined) {
+      try {
+        const stored = await chrome.storage.local.get(STORAGE_KEYS.RECEIPTS);
+        carried = stored?.[STORAGE_KEYS.RECEIPTS]?.guards;
+      } catch {
+        // A read that fails leaves it absent, which is the same answer
+        // the old code gave and the safe one: absent reads as "not
+        // measured" everywhere downstream.
+        carried = undefined;
+      }
+    }
     await chrome.storage.local.set({
       [STORAGE_KEYS.RECEIPTS]: {
         updatedAt: Date.now(),
         list: trimmed,
-        // 9.1: the switches the run's `clearable` figures were measured
-        // through, kept at the ledger level because one run measures
-        // every sender in it through one set. Undefined leaves whatever
-        // the last verification stored, so a write that is not a
-        // verification (a clear marking its senders) cannot erase it.
-        ...(guards === undefined ? {} : { guards })
+        ...(carried === undefined ? {} : { guards: carried })
       }
     });
     return trimmed;
@@ -2048,7 +2072,7 @@
           touched++;
           continue;
         }
-        byEmail.set(email, {
+        const entry = {
           ...prev,
           checkedAt: now,
           verdict,
@@ -2063,7 +2087,19 @@
               clearableExact: r?.clearableExact === true
             }
             : {})
-        });
+        };
+        // 9.4: "absent when the search did not answer" never happened on
+        // a RE-check, because `...prev` had already carried the previous
+        // run's number in and the spread above only overwrites, never
+        // deletes. So a recheck whose reach search failed kept an older
+        // measurement and stamped today's checkedAt on it, and the popup
+        // printed a stale count as this check's answer. Absent has to be
+        // written, not merely not-set.
+        if (!Number.isFinite(Number(r?.clearable))) {
+          delete entry.clearable;
+          delete entry.clearableExact;
+        }
+        byEmail.set(email, entry);
         touched++;
       }
       if (!touched) return;

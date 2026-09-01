@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const OPTIONS_VERSION = "9.3.0";
+  const OPTIONS_VERSION = "9.4.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -924,16 +924,55 @@
   //   3 = adds protectKeywords (6.1 subject shield)
   const EXPORT_FORMAT_VERSION = 3;
 
+  // 9.4: both of these asked whether a field was PRESENT and never
+  // whether its value was one the page would have accepted. An import is
+  // a write path like any other, and it was the only one that skipped
+  // the checks the Save path applies, so a file could restore exactly
+  // what the page refuses to let anyone type.
+  //
+  // The import UI compounded it: summarizeImport counts what the write
+  // set contains, so a rule these filters let through was reported as
+  // kept, and the run finished with "imported successfully".
+
   const normalizeCustomRules = (rules) => {
     if (!Array.isArray(rules)) return [];
-    return rules.filter(
-      (r) => r && typeof r === "object" && typeof r.query === "string" && r.query.trim() !== ""
-    );
+    return rules.filter((r) => {
+      if (!r || typeof r !== "object") return false;
+      if (typeof r.query !== "string" || r.query.trim() === "") return false;
+      // The same gate the Add and the template paths run. It is what
+      // refuses is:starred, in:trash and in:spam, which is to say the
+      // queries whose whole point is that a cleanup run must not touch
+      // them. Without it a shared config file could put one back.
+      const check = GCC.validateGmailQuery(r.query.trim());
+      if (check && check.valid === false) return false;
+      // An action outside the two the engine knows is a rule that either
+      // does nothing or does the other thing.
+      if (r.action !== undefined && r.action !== "delete" && r.action !== "archive") return false;
+      return true;
+    });
   };
+
+  // Every frequency the Frequency select offers. An imported schedule
+  // does not go through that select, and restoreScheduledAlarms hands
+  // intervalMinutes straight to chrome.alarms.create, so a file could
+  // arm a run far more often than any control on this page allows.
+  const SCHEDULE_INTERVALS = Object.freeze([1440, 10080, 43200]);
 
   const normalizeSchedules = (schedules) => {
     if (!Array.isArray(schedules)) return [];
-    return schedules.filter((s) => s && typeof s === "object" && typeof s.id === "string" && s.id !== "");
+    return schedules.filter((s) => {
+      if (!s || typeof s !== "object") return false;
+      if (typeof s.id !== "string" || s.id === "") return false;
+      // Absent is fine and always has been: restoreScheduledAlarms reads
+      // `schedule.intervalMinutes || 10080`, so a schedule with no
+      // frequency runs weekly. What was never checked is a frequency
+      // that IS there and is not one this page can produce.
+      if (s.intervalMinutes !== undefined && s.intervalMinutes !== null
+        && !SCHEDULE_INTERVALS.includes(Number(s.intervalMinutes))) return false;
+      if (s.action !== undefined && s.action !== "delete" && s.action !== "archive") return false;
+      if (s.intensity !== undefined && !RULE_KEYS.includes(s.intensity)) return false;
+      return true;
+    });
   };
 
   const buildExportPayload = (current, extras = {}) => ({
@@ -1388,11 +1427,49 @@
       row.dataset.idx = String(idx);
       row.setAttribute("role", "listitem");
 
-      const handle = document.createElement("span");
+      // 9.4: reordering was drag-and-drop and nothing else, and the one
+      // affordance for it was a span marked aria-hidden with no tabindex.
+      // So the order of a user's own rules, which is the order they run
+      // in, could not be changed at all without a mouse. The handle is a
+      // real button now and the arrow keys move the row. The drag path
+      // below is untouched.
+      const handle = document.createElement("button");
+      handle.type = "button";
       handle.className = "drag-handle";
-      handle.setAttribute("aria-hidden", "true");
       handle.textContent = "\u2630"; // hamburger glyph
-      handle.title = "Drag to reorder";
+      handle.title = "Drag to reorder, or use the arrow keys";
+      handle.setAttribute(
+        "aria-label",
+        `Reorder rule ${idx + 1}: ${rule.query}. Use the up and down arrow keys to move it.`
+      );
+
+      // Move by identity, for the reason the delete below spells out: a
+      // render-time index and a freshly read list only agree while
+      // nothing has changed in between.
+      const moveBy = async (delta) => {
+        const allRules = await loadCustomRules();
+        const from = allRules.findIndex(
+          (r) => r?.query === rule.query && r?.action === rule.action
+        );
+        if (from === -1) { await renderCustomRules(); return; }
+        const to = from + delta;
+        if (to < 0 || to >= allRules.length) return;
+        const [moved] = allRules.splice(from, 1);
+        allRules.splice(to, 0, moved);
+        try { await saveCustomRules(allRules); } catch { return; }
+        await renderCustomRules();
+        // The row moved, so the button the user was on is gone. Put focus
+        // on the same rule in its new place, or holding an arrow key down
+        // moves one row and then does nothing.
+        const rows = [...container.querySelectorAll(".custom-rule-row")];
+        rows[to]?.querySelector(".drag-handle")?.focus();
+      };
+
+      handle.addEventListener("keydown", (e) => {
+        if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+        e.preventDefault();
+        moveBy(e.key === "ArrowUp" ? -1 : 1);
+      });
 
       const query = document.createElement("code");
       query.className = "rule-query";
@@ -1410,10 +1487,27 @@
       deleteBtn.setAttribute("aria-label", "Remove rule");
       deleteBtn.title = "Remove rule";
       deleteBtn.addEventListener("click", async () => {
+        // 9.4: this spliced the RENDER-time index out of a list it had
+        // just re-read from storage, so the two only line up while
+        // nothing has changed in between. renderCustomRules() below is
+        // not awaited, a second Options tab writes to the same key, and
+        // an import replaces the list wholesale, so a stale index is
+        // reachable in ordinary use and what it removes is a different
+        // rule the user wrote. Delete by identity: find the rule this row
+        // is actually showing.
         const allRules = await loadCustomRules();
-        allRules.splice(idx, 1);
+        const at = allRules.findIndex(
+          (r) => r?.query === rule.query && r?.action === rule.action
+        );
+        if (at === -1) {
+          // Already gone. Re-render so the row the user clicked leaves,
+          // and say nothing was removed rather than removing something.
+          await renderCustomRules();
+          return;
+        }
+        allRules.splice(at, 1);
         try { await saveCustomRules(allRules); } catch { return; }
-        renderCustomRules();
+        await renderCustomRules();
         GCC.showToast("Rule removed", "success");
       });
 
