@@ -2252,6 +2252,12 @@
   function findBulkConfirmButton(dialog) {
     const buttons = qsa("button, div[role='button']", dialog);
     for (const btn of buttons) {
+      // 9.4: the same two questions the unsubscribe confirm now asks.
+      // This click is the one that turns a page delete into a
+      // whole-result-set delete, so it is the worst of the three to get
+      // wrong, and the tokens it matches ("OK", "Confirm") are short
+      // enough for a sender to land by accident, never mind on purpose.
+      if (isSenderMarkup(btn) || isNavigable(btn)) continue;
       const lowerText = getTextContent(btn).toLowerCase();
       const name = getAttr(btn, "name").toLowerCase();
       const isConfirmButton = CONFIRM_TOKENS.some(token =>
@@ -2265,8 +2271,12 @@
   async function handleBulkConfirmation() {
     const dialog = await waitFor(
       () => {
-        const dialogs = qsa("div[role='alertdialog'], div[role='dialog']");
-        for (const d of dialogs) {
+        // 9.4: this was the same document-wide query the unsubscribe
+        // path had, and it accepts a dialog on prose alone ("confirm",
+        // "are you sure"), which is text a sender writes for free.
+        const dialogCandidates = qsa("div[role='alertdialog'], div[role='dialog']")
+          .filter((d) => !isSenderMarkup(d));
+        for (const d of dialogCandidates) {
           const text = getTextContent(d).toLowerCase();
           if (
             text.includes("confirm") ||
@@ -5251,10 +5261,60 @@
   // not follow. 7.5: classification runs on the localized token tables,
   // exact whole text only. A button that matches nothing leaves the
   // dialog "unknown", and unknown dialogs are dismissed, never clicked.
+  // 9.4: whose markup is this? findHeaderUnsubscribeControl asks that
+  // question three times before it clicks anything, because a message
+  // body is markup a stranger wrote and it is in the same document as
+  // Gmail's own chrome. The confirmation half of the same flow asked it
+  // zero times: the dialog lookup was a bare document-wide query for
+  // div[role='alertdialog'], and a sender who puts one in their own HTML
+  // body wins on document order (inside div[role=main], ahead of the
+  // dialogs Gmail appends to <body>) and on timing (already there at the
+  // first poll). With <a role="button">Unsubscribe</a> inside it, the
+  // run clicked the sender's link and navigated the user's authenticated
+  // tab to an address of their choosing, mid-run, with no click from the
+  // user. Same question, same answer, one helper, used by both halves
+  // and by the bulk-delete confirmation, which has the worse blast
+  // radius of the three.
+  const isSenderMarkup = (el) => {
+    if (!el || typeof el.closest !== "function") return true;
+    // The message body Gmail renders, and a conversation-list row, which
+    // also carries text the sender chose.
+    if (el.closest(SELECTORS.messageBody)) return true;
+    if (el.closest('tr[role="row"]')) return true;
+    return false;
+  };
+
+  // A control the engine is about to click must not be a link. Gmail's
+  // own confirm is a button that acts in place; an anchor navigates, and
+  // where it navigates is the sender's choice.
+  const isNavigable = (el) => {
+    if (!el) return true;
+    if (el.tagName === "A") return true;
+    return typeof el.closest === "function" && Boolean(el.closest("a[href]"));
+  };
+
+  // The confirmation dialog, refusing any candidate that is sender
+  // markup. Returns null rather than falling back to a rejected one:
+  // "no dialog" is a status this flow already handles, and clicking the
+  // wrong dialog is not.
+  function findConfirmDialog(root = document) {
+    for (const selector of SELECTORS.bulkConfirmDialog) {
+      for (const el of qsa(selector, root)) {
+        if (isSenderMarkup(el)) continue;
+        return el;
+      }
+    }
+    return null;
+  }
+
   function resolveUnsubscribeDialog(dlg) {
     const result = { confirmBtn: null, cancelBtn: null, kind: "unknown" };
     if (!dlg) return result;
     for (const btn of qsa('button, [role="button"]', dlg)) {
+      // 9.4: a dialog can be Gmail's and still contain the sender's
+      // markup, so the button gets the same two questions the dialog
+      // did. Cancel is exempt from neither: dismissDialog clicks it.
+      if (isSenderMarkup(btn) || isNavigable(btn)) continue;
       const text = getTextContent(btn);
       if (isUnsubscribeLabel(text)) {
         result.confirmBtn = btn;
@@ -5336,7 +5396,7 @@
     fireMouseSequence(control);
 
     const dlg = await waitFor(
-      () => qsFirst(SELECTORS.bulkConfirmDialog),
+      () => findConfirmDialog(),
       { timeout: SUBSCRIPTIONS.UNSUB_DIALOG_TIMEOUT, description: "unsubscribe dialog" }
     );
     if (!dlg) return { status: "no_dialog" };
@@ -5364,11 +5424,11 @@
     // that as done is worse than reporting nothing: the user crosses the
     // sender off and keeps getting the mail.
     const closed = await waitFor(
-      () => !qsFirst(SELECTORS.bulkConfirmDialog),
+      () => !findConfirmDialog(),
       { timeout: SUBSCRIPTIONS.DIALOG_CLOSE_TIMEOUT, description: "dialog close" }
     );
     if (!closed) {
-      dismissDialog(qsFirst(SELECTORS.bulkConfirmDialog));
+      dismissDialog(findConfirmDialog());
       return { status: "not_confirmed" };
     }
     return { status: "unsubscribed" };
@@ -8302,6 +8362,12 @@
       sanitizeSenderList,
       findHeaderUnsubscribeControl,
       resolveUnsubscribeDialog,
+      // 9.4: the guarded dialog lookup and the bulk confirm finder. Both
+      // decide which control the engine clicks, so both are reachable by
+      // a test rather than only by a source pin, for the same reason the
+      // 8.12 block above gives.
+      findConfirmDialog,
+      findBulkConfirmButton,
       // 8.5.1: drivable end to end, so the wait for Gmail's control and
       // the verification of the confirm can be tested rather than
       // inferred from the source text.
