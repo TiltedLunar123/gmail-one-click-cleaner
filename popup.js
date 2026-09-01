@@ -532,6 +532,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // 7.13 install-source guard
     installSourceBanner: $("installSourceBanner"),
     installSourceStoreBtn: $("installSourceStoreBtn"),
+    skipLink: $("skipLink"),
     kbdHelpBtn: $("kbdHelpBtn"),
     versionBadge: $("versionBadge"),
     kbdHelp: $("keyboardHelp"),
@@ -3076,6 +3077,14 @@ document.addEventListener("DOMContentLoaded", () => {
           ? t("reportActionArchive", "archives")
           : t("reportActionDelete", "to Trash")
       ].filter(Boolean).join(" · ");
+      // 9.4: this line is nowrap + ellipsis, and measured in Chrome at
+      // both 380 and 440 six of the ten bands clip. What gets cut is the
+      // tail, and the tail is the action: "10 to 25 MB, older than 6
+      // months - to Trash" reaches the reader as "...older than 6 months
+      // - to". Whether a step deletes or archives is the half of that
+      // sentence the row exists to answer, and there was no title, so
+      // there was no way to read it at all.
+      meta.title = meta.textContent;
       main.appendChild(title);
       main.appendChild(meta);
 
@@ -6718,7 +6727,30 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  // 9.4: the skip link. Its target used to be written into the href, so
+  // it named one panel's button and the popup opens on a different tab,
+  // which left the first focusable control in the popup doing nothing at
+  // all for the keyboard user it was added for. The visible panel names
+  // its own primary action; resolve it when the link is used, because
+  // which tab is selected is not knowable when the markup is written.
+  const focusMainAction = () => {
+    const panel = document.querySelector(".tab-panel:not([hidden])");
+    const target = panel && document.getElementById(panel.dataset.mainAction || "");
+    // The panel itself is the honest fallback: it carries tabindex="0"
+    // and is labelled by its tab, so focus still lands past the header
+    // even if a panel's named action is missing or has been hidden by
+    // the tier the user is on.
+    const landing = target && target.offsetParent !== null ? target : panel;
+    if (landing && typeof landing.focus === "function") landing.focus();
+  };
+
   const setupEventListeners = () => {
+    elements.skipLink?.addEventListener("click", (e) => {
+      // href="#" would otherwise put a bare hash on the popup's URL.
+      e.preventDefault();
+      focusMainAction();
+    });
+
     elements.runBtn.addEventListener("click", runCleanup);
 
     // 8.0 Mailbox Report.

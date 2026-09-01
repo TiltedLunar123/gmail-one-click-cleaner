@@ -45,7 +45,7 @@ The extension recommends what to clean instead of making you configure it. One f
 ### Auto-Pilot (Pro)
 The same Smart Suggestions sweep, on a weekly schedule, so the inbox stays clean without you opening the popup.
 - **Preview first** - the first scheduled sweep is always a dry run. The popup shows "would have archived N emails" and waits for an explicit confirm before any sweep touches mail.
-- **Archive only** - Auto-Pilot never deletes, whatever a suggestion would normally lead with. Everything it moves is tagged first, capped at 25 senders per sweep, and shows up in stats and the Recovery Log like any other run.
+- **Archive only** - Auto-Pilot never deletes, whatever a suggestion would normally lead with. Everything it moves is tagged first, capped at the sweep size set in Pro Settings (25 senders unless you change it), and shows up in stats and the Recovery Log like any other run.
 - **Every guard applies** - whitelist, protected keywords, starred and important mail are all respected, and the license is checked on-device before each sweep. No new permissions.
 
 ### Cleanup Modes
@@ -57,8 +57,8 @@ The same Smart Suggestions sweep, on a weekly schedule, so the inbox stays clean
 - **Minimum Age** - Never touch emails newer than your chosen cutoff (3m, 6m, 1y, etc.)
 - **Global Whitelist** - Protect specific senders/domains from all rules
 - **Protected Keywords** - Protect any message whose *subject* contains your words/phrases (e.g. `tax`, `invoice`, `"flight confirmation"`) from every rule. Applies to manual and scheduled runs.
-- **Safe Mode** - Skips riskier categories (receipts, order confirmations, shipping updates)
-- **Skip Starred & Important** - Automatically excluded when enabled
+- **Safe Mode** - Two guards at once. Every query gains a negative `subject:` clause protecting receipts, invoices, orders, shipping, tracking, delivery, confirmations, refunds and returns, and any rule naming `category:updates` or `category:forums` is skipped outright.
+- **Skip Starred, Important, unread and labelled** - Four switches, all on out of the box. Anything you starred, anything Gmail marked Important, anything you have not read and anything you filed under a label of your own is left alone until you turn the switch off.
 - **One-click Restore** - Every tagged run in the Recovery Log has a Restore button that moves that run's mail back to your Inbox using the run's label and Gmail's own Move to Inbox control. Free, like the rest of the safety net.
 
 ### Presets
@@ -108,7 +108,7 @@ has:attachment larger:10M older_than:6m
 
 ## Pro
 
-Pro is a **one-time $9.99 purchase** (no subscription, **30-day money-back guarantee**) that unlocks six things: the whole Mailbox Report plan, bulk unsubscribe, the one-click Storage X-ray purge, the full Smart Suggestions list with bulk apply, Auto-Pilot, which keeps your inbox clean every week automatically, and **Pro Settings** (the recovery label put on cleaned mail, the Auto-Pilot interval and age floor, how many senders one sweep clears, a deeper Smart scan, and how many entries the recovery log keeps). Keys activate in one click from the page you land on after checkout, in Chrome and Edge; Firefox shows the key to paste. A refunded key keeps working, because verification is offline and there is nothing to revoke. Everything that is free today stays free forever. Compare (prices checked 2026-08-01): Clean Email is $29.99 a year for one account, Trimbox is $39.99 a year, Mailstrom is $59.95 a year, and Google One storage starts at about $20 a year, forever.
+Pro is a **one-time $9.99 purchase** (no subscription, **30-day money-back guarantee**) that unlocks the whole Mailbox Report plan, bulk unsubscribe, the one-click Storage X-ray purge, the full Smart Suggestions list with bulk apply, Auto-Pilot, which keeps your inbox clean every week automatically, clearing the senders the mailbox census measured in one run, checking whether an unsubscribe was honoured, and **Pro Settings** (the recovery label put on cleaned mail, the Auto-Pilot interval and age floor, how many senders one sweep clears, a deeper Smart scan, and how many entries the recovery log keeps). Keys activate in one click from the page you land on after checkout, in Chrome and Edge; Firefox shows the key to paste. A refunded key keeps working, because verification is offline and there is nothing to revoke. Everything that is free today stays free forever. Compare (prices checked 2026-08-01): Clean Email is $29.99 a year for one account, Trimbox is $39.99 a year, Mailstrom is $59.95 a year, and Google One storage starts at about $20 a year, forever.
 
 - Your license key is checked **entirely on your device** with a built-in public key. The extension never contacts a server, not even to check the license.
 - The key is a signed token with no personal data. Stored in Chrome sync, so Pro follows you to your other signed-in browsers.

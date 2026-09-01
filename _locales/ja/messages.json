@@ -87,7 +87,7 @@
   "advancedSummary": { "message": "詳細 · 戦略と安全" },
   "advStrategy": { "message": "掃除の戦略" },
   "labelIntensity": { "message": "ルールの強さ" },
-  "intMonthly": { "message": "毎月 · 定期利用に安全（おすすめ）" },
+  "intMonthly": { "message": "毎月 · 定期利用に安全" },
   "intLight": { "message": "ライト · とても安全、主に不要メールと古い添付" },
   "intNormal": { "message": "標準 · 通常の掃除" },
   "intDeep": { "message": "ディープ · 古いプロモに強力" },

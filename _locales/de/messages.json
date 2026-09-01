@@ -87,7 +87,7 @@
   "advancedSummary": { "message": "Erweitert · Strategie & Sicherheit" },
   "advStrategy": { "message": "Reinigungsstrategie" },
   "labelIntensity": { "message": "Regel-Intensität" },
-  "intMonthly": { "message": "Monatlich · Sicher für regelmäßige Nutzung (empfohlen)" },
+  "intMonthly": { "message": "Monatlich · Sicher für regelmäßige Nutzung" },
   "intLight": { "message": "Leicht · Sehr sicher, vor allem Junk & alte Anhänge" },
   "intNormal": { "message": "Normal · Standardreinigung" },
   "intDeep": { "message": "Tief · Aggressiv bei alter Werbung" },

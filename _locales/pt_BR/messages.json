@@ -87,7 +87,7 @@
   "advancedSummary": { "message": "Avançado · estratégia e segurança" },
   "advStrategy": { "message": "Estratégia de limpeza" },
   "labelIntensity": { "message": "Intensidade das regras" },
-  "intMonthly": { "message": "Mensal · Segura para uso regular (recomendada)" },
+  "intMonthly": { "message": "Mensal · Segura para uso regular" },
   "intLight": { "message": "Leve · Muito segura, principalmente lixo e anexos antigos" },
   "intNormal": { "message": "Normal · Limpeza padrão" },
   "intDeep": { "message": "Profunda · Agressiva com promoções antigas" },

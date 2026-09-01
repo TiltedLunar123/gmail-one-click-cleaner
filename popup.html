@@ -2839,7 +2839,16 @@
 </head>
 
 <body>
-  <a href="#runCleanup" class="skip-link" data-i18n="skipLink">Skip to main action</a>
+  <!-- 9.4: this used to be href="#runCleanup", which is inside the Clean
+       panel. The popup lands on Report, so that panel carries `hidden`,
+       so the anchor's target had a zero-sized box and the jump moved
+       focus nowhere: in a real Chrome, activeElement was still BODY
+       after the click. The first focusable control in the popup, the one
+       that exists so a keyboard user does not have to tab the header, did
+       nothing on the tab the popup opens on. Which action is "main"
+       depends on the selected tab, so it is resolved at click time from
+       the panel that is visible, and each panel names its own. -->
+  <a href="#" id="skipLink" class="skip-link" data-i18n="skipLink">Skip to main action</a>
 
   <div class="popup-root">
     <main class="card" role="main" aria-labelledby="gcc-title">
@@ -2942,7 +2951,7 @@
       <!-- Mailbox Report (8.0). The landing tab: one read-only scan that
            turns the mailbox into a ranked plan the user can act on step
            by step. Every number here is one Gmail search result count. -->
-      <div class="tab-panel" role="tabpanel" id="tabPanelReport" aria-labelledby="tabReport" tabindex="0">
+      <div class="tab-panel" role="tabpanel" data-main-action="reportScanBtn" id="tabPanelReport" aria-labelledby="tabReport" tabindex="0">
 
         <div class="panel-head">
           <span class="eyebrow" data-i18n="reportEyebrow">Mailbox report</span>
@@ -3075,7 +3084,7 @@
 
       </div><!-- /tabPanelReport -->
 
-      <div class="tab-panel" role="tabpanel" id="tabPanelClean" aria-labelledby="tabClean" tabindex="0" hidden>
+      <div class="tab-panel" role="tabpanel" data-main-action="runCleanup" id="tabPanelClean" aria-labelledby="tabClean" tabindex="0" hidden>
       <div id="cleanForm">
 
       <!-- 7.8 Smart Suggestions: one read-only scan recommends what to
@@ -3313,7 +3322,14 @@
         <div class="field">
           <label for="intensity" data-i18n="labelIntensity">Rule Intensity</label>
           <select id="intensity" name="intensity" aria-describedby="intensity-hint">
-            <option value="monthly" data-i18n="intMonthly">Monthly · Safe for regular use (recommended)</option>
+            <!-- 9.4: this carried "(recommended)" three lines above the
+                 option the select actually ships selected, and both the
+                 Rules page and the README put Recommended on Normal. A
+                 list that recommends against its own default is a
+                 contradiction the reader has to resolve. The Monthly
+                 Light Clean button on this same tab keeps its badge:
+                 that one is about the preset, not the rule intensity. -->
+            <option value="monthly" data-i18n="intMonthly">Monthly · Safe for regular use</option>
             <option value="light" data-i18n="intLight">Light · Very safe, mainly junk &amp; old attachments</option>
             <option value="normal" selected data-i18n="intNormal">Normal · Standard cleanup</option>
             <option value="deep" data-i18n="intDeep">Deep · Aggressive on old promos</option>
@@ -3366,7 +3382,11 @@
               <input id="safeMode" type="checkbox" role="switch" aria-describedby="safe-hint" />
               <div class="toggle-content">
                 <span class="toggle-main" data-i18n="safeMain">Safe Mode</span>
-                <span class="toggle-hint" id="safe-hint" data-i18n="safeHint">Skip receipts, shipping, and forums</span>
+                <!-- 9.4: said "receipts, shipping, and forums", which drops
+                     half the rule filter. Safe Mode also strips any rule
+                     naming category:updates, and the receipts half is a
+                     negative subject clause rather than a category. -->
+                <span class="toggle-hint" id="safe-hint" data-i18n="safeHint">Protects receipts and shipping, skips Updates and Forums</span>
               </div>
             </label>
 
@@ -3518,7 +3538,7 @@
 
       </div><!-- /tabPanelClean -->
 
-      <div class="tab-panel" role="tabpanel" id="tabPanelUnsubscribe" aria-labelledby="tabUnsubscribe" tabindex="0" hidden>
+      <div class="tab-panel" role="tabpanel" data-main-action="scanSubsBtn" id="tabPanelUnsubscribe" aria-labelledby="tabUnsubscribe" tabindex="0" hidden>
 
         <div class="panel-head">
           <span class="eyebrow" data-i18n="unsubEyebrow">Unsubscribe from mailing lists</span>
@@ -3604,7 +3624,7 @@
 
       </div><!-- /tabPanelUnsubscribe -->
 
-      <div class="tab-panel" role="tabpanel" id="tabPanelStorage" aria-labelledby="tabStorage" tabindex="0" hidden>
+      <div class="tab-panel" role="tabpanel" data-main-action="xrayScanBtn" id="tabPanelStorage" aria-labelledby="tabStorage" tabindex="0" hidden>
 
         <div class="panel-head">
           <span class="eyebrow" data-i18n="xrayEyebrow">Storage X-ray</span>
@@ -3719,8 +3739,16 @@
       <!-- Pro promo (hidden once a license is active) -->
       <aside class="pro-promo" id="proPromo" aria-label="Pro upgrade" hidden data-i18n-label="proPromoLabel">
         <p class="pro-promo-body">
+          <!-- 9.4: named six of the eight in GCC.license.FEATURES. 8.26
+               shipped the census clear and the unsubscribe check and this
+               pitch did not move, which is the fourth time a paid-feature
+               sentence has gone stale in exactly this way. The Rules page
+               renders from the shared list and is pinned; this one and the
+               README were the two surfaces that pin did not reach, and
+               both are now pinned too. -->
           <strong data-i18n="proPromoLead">Pro, $9.99 once:</strong> <span data-i18n="proPromoBody">bulk unsubscribe, storage
-          purge, the full suggestion list, every step of the plan, Auto-Pilot and Pro Settings. Everything free stays free.</span>
+          purge, the full suggestion list, every step of the plan, Auto-Pilot, census clearing, unsubscribe checks and Pro
+          Settings. Everything free stays free.</span>
         </p>
         <div class="pro-promo-actions">
           <a href="#" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" id="proPromoBuy" class="linkish--pro" data-i18n="getProShort">Get Pro</a>
@@ -3832,7 +3860,10 @@
           <ul>
             <li data-i18n="onbLi1">Matching mail is tagged with a label first.</li>
             <li data-i18n="onbLi2">Items go to Trash by default (30-day safety net).</li>
-            <li data-i18n="onbLi3">Starred and Important threads are skipped.</li>
+            <!-- 9.4: four switches ship checked, not two. Under-promising
+                 on a safety claim is still a wrong claim, and this is the
+                 claim someone reads before pressing the button. -->
+            <li data-i18n="onbLi3">Starred, Important, unread and labelled threads are skipped.</li>
           </ul>
         </div>
         <div data-onb-step="2" hidden>
