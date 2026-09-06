@@ -26,7 +26,7 @@
 (() => {
   "use strict";
 
-  const LAUNCHER_VERSION = "9.4.0";
+  const LAUNCHER_VERSION = "9.5.0";
 
   // One host node, one id. A second injection (an extension update
   // re-running the script into a live tab) finds this and stands down
