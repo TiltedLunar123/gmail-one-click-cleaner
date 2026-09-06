@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "9.4.0";
+  const SW_VERSION = "9.5.0";
 
   // =========================
   // Storage Keys
@@ -1525,6 +1525,16 @@
         // be told yes.
         withStorageLock(() => launcherState(sender.tab))
           .then((state) => sendResponse({ ok: true, ...state }))
+          .catch((err) => sendResponse({ ok: false, error: err?.message || "Failed" }));
+        return true;
+
+      // 9.5: sent by whichever of this extension's pages offered the
+      // Open Trash door, straight after it navigated the mailbox tab.
+      // Under the lock because it writes the same record launcherState
+      // reads and clears.
+      case "gmailCleanerArmTrashHint":
+        withStorageLock(() => armTrashHint(msg.tabId))
+          .then((res) => sendResponse(res))
           .catch((err) => sendResponse({ ok: false, error: err?.message || "Failed" }));
         return true;
 
@@ -3684,10 +3694,24 @@
 
   const LAUNCHER_HIDE_DAYS = 30;
 
+  // 9.5: how long a "you were sent here" mark stays worth acting on.
+  // Short on purpose. It is armed by a click on Open Trash and spent by
+  // the next launcher that asks from the matching mailbox, so the only
+  // way it survives is nobody arriving: the button is switched off, the
+  // panel is hidden, the tab was closed on the way. In that case the
+  // mark must expire rather than wait, or a Gmail opened at #trash next
+  // week gets a panel explaining a click from last Tuesday.
+  const LAUNCHER_TRASH_HINT_TTL_MS = 5 * 60 * 1000;
+
   const LAUNCHER_DEFAULTS = Object.freeze({
     enabled: true,
     hideUntil: 0,
-    greetPending: false
+    greetPending: false,
+    // Which mailbox the door was opened on, and when. Held as an account
+    // index and a timestamp: the same two facts the greeting keeps, and
+    // nothing about the mail down there.
+    trashHintAt: 0,
+    trashHintAcct: ""
   });
 
   async function readLauncherRecord() {
@@ -3701,7 +3725,9 @@
         // the button off, they have never been shown it.
         enabled: rec.enabled !== false,
         hideUntil: Number(rec.hideUntil) > 0 ? Number(rec.hideUntil) : 0,
-        greetPending: rec.greetPending === true
+        greetPending: rec.greetPending === true,
+        trashHintAt: Number(rec.trashHintAt) > 0 ? Number(rec.trashHintAt) : 0,
+        trashHintAcct: /^\d+$/.test(String(rec.trashHintAcct || "")) ? String(rec.trashHintAcct) : ""
       };
     } catch {
       return { ...LAUNCHER_DEFAULTS };
@@ -3720,6 +3746,38 @@
     } catch (e) {
       console.warn("[GCC SW] could not arm the launcher greeting:", e?.message || e);
     }
+  }
+
+  // 9.5: mark that this extension's own Open Trash button put a mailbox
+  // tab in front of Gmail's Trash, so the launcher can say the one thing
+  // that matters there and nothing else does.
+  //
+  // The account is read off the tab, never off the message. The pages
+  // that offer the door are this extension's own, so the payload is not
+  // hostile, but 9.2 settled that the account a surface acts on is read
+  // from a real tab URL the worker looked up rather than from anything
+  // handed to it, and a rule that holds only against attackers is a rule
+  // with a hole in it the week somebody adds a caller. A tab id is all
+  // that crosses; the digit comes from chrome.tabs.get.
+  //
+  // Nothing is armed for a tab that is not a mailbox. The launcher only
+  // runs in one, so a mark it can never match is a mark that sits there
+  // until it expires.
+  async function armTrashHint(tabId) {
+    const id = Number(tabId) || 0;
+    if (!id) return { ok: false, error: "no tab" };
+    let tab;
+    try {
+      tab = await chrome.tabs.get(id);
+    } catch {
+      return { ok: false, error: "no tab" };
+    }
+    if (!isMailboxTab(tab?.url)) return { ok: false, error: "not a mailbox" };
+    await setLauncherRecord({
+      trashHintAt: Date.now(),
+      trashHintAcct: gmailAccountOf(tab.url)
+    });
+    return { ok: true };
   }
 
   async function hideLauncher(forever) {
@@ -3835,9 +3893,34 @@
     const greet = rec.greetPending === true;
     if (greet) await setLauncherRecord({ greetPending: false });
 
+    // 9.5: and the Open Trash mark is spent the same way, in the same
+    // lock, for the same reason. Two mailbox tabs asking at once must not
+    // both be told they are the one the button was clicked for.
+    //
+    // Matched on the account before it is spent, never after. With two
+    // accounts signed in, the other mailbox's launcher gets a storage
+    // change too and asks; if that ask consumed the mark, the tab the
+    // user is actually looking at would find nothing waiting for it, and
+    // the one guidance panel in this release would appear reliably in
+    // the wrong mailbox. So a mismatch reads and leaves it.
+    //
+    // An expired mark is cleared by whoever finds it, whatever mailbox
+    // they are in: it can no longer be spent, and leaving it in the
+    // record only invites a later reader to trust the timestamp.
+    const hintAt = Number(rec.trashHintAt) || 0;
+    const hintFresh = hintAt > 0 && Date.now() - hintAt <= LAUNCHER_TRASH_HINT_TTL_MS;
+    const trashHint = hintFresh && Boolean(account) && rec.trashHintAcct === account;
+    if (trashHint || (hintAt > 0 && !hintFresh)) {
+      await setLauncherRecord({ trashHintAt: 0, trashHintAcct: "" });
+    }
+
     return {
       show: true,
       greet,
+      // Whether this mailbox was opened at Trash by this extension's own
+      // door. One bit: the launcher is told that it may speak, not who
+      // clicked or when.
+      trashHint,
       // A boolean, not the claim. hasActiveRun() answers with the whole
       // marker (tab id, run id, when it started) and the launcher needs
       // one bit of that; handing a content script the rest would be a
@@ -4764,7 +4847,17 @@
           "Moved to All Mail, so your storage is unchanged. Open Stats for details."
         );
       } else {
-        msg = bgT("notifLiveBody", `Estimated ~${freedText} MB freed. Open Stats for details.`, [freedText]);
+        // 9.5: this said "Estimated ~300 MB freed" about mail that had
+        // just been put in Trash, where Google counts it against the
+        // quota until Trash empties. An unattended sweep has no other
+        // surface, so it was the one sentence a scheduled run got to say
+        // and it named the wrong moment. It says what the run did and
+        // when the space actually arrives.
+        msg = bgT(
+          "notifLiveBody",
+          `At least ~${freedText} MB moved to Trash. Gmail frees the space when Trash empties.`,
+          [freedText]
+        );
       }
 
       // 8.16: a run that ran out of passes, or gave up on a rule Gmail
@@ -5037,6 +5130,11 @@
       const tagLabel = data.tagLabel || "";
       const action = data.action || "delete";
       const count = Number(data.count) || 0;
+      // 9.5: rounded and floored here rather than trusted, the way count
+      // above is. An entry with no size is not an entry with a zero size,
+      // but both add nothing to a floor, so the two cases need no telling
+      // apart: see GCC.trash.waiting.
+      const mbMoved = Math.max(0, Number(data.mbMoved) || 0);
 
       const existing = runId
         ? log.find((e) =>
@@ -5050,6 +5148,7 @@
 
       if (existing) {
         existing.count = (Number(existing.count) || 0) + count;
+        existing.mbMoved = (Number(existing.mbMoved) || 0) + mbMoved;
         existing.passes = (Number(existing.passes) || 1) + 1;
         existing.timestamp = Date.now();
         // A later pass reporting a tagging failure has to win: recovery
@@ -5075,6 +5174,7 @@
           query: data.query || "",
           label,
           count,
+          mbMoved,
           passes: 1,
           action,
           tagLabel,
@@ -5381,6 +5481,10 @@
       launcherState,
       startLauncherReportScan,
       LAUNCHER_HIDE_DAYS,
+      // 9.5 Open Trash door
+      armTrashHint,
+      gmailAccountOf,
+      LAUNCHER_TRASH_HINT_TTL_MS,
       setTestLicenseJwk: (jwk) => { _testLicenseJwk = jwk; }
     };
   }

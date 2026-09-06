@@ -121,8 +121,8 @@
   "recapDynamic": { "message": "Récap : votre dernier nettoyage s'est terminé $1, pendant que la fenêtre était fermée." },
   "resultLead": { "message": "Nettoyés :" },
   "resultUnit": { "message": "e-mails" },
-  "resultMid": { "message": " · Libérés ~" },
-  "resultTail": { "message": "(estimation)" },
+  "resultMid": { "message": " · Au moins ~" },
+  "resultTail": { "message": "mis à la corbeille" },
   "resultTrashNote": { "message": "(tout est à la Corbeille)" },
   "resultArchiveNote": { "message": "(tout est archivé dans Tous les messages)" },
   "resultNote": { "message": "Rien n'a été supprimé définitivement, Gmail garde la corbeille 30 jours. Vous pouvez restaurer à tout moment. Votre stockage ne se libère qu'une fois la corbeille vidée." },
@@ -404,7 +404,7 @@
   "notifTitleOne": { "message": "Gmail Cleaner - 1 e-mail $1" },
   "notifTitleMany": { "message": "Gmail Cleaner - $1 e-mails $2" },
   "notifDryBody": { "message": "Simulation terminée. Aucun courrier touché." },
-  "notifLiveBody": { "message": "Environ ~$1 Mo libérés (estimation). Ouvrez Stats pour les détails." },
+  "notifLiveBody": { "message": "Au moins ~$1 Mo mis à la corbeille. Gmail libère l'espace une fois la corbeille vidée." },
   "notifStoppedShortOne": { "message": "1 regle s'est arretee avant la fin, il reste donc des messages. Relancez pour continuer." },
   "notifStoppedShortMany": { "message": "$1 regles se sont arretees avant la fin, il reste donc des messages. Relancez pour continuer." },
   "notifProPitch": { "message": "Pro fait ce ménage pour vous chaque semaine : $$9,99 une fois, garantie 30 jours." },
@@ -511,7 +511,7 @@
   "progDoneCardLabel": { "message": "Récapitulatif de l'exécution" },
   "progDoneCleaned": { "message": "$1 e-mails nettoyés" },
   "progDoneMatchedDry": { "message": "$1 e-mails correspondants, rien n'a été déplacé" },
-  "progDoneFreed": { "message": "au moins ~$1" },
+  "progDoneFreed": { "message": "au moins ~$1 mis à la corbeille" },
   "progDoneSafetyDelete": { "message": "Chaque message trouvé a d'abord été étiqueté, puis mis à la corbeille. Gmail garde la corbeille environ 30 jours, donc il est toujours là, et votre stockage se libère quand la corbeille est vidée." },
   "progDoneSafetyArchive": { "message": "Chaque correspondance a d'abord reçu un libellé, puis a été archivée. Le courrier archivé reste dans Tous les messages, sans limite de temps." },
   "progDoneSafetyDry": { "message": "C'était une simulation, donc rien n'a été libellé, déplacé ni supprimé." },
@@ -698,5 +698,18 @@
   "launcherHideAsk": { "message": "Masquer ce bouton ?" },
   "launcherHide30": { "message": "Pendant 30 jours" },
   "launcherHideOff": { "message": "Le désactiver" },
-  "launcherHiddenNote": { "message": "Un interrupteur dans les Paramètres le fait revenir." }
+  "launcherHiddenNote": { "message": "Un interrupteur dans les Paramètres le fait revenir." },
+
+  "trashWaitingOne": { "message": "Au moins 1 e-mail attend dans la corbeille" },
+  "trashWaitingOneMb": { "message": "Au moins 1 e-mail (environ $1) attend dans la corbeille" },
+  "trashWaitingMany": { "message": "Au moins $1 e-mails attendent dans la corbeille" },
+  "trashWaitingManyMb": { "message": "Au moins $1 e-mails (environ $2) attendent dans la corbeille" },
+  "trashWaitingNote": { "message": "Déplacés par cette extension au cours des 30 derniers jours et toujours comptés dans votre stockage. Gmail vide la corbeille de lui-même au bout d'environ 30 jours. Ce chiffre ignore une corbeille que vous avez vidée vous-même." },
+  "trashOpenBtn": { "message": "Ouvrir la corbeille" },
+
+  "launcherTrashTitle": { "message": "Vous êtes dans la corbeille" },
+  "launcherTrashBody": { "message": "Le lien « Vider la corbeille » de Gmail se trouve en haut de cette liste." },
+  "launcherTrashWarn": { "message": "Il supprime définitivement tout ce qui est ici, y compris les messages que vous avez supprimés vous-même, et la restauration ne peut plus rien récupérer ensuite." },
+  "launcherTrashAuto": { "message": "Gmail le fait de lui-même au bout d'environ 30 jours, vous n'avez donc rien à faire." },
+  "launcherTrashDismiss": { "message": "J'ai compris" }
 }

@@ -3,6 +3,64 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 9.5.0 - Say where the space went
+
+This extension is sold on freeing up Gmail storage, and every delete run
+moves mail to Trash rather than destroying it, which is deliberate: it is
+what the labelling, the 30-day window and the Restore button are all
+built on. Google counts Trash against your storage limit until it
+empties. So the bar this thing exists to move does not move for up to 30
+days after a run, and four places said "Freed" about that moment: the
+popup result card, the progress done card, the Stats tile, and the
+notification, which is the only surface a scheduled sweep ever reaches.
+
+Five notes elsewhere did say storage frees up once Trash empties. None of
+them said how much was sitting in there, or how to get to it, and the
+uninstall page already lists "something went to Trash" among the reasons
+people leave.
+
+The rule this release settles: no surface may call storage freed while
+the mail is still inside Gmail's window unless the same surface shows the
+part that is still waiting and where it is. The waiting figure is
+measured through the recovery log's own eligibility rules, the ones the
+Restore button obeys, so what this says is in Trash is exactly what
+Restore will still bring back.
+
+### Changed
+- **A finished delete run says what it did.** "At least ~310 MB moved to
+  Trash", on the result card, the progress card and the notification,
+  in place of a figure called Freed. Archive runs are untouched: they
+  have shown no storage figure since 8.9, because archived mail stays in
+  the account. Dry runs are untouched too.
+- **The Stats tile is labelled Moved to Trash.** The lifetime total was
+  never wrong, and it is still cumulative. The word over it was making a
+  claim about the last 30 days of it that had not happened yet.
+
+### Added
+- **A "waiting in Trash" figure, on four surfaces.** The result card
+  after a delete run, the Storage tab, the progress done card and the
+  Stats page. It states a floor, says the mail was moved by this
+  extension in the last 30 days, says Gmail clears Trash on its own
+  after about that long, and admits it cannot see a Trash you emptied by
+  hand. Nothing waiting shows nothing at all.
+- **An Open Trash button beside it.** It brings the mailbox the run
+  acted on to the front and takes it to Trash. With two accounts signed
+  in it lands in the one that was cleaned rather than in the first one
+  open, which is the same mistake 8.11 fixed for runs.
+- **A note inside Gmail, at the door.** Arriving in Trash through
+  that button, and only through it, the panel in the corner says that
+  Gmail's own "Empty Trash now" link is at the top of the list, that it
+  is permanent, that it takes mail you deleted yourself along with it,
+  and that Gmail does the job on its own after about 30 days anyway. It
+  appears once and closes when you navigate away. The extension does not
+  click that link, does not point at it, and has no run that touches
+  Trash. Turning the Gmail button off turns this off with it.
+- **The recovery log records how many megabytes a run moved.** It was
+  keeping counts and no sizes, and it is the only store that knows which
+  runs are still inside the window. Runs recorded by earlier versions
+  report their count and no size, so the figure starts as an undercount
+  on an upgrade and corrects itself as those runs age out.
+
 ## 9.4.0 - Ask whose markup it is before clicking it
 
 The unsubscribe run asks three times whether a control belongs to Gmail

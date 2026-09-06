@@ -121,8 +121,8 @@
   "recapDynamic": { "message": "Rückblick: deine letzte Reinigung endete $1, während das Popup zu war." },
   "resultLead": { "message": "Bereinigt:" },
   "resultUnit": { "message": "E-Mails" },
-  "resultMid": { "message": " · Frei: ~" },
-  "resultTail": { "message": "(geschätzt)" },
+  "resultMid": { "message": " · Mindestens ~" },
+  "resultTail": { "message": "in den Papierkorb verschoben" },
   "resultTrashNote": { "message": "(alles in den Papierkorb verschoben)" },
   "resultArchiveNote": { "message": "(alles in Alle Nachrichten archiviert)" },
   "resultNote": { "message": "Nichts wurde endgültig gelöscht, Gmail behält den Papierkorb 30 Tage. Sie können jederzeit wiederherstellen. Ihr Speicher wird erst frei, wenn der Papierkorb geleert wird." },
@@ -404,7 +404,7 @@
   "notifTitleOne": { "message": "Gmail Cleaner - 1 E-Mail $1" },
   "notifTitleMany": { "message": "Gmail Cleaner - $1 E-Mails $2" },
   "notifDryBody": { "message": "Testlauf beendet. Keine Mail wurde angefasst." },
-  "notifLiveBody": { "message": "Geschätzt ~$1 MB freigegeben. Details in der Statistik." },
+  "notifLiveBody": { "message": "Mindestens ~$1 MB in den Papierkorb verschoben. Gmail gibt den Speicher frei, sobald der Papierkorb geleert wird." },
   "notifStoppedShortOne": { "message": "1 Regel wurde vor dem Ende gestoppt, es sind noch Mails uebrig. Starte sie erneut, um fortzufahren." },
   "notifStoppedShortMany": { "message": "$1 Regeln wurden vor dem Ende gestoppt, es sind noch Mails uebrig. Starte sie erneut, um fortzufahren." },
   "notifProPitch": { "message": "Pro erledigt das jede Woche für dich: einmalig $$9,99, mit 30 Tagen Geld-zurück-Garantie." },
@@ -511,7 +511,7 @@
   "progDoneCardLabel": { "message": "Zusammenfassung des Durchlaufs" },
   "progDoneCleaned": { "message": "$1 E-Mails bereinigt" },
   "progDoneMatchedDry": { "message": "$1 E-Mails gefunden, nichts wurde verschoben" },
-  "progDoneFreed": { "message": "mindestens ~$1" },
+  "progDoneFreed": { "message": "mindestens ~$1 in den Papierkorb verschoben" },
   "progDoneSafetyDelete": { "message": "Jeder Treffer wurde zuerst beschriftet und dann in den Papierkorb verschoben. Gmail behält den Papierkorb etwa 30 Tage, die Mails sind also noch da, und Ihr Speicher wird frei, sobald der Papierkorb geleert wird." },
   "progDoneSafetyArchive": { "message": "Jeder Treffer bekam zuerst ein Label und wurde dann archiviert. Archivierte Mails bleiben ohne Frist in Alle Nachrichten." },
   "progDoneSafetyDry": { "message": "Das war ein Testlauf, es wurde also nichts mit einem Label versehen, verschoben oder gelöscht." },
@@ -698,5 +698,18 @@
   "launcherHideAsk": { "message": "Diese Schaltfläche ausblenden?" },
   "launcherHide30": { "message": "Für 30 Tage" },
   "launcherHideOff": { "message": "Ganz abschalten" },
-  "launcherHiddenNote": { "message": "In den Einstellungen gibt es einen Schalter, der sie zurückholt." }
+  "launcherHiddenNote": { "message": "In den Einstellungen gibt es einen Schalter, der sie zurückholt." },
+
+  "trashWaitingOne": { "message": "Mindestens 1 E-Mail liegt im Papierkorb" },
+  "trashWaitingOneMb": { "message": "Mindestens 1 E-Mail (etwa $1) liegt im Papierkorb" },
+  "trashWaitingMany": { "message": "Mindestens $1 E-Mails liegen im Papierkorb" },
+  "trashWaitingManyMb": { "message": "Mindestens $1 E-Mails (etwa $2) liegen im Papierkorb" },
+  "trashWaitingNote": { "message": "In den letzten 30 Tagen von dieser Erweiterung verschoben und weiterhin auf deinen Speicher angerechnet. Gmail leert den Papierkorb nach etwa 30 Tagen von selbst. Diese Zahl kennt keinen Papierkorb, den du selbst geleert hast." },
+  "trashOpenBtn": { "message": "Papierkorb öffnen" },
+
+  "launcherTrashTitle": { "message": "Du bist im Papierkorb" },
+  "launcherTrashBody": { "message": "Gmails eigener Link „Papierkorb jetzt leeren“ steht oben in dieser Liste." },
+  "launcherTrashWarn": { "message": "Er löscht alles hier endgültig, auch Mails, die du selbst gelöscht hast, und danach kann Wiederherstellen nichts davon zurückholen." },
+  "launcherTrashAuto": { "message": "Gmail macht das nach etwa 30 Tagen von selbst, du musst also nichts tun." },
+  "launcherTrashDismiss": { "message": "Verstanden" }
 }

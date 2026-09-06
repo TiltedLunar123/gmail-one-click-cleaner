@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const PROGRESS_VERSION = "9.4.0";
+  const PROGRESS_VERSION = "9.5.0";
 
   const CONFIG = Object.freeze({
     MAX_LOG_ENTRIES: 300,
@@ -171,6 +171,9 @@
     doneNumber: document.getElementById("doneNumber"),
     doneSafetyText: document.getElementById("doneSafetyText"),
     doneLabels: document.getElementById("doneLabels"),
+    doneTrashWaiting: document.getElementById("doneTrashWaiting"),
+    doneTrashFigure: document.getElementById("doneTrashFigure"),
+    doneTrashBtn: document.getElementById("doneTrashBtn"),
     openRecoveryBtn: document.getElementById("openRecoveryBtn"),
     copyReceiptBtn: document.getElementById("copyReceiptBtn"),
     doneRating: document.getElementById("doneRating"),
@@ -614,14 +617,129 @@
 
     // "at least" is not a hedge, it is the truth: the engine reads
     // Gmail's own rounded per-message sizes, so the total is a floor.
+    //
+    // 9.5: and "moved to Trash" is the other half of it. The figure was
+    // sitting under a label that said Freed, on a card whose own safety
+    // line says two paragraphs later that the storage arrives when Trash
+    // empties. Both halves are true; only one of them was next to the
+    // number.
     const freedMb = freedMbOf(stats);
     if (freedMb > 0) {
       const mbText = `${formatMB(freedMb)} MB`;
       const freed = document.createElement("span");
       freed.className = "done-number-freed";
-      freed.textContent = t("progDoneFreed", `at least ~${mbText}`, [mbText]);
+      freed.textContent = t("progDoneFreed", `at least ~${mbText} moved to Trash`, [mbText]);
       ui.doneNumber.appendChild(document.createTextNode(", "));
       ui.doneNumber.appendChild(freed);
+    }
+  };
+
+  // =========================
+  // Waiting in Trash (9.5)
+  // =========================
+  // Same derivation as the popup and Stats: one pass over the recovery
+  // log through GCC.trash.waiting, which measures through the filter the
+  // Restore button obeys.
+
+  const renderDoneTrashWaiting = async (stats) => {
+    if (!ui.doneTrashWaiting) return;
+    // A dry run moved nothing and an archive run put it in All Mail, so
+    // neither is waiting on Gmail's clock. The same two cases freedMbOf
+    // and the popup's freed clause already drop.
+    if (stats?.mode === "dry" || stats?.action === "archive") {
+      ui.doneTrashWaiting.hidden = true;
+      return;
+    }
+    let waiting = { count: 0, mb: 0, runs: 0 };
+    try {
+      const resp = await GCC.sendMessage({ type: "gmailCleanerGetUndoLog" });
+      waiting = GCC.trash.waiting(resp?.log || []);
+    } catch {
+      ui.doneTrashWaiting.hidden = true;
+      return;
+    }
+    const count = Math.max(0, Number(waiting.count) || 0);
+    if (count <= 0) {
+      ui.doneTrashWaiting.hidden = true;
+      return;
+    }
+    if (ui.doneTrashFigure) {
+      const countText = formatNumber(count);
+      const mb = Number(waiting.mb) || 0;
+      // Entries written before 9.5 carry a count and no size, so the
+      // clause goes rather than reading "about 0 MB".
+      if (mb >= 0.01) {
+        const mbText = GCC.formatMb(mb);
+        ui.doneTrashFigure.textContent = count === 1
+          ? t("trashWaitingOneMb", `At least 1 email (about ${mbText}) is waiting in Trash`, [mbText])
+          : t(
+            "trashWaitingManyMb",
+            `At least ${countText} emails (about ${mbText}) are waiting in Trash`,
+            [countText, mbText]
+          );
+      } else {
+        ui.doneTrashFigure.textContent = count === 1
+          ? t("trashWaitingOne", "At least 1 email is waiting in Trash")
+          : t("trashWaitingMany", `At least ${countText} emails are waiting in Trash`, [countText]);
+      }
+    }
+    ui.doneTrashWaiting.hidden = false;
+  };
+
+  // The door. This page knows exactly which tab the run drove, and the
+  // engine recorded that tab's own base URL in links.trash, so both the
+  // account and the tab are the run's rather than whichever mailbox
+  // happens to be in front. Only the account index is taken out of the
+  // link; GCC.trash.urlFor builds what is navigated to.
+  const openDoneTrash = async (stats) => {
+    if (!GCC.hasChromeTabs()) return;
+    const link = stats?.links?.trash || "";
+    const account = GCC.isMailboxUrl(link) ? GCC.trash.accountOf(link) : null;
+
+    let tab = null;
+    if (gmailTabId) {
+      try {
+        const t0 = await GCC.promisify(chrome.tabs.get.bind(chrome.tabs), gmailTabId);
+        if (GCC.isMailboxUrl(t0?.url)) tab = t0;
+      } catch {
+        tab = null;
+      }
+    }
+    if (!tab) {
+      try {
+        const tabs = (await GCC.promisify(
+          chrome.tabs.query.bind(chrome.tabs),
+          { url: "https://mail.google.com/*" }
+        ) || []).filter((tb) => GCC.isMailboxUrl(tb?.url));
+        if (account !== null) tab = tabs.find((tb) => GCC.trash.accountOf(tb.url) === account) || null;
+        if (!tab) tab = tabs.find((tb) => tb.active) || tabs[0] || null;
+      } catch {
+        tab = null;
+      }
+    }
+
+    const target = GCC.trash.urlFor(account ?? (tab ? GCC.trash.accountOf(tab.url) : "0"));
+    try {
+      if (tab?.id) {
+        await GCC.promisify(chrome.tabs.update.bind(chrome.tabs), tab.id, { url: target, active: true });
+        if (chrome.windows?.update && typeof tab.windowId === "number") {
+          await GCC.promisify(chrome.windows.update.bind(chrome.windows), tab.windowId, { focused: true });
+        }
+      } else {
+        // No mailbox open. Opening one straight at Trash is the whole
+        // request, so there is nothing to wait for the way a run does.
+        tab = await GCC.promisify(chrome.tabs.create.bind(chrome.tabs), { url: target, active: true });
+      }
+    } catch (e) {
+      appendLog(`Could not open Trash: ${e?.message || e}`, LOG_LEVELS.WARNING);
+      return;
+    }
+    if (!tab?.id) return;
+    try {
+      await GCC.sendMessage({ type: "gmailCleanerArmTrashHint", tabId: tab.id });
+    } catch {
+      // The panel inside Gmail is a courtesy; the figure above is the
+      // fact, and it has already been shown.
     }
   };
 
@@ -823,6 +941,9 @@
     renderDoneNumber(stats);
     renderDoneSafety(stats);
     renderDoneLabels(stats);
+    // Async: a pass over the recovery log, which the rest of the card
+    // does not wait on. It appears when it has been measured.
+    renderDoneTrashWaiting(stats).catch(() => {});
     maybeShowRatingAsk(stats);
     maybeShowProLine(stats);
 
@@ -1906,6 +2027,14 @@
     });
 
     ui.copyReceiptBtn?.addEventListener("click", handleCopyReceipt);
+
+    // 9.5: state.doneStats is what the card was rendered from, so the
+    // door and the figure above it describe the same run.
+    ui.doneTrashBtn?.addEventListener("click", () => {
+      openDoneTrash(state.doneStats).catch((e) => {
+        appendLog(`Could not open Trash: ${e?.message || e}`, LOG_LEVELS.WARNING);
+      });
+    });
 
     ui.doneRateBtn?.addEventListener("click", () => {
       // Reviews land on the store this browser installed from, so the

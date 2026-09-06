@@ -667,6 +667,46 @@
 
 .spinner[hidden] { display: none; }
 
+/* Waiting in Trash (9.5)
+   One block, four surfaces: the popup's result card, the popup's
+   Storage tab, the progress done card and the Stats page. It is defined
+   here rather than three times because the figure inside it is one
+   derivation, and a panel that looks different on each page reads as
+   four different measurements of four different things. */
+.trash-waiting {
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--radius-md);
+  background: var(--wash);
+  text-align: left;
+}
+
+.trash-waiting[hidden] { display: none; }
+
+.trash-waiting-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.trash-waiting-figure {
+  font-weight: 600;
+  color: var(--text-main);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.trash-waiting-note {
+  margin-top: var(--space-2);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
 @keyframes pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.5; transform: scale(0.8); }

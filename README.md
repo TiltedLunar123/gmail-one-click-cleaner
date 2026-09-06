@@ -80,10 +80,12 @@ Deleting hides old mail; unsubscribing stops new mail. The scan samples your las
 When Google says your storage is full, the question is *what exactly is eating it*. The X-ray answers by sender.
 - **Scan and the full ranked list (free)** - read-only. Walks Gmail's own size searches (`larger:25M`, then the 10 MB and 5 MB tiers) and attributes each large email its tier floor, so every number is a defensible "at least". Shows the total reclaimable estimate and every sender it ranked. Nothing about the list is held back: it is a read-only look at your own mailbox.
 - **One-click purge (Pro)** - clear the senders you tick, in one click. A purge is a normal cleanup run: matches are tagged first, land in Trash (30-day safety net), respect your whitelist, protected keywords and every global guard, and show up in the recovery log. An age filter (default: older than 6 months) keeps recent mail out of it.
+- **What is still waiting in Trash** - deleting moves mail to Trash, and Google counts Trash against your storage until it empties, so a run does not move the quota bar for up to 30 days. This tab says how much this extension has put there in the last 30 days and has an Open Trash button beside it. The figure is a floor, measured through the same rules the Recovery Log's Restore obeys, and it cannot see a Trash you emptied yourself. Emptying Trash is Gmail's own control and yours to press; the extension never touches it, and Gmail clears it on its own after about 30 days.
 
 ### Progress Dashboard
 - Live progress bar with phase tracking
-- Per-rule results table (count, duration, estimated MB freed)
+- Per-rule results table (count, duration, MB moved to Trash)
+- The end-of-run card states a floor for what was moved, not what was freed, and shows how much is still waiting in Trash with a button that opens it in the mailbox the run actually cleaned
 - Activity log with copy/clear controls
 - Recovery tools: Reconnect, Re-inject, Cancel
 
@@ -182,7 +184,7 @@ gmail-one-click-cleaner/
 - **License stays offline** - Pro keys are checked on-device with a built-in public key. The extension never phones home, not even to check the license. The only network calls are ones you start: opening the Stripe checkout page and its post-purchase activation page (part of the purchase flow, not the extension). No Gmail data is involved in either.
 - **One page opens when you uninstall** - removing the extension opens a fixed goodbye page on the project's own site, using the browser's `setUninstallURL`. It mostly exists to tell Pro buyers their lifetime key still works and where to have it reissued. The address carries no identifier, no version and nothing from your mailbox. The release notes in the extension are compiled into the package, so reading those costs no request at all.
 - **Minimal permissions** - `activeTab`, `scripting`, `tabs`, `storage`, `alarms`, `notifications` + Gmail host access. No new permissions were added for Pro.
-- **30-day safety net** - Gmail keeps Trash for ~30 days, and every run is labeled before it moves. The Recovery Log's one-click Restore puts a run back in your Inbox; archived runs can come back any time, deleted runs within the 30-day window.
+- **30-day safety net** - Gmail keeps Trash for ~30 days, and every run is labeled before it moves. The Recovery Log's one-click Restore puts a run back in your Inbox; archived runs can come back any time, deleted runs within the 30-day window. The same window is why a delete run does not free storage straight away: Google counts Trash against your limit until it empties. So the extension says "moved to Trash" rather than "freed", shows how much of it is still waiting there, and leaves emptying Trash to you or to Gmail, which does it on its own after about 30 days.
 
 See [SECURITY.md](SECURITY.md) for the full security policy and permissions breakdown, the [privacy policy](https://github.com/TiltedLunar123/gmail-one-click-cleaner/blob/main/PRIVACY.md) for what does and does not leave your browser, and [TERMS.md](TERMS.md) for the terms of use.
 
