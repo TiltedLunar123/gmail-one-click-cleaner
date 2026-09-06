@@ -4735,6 +4735,18 @@
                   label,
                   count: result.count,
                   action: CONFIG.archiveInsteadOfDelete ? "archive" : "delete",
+                  // 9.5: how many megabytes this pass moved, recorded on
+                  // the run rather than only on the lifetime total. The
+                  // recovery log is the only place that knows which runs
+                  // are still inside Gmail's 30-day window, so it is the
+                  // only place the "waiting in Trash" figure can be
+                  // measured from, and it held counts and no sizes.
+                  // Zero for an archive run, for the 8.9 reason: archived
+                  // mail never leaves the account, so it is not waiting
+                  // for anything and books no megabytes anywhere.
+                  mbMoved: CONFIG.archiveInsteadOfDelete
+                    ? 0
+                    : Math.round(affectedThisPass * mbPerEmail * 10) / 10,
                   tagLabel: tagLabel || "",
                   intensity: CONFIG.intensity,
                   sampledMessageIds: lastBatchSamples.threadIds.slice(0, 50),

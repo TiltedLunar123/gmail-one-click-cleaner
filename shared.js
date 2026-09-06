@@ -3043,6 +3043,78 @@ const GCC = (() => {
   });
 
   // =========================
+  // Waiting in Trash (9.5)
+  // =========================
+  // Four surfaces said a delete run "freed" storage. It does not. The
+  // engine tags mail and moves it to Trash so the run stays recoverable,
+  // and Google counts Trash against the quota until it empties, so the
+  // bar the store listing promises to move does not move for up to 30
+  // days. Saying "freed" there was not a rounding error, it was the one
+  // number the whole product is bought for, stated about the wrong
+  // moment.
+  //
+  // The figure beside "waiting in Trash" is measured through the filter
+  // the Restore button obeys, not through a second one written to look
+  // like it. restoreEligibility above already answers "is this run still
+  // in Gmail's window, unrestored, and tagged with something safe to
+  // search for", which is exactly the set of mail this extension put in
+  // Trash and can still get back. Anything it refuses is not counted, so
+  // the two surfaces cannot disagree about what is down there: the
+  // number beside Restore and the number beside "waiting" come from one
+  // pass over one log through one function.
+  //
+  // Both totals are floors and are worded that way everywhere they land.
+  // The count is a floor because an entry the eligibility rules refuse
+  // (tagging failed, no label) still moved real mail. The megabytes are
+  // a floor for that reason plus two more: the engine reads Gmail's own
+  // rounded per-message sizes, and entries written before 9.5 carry no
+  // size at all, so an upgraded install reports their count and none of
+  // their megabytes until those runs age out of the window.
+  //
+  // Neither total knows about a Trash the user emptied by hand. Nothing
+  // here reads the mailbox, and every surface that prints these numbers
+  // says so rather than implying a measurement it did not take.
+  const trashWaiting = (log, now = Date.now()) => {
+    const entries = Array.isArray(log) ? log : [];
+    let count = 0;
+    let mb = 0;
+    let runs = 0;
+    for (const entry of entries) {
+      const verdict = restoreEligibility(entry, now);
+      if (!verdict.eligible || verdict.action !== "delete") continue;
+      runs++;
+      count += Math.max(0, Number(entry?.count) || 0);
+      mb += Math.max(0, Number(entry?.mbMoved) || 0);
+    }
+    return { count, mb, runs };
+  };
+
+  // Which signed-in mailbox a Gmail URL is showing. The worker's
+  // gmailAccountOf answers the same question for the same reason and
+  // sweep-9-5-trash.test.js pins the two against one table, the way
+  // 9.0 pinned isMailboxUrl against the worker's isMailboxTab. Only the
+  // index is kept: it is what tells two open mailboxes apart and it is
+  // not an address.
+  const gmailAccountOf = (url) => {
+    const match = /^https:\/\/mail\.google\.com\/mail\/u\/(\d+)/.exec(String(url || ""));
+    return match ? match[1] : "0";
+  };
+
+  // The door. Built here rather than passed around, so nothing from a
+  // mailbox can end up in a URL this extension navigates to: the account
+  // index is a run of digits or the string is not used at all.
+  const trashUrlFor = (account) => {
+    const acct = /^\d+$/.test(String(account ?? "")) ? String(account) : "0";
+    return `https://mail.google.com/mail/u/${acct}/#trash`;
+  };
+
+  const trash = Object.freeze({
+    waiting: trashWaiting,
+    accountOf: gmailAccountOf,
+    urlFor: trashUrlFor
+  });
+
+  // =========================
   // Smart Suggestions (7.8)
   // =========================
   // Pure policy behind the Suggested section on the Clean tab. The
@@ -3714,6 +3786,9 @@ const GCC = (() => {
 
     // New in 8.26
     census,
-    receipts
+    receipts,
+
+    // New in 9.5
+    trash
   });
 })();
