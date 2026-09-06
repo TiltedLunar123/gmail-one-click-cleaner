@@ -705,5 +705,11 @@
   "trashWaitingMany": { "message": "Au moins $1 e-mails attendent dans la corbeille" },
   "trashWaitingManyMb": { "message": "Au moins $1 e-mails (environ $2) attendent dans la corbeille" },
   "trashWaitingNote": { "message": "Déplacés par cette extension au cours des 30 derniers jours et toujours comptés dans votre stockage. Gmail vide la corbeille de lui-même au bout d'environ 30 jours. Ce chiffre ignore une corbeille que vous avez vidée vous-même." },
-  "trashOpenBtn": { "message": "Ouvrir la corbeille" }
+  "trashOpenBtn": { "message": "Ouvrir la corbeille" },
+
+  "launcherTrashTitle": { "message": "Vous êtes dans la corbeille" },
+  "launcherTrashBody": { "message": "Le lien « Vider la corbeille » de Gmail se trouve en haut de cette liste." },
+  "launcherTrashWarn": { "message": "Il supprime définitivement tout ce qui est ici, y compris les messages que vous avez supprimés vous-même, et la restauration ne peut plus rien récupérer ensuite." },
+  "launcherTrashAuto": { "message": "Gmail le fait de lui-même au bout d'environ 30 jours, vous n'avez donc rien à faire." },
+  "launcherTrashDismiss": { "message": "J'ai compris" }
 }

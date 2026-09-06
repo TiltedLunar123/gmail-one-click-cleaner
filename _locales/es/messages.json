@@ -705,5 +705,11 @@
   "trashWaitingMany": { "message": "Al menos $1 correos están esperando en la papelera" },
   "trashWaitingManyMb": { "message": "Al menos $1 correos (unos $2) están esperando en la papelera" },
   "trashWaitingNote": { "message": "Movidos por esta extensión en los últimos 30 días y todavía ocupando tu almacenamiento. Gmail vacía la papelera por su cuenta al cabo de unos 30 días. Esta cifra no sabe si has vaciado la papelera tú mismo." },
-  "trashOpenBtn": { "message": "Abrir la papelera" }
+  "trashOpenBtn": { "message": "Abrir la papelera" },
+
+  "launcherTrashTitle": { "message": "Estás en la papelera" },
+  "launcherTrashBody": { "message": "El enlace «Vaciar la papelera ahora» del propio Gmail está arriba de esta lista." },
+  "launcherTrashWarn": { "message": "Borra para siempre todo lo que hay aquí, incluido el correo que borraste tú, y después restaurar ya no puede recuperar nada." },
+  "launcherTrashAuto": { "message": "Gmail lo hace por su cuenta al cabo de unos 30 días, así que no hace falta que lo hagas tú." },
+  "launcherTrashDismiss": { "message": "Entendido" }
 }

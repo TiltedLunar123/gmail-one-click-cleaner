@@ -705,5 +705,11 @@
   "trashWaitingMany": { "message": "Mindestens $1 E-Mails liegen im Papierkorb" },
   "trashWaitingManyMb": { "message": "Mindestens $1 E-Mails (etwa $2) liegen im Papierkorb" },
   "trashWaitingNote": { "message": "In den letzten 30 Tagen von dieser Erweiterung verschoben und weiterhin auf deinen Speicher angerechnet. Gmail leert den Papierkorb nach etwa 30 Tagen von selbst. Diese Zahl kennt keinen Papierkorb, den du selbst geleert hast." },
-  "trashOpenBtn": { "message": "Papierkorb öffnen" }
+  "trashOpenBtn": { "message": "Papierkorb öffnen" },
+
+  "launcherTrashTitle": { "message": "Du bist im Papierkorb" },
+  "launcherTrashBody": { "message": "Gmails eigener Link „Papierkorb jetzt leeren“ steht oben in dieser Liste." },
+  "launcherTrashWarn": { "message": "Er löscht alles hier endgültig, auch Mails, die du selbst gelöscht hast, und danach kann Wiederherstellen nichts davon zurückholen." },
+  "launcherTrashAuto": { "message": "Gmail macht das nach etwa 30 Tagen von selbst, du musst also nichts tun." },
+  "launcherTrashDismiss": { "message": "Verstanden" }
 }

@@ -705,5 +705,11 @@
   "trashWaitingMany": { "message": "少なくとも$1通がゴミ箱に残っています" },
   "trashWaitingManyMb": { "message": "少なくとも$1通（約$2）がゴミ箱に残っています" },
   "trashWaitingNote": { "message": "この拡張機能が過去30日間に移動したもので、まだ保存容量を使っています。Gmail は約30日後に自動でゴミ箱を空にします。この数値は、自分で空にしたゴミ箱までは把握できません。" },
-  "trashOpenBtn": { "message": "ゴミ箱を開く" }
+  "trashOpenBtn": { "message": "ゴミ箱を開く" },
+
+  "launcherTrashTitle": { "message": "ゴミ箱を開いています" },
+  "launcherTrashBody": { "message": "Gmail の「ゴミ箱を今すぐ空にする」リンクは、この一覧の上にあります。" },
+  "launcherTrashWarn": { "message": "ここにあるものは、自分で削除したメールも含めてすべて完全に削除され、そのあとは復元でも戻せません。" },
+  "launcherTrashAuto": { "message": "Gmail が約30日後に自動で行うので、操作は必要ありません。" },
+  "launcherTrashDismiss": { "message": "わかりました" }
 }

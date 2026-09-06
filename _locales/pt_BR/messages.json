@@ -705,5 +705,11 @@
   "trashWaitingMany": { "message": "Pelo menos $1 e-mails estão esperando na lixeira" },
   "trashWaitingManyMb": { "message": "Pelo menos $1 e-mails (cerca de $2) estão esperando na lixeira" },
   "trashWaitingNote": { "message": "Movidos por esta extensão nos últimos 30 dias e ainda ocupando seu armazenamento. O Gmail esvazia a lixeira sozinho depois de cerca de 30 dias. Este número não enxerga uma lixeira que você esvaziou por conta própria." },
-  "trashOpenBtn": { "message": "Abrir a lixeira" }
+  "trashOpenBtn": { "message": "Abrir a lixeira" },
+
+  "launcherTrashTitle": { "message": "Você está na lixeira" },
+  "launcherTrashBody": { "message": "O link “Esvaziar a lixeira agora” do próprio Gmail fica no topo desta lista." },
+  "launcherTrashWarn": { "message": "Ele apaga de vez tudo o que está aqui, inclusive os e-mails que você mesmo apagou, e depois restaurar não traz nada de volta." },
+  "launcherTrashAuto": { "message": "O Gmail faz isso sozinho depois de cerca de 30 dias, então você não precisa." },
+  "launcherTrashDismiss": { "message": "Entendi" }
 }

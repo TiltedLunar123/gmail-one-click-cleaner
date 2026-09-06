@@ -281,6 +281,11 @@
     .ghost:hover { color: var(--gcc-text); background: rgba(148, 178, 200, 0.08); }
     .ghost:focus-visible { outline: 2px solid var(--gcc-primary); outline-offset: 1px; }
     .foot { margin: 12px 0 0; font-size: 11px; line-height: 1.45; color: var(--gcc-muted); }
+    /* 9.5: the one sentence in this panel that describes something
+       irreversible. Emphasis rather than an alarm colour: it is not a
+       warning about anything the extension is doing, it is a plain
+       description of what Gmail's own control does. */
+    p.warn { color: var(--gcc-text); }
     .link {
       display: block;
       margin: 12px auto 0;
@@ -326,7 +331,13 @@
     baselineAt: 0,
     pollTimer: 0,
     pollUntil: 0,
-    pinHint: false
+    pinHint: false,
+    // 9.5: the worker has said this tab was sent to Trash by the
+    // extension's own door, and the panel is waiting for the tab to
+    // actually be there. Navigating Gmail to #trash is a hash change,
+    // not a page load, so the mark can land a beat before the hash does.
+    trashArmed: false,
+    trashArmTimer: 0
   };
 
   let shadow = null;
@@ -444,6 +455,43 @@
     el("p", {
       class: "foot",
       text: t("launcherPinHint", "Pin the extension in your browser toolbar to reach every tool.")
+    })
+  ];
+
+  // 9.5: shown only when this extension's own Open Trash button brought
+  // the tab here. Everything on it is about Gmail's control, not this
+  // extension's: nothing here reads Gmail's DOM, looks for the Empty
+  // Trash link, points at it, highlights it or clicks anything. It says
+  // what that link does and what cannot be undone afterwards, and stops.
+  // The extension has never had a run kind that touches Trash and this
+  // release does not add one.
+  const viewTrash = () => [
+    header(t("launcherTrashTitle", "You are in Trash")),
+    el("p", {
+      class: "tight",
+      text: t(
+        "launcherTrashBody",
+        "Gmail's own “Empty Trash now” link sits at the top of this list."
+      )
+    }),
+    el("p", {
+      class: "warn",
+      text: t(
+        "launcherTrashWarn",
+        "It deletes everything here for good, including mail you deleted yourself, and Restore cannot bring any of it back afterwards."
+      )
+    }),
+    el("p", {
+      text: t(
+        "launcherTrashAuto",
+        "Gmail does this on its own after about 30 days, so you do not have to."
+      )
+    }),
+    el("button", {
+      class: "ghost",
+      type: "button",
+      text: t("launcherTrashDismiss", "Got it"),
+      onclick: () => closePanel()
     })
   ];
 
@@ -609,6 +657,7 @@
 
   const VIEWS = {
     greet: viewGreet,
+    trash: viewTrash,
     idle: viewIdle,
     scanning: viewScanning,
     result: viewResult,
@@ -771,7 +820,12 @@
 
   const closePanel = () => {
     state.open = false;
-    if (state.view === "greet" || state.view === "error" || state.view === "hide") {
+    // 9.5: "trash" joins the one-shot views. The mark that produced it
+    // was spent in the worker, so leaving the view set would mean the
+    // next click on the pill reopened a panel about a door the user
+    // walked through some time ago.
+    if (state.view === "greet" || state.view === "error" ||
+        state.view === "hide" || state.view === "trash") {
       state.view = state.report ? "result" : "idle";
     }
     render();
@@ -862,6 +916,70 @@
   };
 
   // =========================
+  // In Trash (9.5)
+  // =========================
+
+  // Gmail's Trash is #trash, and #trash/p2 and #trash/<thread> are still
+  // in it. location.hash, nothing else: no selector reaches into Gmail's
+  // page to work out where the user is.
+  const inTrash = () => /^#trash(?:$|[/?])/i.test(String(location.hash || ""));
+
+  const showTrashPanel = () => {
+    if (!shadow) return;
+    disarmTrash();
+    state.open = true;
+    // Not takeFocus. The tab has just navigated and Gmail is settling; a
+    // panel that grabs the caret out of that is the async steal the
+    // render comment already refuses for scans finishing.
+    setView("trash", false);
+  };
+
+  const disarmTrash = () => {
+    state.trashArmed = false;
+    if (state.trashArmTimer) {
+      clearTimeout(state.trashArmTimer);
+      state.trashArmTimer = 0;
+    }
+  };
+
+  // The mark has been spent in the worker, so there is exactly one
+  // chance to use it. If the hash is already Trash, say so now;
+  // otherwise wait for the navigation that is on its way, briefly. The
+  // window is short because the only thing it protects against is the
+  // tab going somewhere else entirely, and a panel about Trash that
+  // opens on the inbox two minutes later is worse than one that never
+  // opens at all.
+  const ARM_WINDOW_MS = 15000;
+
+  const armTrashPanel = () => {
+    if (inTrash()) {
+      showTrashPanel();
+      return;
+    }
+    disarmTrash();
+    state.trashArmed = true;
+    state.trashArmTimer = setTimeout(disarmTrash, ARM_WINDOW_MS);
+  };
+
+  // One listener for both halves: it opens the panel when the arrival
+  // lands, and it dismisses the panel the moment the user navigates
+  // away, which is the only "close" this view needs beyond its own
+  // button. Registered once at mount and never on Gmail's own nodes.
+  const watchTheHash = () => {
+    window.addEventListener("hashchange", () => {
+      if (!shadow) return;
+      if (state.trashArmed && inTrash()) {
+        showTrashPanel();
+        return;
+      }
+      if (state.view === "trash" && !inTrash()) {
+        disarmTrash();
+        closePanel();
+      }
+    });
+  };
+
+  // =========================
   // Boot
   // =========================
 
@@ -874,7 +992,15 @@
     chrome.storage.onChanged.addListener(async (changes, area) => {
       if (area !== "local" || !changes.gmailLauncher || !shadow) return;
       const resp = await send({ type: "gmailCleanerLauncherState" });
-      if (resp?.ok && resp.show === false) unmount();
+      if (resp?.ok && resp.show === false) {
+        unmount();
+        return;
+      }
+      // 9.5: arming the Open Trash mark writes this same record, which
+      // is what wakes this listener in the mailbox tab. Navigating Gmail
+      // to Trash is a hash change and never re-runs a content script, so
+      // a tab that was already open has no other way to hear about it.
+      if (resp?.ok && resp.trashHint) armTrashPanel();
     });
   };
 
@@ -905,6 +1031,14 @@
     mount();
     watchForRemoval();
     watchTheSwitch();
+    watchTheHash();
+
+    // 9.5: the door can also open a mailbox that was not open at all, in
+    // which case the tab loads at Trash and this script runs for the
+    // first time with the mark already waiting. The greeting wins if
+    // both are somehow pending: a first-run greeting is the more
+    // important thing to say, and the mark is spent either way.
+    if (resp.trashHint && !resp.greet) armTrashPanel();
   };
 
   boot();

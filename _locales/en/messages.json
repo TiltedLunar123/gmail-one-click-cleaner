@@ -705,5 +705,11 @@
   "trashWaitingMany": { "message": "At least $1 emails are waiting in Trash" },
   "trashWaitingManyMb": { "message": "At least $1 emails (about $2) are waiting in Trash" },
   "trashWaitingNote": { "message": "Moved by this extension in the last 30 days and still counting against your storage. Gmail clears Trash on its own after about 30 days. This figure cannot see a Trash you emptied yourself." },
-  "trashOpenBtn": { "message": "Open Trash" }
+  "trashOpenBtn": { "message": "Open Trash" },
+
+  "launcherTrashTitle": { "message": "You are in Trash" },
+  "launcherTrashBody": { "message": "Gmail's own “Empty Trash now” link sits at the top of this list." },
+  "launcherTrashWarn": { "message": "It deletes everything here for good, including mail you deleted yourself, and Restore cannot bring any of it back afterwards." },
+  "launcherTrashAuto": { "message": "Gmail does this on its own after about 30 days, so you do not have to." },
+  "launcherTrashDismiss": { "message": "Got it" }
 }
