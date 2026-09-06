@@ -121,8 +121,8 @@
   "recapDynamic": { "message": "Resumen: tu última limpieza terminó $1, con el popup cerrado." },
   "resultLead": { "message": "Limpiados:" },
   "resultUnit": { "message": "correos" },
-  "resultMid": { "message": " · Liberados ~" },
-  "resultTail": { "message": "(estimado)" },
+  "resultMid": { "message": " · Al menos ~" },
+  "resultTail": { "message": "movidos a la papelera" },
   "resultTrashNote": { "message": "(todo movido a la Papelera)" },
   "resultArchiveNote": { "message": "(todo archivado en Todos)" },
   "resultNote": { "message": "No se ha borrado nada de forma permanente, Gmail guarda la papelera 30 días. Puedes restaurar cuando quieras. Tu almacenamiento solo se libera cuando se vacía la papelera." },
@@ -404,7 +404,7 @@
   "notifTitleOne": { "message": "Gmail Cleaner - 1 correo $1" },
   "notifTitleMany": { "message": "Gmail Cleaner - $1 correos $2" },
   "notifDryBody": { "message": "Simulación terminada. No se tocó ningún correo." },
-  "notifLiveBody": { "message": "Se liberaron ~$1 MB (estimado). Abre Estadísticas para más detalles." },
+  "notifLiveBody": { "message": "Al menos ~$1 MB movidos a la papelera. Gmail libera el espacio cuando se vacía la papelera." },
   "notifStoppedShortOne": { "message": "1 regla se detuvo antes de terminar, asi que queda correo sin limpiar. Ejecutalo de nuevo para continuar." },
   "notifStoppedShortMany": { "message": "$1 reglas se detuvieron antes de terminar, asi que queda correo sin limpiar. Ejecutalo de nuevo para continuar." },
   "notifProPitch": { "message": "Pro hace esta limpieza por ti cada semana: $$9,99 una vez, con garantía de 30 días." },
@@ -511,7 +511,7 @@
   "progDoneCardLabel": { "message": "Resumen de la ejecución" },
   "progDoneCleaned": { "message": "$1 correos limpiados" },
   "progDoneMatchedDry": { "message": "$1 correos coincidieron, no se movió nada" },
-  "progDoneFreed": { "message": "al menos ~$1" },
+  "progDoneFreed": { "message": "al menos ~$1 movidos a la papelera" },
   "progDoneSafetyDelete": { "message": "Cada coincidencia se etiquetó primero y luego pasó a la papelera. Gmail guarda la papelera unos 30 días, así que sigue ahí, y tu almacenamiento se libera cuando se vacía la papelera." },
   "progDoneSafetyArchive": { "message": "Cada coincidencia se etiquetó primero y luego se archivó. El correo archivado queda en Todos, sin fecha límite." },
   "progDoneSafetyDry": { "message": "Esto fue una simulación, así que no se etiquetó, movió ni eliminó nada." },
@@ -698,5 +698,12 @@
   "launcherHideAsk": { "message": "¿Ocultar este botón?" },
   "launcherHide30": { "message": "Durante 30 días" },
   "launcherHideOff": { "message": "Desactivarlo" },
-  "launcherHiddenNote": { "message": "Ajustes tiene un interruptor para recuperarlo." }
+  "launcherHiddenNote": { "message": "Ajustes tiene un interruptor para recuperarlo." },
+
+  "trashWaitingOne": { "message": "Al menos 1 correo está esperando en la papelera" },
+  "trashWaitingOneMb": { "message": "Al menos 1 correo (unos $1) está esperando en la papelera" },
+  "trashWaitingMany": { "message": "Al menos $1 correos están esperando en la papelera" },
+  "trashWaitingManyMb": { "message": "Al menos $1 correos (unos $2) están esperando en la papelera" },
+  "trashWaitingNote": { "message": "Movidos por esta extensión en los últimos 30 días y todavía ocupando tu almacenamiento. Gmail vacía la papelera por su cuenta al cabo de unos 30 días. Esta cifra no sabe si has vaciado la papelera tú mismo." },
+  "trashOpenBtn": { "message": "Abrir la papelera" }
 }

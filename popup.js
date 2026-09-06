@@ -155,6 +155,11 @@ document.addEventListener("DOMContentLoaded", () => {
     // Distinguishes "my run" from a schedule or Auto-Pilot sweep the popup
     // merely detected through the active-run marker.
     startedRunHere: false,
+    // 9.5: the mailbox link the finished run recorded, kept so the
+    // result card's Open Trash lands in the account that run acted on.
+    // Empty for a recap: history rows written before this release carry
+    // no link, and the door falls back to resolving the mailbox tab.
+    resultTrashLink: "",
     debugMode: false,
     buttonState: BUTTON_STATES.IDLE,
 
@@ -495,6 +500,9 @@ document.addEventListener("DOMContentLoaded", () => {
     resultCount: $("resultCount"),
     resultSize: $("resultSize"),
     resultFreedClause: $("resultFreedClause"),
+    resultTrashWaiting: $("resultTrashWaiting"),
+    resultTrashFigure: $("resultTrashFigure"),
+    resultTrashBtn: $("resultTrashBtn"),
     // 8.11: the four pieces of copy showResultSummary rewrites for a dry
     // run or an archive run. The title keeps its hyphenated id because
     // the region's aria-labelledby points at it.
@@ -603,6 +611,9 @@ document.addEventListener("DOMContentLoaded", () => {
     xrayTotal: $("xrayTotal"),
     xrayTotalMb: $("xrayTotalMb"),
     xrayTotalSub: $("xrayTotalSub"),
+    xrayTrashWaiting: $("xrayTrashWaiting"),
+    xrayTrashFigure: $("xrayTrashFigure"),
+    xrayTrashBtn: $("xrayTrashBtn"),
     xrayToolbar: $("xrayToolbar"),
     xraySelectAll: $("xraySelectAll"),
     xrayCount: $("xrayCount"),
@@ -834,7 +845,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // for archive runs, and left the note underneath still describing
   // Trash: archived mail never goes there, so there is no 30-day
   // window and restore is by label with no deadline at all.
-  const showResultSummary = ({ count = 0, freedBytes = 0, action = "trash", dryRun = false, stoppedShort = 0, wouldDeleteFloors = 0 } = {}) => {
+  const showResultSummary = ({ count = 0, freedBytes = 0, action = "trash", dryRun = false, stoppedShort = 0, wouldDeleteFloors = 0, trashLink = "" } = {}) => {
     if (!elements.resultSummary) return;
     // 8.18: rolls up to the count instead of appearing at it. The
     // string handed to countUp is the same String(...) this line always
@@ -903,6 +914,27 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       elements.resultPartialNote.hidden = short === 0;
     }
+
+    // 9.5: the waiting figure belongs to a run that put mail in Trash.
+    // A dry run moved nothing and an archive run moved it to All Mail,
+    // so neither has anything waiting on Gmail's 30-day clock; the same
+    // two cases the freed clause above already drops. Async because the
+    // number is a pass over the recovery log, and the card is not held
+    // up for it: it appears when it has been measured.
+    state.resultTrashLink = String(trashLink || "");
+    if (elements.resultTrashWaiting) {
+      if (archived || dryRun) {
+        elements.resultTrashWaiting.hidden = true;
+      } else {
+        readTrashWaiting()
+          .then((waiting) => renderTrashWaiting(
+            elements.resultTrashWaiting,
+            elements.resultTrashFigure,
+            waiting
+          ))
+          .catch(() => {});
+      }
+    }
     elements.resultSummary.classList.add("show");
   };
 
@@ -944,9 +976,118 @@ document.addEventListener("DOMContentLoaded", () => {
     hideSuccessCtas();
     hideRatingPrompt();
     hideRecapNote();
+    if (elements.resultTrashWaiting) elements.resultTrashWaiting.hidden = true;
     if (!elements.cleanForm || !elements.cleanResult) return;
     elements.cleanResult.hidden = true;
     elements.cleanForm.hidden = false;
+  };
+
+  // =========================
+  // Waiting in Trash (9.5)
+  // =========================
+  // A delete run moves mail to Trash and Google counts Trash against the
+  // quota until it empties, so "Freed" was the wrong word on every
+  // surface that used it and this is the figure that was missing beside
+  // it. GCC.trash.waiting does the measuring, through the same
+  // eligibility rules the Stats page's Restore obeys, so what this says
+  // is waiting is exactly what that page will still bring back.
+
+  const readTrashWaiting = async () => {
+    try {
+      const resp = await GCC.sendMessage({ type: "gmailCleanerGetUndoLog" });
+      return GCC.trash.waiting(resp?.log || []);
+    } catch (e) {
+      log("warn", "trash waiting read failed", e);
+      return { count: 0, mb: 0, runs: 0 };
+    }
+  };
+
+  // Megabytes are a floor with a hole in it: entries written before 9.5
+  // carry a count and no size, so an upgraded install can have real mail
+  // waiting and nothing to say about how big it is. The clause goes in
+  // that case rather than printing "about 0 MB", which is the same rule
+  // 9.3 applied to the launcher panel and 8.9 to the result card.
+  const trashFigureText = ({ count, mb }) => {
+    const countText = GCC.formatNumber(count);
+    if (mb >= 0.01) {
+      const mbText = GCC.formatMb(mb);
+      return count === 1
+        ? t("trashWaitingOneMb", `At least 1 email (about ${mbText}) is waiting in Trash`, [mbText])
+        : t(
+          "trashWaitingManyMb",
+          `At least ${countText} emails (about ${mbText}) are waiting in Trash`,
+          [countText, mbText]
+        );
+    }
+    return count === 1
+      ? t("trashWaitingOne", "At least 1 email is waiting in Trash")
+      : t("trashWaitingMany", `At least ${countText} emails are waiting in Trash`, [countText]);
+  };
+
+  const renderTrashWaiting = (block, figure, waiting) => {
+    if (!block) return;
+    const count = Math.max(0, Number(waiting?.count) || 0);
+    // Zero is not a smaller answer, it is not an answer. Same rule the
+    // launcher panel follows for "0+ MB".
+    if (count <= 0) {
+      block.hidden = true;
+      return;
+    }
+    if (figure) figure.textContent = trashFigureText({ count, mb: Number(waiting?.mb) || 0 });
+    block.hidden = false;
+  };
+
+  // Prefer a tab already showing the mailbox the run acted on. Landing
+  // account 1's Trash in account 0's tab would take that tab off the
+  // mailbox its owner left it on, and 8.11 is the whole file of what
+  // happens when a surface picks "whichever Gmail tab is active".
+  const findMailboxTabForAccount = async (account) => {
+    try {
+      const tabs = (await tabsQuery({ url: `${CONFIG.GMAIL_URL}*` }) || [])
+        .filter((tb) => GCC.isMailboxUrl(tb?.url));
+      if (!tabs.length) return null;
+      if (account !== null) {
+        const match = tabs.find((tb) => GCC.trash.accountOf(tb.url) === account);
+        if (match) return match;
+      }
+      return tabs.find((tb) => tb.active) || tabs[0];
+    } catch (e) {
+      log("warn", "mailbox tab lookup failed", e);
+      return null;
+    }
+  };
+
+  // The door. Only the account index is taken out of the link a run
+  // recorded, and the URL navigated to is built from that digit by
+  // GCC.trash.urlFor, so nothing that came out of a mailbox reaches a
+  // URL. The popup closes when the tab comes forward, which is fine
+  // here: going there is what was asked for.
+  const openTrashDoor = async (linkUrl, setStatusFn) => {
+    if (!GCC.hasChromeTabs()) return;
+    const account = GCC.isMailboxUrl(linkUrl) ? GCC.trash.accountOf(linkUrl) : null;
+    let tab = await findMailboxTabForAccount(account);
+    if (!tab?.id) tab = await openGmailAndWait(setStatusFn);
+    if (!tab?.id) return;
+
+    const target = GCC.trash.urlFor(account ?? GCC.trash.accountOf(tab.url));
+    try {
+      await tabsUpdate(tab.id, { url: target, active: true });
+      // Selecting a tab does not bring its window forward, and the
+      // mailbox is regularly in a different one.
+      if (chrome.windows?.update && typeof tab.windowId === "number") {
+        await GCC.promisify(chrome.windows.update.bind(chrome.windows), tab.windowId, { focused: true });
+      }
+    } catch (e) {
+      log("warn", "open trash failed", e);
+      return;
+    }
+    // The tab id, never the account: the worker reads the digit off the
+    // tab it looks up rather than off this message. See armTrashHint.
+    try {
+      await GCC.sendMessage({ type: "gmailCleanerArmTrashHint", tabId: tab.id });
+    } catch (e) {
+      log("warn", "arming the trash hint failed", e);
+    }
   };
 
   // =========================
@@ -6316,7 +6457,11 @@ document.addEventListener("DOMContentLoaded", () => {
             // "Cleanup Complete!" says it only when the run was.
             stoppedShort: Number(stats?.stoppedShort) || 0,
             // 8.25: dry-run rules that could only see one page.
-            wouldDeleteFloors: Number(stats?.wouldDeleteFloors) || 0
+            wouldDeleteFloors: Number(stats?.wouldDeleteFloors) || 0,
+            // 9.5: the engine builds this from the base URL of the tab it
+            // actually ran in, so it carries the /u/N/ of the mailbox that
+            // was cleaned rather than whichever one is in front now.
+            trashLink: stats?.links?.trash || ""
           });
 
           // 7.4: a live result counts as seen; without the marker this
@@ -6984,6 +7129,16 @@ document.addEventListener("DOMContentLoaded", () => {
       fallbackUpsell: elements.censusUpsell
     }));
 
+    // 9.5 the Open Trash door, on both surfaces that offer it. The
+    // result card knows which mailbox its run used; the Storage tab
+    // has no run behind it and resolves the mailbox tab instead.
+    elements.resultTrashBtn?.addEventListener("click", () => {
+      openTrashDoor(state.resultTrashLink, setStatus).catch((e) => log("warn", "open trash failed", e));
+    });
+    elements.xrayTrashBtn?.addEventListener("click", () => {
+      openTrashDoor("", setXrayStatus).catch((e) => log("warn", "open trash failed", e));
+    });
+
     // 7.2 storage X-ray
     elements.xrayScanBtn?.addEventListener("click", handleScanStorage);
     elements.xrayPurgeBtn?.addEventListener("click", handleXrayPurge);
@@ -7282,6 +7437,18 @@ document.addEventListener("DOMContentLoaded", () => {
     // so a fresh install sees nothing new on the Unsubscribe tab.
     loadReceipts().catch((e) => log("warn", "receipts load failed", e));
     loadCensus().catch((e) => log("warn", "census load failed", e));
+    // 9.5: the Storage tab's waiting figure. Read on open rather than
+    // after a scan: what is sitting in Trash was put there by an earlier
+    // run and does not depend on scanning anything now, and a tab about
+    // megabytes should not stay quiet about the ones it is already
+    // holding until you press a button.
+    readTrashWaiting()
+      .then((waiting) => renderTrashWaiting(
+        elements.xrayTrashWaiting,
+        elements.xrayTrashFigure,
+        waiting
+      ))
+      .catch((e) => log("warn", "trash waiting render failed", e));
     // 7.2 storage X-ray: last scan (best-effort).
     loadStoredStorageScan().catch((e) => log("warn", "xray load failed", e));
     // 7.8 Smart Suggestions: disclosure state + stored scan.

@@ -3459,7 +3459,7 @@
                archive run frees nothing. It moves mail to All Mail, where
                it still counts against the quota, so the clause is removed
                rather than shown as "Freed ~0 MB". -->
-          <span id="resultLead" data-i18n="resultLead">Cleaned</span> <strong id="resultCount">0</strong> <span data-i18n="resultUnit">emails</span><span id="resultFreedClause"><span data-i18n="resultMid"> · Freed ~</span><strong id="resultSize">0 MB</strong> <span data-i18n="resultTail">(est.)</span></span>
+          <span id="resultLead" data-i18n="resultLead">Cleaned</span> <strong id="resultCount">0</strong> <span data-i18n="resultUnit">emails</span><span id="resultFreedClause"><span data-i18n="resultMid"> · At least ~</span><strong id="resultSize">0 MB</strong> <span data-i18n="resultTail">moved to Trash</span></span>
           <!-- 8.11: id'd rather than found with querySelector("span[style]"),
                which is what showResultSummary used to reach it by. Any
                later inline-styled span added above this one would have
@@ -3468,6 +3468,24 @@
         </div>
         <div class="result-summary-note">
           <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><path d="M12 3 5 5.6v5.2c0 4.2 2.9 7 7 8.4 4.1-1.4 7-4.2 7-8.4V5.6L12 3Z"/><path d="M9 12l2 2 4-4.2"/></svg><span id="resultSafetyNote" data-i18n="resultNote">Nothing permanently deleted, Gmail keeps Trash for 30 days. You can restore anytime. Your storage only frees up once Trash empties.</span>
+        </div>
+        <!-- 9.5: the sentence above has promised since 8.0 that storage
+             frees up "once Trash empties", and no surface in the product
+             said how much was sitting there waiting for that, or where
+             it was. The figure is measured through the same filter the
+             Stats page's Restore obeys, so the mail this says is waiting
+             is exactly the mail that page will still bring back. Hidden
+             at zero: a waiting line that reads "0 emails" is not a
+             smaller answer, it is a panel about nothing. -->
+        <div class="trash-waiting" id="resultTrashWaiting" hidden>
+          <div class="trash-waiting-line">
+            <!-- No data-i18n: the sentence carries a count and a size,
+                 so it is written by JS through t() the way #xrayTotalSub
+                 is. The block stays hidden until that happens. -->
+            <span class="trash-waiting-figure" id="resultTrashFigure">At least 1 email is waiting in Trash</span>
+            <button type="button" class="btn btn-sm" id="resultTrashBtn" data-i18n="trashOpenBtn">Open Trash</button>
+          </div>
+          <div class="trash-waiting-note" data-i18n="trashWaitingNote">Moved by this extension in the last 30 days and still counting against your storage. Gmail clears Trash on its own after about 30 days. This figure cannot see a Trash you emptied yourself.</div>
         </div>
       </div>
 
@@ -3648,6 +3666,23 @@
         <div class="xray-total" id="xrayTotal" role="status">
           <span class="xray-total-mb" id="xrayTotalMb"></span>
           <span class="xray-total-sub" id="xrayTotalSub"></span>
+        </div>
+
+        <!-- 9.5: this tab is the one that talks in megabytes, so it is
+             the one where "reclaimable" needs its other half. Whatever a
+             purge from here reclaims lands in Trash first, and anything
+             already down there is holding storage this tab is offering
+             to free. Same figure, same derivation and same wording as
+             the result card; it is on more than one surface on purpose,
+             because 8.19 settled that the popup is never the only place
+             an end-of-run fact lives. -->
+        <div class="trash-waiting" id="xrayTrashWaiting" hidden>
+          <div class="trash-waiting-line">
+            <!-- Written by JS through t(), like the result card's. -->
+            <span class="trash-waiting-figure" id="xrayTrashFigure">At least 1 email is waiting in Trash</span>
+            <button type="button" class="btn btn-sm" id="xrayTrashBtn" data-i18n="trashOpenBtn">Open Trash</button>
+          </div>
+          <div class="trash-waiting-note" data-i18n="trashWaitingNote">Moved by this extension in the last 30 days and still counting against your storage. Gmail clears Trash on its own after about 30 days. This figure cannot see a Trash you emptied yourself.</div>
         </div>
 
         <div class="subs-toolbar" id="xrayToolbar" hidden>

@@ -121,8 +121,8 @@
   "recapDynamic": { "message": "Recap: your last cleanup finished $1, while the popup was closed." },
   "resultLead": { "message": "Cleaned" },
   "resultUnit": { "message": "emails" },
-  "resultMid": { "message": " · Freed ~" },
-  "resultTail": { "message": "(est.)" },
+  "resultMid": { "message": " · At least ~" },
+  "resultTail": { "message": "moved to Trash" },
   "resultTrashNote": { "message": "(all moved to Trash)" },
   "resultArchiveNote": { "message": "(all archived to All Mail)" },
   "resultNote": { "message": "Nothing permanently deleted, Gmail keeps Trash for 30 days. You can restore anytime. Your storage only frees up once Trash empties." },
@@ -404,7 +404,7 @@
   "notifTitleOne": { "message": "Gmail Cleaner - 1 email $1" },
   "notifTitleMany": { "message": "Gmail Cleaner - $1 emails $2" },
   "notifDryBody": { "message": "Dry run finished. No mail was touched." },
-  "notifLiveBody": { "message": "Estimated ~$1 MB freed. Open Stats for details." },
+  "notifLiveBody": { "message": "At least ~$1 MB moved to Trash. Gmail frees the space when Trash empties." },
   "notifStoppedShortOne": { "message": "1 rule stopped before it finished, so some mail is still there. Run it again to continue." },
   "notifStoppedShortMany": { "message": "$1 rules stopped before they finished, so some mail is still there. Run it again to continue." },
   "notifProPitch": { "message": "Pro sweeps this for you every week: $$9.99 once, 30-day money-back guarantee." },
@@ -511,7 +511,7 @@
   "progDoneCardLabel": { "message": "Run summary" },
   "progDoneCleaned": { "message": "$1 emails cleaned" },
   "progDoneMatchedDry": { "message": "$1 emails matched, nothing was moved" },
-  "progDoneFreed": { "message": "at least ~$1" },
+  "progDoneFreed": { "message": "at least ~$1 moved to Trash" },
   "progDoneSafetyDelete": { "message": "Every match was labelled first, then moved to Trash. Gmail keeps Trash for about 30 days, so it is still there, and your storage frees up when Trash empties." },
   "progDoneSafetyArchive": { "message": "Every match was labelled first, then archived. Archived mail stays in All Mail with no deadline." },
   "progDoneSafetyDry": { "message": "This was a Dry Run, so nothing was labelled, moved or deleted." },
@@ -698,5 +698,12 @@
   "launcherHideAsk": { "message": "Hide this button?" },
   "launcherHide30": { "message": "For 30 days" },
   "launcherHideOff": { "message": "Turn it off" },
-  "launcherHiddenNote": { "message": "Settings has a switch to bring it back." }
+  "launcherHiddenNote": { "message": "Settings has a switch to bring it back." },
+
+  "trashWaitingOne": { "message": "At least 1 email is waiting in Trash" },
+  "trashWaitingOneMb": { "message": "At least 1 email (about $1) is waiting in Trash" },
+  "trashWaitingMany": { "message": "At least $1 emails are waiting in Trash" },
+  "trashWaitingManyMb": { "message": "At least $1 emails (about $2) are waiting in Trash" },
+  "trashWaitingNote": { "message": "Moved by this extension in the last 30 days and still counting against your storage. Gmail clears Trash on its own after about 30 days. This figure cannot see a Trash you emptied yourself." },
+  "trashOpenBtn": { "message": "Open Trash" }
 }

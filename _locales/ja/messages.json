@@ -121,8 +121,8 @@
   "recapDynamic": { "message": "振り返り: 前回の掃除は$1に終わりました（ポップアップは閉じていました）。" },
   "resultLead": { "message": "整理:" },
   "resultUnit": { "message": "件" },
-  "resultMid": { "message": " · 解放 約" },
-  "resultTail": { "message": "（推定）" },
+  "resultMid": { "message": " · 少なくとも約" },
+  "resultTail": { "message": "をゴミ箱へ移動" },
   "resultTrashNote": { "message": "（すべてゴミ箱へ移動）" },
   "resultArchiveNote": { "message": "（すべて「すべてのメール」にアーカイブ）" },
   "resultNote": { "message": "完全に削除されたものはありません。Gmail はゴミ箱を30日間保持するので、いつでも復元できます。空き容量が増えるのはゴミ箱を空にしたあとです。" },
@@ -404,7 +404,7 @@
   "notifTitleOne": { "message": "Gmail Cleaner - メール1件を$1" },
   "notifTitleMany": { "message": "Gmail Cleaner - メール$1件を$2" },
   "notifDryBody": { "message": "シミュレーション終了。メールには触れていません。" },
-  "notifLiveBody": { "message": "推定 約$1 MBを解放。詳細は統計をご覧ください。" },
+  "notifLiveBody": { "message": "少なくとも約$1 MBをゴミ箱へ移動しました。空き容量はゴミ箱を空にすると増えます。" },
   "notifStoppedShortOne": { "message": "1 つのルールが完了前に停止したため、メールが残っています。もう一度実行して続けてください。" },
   "notifStoppedShortMany": { "message": "$1 個のルールが完了前に停止したため、メールが残っています。もう一度実行して続けてください。" },
   "notifProPitch": { "message": "Pro なら毎週これを自動で実行します。$$9.99 の買い切り、30日間返金保証つき。" },
@@ -511,7 +511,7 @@
   "progDoneCardLabel": { "message": "実行のまとめ" },
   "progDoneCleaned": { "message": "$1件のメールを掃除しました" },
   "progDoneMatchedDry": { "message": "$1件が該当、何も移動していません" },
-  "progDoneFreed": { "message": "少なくとも約$1" },
+  "progDoneFreed": { "message": "少なくとも約$1をゴミ箱へ移動" },
   "progDoneSafetyDelete": { "message": "一致したメールはすべてラベルを付けてからゴミ箱へ移動しました。Gmail はゴミ箱を約30日間保持するのでまだ残っており、空き容量はゴミ箱を空にすると増えます。" },
   "progDoneSafetyArchive": { "message": "該当メールはすべて先にラベルが付き、その後アーカイブされました。アーカイブしたメールは期限なく「すべてのメール」に残ります。" },
   "progDoneSafetyDry": { "message": "これはシミュレーションなので、ラベル付け・移動・削除はいずれも行われていません。" },
@@ -698,5 +698,12 @@
   "launcherHideAsk": { "message": "このボタンを非表示にしますか?" },
   "launcherHide30": { "message": "30 日間" },
   "launcherHideOff": { "message": "オフにする" },
-  "launcherHiddenNote": { "message": "設定にある切り替えで戻せます。" }
+  "launcherHiddenNote": { "message": "設定にある切り替えで戻せます。" },
+
+  "trashWaitingOne": { "message": "少なくとも1通がゴミ箱に残っています" },
+  "trashWaitingOneMb": { "message": "少なくとも1通（約$1）がゴミ箱に残っています" },
+  "trashWaitingMany": { "message": "少なくとも$1通がゴミ箱に残っています" },
+  "trashWaitingManyMb": { "message": "少なくとも$1通（約$2）がゴミ箱に残っています" },
+  "trashWaitingNote": { "message": "この拡張機能が過去30日間に移動したもので、まだ保存容量を使っています。Gmail は約30日後に自動でゴミ箱を空にします。この数値は、自分で空にしたゴミ箱までは把握できません。" },
+  "trashOpenBtn": { "message": "ゴミ箱を開く" }
 }

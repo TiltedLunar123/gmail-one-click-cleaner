@@ -57,6 +57,9 @@ const ui = {
   totalDeleted: GCC.$("totalDeleted"),
   totalFreed: GCC.$("totalFreed"),
   totalArchived: GCC.$("totalArchived"),
+  statsTrashWaiting: GCC.$("statsTrashWaiting"),
+  statsTrashFigure: GCC.$("statsTrashFigure"),
+  statsTrashBtn: GCC.$("statsTrashBtn"),
   chartBars: GCC.$("chartBars"),
   chartLabels: GCC.$("chartLabels"),
   categoryList: GCC.$("categoryList"),
@@ -714,9 +717,71 @@ function restoreDaysLeft(entry, verdict, now = Date.now()) {
   return Math.max(1, Math.ceil(left / (24 * 60 * 60 * 1000)));
 }
 
+// 9.5: how much of the "Moved to Trash" tile has not become free space
+// yet, rendered from the SAME array the Restore rows below are built
+// from, in the same pass. Not a second fetch and not a second filter:
+// GCC.trash.waiting runs GCC.restore.eligibility over these entries,
+// which is the function each Restore button answers to, so a run this
+// counts as waiting is a run that page will still bring back.
+function renderTrashWaiting(log) {
+  if (!ui.statsTrashWaiting) return;
+  const waiting = GCC.trash.waiting(log);
+  const count = Math.max(0, Number(waiting.count) || 0);
+  // Zero is not a smaller answer.
+  if (count <= 0) {
+    ui.statsTrashWaiting.hidden = true;
+    return;
+  }
+  if (ui.statsTrashFigure) {
+    const countText = GCC.formatNumber(count);
+    const mb = Number(waiting.mb) || 0;
+    const noun = count === 1 ? "email is" : "emails are";
+    // Entries written before 9.5 carry a count and no size, so the
+    // clause goes rather than reading "about 0 MB".
+    ui.statsTrashFigure.textContent = mb >= 0.01
+      ? `At least ${countText} ${noun} waiting in Trash (about ${GCC.formatMb(mb)})`
+      : `At least ${countText} ${noun} waiting in Trash`;
+  }
+  ui.statsTrashWaiting.hidden = false;
+}
+
+// The door. This page has no run behind it, so the account comes from
+// the mailbox tab it would restore into, resolved the same way
+// injectRestoreRun resolves one. Only the digit is used: GCC.trash.urlFor
+// builds what is navigated to, so nothing out of a mailbox reaches a URL.
+async function openTrashFromStats() {
+  if (!GCC.hasChromeTabs()) return;
+  let tab = await findGmailTab();
+  if (!tab?.id) tab = await openGmailAndWait();
+  if (!tab?.id) {
+    GCC.showToast("Could not get a Gmail tab ready, try again", "warning");
+    return;
+  }
+  const target = GCC.trash.urlFor(GCC.trash.accountOf(tab.url));
+  try {
+    await GCC.promisify(chrome.tabs.update.bind(chrome.tabs), tab.id, { url: target, active: true });
+    // Selecting a tab does not bring its window forward.
+    if (chrome.windows?.update && typeof tab.windowId === "number") {
+      await GCC.promisify(chrome.windows.update.bind(chrome.windows), tab.windowId, { focused: true });
+    }
+  } catch {
+    GCC.showToast("Could not open Trash, try again", "warning");
+    return;
+  }
+  // The tab id, never the account: the worker reads the digit off the
+  // tab it looks up rather than off this message.
+  try {
+    await GCC.sendMessage({ type: "gmailCleanerArmTrashHint", tabId: tab.id });
+  } catch {
+    // The panel inside Gmail is a courtesy; the figure above is the fact.
+  }
+}
+
 async function loadUndoLog() {
   const resp = await GCC.sendMessage({ type: "gmailCleanerGetUndoLog" });
   const log = resp?.log || [];
+
+  renderTrashWaiting(log);
 
   if (!ui.undoList) return;
   ui.undoList.textContent = "";
@@ -858,6 +923,13 @@ async function init() {
   ui.refreshUndoBtn?.addEventListener("click", async () => {
     await loadUndoLog();
     GCC.showToast("Refreshed", "success");
+  });
+
+  // 9.5: the Open Trash door beside the waiting figure.
+  ui.statsTrashBtn?.addEventListener("click", () => {
+    openTrashFromStats().catch(() => {
+      GCC.showToast("Could not open Trash, try again", "warning");
+    });
   });
 
   ui.clearUndoBtn?.addEventListener("click", async () => {

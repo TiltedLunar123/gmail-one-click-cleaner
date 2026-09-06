@@ -1207,6 +1207,22 @@
           <span id="doneLabelsLead" data-i18n="progDoneLabelsLead">Labels applied:</span>
         </p>
 
+        <!-- 9.5: the safety line above has always said storage frees up
+             when Trash empties. This says how much is in there and opens
+             the door to it. Also on the popup and on Stats: 8.19 settled
+             that the popup is never the only place an end-of-run fact
+             lives, and this page is the one an unattended run leaves
+             open. -->
+        <div class="trash-waiting" id="doneTrashWaiting" hidden>
+          <div class="trash-waiting-line">
+            <!-- Written by JS through t(): the sentence carries a count
+                 and a size, so it cannot be a static catalogue lookup. -->
+            <span class="trash-waiting-figure" id="doneTrashFigure">At least 1 email is waiting in Trash</span>
+            <button type="button" class="btn btn-sm" id="doneTrashBtn" data-i18n="trashOpenBtn">Open Trash</button>
+          </div>
+          <div class="trash-waiting-note" data-i18n="trashWaitingNote">Moved by this extension in the last 30 days and still counting against your storage. Gmail clears Trash on its own after about 30 days. This figure cannot see a Trash you emptied yourself.</div>
+        </div>
+
         <div class="done-actions">
           <button id="openRecoveryBtn" type="button" class="done-btn primary">
             <svg class="ico ico--md" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4.5V9h4.5"/></svg>
@@ -1256,7 +1272,9 @@
             <th scope="col">Query</th>
             <th scope="col">Mode</th>
             <th scope="col">Count</th>
-            <th scope="col">Freed MB</th>
+            <!-- 9.5: the column holds what a rule moved to Trash, which
+                 is not the same as what it freed until Trash empties. -->
+            <th scope="col">MB moved</th>
             <th scope="col">Duration</th>
           </tr>
         </thead>
