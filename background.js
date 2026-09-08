@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "9.5.0";
+  const SW_VERSION = "9.6.0";
 
   // =========================
   // Storage Keys
@@ -99,41 +99,74 @@
     SUBS_CHECKED: "subsCheckedEmails"
   });
 
-  // 9.1: everything the Erase Stored Sender Data button removes.
+  // 9.1: everything the Erase Stored Sender Data button removes, and
+  // since 9.6 that is every store in the extension holding an address.
   //
-  // Enumerated by name and never counted. A count says "six keys are
-  // erased", never "all the keys are erased", so it stays green on the
-  // day a seventh store is added and forgotten, and this codebase has
-  // been bitten by a count pin three times.
+  // 9.1 shipped six keys under a heading reading "Stored Sender Data"
+  // and a button reading "Erase Stored Sender Data". Eight more stores
+  // hold the user's correspondents by address, written by the four scans
+  // the popup runs: the mailbox report keeps up to five named senders
+  // per band, the storage X-ray and the suggestion scan are lists keyed
+  // by address, the subscription scan is two hundred of them, the
+  // suggestion feedback map is three hundred addresses with no age-out
+  // at all, and the three pending-purge markers carry the addresses a
+  // run is about to act on.
+  //
+  // None of it was hidden: the Diagnostics card said outright that those
+  // scans "keep their own sender lists, which this card does not count
+  // and the Erase button does not clear". A disclaimer explaining that
+  // the erase button does not erase is a smaller version of what 9.5
+  // fixed on the word "Freed", and the answer is the same one: make the
+  // control do what its label says, then delete the sentence that
+  // existed to excuse it.
+  //
+  // Enumerated by name and never counted. A count says "fourteen keys
+  // are erased", never "all the keys are erased", so it stays green on
+  // the day a fifteenth store is added and forgotten, and this codebase
+  // has been bitten by a count pin three times.
   //
   // Written as neutral values rather than removed. `null` is the only
   // erase precedent the extension has, and it is what every reader here
-  // already handles: `|| null` on the census, `?.list || []` on the
-  // receipts, a failed Array.isArray on each tick list. chrome.storage
-  // .local.clear() is the one thing that must never be used: it would
-  // take notifyOnComplete, runHistory, the recovery log and the licence
-  // cache with it, which is 7.15's restoreDefaults bug at a larger
-  // scale.
-  const ERASE_KEYS = Object.freeze([
-    STORAGE_KEYS.CENSUS,
-    STORAGE_KEYS.RECEIPTS,
-    STORAGE_KEYS.CENSUS_CHECKED,
-    STORAGE_KEYS.XRAY_CHECKED,
-    STORAGE_KEYS.SMART_CHECKED,
-    STORAGE_KEYS.SUBS_CHECKED
-  ]);
-
-  // The two stores are records; the four tick lists are arrays. Reading
-  // an erased store must look exactly like reading one that was never
-  // written, and those are the two shapes that do.
+  // already handles: `|| null` on the census and on all four scan
+  // stores, `?.list || []` on the receipts, a failed Array.isArray on
+  // each tick list. The three pending-purge markers are ALREADY written
+  // as null when a purge resolves, so none of the eight new keys teaches
+  // a reader a shape it has not already seen. chrome.storage.local
+  // .clear() is the one thing that must never be used: it would take
+  // notifyOnComplete, runHistory, the recovery log and the licence cache
+  // with it, which is 7.15's restoreDefaults bug at a larger scale.
+  //
+  // One list, not two. 9.1 kept the keys and their neutral values as
+  // separate literals that had to agree; at six entries that was a
+  // reading hazard and at fourteen it is a bug waiting for whoever adds
+  // the fifteenth. The names live here and the key list is derived.
   const ERASE_VALUES = Object.freeze({
+    // The two stores 9.1 named, and the four tick lists the popup writes
+    // alongside them.
     [STORAGE_KEYS.CENSUS]: null,
     [STORAGE_KEYS.RECEIPTS]: null,
     [STORAGE_KEYS.CENSUS_CHECKED]: [],
     [STORAGE_KEYS.XRAY_CHECKED]: [],
     [STORAGE_KEYS.SMART_CHECKED]: [],
-    [STORAGE_KEYS.SUBS_CHECKED]: []
+    [STORAGE_KEYS.SUBS_CHECKED]: [],
+    // 9.6: the four scans, each of which stores senders by address.
+    [STORAGE_KEYS.REPORT]: null,
+    [STORAGE_KEYS.STORAGE_XRAY]: null,
+    [STORAGE_KEYS.SMART_SCAN]: null,
+    [STORAGE_KEYS.SUBSCRIPTIONS]: null,
+    // The feedback map is the oldest data in the extension: three
+    // hundred addresses, keyed by address, with no age-out at all.
+    [STORAGE_KEYS.SMART_FEEDBACK]: null,
+    // And the three markers naming the senders a run is mid-way through
+    // acting on. Leaving one behind would also let a purge that resolves
+    // after the erase write a sender back into a store the user just
+    // emptied.
+    [STORAGE_KEYS.REPORT_PENDING]: null,
+    [STORAGE_KEYS.XRAY_PENDING]: null,
+    [STORAGE_KEYS.SMART_PENDING]: null
   });
+
+  const ERASE_KEYS = Object.freeze(Object.keys(ERASE_VALUES));
 
   // Mirrors GCC.receipts.VERDICTS. Kept as its own literal because the
   // worker cannot import shared.js, and pinned equal by a test: a
@@ -3711,7 +3744,18 @@
     // index and a timestamp: the same two facts the greeting keeps, and
     // nothing about the mail down there.
     trashHintAt: 0,
-    trashHintAcct: ""
+    trashHintAcct: "",
+    // 9.6: and WHICH TAB. The account alone tells two signed-in mailboxes
+    // apart and does not tell two tabs on the same mailbox apart, which
+    // is the ordinary case: one Gmail pinned, one opened to look at
+    // something. Both get the storage change, both ask, and the first to
+    // ask spent the mark, so the panel opened in a tab that had not gone
+    // anywhere (where it waits fifteen seconds for a hash change that is
+    // never coming, then gives up) and the tab actually sitting in Trash
+    // was told there was nothing for it. A tab id is what the worker
+    // already keys the run claim on and it never leaves the worker: the
+    // launcher is still handed one bit.
+    trashHintTab: 0
   });
 
   async function readLauncherRecord() {
@@ -3727,7 +3771,8 @@
         hideUntil: Number(rec.hideUntil) > 0 ? Number(rec.hideUntil) : 0,
         greetPending: rec.greetPending === true,
         trashHintAt: Number(rec.trashHintAt) > 0 ? Number(rec.trashHintAt) : 0,
-        trashHintAcct: /^\d+$/.test(String(rec.trashHintAcct || "")) ? String(rec.trashHintAcct) : ""
+        trashHintAcct: /^\d+$/.test(String(rec.trashHintAcct || "")) ? String(rec.trashHintAcct) : "",
+        trashHintTab: Number.isInteger(rec.trashHintTab) && rec.trashHintTab > 0 ? rec.trashHintTab : 0
       };
     } catch {
       return { ...LAUNCHER_DEFAULTS };
@@ -3775,7 +3820,13 @@
     if (!isMailboxTab(tab?.url)) return { ok: false, error: "not a mailbox" };
     await setLauncherRecord({
       trashHintAt: Date.now(),
-      trashHintAcct: gmailAccountOf(tab.url)
+      trashHintAcct: gmailAccountOf(tab.url),
+      // 9.6: the tab, so the mark can only be spent by the one that was
+      // navigated. The account stays beside it and is still checked: it
+      // is the cheap answer when a tab id has gone stale, and dropping a
+      // fact a later reader might want is how 9.1's guard snapshot got
+      // separated from its measurement.
+      trashHintTab: id
     });
     return { ok: true };
   }
@@ -3907,11 +3958,26 @@
     // An expired mark is cleared by whoever finds it, whatever mailbox
     // they are in: it can no longer be spent, and leaving it in the
     // record only invites a later reader to trust the timestamp.
+    //
+    // 9.6: matched on the TAB first. Two accounts was the case 9.5
+    // guarded and two tabs on one account is the commoner one, and the
+    // account cannot tell those apart: both read "0", both matched, and
+    // the first to ask won a mark that belonged to the other. A tab id
+    // separates them exactly.
+    //
+    // A record with no tab id is one 9.5 wrote, inside its own five
+    // minute window, during the update. Those fall back to the account
+    // match rather than being discarded: it is what that release did,
+    // and the alternative is swallowing the one panel of the release
+    // being upgraded FROM.
     const hintAt = Number(rec.trashHintAt) || 0;
     const hintFresh = hintAt > 0 && Date.now() - hintAt <= LAUNCHER_TRASH_HINT_TTL_MS;
-    const trashHint = hintFresh && Boolean(account) && rec.trashHintAcct === account;
+    const hintTab = Number(rec.trashHintTab) || 0;
+    const accountMatches = Boolean(account) && rec.trashHintAcct === account;
+    const trashHint = hintFresh && accountMatches
+      && (hintTab === 0 || hintTab === tab?.id);
     if (trashHint || (hintAt > 0 && !hintFresh)) {
-      await setLauncherRecord({ trashHintAt: 0, trashHintAcct: "" });
+      await setLauncherRecord({ trashHintAt: 0, trashHintAcct: "", trashHintTab: 0 });
     }
 
     return {
@@ -5130,11 +5196,19 @@
       const tagLabel = data.tagLabel || "";
       const action = data.action || "delete";
       const count = Number(data.count) || 0;
-      // 9.5: rounded and floored here rather than trusted, the way count
-      // above is. An entry with no size is not an entry with a zero size,
-      // but both add nothing to a floor, so the two cases need no telling
-      // apart: see GCC.trash.waiting.
-      const mbMoved = Math.max(0, Number(data.mbMoved) || 0);
+      // 9.5: floored here rather than trusted, the way count above is. An
+      // entry with no size is not an entry with a zero size, but both add
+      // nothing to a floor, so the two cases need no telling apart: see
+      // GCC.trash.waiting.
+      //
+      // 9.6: and kept at three decimals rather than one. The engine used
+      // to round each pass to a tenth before sending it and this summed
+      // the rounded values, which let a long run of small passes overstate
+      // a figure every surface labels "at least". Three decimals is two
+      // orders finer than the tenth of a megabyte anything displays, so
+      // the record stays readable and the sum stays a floor; the rounding
+      // that a reader sees is GCC.formatMb's, and it is the only one left.
+      const mbMoved = Math.max(0, Math.round((Number(data.mbMoved) || 0) * 1000) / 1000);
 
       const existing = runId
         ? log.find((e) =>
@@ -5148,7 +5222,10 @@
 
       if (existing) {
         existing.count = (Number(existing.count) || 0) + count;
-        existing.mbMoved = (Number(existing.mbMoved) || 0) + mbMoved;
+        // Re-rounded to the same three decimals after the add: float
+        // addition of tenths lands on 6.000000000000001, and a record a
+        // user can open in Diagnostics should not read like that.
+        existing.mbMoved = Math.round(((Number(existing.mbMoved) || 0) + mbMoved) * 1000) / 1000;
         existing.passes = (Number(existing.passes) || 1) + 1;
         existing.timestamp = Date.now();
         // A later pass reporting a tagging failure has to win: recovery

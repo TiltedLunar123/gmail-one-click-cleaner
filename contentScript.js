@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const GCC_CONTENT_VERSION = "9.5.0";
+  const GCC_CONTENT_VERSION = "9.6.0";
 
   // =========================
   // Timing & behavior constants
@@ -1889,25 +1889,62 @@
   // Button finder utilities
   // =========================
 
-  function findButtonByTokens(tokens, primaryPattern, root = findToolbarRoot() || document) {
-    const buttons = qsa("div[role='button'], button, span[role='button']", root);
+  // 9.6: the candidate walk the ACTING finders never had.
+  //
+  // restoreCandidates below has refused three things since 7.6: a
+  // control inside a list row, a control inside the message body, and
+  // anything marked "Delete forever". 8.12 ported the third of those to
+  // this finder, named the other two in its own comment as things
+  // restoreCandidates does, and left them behind. So the walk that
+  // produces the button the engine clicks to RESTORE mail was scoped
+  // against sender markup and the walk that produces the button it
+  // clicks to DELETE mail was not, which is the wrong way round.
+  //
+  // It matters because of the `|| document` default this replaces. With
+  // Gmail's toolbar on the page the search is scoped to it and no
+  // message body is reachable, but `div[gh='mtb']` absent (a layout
+  // change, a view mid-render) dropped the scope to the whole document,
+  // and `div[role='button'][aria-label="Delete"]` is markup a sender
+  // writes for free: 9.4 established that role and aria-label both
+  // survive into `div.a3s`. The planted node then scores on its label
+  // like any other candidate and wins on document order.
+  //
+  // The fallback is kept rather than deleted the way 9.3 deleted
+  // getMainRoot's. That one handed back a STALE grid, an answer that
+  // looked right; this one is only unscoped, and with the three filters
+  // applied an unscoped search can no longer return anything a sender
+  // controls. Refusing outright would turn every unrecognised layout
+  // into a stopped run for no safety gained.
+  //
+  // isNavigable is the fourth filter and is new to both walks: Gmail's
+  // toolbar controls are divs, never anchors, and clicking an anchor
+  // navigates the tab to wherever the sender pointed it, which is the
+  // 9.4 failure exactly.
+  function toolbarCandidates(root) {
+    const scope = root || findToolbarRoot() || document;
+    return qsa("div[role='button'], button, span[role='button']", scope)
+      .filter((el) => !el.closest("tr[role='row']"))
+      .filter((el) => !el.closest(SELECTORS.messageBody))
+      .filter((el) => !isNavigable(el))
+      .filter((el) => !hasDeleteForeverMarking(el));
+  }
+
+  function findButtonByTokens(tokens, primaryPattern, root = null) {
+    const buttons = toolbarCandidates(root);
 
     const scored = [];
 
+    // 8.12: the "Delete forever" deny-list runs BEFORE any scoring, so
+    // a well-scoring label can never win it: `delete|trash|bin` matches
+    // "Delete forever" on its own merits, and any view whose toolbar
+    // offers permanent deletion could otherwise hand it the top score.
+    // It also covers a Gmail relabel nobody has predicted, which is the
+    // case the project already ships GmailLayoutError for. 9.6 moved it
+    // into toolbarCandidates alongside the three filters it was ported
+    // here without; over-matching on a deny check only skips a
+    // candidate, so the worst outcome is the run reporting it found no
+    // control.
     for (const el of buttons) {
-      // 8.12: the deny-list every RESTORE finder has run since 7.6, on
-      // the finder that actually deletes. restoreCandidates refuses a
-      // "Delete forever" control BEFORE scoring, precisely so a
-      // well-scoring label can never win it; findDeleteButton had no
-      // such check, and `delete|trash|bin` matches "Delete forever" on
-      // its own merits. So any view whose toolbar offers permanent
-      // deletion could hand it the top score. The dangerous-token list
-      // above is the other half of this and is the one a user can see;
-      // this half also covers a Gmail relabel nobody has predicted,
-      // which is the case the project already ships GmailLayoutError
-      // for. Over-matching on a deny check only skips a candidate, so
-      // the worst outcome is the run reporting it found no control.
-      if (hasDeleteForeverMarking(el)) continue;
       const label = getElementLabel(el).toLowerCase();
       let score = 0;
 
@@ -1951,8 +1988,10 @@
   // token match plus the presence of aria-haspopup (the overflow always
   // opens a menu), so we don't mistake a plain icon button for it.
   function findMoreOptionsButton() {
-    const root = findToolbarRoot() || document;
-    const buttons = qsa("div[role='button'], button, span[role='button']", root);
+    // 9.6: the same walk, for the same reason. This control is clicked
+    // to open the menu the label item is then clicked in, so it is one
+    // step further from the delete but on the same road.
+    const buttons = toolbarCandidates();
     let best = null;
     let bestScore = 0;
     for (const el of buttons) {
@@ -3015,6 +3054,35 @@
     }
 
     return 0.05;
+  }
+
+  // 9.6: how many megabytes one pass books against the recovery log,
+  // which is where "waiting in Trash" is measured from.
+  //
+  // A one-line expression at the send site until this release, and it
+  // rounded to a tenth THERE, per pass, with the worker summing the
+  // rounded values. Rounding is symmetric, so every pass below a
+  // half-tenth was free to round up: forty passes clearing three
+  // leftovers each at the 0.05 default read 8.0 MB against a real 6.0,
+  // and passes clearing one message each read double. Every surface
+  // labels that figure "at least", and the same run's own freed total is
+  // accumulated unrounded, so one run printed two numbers that could not
+  // agree.
+  //
+  // Named and exported rather than left inline for 8.12's reason: this
+  // is arithmetic behind a figure the product is bought for, and a
+  // source pin on an expression says nothing about what the run does
+  // with it. The worker floors and stores it; GCC.formatMb is the only
+  // thing that rounds it for a reader.
+  //
+  // 8.9 governs the first branch: archived mail never leaves the account
+  // and stays against the quota, so it is not waiting for anything and
+  // books no megabytes anywhere.
+  function mbMovedForPass(affectedThisPass, mbPerEmail, archiving) {
+    if (archiving) return 0;
+    const affected = Math.max(0, Number(affectedThisPass) || 0);
+    const per = Math.max(0, Number(mbPerEmail) || 0);
+    return affected * per;
   }
 
   // =========================
@@ -4741,12 +4809,13 @@
                   // are still inside Gmail's 30-day window, so it is the
                   // only place the "waiting in Trash" figure can be
                   // measured from, and it held counts and no sizes.
-                  // Zero for an archive run, for the 8.9 reason: archived
-                  // mail never leaves the account, so it is not waiting
-                  // for anything and books no megabytes anywhere.
-                  mbMoved: CONFIG.archiveInsteadOfDelete
-                    ? 0
-                    : Math.round(affectedThisPass * mbPerEmail * 10) / 10,
+                  // 9.6: unrounded, and behind a named function so the
+                  // suite can drive it. See mbMovedForPass.
+                  mbMoved: mbMovedForPass(
+                    affectedThisPass,
+                    mbPerEmail,
+                    CONFIG.archiveInsteadOfDelete
+                  ),
                   tagLabel: tagLabel || "",
                   intensity: CONFIG.intensity,
                   sampledMessageIds: lastBatchSamples.threadIds.slice(0, 50),
@@ -7605,17 +7674,21 @@
     );
   }
 
-  // Candidate walk shared by the two toolbar finders: toolbar-scoped
+  // Candidate walk shared by the two restore finders: toolbar-scoped
   // buttons, minus anything inside a list row or a message body (both
   // can carry sender-controlled or per-row text), minus anything on the
   // deny-list. The deny check runs BEFORE any scoring so a "Delete
   // forever" control can never win, no matter what its label also says.
+  //
+  // 9.6: this is now one function with the walk the delete, archive,
+  // label and overflow finders use. It was two copies with different
+  // filters, which is how the restore path ended up better scoped than
+  // the delete path; the name stays because every caller here is a
+  // restore caller. Kept as a declaration, not an arrow: every finder in
+  // this file is hoisted and one of them being in a temporal dead zone
+  // would be a runtime error nothing here reads as one.
   function restoreCandidates(root) {
-    const scope = root || findToolbarRoot() || document;
-    return qsa("div[role='button'], button, span[role='button']", scope)
-      .filter((el) => !el.closest("tr[role='row']"))
-      .filter((el) => !el.closest(SELECTORS.messageBody))
-      .filter((el) => !hasDeleteForeverMarking(el));
+    return toolbarCandidates(root);
   }
 
   // The direct "Move to Inbox" button (All Mail / archive views, and
@@ -8393,6 +8466,10 @@
       STORAGE_XRAY,
       foldStorageSample,
       estimateMbPerEmail,
+      // 9.6: the megabytes one pass books against the recovery log, so
+      // the "waiting in Trash" floor can be driven end to end instead of
+      // pinned as an expression.
+      mbMovedForPass,
       // 7.8 smart scan fixtures
       SMART_SCAN,
       smartSenderShape,

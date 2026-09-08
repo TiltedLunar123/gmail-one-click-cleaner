@@ -237,17 +237,29 @@ describe("the expired census cannot reach the unattended delete path", () => {
 
 describe("the erase takes every list that holds an address", () => {
   test("the key list is enumerated by name, and the count is derived from it", () => {
-    // Never toHaveLength(6). A count says "six keys are erased", never
-    // "all the keys are erased", and it stays green on the day a seventh
-    // store is added and forgotten. This repo has been burned by a count
-    // pin three times.
-    const block = between(WORKER, "const ERASE_KEYS = Object.freeze([", "]);");
+    // Never toHaveLength(14). A count says "fourteen keys are erased",
+    // never "all the keys are erased", and it stays green on the day a
+    // fifteenth store is added and forgotten. This repo has been burned
+    // by a count pin three times.
+    //
+    // 9.6: the names moved into ERASE_VALUES and ERASE_KEYS is derived
+    // from it, because two literals that had to agree was a hazard at
+    // six entries and a bug waiting to happen at fourteen.
+    const block = between(WORKER, "const ERASE_VALUES = Object.freeze({", "});");
     const WANT = [
       "STORAGE_KEYS.CENSUS", "STORAGE_KEYS.RECEIPTS", "STORAGE_KEYS.CENSUS_CHECKED",
-      "STORAGE_KEYS.XRAY_CHECKED", "STORAGE_KEYS.SMART_CHECKED", "STORAGE_KEYS.SUBS_CHECKED"
+      "STORAGE_KEYS.XRAY_CHECKED", "STORAGE_KEYS.SMART_CHECKED", "STORAGE_KEYS.SUBS_CHECKED",
+      // 9.6: the four scans, the feedback map and the three pending
+      // markers, all of which hold the user's correspondents by address
+      // and none of which anything removed before this release.
+      "STORAGE_KEYS.REPORT", "STORAGE_KEYS.STORAGE_XRAY", "STORAGE_KEYS.SMART_SCAN",
+      "STORAGE_KEYS.SUBSCRIPTIONS", "STORAGE_KEYS.SMART_FEEDBACK",
+      "STORAGE_KEYS.REPORT_PENDING", "STORAGE_KEYS.XRAY_PENDING", "STORAGE_KEYS.SMART_PENDING"
     ];
     for (const key of WANT) expect(block).toContain(key);
-    expect(block.split(",").filter((s) => s.includes("STORAGE_KEYS.")).length).toBe(WANT.length);
+    expect((block.match(/STORAGE_KEYS\./g) || []).length).toBe(WANT.length);
+    // Derived, so the two can no longer disagree.
+    expect(WORKER).toContain("const ERASE_KEYS = Object.freeze(Object.keys(ERASE_VALUES));");
   });
 
   test("every tick key the worker names is spelled the way the popup writes it", () => {

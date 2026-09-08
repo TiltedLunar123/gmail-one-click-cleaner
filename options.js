@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const OPTIONS_VERSION = "9.5.0";
+  const OPTIONS_VERSION = "9.6.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -870,21 +870,30 @@
     const confirmed = await showConfirmDialog({
       title: "Erase Stored Sender Data?",
       // It names what it takes, the consequence the user would otherwise
-      // meet weeks later, and the address-bearing stores it does NOT
-      // reach. The last part matters: a sentence that lists only rules
-      // and history as untouched reads as a claim that everything else
-      // went, and the subscription, storage, suggestion and mailbox
-      // report scans all keep sender lists of their own.
-      body: "This removes the sender census, your unsubscribe receipts, and the senders you "
-        + "ticked in the census, storage, suggestion and subscription lists. Scheduled "
-        + "cleanups will stop clearing those ticked senders. It does not touch your rules, "
-        + "whitelist, recovery log or cleanup history, and it does not clear the subscription, "
-        + "storage, suggestion or mailbox report scans themselves, which keep their own sender "
-        + "lists until you run them again. A config export does not back any of this up.",
+      // meet weeks later, and what it leaves.
+      //
+      // 9.6: the second half of this used to be a list of the stores the
+      // erase did NOT reach, which was honest and was the wrong shape of
+      // honest. The four scans go now, so the sentence names the price
+      // instead: the report the popup opens on comes back empty and the
+      // three lists ask for a scan. The recovery log stays, and saying so
+      // is the point, because the one thing a user erasing sender data
+      // must not be made to wonder about is whether they have just given
+      // up the mail waiting in Trash.
+      body: "This removes everything the extension knows about who emails you: the sender "
+        + "census, your unsubscribe receipts, the senders you ticked in those lists, and the "
+        + "sender lists behind the mailbox report, the storage X-ray, the suggestions and the "
+        + "subscription scan. Those four go back to asking for a scan, and scheduled cleanups "
+        + "stop clearing the senders you had ticked. It does not touch your rules, whitelist, "
+        + "schedules, Pro key or cleanup history, and it does not touch your recovery log, so "
+        + "anything waiting in Trash can still be restored. A config export does not back any "
+        + "of this up.",
       confirmLabel: "Erase",
       fallback: "Erase stored sender data?\n\nThis removes the sender census, your unsubscribe "
-        + "receipts and the senders you ticked in those lists.\nScheduled cleanups will stop "
-        + "clearing those senders.\nThis cannot be undone."
+        + "receipts, the senders you ticked in those lists, and the sender lists behind the "
+        + "mailbox report, storage X-ray, suggestions and subscription scan.\nThose four go back "
+        + "to asking for a scan, and scheduled cleanups stop clearing the senders you had "
+        + "ticked.\nYour recovery log is not touched.\nThis cannot be undone."
     });
     if (!confirmed) return;
 
@@ -897,7 +906,10 @@
       const resp = await GCC.sendMessage({ type: "gmailCleanerEraseStores" });
       if (resp?.ok) {
         GCC.showToast("Stored sender data erased", "success");
-        srStatus("Sender census, unsubscribe receipts and ticked senders erased.");
+        srStatus(
+          "Sender census, unsubscribe receipts, ticked senders and the mailbox report, "
+          + "storage, suggestion and subscription scans erased. Your recovery log is unchanged."
+        );
       } else {
         GCC.showToast("Nothing was erased. The write did not go through.", "error", 8000);
         srStatus("Erase failed. Nothing was removed.");

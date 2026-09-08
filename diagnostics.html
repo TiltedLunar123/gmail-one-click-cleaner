@@ -719,7 +719,7 @@
     <header class="page-header">
       <div class="title-row">
         <h1 id="main-content" tabindex="-1">Gmail One-Click Cleaner Diagnostics</h1>
-        <span class="badge" aria-label="Version 9.5.0">v9.5.0</span>
+        <span class="badge" aria-label="Version 9.6.0">v9.6.0</span>
         <span class="badge-secondary" id="diagVersionBadge" aria-label="Runtime snapshot">runtime snapshot</span>
         <div class="theme-switcher" id="themeSwitcher" role="group" aria-label="Color theme" style="margin-left:auto;">
           <button type="button" data-theme-value="system" aria-pressed="true">Auto</button>
@@ -975,7 +975,11 @@
            the extension is holding and confirm that the Erase button on
            the Options page did what it said, which is why it is never
            hidden when the stores are empty: a card that vanishes is a
-           worse answer than one that says nothing is stored. -->
+           worse answer than one that says nothing is stored.
+           9.6: and it now counts every store that button clears. It used
+           to end on a paragraph naming four scans it did not count and
+           the button did not clear, which is a card explaining why it
+           cannot do its own job. -->
       <section class="card" aria-labelledby="stores-heading">
         <div class="card-header">
           <h2 id="stores-heading"><span class="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v6c0 1.6 3.4 2.9 7.5 2.9s7.5-1.3 7.5-2.9v-6"/><path d="M4.5 11.5v6c0 1.6 3.4 2.9 7.5 2.9s7.5-1.3 7.5-2.9v-6"/></svg></span> On-device sender data</h2>
@@ -1003,14 +1007,17 @@
             <div class="env-label">Ticked senders</div>
             <div class="env-value" id="storesTicked">-</div>
           </div>
+          <div class="env-item" role="listitem">
+            <div class="env-label">Senders held by scans</div>
+            <div class="env-value" id="storesScans">-</div>
+          </div>
         </div>
 
         <p class="muted" style="margin-top: 12px;">
           Counts only. No address is shown here or copied by Copy Diagnostics. A census is
           not used once it is three months old, and is cleared for you. Receipts are kept
-          until you erase them, because a receipt is only useful once it is old. The
-          subscription, storage, suggestion and mailbox report scans keep their own sender
-          lists, which this card does not count and the Erase button does not clear.
+          until you erase them, because a receipt is only useful once it is old. Everything
+          counted here is removed by the Erase button on the Options page.
         </p>
       </section>
 
