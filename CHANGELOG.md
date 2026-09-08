@@ -3,6 +3,89 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 9.6.0 - Erase means erase
+
+The Options page has a button reading Erase Stored Sender Data, under a
+heading reading Stored Sender Data. It cleared six things. Eight more
+stores held the addresses of people who email you, and nothing in the
+extension removed any of them.
+
+They were not hidden. The Diagnostics page said, in as many words, that
+the mailbox report and the subscription, storage and suggestion scans
+"keep their own sender lists, which this card does not count and the
+Erase button does not clear", and the confirmation dialog said the same
+thing at greater length. That is a control whose own copy explains why
+it does not do what its label says. It is the same shape as the word
+"Freed" in 9.5, in a smaller room, and it has the same answer: make the
+control do the thing, then delete the paragraph that existed to excuse
+it.
+
+Two other numbers turned out to be measured through the wrong filter,
+which is this project's oldest habit, and the guidance panel 9.5 shipped
+inside Gmail was going to the wrong tab.
+
+### Changed
+- **Erase Stored Sender Data now erases all of it.** The sender census,
+  your unsubscribe receipts, the four ticked-sender lists, the mailbox
+  report, the storage X-ray, the suggestion scan, the subscription scan,
+  the record of which suggestions you approved or dismissed, and the
+  three markers naming senders a run was part way through acting on. One
+  write, as before. The price is stated up front rather than discovered:
+  the four scans go back to asking for a scan, so the report the popup
+  opens on comes back empty until you run one.
+- **Your recovery log is not touched, and the dialog says so.** It is
+  what restores mail from Trash. An erase that quietly gave up the last
+  30 days of recoverable cleanups would be a worse surprise than
+  anything it removed. It still has its own Clear button on the Stats
+  page.
+- **The Diagnostics card counts the scans instead of explaining that it
+  cannot.** A new row, still counts only, still no address on the page
+  and none in Copy Diagnostics. Its chip can now say "these are empty"
+  and mean it.
+
+### Fixed
+- **"Waiting in Trash" was not a floor.** Every surface labels that
+  figure "at least" and it was rounded once per pass before being added
+  up, so a run of small passes could only grow. Forty passes clearing
+  three leftovers apiece reported 8 MB against a real 6, and a run whose
+  passes cleared one message each reported double. The same run's own
+  moved-to-Trash total is worked out without rounding, so one run
+  printed two figures that could not agree. Rounded once now, where it
+  is displayed.
+- **The note inside Gmail went to the wrong tab.** Opening Trash from
+  the popup, the progress page or Stats leaves a one-shot mark for the
+  panel that explains Gmail's Empty Trash link. The mark named the
+  mailbox, and a mailbox does not tell two tabs apart, so with a second
+  Gmail open on the same account the panel could be claimed by the tab
+  that had not gone anywhere, and the tab actually sitting in Trash was
+  told there was nothing for it. 9.5 guarded two signed-in accounts and
+  missed the commoner case.
+- **The Delete button the engine looks for could be one a sender wrote.**
+  The search is normally scoped to Gmail's toolbar and reaches no message
+  body. With the toolbar missing, which is the layout change the engine
+  already stops for, it fell back to the whole page, and a control
+  reading Delete is markup anyone can put in an email. The three filters
+  the Restore finders have run since 7.6 now run on the delete, archive,
+  label and overflow finders too, out of one shared list rather than two
+  that had drifted. Links are refused outright: Gmail's toolbar controls
+  are not links, and following one mid-run is how a run gets abandoned.
+- **The Stats page said the 9.5 Trash sentence in English.** All seven
+  translations of it already existed; the page was building the sentence
+  itself instead of asking for one. It also had a second wording of the
+  same fact, which is how one figure starts reading as two.
+
+### Internal
+- The erase list is one list. The keys and their cleared values were two
+  literals that had to agree, which was a reading hazard at six entries
+  and a bug waiting at fourteen.
+- The per-pass size and the toolbar candidate walk are named functions
+  the tests drive, rather than expressions a test can only read. An
+  assertion on the source of an expression says nothing about what the
+  run does with it, which 9.1 learned the hard way.
+- Five suites, 66 assertions, every one of them proved to fail on 9.5.0
+  before the fix that answers it.
+
+
 ## 9.5.0 - Say where the space went
 
 This extension is sold on freeing up Gmail storage, and every delete run

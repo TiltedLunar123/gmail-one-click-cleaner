@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "9.5.0";
+  const POPUP_VERSION = "9.6.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -7282,20 +7282,64 @@ document.addEventListener("DOMContentLoaded", () => {
         renderReceipts();
       }
 
-      // The other three tick lists belong to scans this write says
-      // nothing about, so they go only on the erase signature: both
-      // records null in one batch, which is what eraseSenderStores'
-      // single set produces and which nothing else can.
+      // Everything below belongs to scans this write says nothing about
+      // on its own, so it goes only on the erase signature: both records
+      // null in one batch, which is what eraseSenderStores' single set
+      // produces and which nothing else can.
       if (!censusGone || !receiptsGone) return;
+
+      // 9.6: the four scans go too, because the erase now takes them.
+      //
+      // Clearing the ticks and leaving the lists was right while the
+      // stores survived: the rows on screen still described something
+      // real. Now they do not. An open popup would have gone on showing
+      // an X-ray, a suggestion list, a subscription list and a mailbox
+      // report built from senders that are no longer stored anywhere,
+      // with working buttons on them, which is the "shown number vs
+      // reality" defect this project keeps finding, pointed at the one
+      // control a user reaches for when they want the data gone.
+      //
+      // The report is the visible cost of the honest version: the tab
+      // the popup opens on goes back to its pre-scan state and asks for
+      // a scan. That is what an erase means, and hiding it by keeping a
+      // copy in memory would be the same lie in a smaller room.
       state.xray.checked = new Set();
       state.smart.checked = new Set();
       state.subs.checked = new Set();
+
+      state.xray.senders = [];
+      state.xray.totalMb = 0;
+      state.xray.totalCount = 0;
+
+      state.smart.senders = [];
+      state.smart.feedback = { bySender: {} };
+      state.smart.visibleCount = 0;
+      state.smart.sweepableCount = 0;
+      state.smart.heldBackSenders = 0;
+      state.smart.heldBackCount = 0;
+      state.smart.guards = null;
+      state.smart.scanned = false;
+
+      state.subs.senders = [];
+
+      state.report.bands = [];
+      state.report.cleanableCount = 0;
+      state.report.cleanableAtLeast = false;
+      state.report.guardedOutCount = 0;
+      state.report.largeMb = 0;
+      state.report.topSenders = [];
+      state.report.updatedAt = 0;
+      state.report.failedQueries = 0;
+      state.report.totalQueries = 0;
+      state.report.guards = null;
+
       // Re-render rather than only clearing state: these lists read
       // their targets off the live checkboxes, so a tick left painted on
       // screen is still a tick that would run.
       renderXrayList();
       renderSmartList();
       renderSubsList();
+      renderReport();
     });
   };
 

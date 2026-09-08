@@ -5,7 +5,7 @@
   // Constants & Configuration
   // =========================
 
-  const DIAGNOSTICS_VERSION = "9.5.0";
+  const DIAGNOSTICS_VERSION = "9.6.0";
 
   const CONFIG = Object.freeze({
     MAX_URL_LENGTH: 120,
@@ -58,6 +58,7 @@
     storesReceiptCount: "storesReceiptCount",
     storesReceiptAt: "storesReceiptAt",
     storesTicked: "storesTicked",
+    storesScans: "storesScans",
 
     copyLogBtn: "copyLogBtn",
     clearLogBtn: "clearLogBtn",
@@ -118,6 +119,7 @@
     storesReceiptCount: GCC.$(SELECTORS.storesReceiptCount),
     storesReceiptAt: GCC.$(SELECTORS.storesReceiptAt),
     storesTicked: GCC.$(SELECTORS.storesTicked),
+    storesScans: GCC.$(SELECTORS.storesScans),
 
     copyLogBtn: GCC.$(SELECTORS.copyLogBtn),
     clearLogBtn: GCC.$(SELECTORS.clearLogBtn),
@@ -577,7 +579,13 @@
     try {
       const r = await GCC.storageGet("local", [
         "senderCensus", "unsubReceipts",
-        "censusCheckedEmails", "xrayCheckedEmails", "smartCheckedEmails", "subsCheckedEmails"
+        "censusCheckedEmails", "xrayCheckedEmails", "smartCheckedEmails", "subsCheckedEmails",
+        // 9.6: the four scans, now that the Erase button takes them. The
+        // card's job is to let someone confirm the button did what it
+        // said, so it has to count everything the button clears; while
+        // these were outside it, the card carried a paragraph explaining
+        // that they were outside it, which is a worse answer than a row.
+        "mailboxReport", "storageXray", "smartScan", "subscriptionScan"
       ]);
       const census = r?.senderCensus || null;
       const receipts = r?.unsubReceipts || null;
@@ -596,6 +604,21 @@
       const receiptList = Array.isArray(receipts?.list) ? receipts.list : [];
       const receiptAt = Number(receipts?.updatedAt) || 0;
       const tickTotal = ticks.reduce((sum, [, n]) => sum + n, 0);
+
+      // Counts, never addresses: the same rule the rows above follow and
+      // the one Copy Diagnostics depends on. A report holds its senders
+      // per band, so they are summed across bands rather than counted as
+      // bands.
+      const len = (v) => (Array.isArray(v) ? v.length : 0);
+      const reportSenders = (r?.mailboxReport?.topSenders || [])
+        .reduce((sum, band) => sum + len(band?.senders), 0);
+      const scans = [
+        ["report", reportSenders],
+        ["storage", len(r?.storageXray?.senders)],
+        ["suggested", len(r?.smartScan?.senders)],
+        ["subscriptions", len(r?.subscriptionScan?.senders)]
+      ];
+      const scanTotal = scans.reduce((sum, [, n]) => sum + n, 0);
 
       const set = (el, text, absolute) => {
         if (!el) return;
@@ -622,16 +645,21 @@
         tickTotal ? ticks.map(([label, n]) => `${label} ${n}`).join(" · ") : "none ticked"
       );
 
-      const nothing = !censusCount && !receiptList.length && !tickTotal;
+      set(
+        elements.storesScans,
+        scanTotal ? scans.map(([label, n]) => `${label} ${n}`).join(" · ") : "none stored"
+      );
+
+      const nothing = !censusCount && !receiptList.length && !tickTotal && !scanTotal;
       const expired = Boolean(census) && GCC.census.isExpired(census);
       elements.storesTag.className = expired ? "tag tag-warning" : (nothing ? "tag" : "tag tag-primary");
-      // "these are empty", not "nothing is stored". The card covers the
-      // two stores the Erase button clears and the four tick lists that
-      // go with them; the mailbox report, the subscription, storage and
-      // suggestion scans and the suggestion feedback all hold sender
-      // addresses too and are outside both this card and that button. A
-      // chip reading "nothing stored" over a mailbox report full of top
-      // senders would be the kind of claim this card exists to avoid.
+      // 9.6: "these are empty" can finally mean it. The card counts
+      // every store the Erase button clears, so the chip is a statement
+      // about all of them rather than about the six it used to see. The
+      // suggestion feedback map is the one thing erased and not counted:
+      // it is a record of what the USER did with a suggestion rather
+      // than a list the scans produced, and a row for it would need a
+      // second sentence to explain itself.
       elements.storesTag.textContent = expired
         ? "census expired, not used"
         : (nothing ? "these are empty" : "current");

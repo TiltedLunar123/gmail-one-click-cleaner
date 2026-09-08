@@ -81,10 +81,22 @@ describe("the erase control", () => {
     expect(OPTIONS_HTML).not.toMatch(/aria-label="Version \d/);
   });
 
-  test("the confirmation names the consequence the user would meet later", () => {
-    const fn = between(OPTIONS, "const eraseStoredData =", "\n  const ");
-    expect(fn).toContain("Scheduled ");
-    expect(fn.toLowerCase()).toContain("export does not back");
+  test("the confirmation names the consequences the user would meet later", () => {
+    // 9.6: case-folded. This pinned the literal "Scheduled " with a
+    // capital S, so moving the clause into the middle of a sentence
+    // turned a correct copy change red for its capitalisation. Fourth
+    // time a literal pin has done that here (8.18's ink bar, 9.1's
+    // minAge, 9.4's t18 case label). Pin the property.
+    const fn = between(OPTIONS, "const eraseStoredData =", "\n  const ").toLowerCase();
+    expect(fn).toContain("scheduled ");
+    expect(fn).toContain("export does not back");
+    // 9.6: and the second consequence, now that the erase takes the four
+    // scans: the report the popup opens on comes back empty.
+    expect(fn).toContain("asking for a scan");
+    // The one thing it must promise survives, because a user erasing
+    // sender data must not be left wondering whether they have given up
+    // the mail waiting in Trash.
+    expect(fn).toContain("recovery log");
   });
 
   test("it goes through the worker and never writes storage itself", () => {
@@ -122,7 +134,9 @@ describe("the diagnostics card shows counts and never an address", () => {
     // The elements cache resolves once at parse time and a name that
     // disagrees with SELECTORS is silent.
     for (const key of ["storesTag", "storesCensusCount", "storesCensusAt",
-      "storesReceiptCount", "storesReceiptAt", "storesTicked"]) {
+      "storesReceiptCount", "storesReceiptAt", "storesTicked",
+      // 9.6: the row counting the four scans the Erase button now takes.
+      "storesScans"]) {
       expect(DIAG_HTML).toContain(`id="${key}"`);
       expect(DIAG).toContain(`${key}: "${key}"`);
       expect(DIAG).toContain(`${key}: GCC.$(SELECTORS.${key})`);

@@ -44,21 +44,28 @@ exactly why.
   from the same sender again replaces that sender's receipt, and the erase control below
   removes the whole ledger on demand.
 
-- **Erasing it yourself.** The Options page has an Erase Stored Sender Data button. It removes
-  six things from this browser in one write: the sender census, the unsubscribe receipt
-  ledger, and the four lists of senders you have ticked in the census, storage, suggestion and
-  subscription panels. Every one of those holds real addresses. It asks you to confirm first,
-  and it tells you the consequence you would otherwise find out later, which is that scheduled
-  cleanups stop clearing the census senders you had ticked. What it does not reach, named
-  rather than counted, because this is the kind of list that grows. Your cleanup history and
-  your recovery log keep the search queries that past runs used, and a census clear or a
-  receipts clear is an ordinary cleanup run, so those queries can contain the addresses those
-  runs acted on; the recovery log has its own Clear button on the Stats page. The subscription,
-  storage and suggestion scan results stay until you run those scans again or uninstall, since
-  the button clears the senders you ticked in them rather than the scans themselves. The
-  mailbox report keeps the top senders it found, and the suggestion feedback keeps the senders
-  you have approved or dismissed. Exporting your settings does not back any of this up, so an
-  export is not a way to undo the erase and a settings backup is not a way to get it back.
+- **Erasing it yourself.** The Options page has an Erase Stored Sender Data button. As of
+  9.6 it removes every store in this browser that holds an address, in one write: the sender
+  census, the unsubscribe receipt ledger, the four lists of senders you have ticked in the
+  census, storage, suggestion and subscription panels, the mailbox report with the top
+  senders it found, the storage X-ray, the suggestion scan, the subscription scan, the record
+  of which suggestions you approved or dismissed, and the three markers naming the senders a
+  run was part way through acting on. Before 9.6 it removed the first six of those and left
+  the rest, which is why earlier versions of this page listed them as surviving. It asks you
+  to confirm first, and it tells you the consequences you would otherwise find out later:
+  scheduled cleanups stop clearing the census senders you had ticked, and the four scans go
+  back to asking for a scan, so the mailbox report the popup opens on comes back empty until
+  you run one.
+
+  What it does not reach, named rather than counted, because this is the kind of list that
+  grows. Your cleanup history and your recovery log keep the search queries that past runs
+  used, and a census clear or a receipts clear is an ordinary cleanup run, so those queries
+  can contain the addresses those runs acted on. The recovery log is left alone on purpose:
+  it is what restores mail from Trash, and an erase that quietly gave up your last thirty
+  days of recoverable cleanups would be a worse surprise than anything it removed. It has its
+  own Clear button on the Stats page. Exporting your settings does not back any of this up,
+  so an export is not a way to undo the erase and a settings backup is not a way to get it
+  back.
 
 - **What your browser syncs.** Your settings, cleanup rules, custom rules, protected
   keywords, schedules, Auto-Pilot configuration, your sender whitelist and your Pro license

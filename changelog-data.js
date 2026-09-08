@@ -6,13 +6,132 @@
 // even of a file inside the package, would end the extension's
 // no-network-calls promise.
 //
-// Carries the newest 12 of 88 releases; the page says so
+// Carries the newest 12 of 89 releases; the page says so
 // and links the full log on GitHub.
 
 // eslint-disable-next-line no-unused-vars
 var GCC_CHANGELOG = {
-  "total": 88,
+  "total": 89,
   "entries": [
+    {
+      "version": "9.6.0",
+      "title": "Erase means erase",
+      "intro": [
+        "The Options page has a button reading Erase Stored Sender Data, under a heading reading Stored Sender Data. It cleared six things. Eight more stores held the addresses of people who email you, and nothing in the extension removed any of them.",
+        "They were not hidden. The Diagnostics page said, in as many words, that the mailbox report and the subscription, storage and suggestion scans \"keep their own sender lists, which this card does not count and the Erase button does not clear\", and the confirmation dialog said the same thing at greater length. That is a control whose own copy explains why it does not do what its label says. It is the same shape as the word \"Freed\" in 9.5, in a smaller room, and it has the same answer: make the control do the thing, then delete the paragraph that existed to excuse it.",
+        "Two other numbers turned out to be measured through the wrong filter, which is this project's oldest habit, and the guidance panel 9.5 shipped inside Gmail was going to the wrong tab."
+      ],
+      "sections": [
+        {
+          "name": "Changed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "Erase Stored Sender Data now erases all of it."
+                ],
+                [
+                  "",
+                  " The sender census, your unsubscribe receipts, the four ticked-sender lists, the mailbox report, the storage X-ray, the suggestion scan, the subscription scan, the record of which suggestions you approved or dismissed, and the three markers naming senders a run was part way through acting on. One write, as before. The price is stated up front rather than discovered: the four scans go back to asking for a scan, so the report the popup opens on comes back empty until you run one."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "Your recovery log is not touched, and the dialog says so."
+                ],
+                [
+                  "",
+                  " It is what restores mail from Trash. An erase that quietly gave up the last 30 days of recoverable cleanups would be a worse surprise than anything it removed. It still has its own Clear button on the Stats page."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The Diagnostics card counts the scans instead of explaining that it cannot."
+                ],
+                [
+                  "",
+                  " A new row, still counts only, still no address on the page and none in Copy Diagnostics. Its chip can now say \"these are empty\" and mean it."
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Fixed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "\"Waiting in Trash\" was not a floor."
+                ],
+                [
+                  "",
+                  " Every surface labels that figure \"at least\" and it was rounded once per pass before being added up, so a run of small passes could only grow. Forty passes clearing three leftovers apiece reported 8 MB against a real 6, and a run whose passes cleared one message each reported double. The same run's own moved-to-Trash total is worked out without rounding, so one run printed two figures that could not agree. Rounded once now, where it is displayed."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The note inside Gmail went to the wrong tab."
+                ],
+                [
+                  "",
+                  " Opening Trash from the popup, the progress page or Stats leaves a one-shot mark for the panel that explains Gmail's Empty Trash link. The mark named the mailbox, and a mailbox does not tell two tabs apart, so with a second Gmail open on the same account the panel could be claimed by the tab that had not gone anywhere, and the tab actually sitting in Trash was told there was nothing for it. 9.5 guarded two signed-in accounts and missed the commoner case."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The Delete button the engine looks for could be one a sender wrote."
+                ],
+                [
+                  "",
+                  " The search is normally scoped to Gmail's toolbar and reaches no message body. With the toolbar missing, which is the layout change the engine already stops for, it fell back to the whole page, and a control reading Delete is markup anyone can put in an email. The three filters the Restore finders have run since 7.6 now run on the delete, archive, label and overflow finders too, out of one shared list rather than two that had drifted. Links are refused outright: Gmail's toolbar controls are not links, and following one mid-run is how a run gets abandoned."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The Stats page said the 9.5 Trash sentence in English."
+                ],
+                [
+                  "",
+                  " All seven translations of it already existed; the page was building the sentence itself instead of asking for one. It also had a second wording of the same fact, which is how one figure starts reading as two."
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Internal",
+          "items": [
+            {
+              "text": "The erase list is one list. The keys and their cleared values were two literals that had to agree, which was a reading hazard at six entries and a bug waiting at fourteen."
+            },
+            {
+              "text": "The per-pass size and the toolbar candidate walk are named functions the tests drive, rather than expressions a test can only read. An assertion on the source of an expression says nothing about what the run does with it, which 9.1 learned the hard way."
+            },
+            {
+              "text": "Five suites, 66 assertions, every one of them proved to fail on 9.5.0 before the fix that answers it."
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "9.5.0",
       "title": "Say where the space went",
@@ -1229,238 +1348,6 @@ var GCC_CHANGELOG = {
                   " When the select-all checkbox does not take, the cleaner falls back to ticking each row itself. It was ticking rows in the leftover invisible list, so nothing on screen ended up selected, which the cleaner reads as \"Gmail has changed underneath me\" and stops. The fallback that exists to rescue a run was making sure it failed."
                 ]
               ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "version": "8.21.0",
-      "title": "It reads the mailbox, not the mail",
-      "intro": [
-        "Fourteen fixes. The one that matters most: on a Japanese, Korean, Chinese, Russian, Arabic, Swedish, Danish, Norwegian, Polish, Turkish, Dutch, Italian, Spanish or Portuguese Gmail, the cleaner could not use Gmail's \"select all conversations that match\" offer at all, so big cleanups crawled fifty at a time and gave up with most of the mail still there. That is fixed for every language the cleaner speaks.",
-        "The rest are mostly the same shape twice over: a number read out of your mail instead of out of Gmail's own toolbar, and a guard that had been added in one place and not in the identical place next to it."
-      ],
-      "sections": [
-        {
-          "name": "Fixed",
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "Bulk cleanup works in every language now."
-                ],
-                [
-                  "",
-                  " When a rule matches thousands of conversations, Gmail offers to select all of them at once, and taking that offer is what turns an hour of paging into one action. The cleaner only recognised that offer in English, German and French. Everywhere else it never saw it, so it deleted a page at a time until it hit its own pass limit and stopped, leaving most of the mail behind. It now recognises the offer in all seventeen languages it drives Gmail in. Spanish and Portuguese were doubly affected: the wording it looked for did not allow for Gmail naming the number in the middle of the sentence, which it always does."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A subject line can no longer be mistaken for the results counter."
-                ],
-                [
-                  "",
-                  " When Gmail will not say how many conversations a search found, the cleaner reads what it can off the page. It was willing to take that number from an email in the list, so a promotional subject like \"Sale 10-20% off: 5000 items left\" could be read as the size of the job. That number is what the \"this will delete about N conversations\" warning is based on, so a wrong one meant no warning at all. It only reads Gmail's own counter now, and it will not read one out of a message."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Nor for a selection count."
-                ],
-                [
-                  "",
-                  " The same shape, one step over: a subject like \"You have been selected for 3 free rewards\" was read as \"3 conversations are selected\". That mattered because a count of zero is how the cleaner notices Gmail has changed its layout and stops with a clear explanation. With a number invented from a subject line it carried on instead, clicking Delete on an empty selection and retrying every rule until it ran out of attempts."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Escape in the log filter no longer cancels the cleanup."
-                ],
-                [
-                  "",
-                  " The progress page has a \"Filter logs\" box. Typing in it and pressing Escape to clear it, which is what Escape does in every search box, stopped the run instead. Escape still closes a dialog and still cancels from anywhere else on the page."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A scheduled cleanup will not pick up your Chat window."
-                ],
-                [
-                  "",
-                  " Gmail serves Chat from the same address as your mail. An unattended cleanup chose whichever of those tabs you were looking at, so if you were chatting when the timer fired, it took that tab, navigated it away from your conversation mid-sentence, and then could not finish. The run was recorded as done, that week's cleanup never happened, and for the next two hours every manual run was refused with \"a cleanup is already running\". Only real mailbox tabs are used now, and the account picker no longer offers a Chat window either."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A preview says what it found."
-                ],
-                [
-                  "",
-                  " The desktop notification after a dry run was headlined \"0 emails moved to Trash\", because a preview does not move anything. Auto-Pilot's first sweep is a preview by design, so this was the first thing it ever said to a new Pro user. It reports what the preview found."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A cleanup that skipped some rules says so, even when it cleared others."
-                ],
-                [
-                  "",
-                  " An unattended run skips a rule too large to run without asking, which is right. If it cleared nothing at all it said so, but if it cleared some it just reported the total, and rules holding tens of thousands of messages went unmentioned. The notification is the only thing an unattended run can tell you, so it now says both."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The Storage caveat is shown before you pay, not after."
-                ],
-                [
-                  "",
-                  " The storage scan measures large mail of any age. The purge only takes mail older than six months, and the sentence explaining that difference was only shown to people who had already bought Pro. Everyone else saw the big reclaimable figure, the sender list, and the Purge button with nothing to say the two numbers are not the same number."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The Auto-Pilot pitch counts what Auto-Pilot can actually do."
-                ],
-                [
-                  "",
-                  " It led with the number of suggestions on screen and offered to sweep \"them\" every week. It only ever sweeps the delete and archive suggestions, so nine on screen could mean two swept. It now counts the ones it will take."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A suggestion stops promising a count once you change your safety switches."
-                ],
-                [
-                  "",
-                  " \"Deletes 40 now\" was measured when you ran the scan. Turn off Skip Unread afterwards and the button would reach far more than 40. The suggestions now notice, say your switches have changed, and stop quoting a figure until you scan again, exactly as the Mailbox Report already did."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The \"held back by your guards\" note no longer exaggerates."
-                ],
-                [
-                  "",
-                  " It counted every message a sender had ever sent, when what the guards actually held back was the smaller set the suggested action would have touched."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "\"Rate 5 stars\" opens one store, and the right one."
-                ],
-                [
-                  "",
-                  " On Firefox it opened two tabs, one of them the Chrome Web Store."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Six more things are readable in the light theme."
-                ],
-                [
-                  "",
-                  " The \"Show guards\" button on the Report tab was invisible. So was the confirmation on \"Force reset\", the name of a second mailbox when you have two Gmail tabs open, a step blocked by Safe Mode, a step you have already cleared, and every scheduled cleanup row on the Options page, including whether it is switched on. All of these only appear in situations a quick look at the extension never reaches, which is why they lasted this long."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "A notification setting that fails to save says so"
-                ],
-                [
-                  "",
-                  " instead of looking as though it saved."
-                ]
-              ]
-            }
-          ]
-        },
-        {
-          "name": "Changed",
-          "items": [
-            {
-              "text": [
-                [
-                  "",
-                  "Norwegian mailboxes get Norwegian search terms whether Gmail reports the language as "
-                ],
-                [
-                  "c",
-                  "nb"
-                ],
-                [
-                  "",
-                  ", "
-                ],
-                [
-                  "c",
-                  "nn"
-                ],
-                [
-                  "",
-                  " or "
-                ],
-                [
-                  "c",
-                  "no"
-                ],
-                [
-                  "",
-                  "."
-                ]
-              ]
-            },
-            {
-              "text": "The privacy policy now describes the page your browser opens when you uninstall. Nothing about that page changed: it carries no information about you or your mail, and it has been described in the security notes since 8.9. It should have been in the policy too."
-            },
-            {
-              "text": "The popup no longer allows a font server it never used in its content security policy."
-            },
-            {
-              "text": "The Duration shown after a run is how long the run took. It used to be how long the progress page had been open, so opening it late, or reloading it, gave a smaller number."
-            },
-            {
-              "text": "The Stats page stops replaying its opening animation every thirty seconds. The charts were collapsing and regrowing, and the totals were counting up from zero again, twice a minute."
             }
           ]
         }

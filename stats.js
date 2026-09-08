@@ -733,14 +733,36 @@ function renderTrashWaiting(log) {
     return;
   }
   if (ui.statsTrashFigure) {
+    // 9.6: through the catalogue, and through the SAME four keys the
+    // popup's trashFigureText uses.
+    //
+    // 9.5 added this sentence to two surfaces and translated it on one.
+    // The popup said it in the reader's language and this page said it
+    // in English, about the same number, measured by the same function,
+    // in the same release. The keys already existed in all seven
+    // catalogues; nothing here needed translating, only calling. It also
+    // ends a smaller divergence: the two surfaces had drifted into two
+    // wordings of one fact ("At least 3 emails are waiting in Trash
+    // (about 4 MB)" against "At least 3 emails (about 4 MB) are waiting
+    // in Trash"), which is how a figure ends up looking like two figures.
     const countText = GCC.formatNumber(count);
     const mb = Number(waiting.mb) || 0;
-    const noun = count === 1 ? "email is" : "emails are";
     // Entries written before 9.5 carry a count and no size, so the
     // clause goes rather than reading "about 0 MB".
-    ui.statsTrashFigure.textContent = mb >= 0.01
-      ? `At least ${countText} ${noun} waiting in Trash (about ${GCC.formatMb(mb)})`
-      : `At least ${countText} ${noun} waiting in Trash`;
+    if (mb >= 0.01) {
+      const mbText = GCC.formatMb(mb);
+      ui.statsTrashFigure.textContent = count === 1
+        ? GCC.i18n.t("trashWaitingOneMb", `At least 1 email (about ${mbText}) is waiting in Trash`, [mbText])
+        : GCC.i18n.t(
+          "trashWaitingManyMb",
+          `At least ${countText} emails (about ${mbText}) are waiting in Trash`,
+          [countText, mbText]
+        );
+    } else {
+      ui.statsTrashFigure.textContent = count === 1
+        ? GCC.i18n.t("trashWaitingOne", "At least 1 email is waiting in Trash")
+        : GCC.i18n.t("trashWaitingMany", `At least ${countText} emails are waiting in Trash`, [countText]);
+    }
   }
   ui.statsTrashWaiting.hidden = false;
 }

@@ -1312,20 +1312,26 @@
       </section>
 
     <!-- Custom Rules Editor -->
-    <!-- 9.1: the two stores built from the user's own mail, and the
-         only control in the extension that removes them. Deliberately
+    <!-- 9.1: the stores built from the user's own mail, and the only
+         control in the extension that removes them. Deliberately
          outside the Backup and Restore section: an export does not back
          any of this up, so filing an erase next to Export would imply a
-         way back that does not exist. -->
+         way back that does not exist.
+         9.6: "the two stores" until this release, while eight more held
+         addresses and nothing removed them. The button's label was
+         always the whole category; now the button is too. -->
     <section class="card" style="margin-top: 24px; animation: fadeInUp 0.35s cubic-bezier(0.4,0,0.2,1) both; animation-delay: 0.12s;" aria-labelledby="storedDataTitle">
       <h2 id="storedDataTitle"><span class="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M9 6V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V6"/><path d="M18.5 6 17.6 19a2 2 0 0 1-2 1.9H8.4a2 2 0 0 1-2-1.9L5.5 6"/><path d="M10 10.5v6M14 10.5v6"/></svg></span> Stored Sender Data</h2>
       <p class="hint">
-        The sender census, your unsubscribe receipts and the senders you have ticked in
-        those lists are built from your mail and kept in this browser. A census is cleared
-        for you once it is three months old, and the senders ticked in it go with it; the
-        receipts stay until you remove them, because a receipt is only useful once it is
-        old. Erasing here removes all of it now. Your rules, whitelist, protected keywords,
-        schedules and Pro key are settings rather than mailbox data, and are not touched.
+        Everything this extension knows about who emails you is built from your mail and
+        kept in this browser: the sender census, your unsubscribe receipts, the senders you
+        have ticked in those lists, and the sender lists behind the mailbox report, the
+        storage X-ray, the suggestions and the subscription scan. A census is cleared for
+        you once it is three months old and its ticks go with it; everything else stays
+        until you remove it. Erasing here removes all of it now, and the four scans go back
+        to asking for a scan. Your rules, whitelist, protected keywords, schedules and Pro
+        key are settings rather than mailbox data, and are not touched, and neither is your
+        recovery log, so anything waiting in Trash can still be restored.
       </p>
       <div class="actions-row" role="group" aria-label="Stored sender data actions">
         <button id="eraseStoresBtn" class="button-link secondary" type="button" aria-describedby="erase-stores-hint">
@@ -1333,9 +1339,10 @@
         </button>
       </div>
       <p id="erase-stores-hint" class="sr-only">
-        Removes the sender census, the unsubscribe receipts and every ticked sender list
-        from this browser. Scheduled cleanups stop clearing the census senders you had
-        ticked. This cannot be undone.
+        Removes the sender census, the unsubscribe receipts, every ticked sender list, and
+        the sender lists held by the mailbox report, the storage X-ray, the suggestions and
+        the subscription scan. Those four go back to asking for a scan. Scheduled cleanups
+        stop clearing the census senders you had ticked. This cannot be undone.
       </p>
     </section>
 
