@@ -13,11 +13,13 @@
  * evening the list either names one UTC date twice or misses one. A run
  * recorded under the missed key was simply not drawn.
  *
- * Pinned in America/New_York on the evening after DST ends, when the
- * hole falls on 2026-11-01.
+ * Pinned to an evening in America/New_York after DST ends, when the
+ * hole falls on 2026-11-01. The zone is simulated on the Date object
+ * rather than taken from the machine: `process.env.TZ` set inside a
+ * jest test lands on the sandbox's copy of the environment and never
+ * reaches V8, so on the UTC runners the file would either pass for the
+ * wrong reason or, with a guard, fail for one. It did the second.
  */
-process.env.TZ = "America/New_York";
-
 const fs = require("fs");
 const path = require("path");
 
@@ -26,9 +28,54 @@ const SHARED = fs.readFileSync(path.join(ROOT, "shared.js"), "utf-8");
 const STATS_JS = fs.readFileSync(path.join(ROOT, "stats.js"), "utf-8");
 const STATS_HTML = fs.readFileSync(path.join(ROOT, "stats.html"), "utf-8");
 
-// 2026-11-05 19:30 EST, which is 2026-11-06 00:30 UTC.
-const FIXED = Date.parse("2026-11-06T00:30:00Z");
 const RealDate = Date;
+const HOUR = 3600000;
+
+// 2026-11-05 19:30 EST, which is 2026-11-06 00:30 UTC.
+const FIXED = RealDate.UTC(2026, 10, 6, 0, 30, 0);
+
+// America/New_York in the window the chart draws (2026-10-08 to
+// 2026-11-06): EDT (UTC-4) until the clocks fall back at 2026-11-01
+// 06:00 UTC (2 am EDT), EST (UTC-5) after. The one transition that
+// matters here, modelled and nothing more.
+const FALL_BACK = RealDate.UTC(2026, 10, 1, 6, 0, 0);
+const offsetAt = (instant) => (instant < FALL_BACK ? -4 : -5) * HOUR;
+
+// A Date whose LOCAL getters and setters speak Eastern time whatever
+// the machine's zone is, and whose UTC methods are the real ones. Only
+// the members the chart's two implementations touch are overridden:
+// the old one stepped with getDate/setDate, the new one reads
+// getUTCFullYear/getUTCMonth/getUTCDate and builds with Date.UTC.
+class EasternDate extends RealDate {
+  constructor(...args) {
+    if (args.length === 0) super(FIXED);
+    else super(...args);
+  }
+  static now() { return FIXED; }
+
+  wall() { return new RealDate(this.getTime() + offsetAt(this.getTime())); }
+
+  getTimezoneOffset() { return -offsetAt(this.getTime()) / 60000; }
+  getFullYear() { return this.wall().getUTCFullYear(); }
+  getMonth() { return this.wall().getUTCMonth(); }
+  getDate() { return this.wall().getUTCDate(); }
+
+  // Keep the wall clock, move the calendar day, then find the instant
+  // that wall clock names under the zone's rules: the same thing V8
+  // does for a real zone.
+  setDate(day) {
+    const wall = this.wall();
+    wall.setUTCDate(day);
+    for (const offset of [-5 * HOUR, -4 * HOUR]) {
+      const instant = wall.getTime() - offset;
+      if (offsetAt(instant) === offset) {
+        this.setTime(instant);
+        return this.getTime();
+      }
+    }
+    throw new Error("no instant for that wall clock, which cannot happen at 19:30");
+  }
+}
 
 const bodyOf = (html) => {
   const start = html.indexOf("<body");
@@ -40,14 +87,7 @@ const bodyOf = (html) => {
 const settle = (ms = 100) => new Promise((r) => setTimeout(r, ms));
 
 beforeAll(() => {
-  class FixedDate extends RealDate {
-    constructor(...args) {
-      if (args.length === 0) super(FIXED);
-      else super(...args);
-    }
-    static now() { return FIXED; }
-  }
-  global.Date = FixedDate;
+  global.Date = EasternDate;
 });
 
 afterAll(() => {
@@ -57,7 +97,10 @@ afterAll(() => {
 beforeEach(() => {
   __resetChromeStorage();
   chrome.runtime.onMessage = { addListener: jest.fn() };
-  chrome.tabs.query = jest.fn(async () => []);
+  chrome.tabs.query = jest.fn((info, cb) => {
+    if (typeof cb === "function") cb([]);
+    return undefined;
+  });
 });
 
 const loadWith = async (dailyStats) => {
@@ -81,10 +124,25 @@ const loadWith = async (dailyStats) => {
 const barLabels = () =>
   [...document.querySelectorAll("#chartBars .chart-bar")].map((b) => b.getAttribute("aria-label"));
 
-test("the machine really is in Eastern time for this file", () => {
-  // If TZ did not take, every assertion below would pass for the wrong
-  // reason on a UTC machine. Say so first.
-  expect(new Date(FIXED).getTimezoneOffset()).toBe(300);
+describe("the simulated zone", () => {
+  test("is Eastern on both sides of the change, whatever the machine says", () => {
+    expect(new Date(FIXED).getTimezoneOffset()).toBe(300);
+    expect(new Date(RealDate.UTC(2026, 9, 31, 23, 30)).getTimezoneOffset()).toBe(240);
+    expect(new Date().getDate()).toBe(5);
+  });
+
+  test("reproduces the hole: stepping local days across the change skips a UTC date", () => {
+    // What the old chart did, and why 2026-11-01 was never drawn.
+    const seen = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      seen.push(d.toISOString().slice(0, 10));
+    }
+    expect(seen).not.toContain("2026-11-01");
+    expect(seen).toContain("2026-10-31");
+    expect(seen).toContain("2026-11-02");
+  });
 });
 
 test("a run recorded on the UTC day after the clocks changed is drawn", async () => {
