@@ -880,19 +880,27 @@
       // is the point, because the one thing a user erasing sender data
       // must not be made to wonder about is whether they have just given
       // up the mail waiting in Trash.
+      //
+      // 9.7: the Stats page's top senders list and the searches in the
+      // run history go too. "or cleanup history" is out of the list of
+      // what is left alone, because the history's counts and totals stay
+      // and its search strings do not, and a sentence that says the
+      // history is untouched is wrong either way.
       body: "This removes everything the extension knows about who emails you: the sender "
-        + "census, your unsubscribe receipts, the senders you ticked in those lists, and the "
+        + "census, your unsubscribe receipts, the senders you ticked in those lists, the "
         + "sender lists behind the mailbox report, the storage X-ray, the suggestions and the "
-        + "subscription scan. Those four go back to asking for a scan, and scheduled cleanups "
-        + "stop clearing the senders you had ticked. It does not touch your rules, whitelist, "
-        + "schedules, Pro key or cleanup history, and it does not touch your recovery log, so "
-        + "anything waiting in Trash can still be restored. A config export does not back any "
-        + "of this up.",
+        + "subscription scan, the top senders list on the Stats page, and the searches your "
+        + "past runs used. Those four scans go back to asking for a scan, and scheduled "
+        + "cleanups stop clearing the senders you had ticked. Your run counts and totals stay. "
+        + "It does not touch your rules, whitelist, schedules or Pro key, and it does not touch "
+        + "your recovery log, so anything waiting in Trash can still be restored. A config "
+        + "export does not back any of this up.",
       confirmLabel: "Erase",
       fallback: "Erase stored sender data?\n\nThis removes the sender census, your unsubscribe "
-        + "receipts, the senders you ticked in those lists, and the sender lists behind the "
-        + "mailbox report, storage X-ray, suggestions and subscription scan.\nThose four go back "
-        + "to asking for a scan, and scheduled cleanups stop clearing the senders you had "
+        + "receipts, the senders you ticked in those lists, the sender lists behind the "
+        + "mailbox report, storage X-ray, suggestions and subscription scan, the top senders "
+        + "list on the Stats page, and the searches your past runs used.\nThose four scans go "
+        + "back to asking for a scan, and scheduled cleanups stop clearing the senders you had "
         + "ticked.\nYour recovery log is not touched.\nThis cannot be undone."
     });
     if (!confirmed) return;
@@ -907,8 +915,9 @@
       if (resp?.ok) {
         GCC.showToast("Stored sender data erased", "success");
         srStatus(
-          "Sender census, unsubscribe receipts, ticked senders and the mailbox report, "
-          + "storage, suggestion and subscription scans erased. Your recovery log is unchanged."
+          "Sender census, unsubscribe receipts, ticked senders, the mailbox report, "
+          + "storage, suggestion and subscription scans, the top senders list and the "
+          + "searches from past runs erased. Your recovery log is unchanged."
         );
       } else {
         GCC.showToast("Nothing was erased. The write did not go through.", "error", 8000);

@@ -136,12 +136,23 @@ const seedEverything = () => {
     storageXrayPendingPurge: { runId: "r1", senders: [ADDRESSES[2]], startedAt: Date.now() },
     smartPendingApply: { runId: "r1", senders: [ADDRESSES[3]], startedAt: Date.now() },
 
+    // 9.7: the stats object as it really is after a cleanup, top
+    // senders and all. 9.6 seeded it as bare totals, which is the one
+    // shape it never has once a run has happened, and so proved the
+    // erase over a store that held no address. The totals are settings
+    // in all but name and survive; the list is the point of the button.
+    // tests/sweep-9-7-erase-top-senders.test.js pins the rest.
+    cleanupStats: {
+      totalDeleted: 1234,
+      totalFreedMb: 56,
+      topSenders: [{ sender: ADDRESSES[5], count: 9, lastSeen: Date.now() }]
+    },
+
     // Not mailbox data. None of this may be touched.
     whitelist: ["boss@employer.example"],
     protectKeywords: ["invoice"],
     schedules: [{ id: "s1", intervalMinutes: 10080 }],
     notifyOnComplete: true,
-    cleanupStats: { totalDeleted: 1234, totalFreedMb: 56 },
     undoLog: [{ id: "u1", tagLabel: "GmailCleaner - Promotions", count: 50, action: "delete" }],
     gccLicenseKey: "GCC1.aaa.bbb"
   };
@@ -180,14 +191,13 @@ describe("after the erase, nothing addressable is left", () => {
     }
   });
 
-  test("settings, history and the recovery log are untouched", async () => {
+  test("settings, the totals and the recovery log are untouched", async () => {
     seedEverything();
     const before = JSON.parse(JSON.stringify({
       whitelist: storageBacking.local.whitelist,
       protectKeywords: storageBacking.local.protectKeywords,
       schedules: storageBacking.local.schedules,
       notifyOnComplete: storageBacking.local.notifyOnComplete,
-      cleanupStats: storageBacking.local.cleanupStats,
       undoLog: storageBacking.local.undoLog,
       gccLicenseKey: storageBacking.local.gccLicenseKey
     }));
@@ -195,6 +205,9 @@ describe("after the erase, nothing addressable is left", () => {
     for (const [key, value] of Object.entries(before)) {
       expect(storageBacking.local[key]).toEqual(value);
     }
+    // 9.7: the totals stay and the top senders list is emptied rather
+    // than removed.
+    expect(storageBacking.local.cleanupStats).toEqual({ totalDeleted: 1234, totalFreedMb: 56, topSenders: [] });
   });
 
   test("the recovery log surviving is the point, so Restore still works", async () => {
