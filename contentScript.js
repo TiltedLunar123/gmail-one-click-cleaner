@@ -1120,6 +1120,39 @@
     }
   };
 
+  // 9.7: the refusal is a terminal message, not an alert.
+  //
+  // Every run kind opens with the isGmailTab check above, and until
+  // this release the refusal raised a native alert in the tab and
+  // returned. No progress message, so for the eight auxiliary kinds
+  // the surface that started the run waited forever: the Stats page on
+  // "Starting restore..." with its button reading Cancel, a popup scan
+  // button disabled behind a status line that never moved. The cleanup
+  // run alone still posted gmailCleanerDone from its finally, which
+  // released the claim and told the popup nothing. A refusal that hangs
+  // the caller is a lock that gets removed, so it now ends the run the
+  // way every other error does, in the shape every caller already
+  // handles. The alert is gone: a dialog inside somebody's Chat about a
+  // run that never started is not information.
+  //
+  // The pickers filter to mailbox tabs (popup since 9.0, Stats and
+  // Diagnostics since 9.7), so this is the second lock on the door.
+  function refuseOutsideMailbox(runKind) {
+    const payload = {
+      phase: "error",
+      status: "This tab is not a Gmail mailbox.",
+      detail: "Open your mailbox at mail.google.com and try again. Nothing was touched.",
+      done: true,
+      percent: 100,
+      code: "not_a_mailbox"
+    };
+    if (runKind) payload.runKind = runKind;
+    // The one field the Stats page reads off a restore's terminal
+    // message, so its row can say nothing was moved.
+    if (runKind === "restoreRun") payload.restoredCount = 0;
+    safeSendImmediate(payload);
+  }
+
   const getGmailUserIndex = () => {
     try {
       const match = location.pathname.match(/\/mail\/u\/(\d+)\//);
@@ -5528,7 +5561,7 @@
 
     try {
       if (!isGmailTab()) {
-        alert("Gmail Cleaner: please run this from a Gmail tab.");
+        refuseOutsideMailbox("subscriptionScan");
         return;
       }
 
@@ -5691,7 +5724,7 @@
 
     try {
       if (!isGmailTab()) {
-        alert("Gmail Cleaner: please run this from a Gmail tab.");
+        refuseOutsideMailbox("unsubscribe");
         return;
       }
 
@@ -5946,7 +5979,7 @@
 
     try {
       if (!isGmailTab()) {
-        alert("Gmail Cleaner: please run this from a Gmail tab.");
+        refuseOutsideMailbox("unsubscribeVerify");
         return;
       }
 
@@ -6231,7 +6264,7 @@
 
     try {
       if (!isGmailTab()) {
-        alert("Gmail Cleaner: please run this from a Gmail tab.");
+        refuseOutsideMailbox("storageScan");
         return;
       }
 
@@ -6423,7 +6456,7 @@
 
     try {
       if (!isGmailTab()) {
-        alert("Gmail Cleaner: please run this from a Gmail tab.");
+        refuseOutsideMailbox("reportScan");
         return;
       }
 
@@ -7033,7 +7066,7 @@
 
     try {
       if (!isGmailTab()) {
-        alert("Gmail Cleaner: please run this from a Gmail tab.");
+        refuseOutsideMailbox("smartScan");
         return;
       }
 
@@ -7371,7 +7404,7 @@
 
     try {
       if (!isGmailTab()) {
-        alert("Gmail Cleaner: please run this from a Gmail tab.");
+        refuseOutsideMailbox("senderCensus");
         return;
       }
 
@@ -7920,7 +7953,7 @@
 
     try {
       if (!isGmailTab()) {
-        alert("Gmail Cleaner: please run this from a Gmail tab.");
+        refuseOutsideMailbox("restoreRun");
         return;
       }
 
@@ -8164,7 +8197,7 @@
 
     try {
       if (!isGmailTab()) {
-        alert("Gmail Cleaner: please run this from a Gmail tab.");
+        refuseOutsideMailbox();
         return;
       }
 

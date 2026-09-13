@@ -585,7 +585,11 @@
         // said, so it has to count everything the button clears; while
         // these were outside it, the card carried a paragraph explaining
         // that they were outside it, which is a worse answer than a row.
-        "mailboxReport", "storageXray", "smartScan", "subscriptionScan"
+        "mailboxReport", "storageXray", "smartScan", "subscriptionScan",
+        // 9.7: the Stats page's top senders list, which the button now
+        // empties. Counted by length, like the scans; the object's
+        // totals and run history are not sender data and stay.
+        "cleanupStats"
       ]);
       const census = r?.senderCensus || null;
       const receipts = r?.unsubReceipts || null;
@@ -616,7 +620,8 @@
         ["report", reportSenders],
         ["storage", len(r?.storageXray?.senders)],
         ["suggested", len(r?.smartScan?.senders)],
-        ["subscriptions", len(r?.subscriptionScan?.senders)]
+        ["subscriptions", len(r?.subscriptionScan?.senders)],
+        ["top senders", len(r?.cleanupStats?.topSenders)]
       ];
       const scanTotal = scans.reduce((sum, [, n]) => sum + n, 0);
 
@@ -822,7 +827,12 @@
   // Gmail Tab Detection
   // =========================
 
-  const isGmailUrl = (url) => typeof url === "string" && url.startsWith("https://mail.google.com/");
+  // 9.7: a mailbox, the way the popup has drawn the line since 9.0.
+  // Google Chat lives at mail.google.com/chat, and with Chat in front
+  // this page reported it as the tab the popup would use (the popup
+  // would not) and Test Inject probed it, so a scan run to find out why
+  // the popup saw no Gmail tab answered that it saw one.
+  const isGmailUrl = (url) => GCC.isMailboxUrl(url);
 
   const findGmailTab = async () => {
     if (!GCC.hasChromeTabs()) {
@@ -836,14 +846,16 @@
 
       if (activeTab?.id && isGmailUrl(activeTab.url)) return activeTab;
 
-      const tabsInWindow = await GCC.promisify(chrome.tabs.query.bind(chrome.tabs), { url: "https://mail.google.com/*", currentWindow: true });
-      if (tabsInWindow?.length) {
+      const tabsInWindow = (await GCC.promisify(chrome.tabs.query.bind(chrome.tabs), { url: "https://mail.google.com/*", currentWindow: true }) || [])
+        .filter((t) => isGmailUrl(t?.url));
+      if (tabsInWindow.length) {
         const active = tabsInWindow.find((t) => t.active);
         return active || tabsInWindow[0];
       }
 
-      const allTabs = await GCC.promisify(chrome.tabs.query.bind(chrome.tabs), { url: "https://mail.google.com/*" });
-      if (!allTabs?.length) return null;
+      const allTabs = (await GCC.promisify(chrome.tabs.query.bind(chrome.tabs), { url: "https://mail.google.com/*" }) || [])
+        .filter((t) => isGmailUrl(t?.url));
+      if (!allTabs.length) return null;
 
       const activeAnywhere = allTabs.find((t) => t.active);
       return activeAnywhere || allTabs[0];
@@ -949,7 +961,9 @@
     addLog("Scanning for Gmail tabs...", "info");
 
     try {
-      const tabs = await GCC.promisify(chrome.tabs.query.bind(chrome.tabs), { url: "https://mail.google.com/*" });
+      // 9.7: mailbox tabs. See isGmailUrl.
+      const tabs = (await GCC.promisify(chrome.tabs.query.bind(chrome.tabs), { url: "https://mail.google.com/*" }) || [])
+        .filter((t) => isGmailUrl(t?.url));
 
       if (elements.tabCount) elements.tabCount.textContent = String(tabs.length);
 

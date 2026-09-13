@@ -47,6 +47,12 @@
     // not silence the update dot on another.
     CHANGELOG_SEEN: "changelogSeenVersion",
 
+    // 9.7: the engine's own last-ten-runs history, written by
+    // contentScript.js saveRunHistory and read by the Diagnostics page.
+    // Local. Named here because the erase trims the search strings out
+    // of it; nothing in the worker writes it.
+    RUN_HISTORY: "runHistory",
+
     // 8.11: the popup's own switch positions, written by
     // persistLastConfig. Read here so the Auto-Pilot scan can measure
     // suggestions through the guards the popup's buttons will apply.
@@ -359,11 +365,25 @@
   // Lifecycle
   // =========================
 
+  // 9.7: the daily housekeeping alarm, armed from BOTH lifecycle events.
+  //
+  // It was created on install and nowhere else. Chrome persists alarms
+  // across a restart, so there it did not matter. Firefox does not (MDN:
+  // "alarms do not persist across browser sessions"), so on Firefox the
+  // first restart after an update took this alarm with it, and neither
+  // the 90-day stats prune nor the 90-day census age-out that PRIVACY.md
+  // promises ran again until the next update. The schedules and the
+  // Auto-Pilot alarm have been re-armed from onStartup since they were
+  // written; this one was the odd one out. Same name replaces, so on
+  // Chrome this costs nothing.
+  function armHousekeepingAlarm() {
+    chrome.alarms.create(STATS_CLEANUP_ALARM, { periodInMinutes: 1440 });
+  }
+
   chrome.runtime.onInstalled.addListener(async (details) => {
     console.log(`[GCC SW] Installed/Updated (${details.reason}), v${SW_VERSION}`);
 
-    // Set up periodic stats cleanup alarm (once per day)
-    chrome.alarms.create(STATS_CLEANUP_ALARM, { periodInMinutes: 1440 });
+    armHousekeepingAlarm();
 
     await refreshInstallSource();
     setUninstallPage();
@@ -398,6 +418,7 @@
 
   chrome.runtime.onStartup.addListener(async () => {
     console.log("[GCC SW] Browser startup");
+    armHousekeepingAlarm();
     await refreshInstallSource();
     setUninstallPage();
     await restoreScheduledAlarms();
@@ -1204,8 +1225,13 @@
         return true;
 
       // Undo log
+      // 9.7: stamped with the mailbox the run acted on, read off the
+      // sending tab the way the report has been since 9.2 so the engine
+      // cannot claim one. The Stats page's Restore needs it to put the
+      // mail back in the account it came from.
       case "gmailCleanerRecordUndo":
-        withStorageLock(() => recordUndoEntry(msg.data)).then(() => sendResponse({ ok: true }));
+        withStorageLock(() => recordUndoEntry(msg.data, launcherAccountOf(sender.tab?.url)))
+          .then(() => sendResponse({ ok: true }));
         return true;
 
       // 7.6: a finished restore run marks the log entries it emptied.
@@ -2271,8 +2297,63 @@
   // catch: 8.20's rule is that a surface must not report success over a
   // write that did not land, and the only way the options page can know
   // is if this throws.
+  //
+  // 9.7: and the two history stores, in the same write.
+  //
+  // 9.6 said this button "removes every store in this browser that holds
+  // an address" and proved it over fourteen keys. It seeded the stats
+  // object as `{ totalDeleted, totalFreedMb }`, which is the one shape
+  // that store never has once a cleanup has run. The real object carries
+  // `topSenders`, up to two hundred addresses sampled off the rows of
+  // every delete batch and drawn on the Stats page under "Top senders"
+  // with a Protect button beside each, and `history`, fifty runs deep,
+  // where each run's `perQuery[].query` is the literal Gmail search: for
+  // a purge, a smart apply, a census clear or a receipts clear, a list of
+  // addresses. `runHistory` holds the same queries for the last ten runs.
+  // The Options copy said "Everything this extension knows about who
+  // emails you ... removes all of it now" and PRIVACY.md said, a paragraph
+  // later, that the history keeps the queries. The top senders list was
+  // named nowhere. Same shape as 9.5's "Freed" and 9.6's own finding: the
+  // sentence admitting the gap was standing in for the fix.
+  //
+  // Nothing renders a stored query string (progress.js reads perQuery off
+  // the live done message; Stats and Diagnostics draw counts), so a run
+  // keeps its label, count, mode and duration and loses only the search.
+  // The recovery log is left alone, as 9.6 decided: it is what Restore
+  // reads and it has its own Clear button.
+  const stripRunQueries = (perQuery) => perQuery.map((entry) => (
+    entry && typeof entry === "object"
+      ? { label: entry.label, count: entry.count, mode: entry.mode, durationMs: entry.durationMs }
+      : entry
+  ));
+
+  const trimRunRecord = (run) => (
+    run && typeof run === "object" && Array.isArray(run.perQuery)
+      ? { ...run, perQuery: stripRunQueries(run.perQuery) }
+      : run
+  );
+
   async function eraseSenderStores() {
-    await chrome.storage.local.set({ ...ERASE_VALUES });
+    const held = await chrome.storage.local.get([STORAGE_KEYS.STATS, STORAGE_KEYS.RUN_HISTORY]);
+    const patch = { ...ERASE_VALUES };
+
+    const stats = held?.[STORAGE_KEYS.STATS];
+    if (stats && typeof stats === "object") {
+      patch[STORAGE_KEYS.STATS] = {
+        ...stats,
+        // Empty rather than absent, so the Stats page draws its "no
+        // sender data yet" state instead of treating the list as unread.
+        topSenders: [],
+        ...(Array.isArray(stats.history) ? { history: stats.history.map(trimRunRecord) } : {})
+      };
+    }
+
+    const runs = held?.[STORAGE_KEYS.RUN_HISTORY];
+    if (Array.isArray(runs)) {
+      patch[STORAGE_KEYS.RUN_HISTORY] = runs.map(trimRunRecord);
+    }
+
+    await chrome.storage.local.set(patch);
     return ERASE_KEYS;
   }
 
@@ -5167,10 +5248,19 @@
   // Undo / Backup System
   // =========================
 
-  async function recordUndoEntry(data) {
+  // 9.7: `account` is the signed-in mailbox index the run acted on, or
+  // "" when the sending tab was not a mailbox. Every surface since 9.2
+  // has been careful about WHICH account a run touches; the one record
+  // that exists so a run can be undone never said. The Stats page took
+  // whichever Gmail tab was active, searched account 0 for a label that
+  // lives in account 1, and reported "Nothing left to restore" about
+  // mail sitting in the other Trash. Only the index is kept: it tells
+  // two open mailboxes apart and is not an address.
+  async function recordUndoEntry(data, account = "") {
     try {
       const result = await chrome.storage.local.get(STORAGE_KEYS.UNDO_LOG);
       const log = result?.[STORAGE_KEYS.UNDO_LOG] || [];
+      const mailbox = /^\d+$/.test(String(account ?? "")) ? String(account) : "";
 
       // Issue #9: also record the sample of message IDs sniffed from the
       // Gmail list before deletion. We cap to 50 per entry so the log
@@ -5235,6 +5325,10 @@
           Number(existing.sampledSenderCount) || 0,
           Number(data.sampledSenderCount || 0)
         );
+        // A run does not change mailbox between passes, so the first
+        // pass's answer stands. Only filled in when the entry has none,
+        // which a pass merged into a pre-9.7 entry is the one way to hit.
+        if (typeof existing.account !== "string" && mailbox) existing.account = mailbox;
         if (sampledIds.length && Array.isArray(existing.sampledMessageIds)) {
           const merged = new Set(existing.sampledMessageIds);
           for (const id of sampledIds) {
@@ -5256,6 +5350,9 @@
           action,
           tagLabel,
           intensity: data.intensity || "normal",
+          // 9.7: see the function comment. Read off the tab, never the
+          // payload; "" when the tab could not be read.
+          account: mailbox,
           // 5.0 additions for issue #9 partial fix:
           sampledMessageIds: sampledIds,
           sampledSenderCount: Number(data.sampledSenderCount || 0),

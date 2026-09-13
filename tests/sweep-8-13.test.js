@@ -498,7 +498,10 @@ describe("Pro settings added in 8.13", () => {
   });
 
   test("the recovery log cap is read rather than hardcoded", () => {
-    const fn = bodyOf(BG_SRC, "async function recordUndoEntry");
+    // 9.7: bounded by the next function rather than by a byte budget,
+    // for the reason fnBetween gives: the account stamp pushed the cap
+    // read past the old span, which said nothing about the cap.
+    const fn = fnBetween(BG_SRC, "async function recordUndoEntry", "async function recordRestoreOutcome");
     // 8.14: read through readUndoLogCap rather than readProSettings, so
     // a licence or settings read that FAILS leaves the log alone instead
     // of trimming a Pro user's 300 entries to the free 60. The pinned
