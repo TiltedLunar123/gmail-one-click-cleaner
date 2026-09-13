@@ -3,6 +3,74 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 9.7.0 - Put it back where it came from
+
+Every run surface since 9.2 has been careful about which signed-in
+account it acts on. The one record that exists so a run can be undone
+never said. Restore on the Stats page took whichever Gmail tab was in
+front, searched that account for a label that lived in another one, and
+reported "Nothing left to restore" about mail sitting in the other
+Trash. With Google Chat in front, which lives under mail.google.com, it
+did worse: it injected the engine into Chat, the engine refused with a
+dialog nobody was looking at and no message back, and the page sat on
+"Starting restore..." with the button reading Cancel.
+
+The erase button 9.6 called complete missed the two stores it had
+seeded wrong in its own test: the top senders list on the Stats page,
+sampled from every delete batch and drawn with a Protect button beside
+each address, and the search strings the run history keeps, which for a
+census clear are a list of addresses. Same shape as 9.6's own finding,
+one release later.
+
+### Changed
+- **Restore goes back to the mailbox the run came from.** Each new
+  recovery entry records which signed-in account it was written in, and
+  Restore uses a tab in that account, opening one if none is open,
+  rather than whichever mailbox is in front. Entries written before 9.7
+  carry no account and keep the old behaviour. Find in Gmail beside the
+  entry opens the same mailbox, and the Search links under Top senders
+  open the mailbox you are looking at.
+- **Erase Stored Sender Data takes the top senders list and the stored
+  searches.** The Stats page's list is emptied, and each run in the
+  cleanup history and the run history keeps its label, count, mode and
+  timing and loses its search string. Run counts and totals stay. The
+  Options page, the dialog, PRIVACY.md and the Diagnostics card all say
+  so now.
+- **The account pills in the popup show the address.** A Gmail tab is
+  titled "Inbox (3) - jude@example.com - Gmail" and the pill showed the
+  first 25 characters of that, which cut the address off at the one part
+  that said which account it was. The full title is on hover.
+
+### Fixed
+- **A run started outside a mailbox now says so and ends.** The engine
+  refused with an alert in the tab and nothing else, so the surface that
+  started a scan, a census or a restore waited forever. It ends the run
+  the way every other error does, in the shape every caller already
+  handles, and the alert is gone.
+- **The Stats page and Diagnostics no longer count Google Chat as a
+  Gmail tab.** Both filter to mailbox tabs the way the popup has since
+  9.0. Diagnostics reported detection OK on a Chat tab the cleaner
+  refuses to run in, and Test Inject probed it.
+- **The daily activity chart drew the wrong 30 days west of Greenwich.**
+  Its keys are UTC dates. The chart walked back 30 local days and read
+  each out as a UTC string, so every evening in the Americas "today" was
+  tomorrow's date, the run just finished sat on a bar the chart never
+  drew, and across a DST change one date came out twice. It walks the
+  UTC calendar now.
+- **Firefox lost the daily housekeeping after a restart.** The alarm
+  behind the 90-day stats prune and the census age-out was created on
+  install only. Chrome keeps alarms across a restart; Firefox does not,
+  so on Firefox the first restart after an update took it away until the
+  next update. It is re-armed on every startup, like the schedules.
+
+### Internal
+- Eight suites, 54 tests, each proved to fail on 9.6.0 before the fix
+  that answers it.
+- Two of them drive the real stats.html and diagnostics.html with a
+  click. Their tab stubs answer the callback shape shared.js uses, since
+  a promise-only stub hangs the page and reads as a missing button.
+
+
 ## 9.6.0 - Erase means erase
 
 The Options page has a button reading Erase Stored Sender Data, under a
