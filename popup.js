@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "9.6.0";
+  const POPUP_VERSION = "9.7.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -1442,9 +1442,12 @@ document.addEventListener("DOMContentLoaded", () => {
         const pill = document.createElement("button");
         pill.type = "button";
         pill.className = "account-pill" + (tab.id === state.selectedGmailTabId ? " active" : "");
-        pill.textContent = tab.title
-          ? tab.title.replace(/ - Gmail.*$/, "").slice(0, 25)
-          : t("accountPill", "Account " + tab.account, [String(tab.account)]);
+        // 9.7: the address, when the title carries one. The first 25
+        // characters of "Inbox (3) - jude@example.com - Gmail" ended at
+        // "jude@example.c", which is the one part of the title that says
+        // which account the pill is for, cut off. See GCC.accountLabel.
+        pill.textContent = GCC.accountLabel(tab.title, tab.account);
+        if (tab.title) pill.title = tab.title;
         pill.dataset.tabId = tab.id;
         pill.addEventListener("click", () => {
           elements.accountSelector.querySelectorAll(".account-pill").forEach(pill => pill.classList.remove("active"));

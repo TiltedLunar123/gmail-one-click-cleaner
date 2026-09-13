@@ -57,15 +57,20 @@ exactly why.
   back to asking for a scan, so the mailbox report the popup opens on comes back empty until
   you run one.
 
+  As of 9.7 the same write also empties the top senders list the Stats page draws, which
+  is sampled from the mail every cleanup deletes and was named nowhere on this page, and it
+  removes the search queries from your cleanup history and run history. A census clear or a
+  receipts clear is an ordinary cleanup run whose query is a list of addresses, so until 9.7
+  those queries outlived the erase. The history keeps each run's counts, totals, mode and
+  timing; only the search strings go.
+
   What it does not reach, named rather than counted, because this is the kind of list that
-  grows. Your cleanup history and your recovery log keep the search queries that past runs
-  used, and a census clear or a receipts clear is an ordinary cleanup run, so those queries
-  can contain the addresses those runs acted on. The recovery log is left alone on purpose:
-  it is what restores mail from Trash, and an erase that quietly gave up your last thirty
-  days of recoverable cleanups would be a worse surprise than anything it removed. It has its
-  own Clear button on the Stats page. Exporting your settings does not back any of this up,
-  so an export is not a way to undo the erase and a settings backup is not a way to get it
-  back.
+  grows. Your recovery log keeps the search query each run used, so it can contain the
+  addresses a census clear or a receipts clear acted on. It is left alone on purpose: it is
+  what restores mail from Trash, and an erase that quietly gave up your last thirty days of
+  recoverable cleanups would be a worse surprise than anything it removed. It has its own
+  Clear button on the Stats page. Exporting your settings does not back any of this up, so an
+  export is not a way to undo the erase and a settings backup is not a way to get it back.
 
 - **What your browser syncs.** Your settings, cleanup rules, custom rules, protected
   keywords, schedules, Auto-Pilot configuration, your sender whitelist and your Pro license

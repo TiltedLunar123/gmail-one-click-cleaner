@@ -114,8 +114,10 @@ async function loadStats() {
   // Run history
   renderHistory(stats.history || []);
 
-  // Top senders (new in 5.0)
-  renderTopSenders(stats.topSenders || []);
+  // Top senders (new in 5.0). 9.7: their Search links open in the
+  // mailbox that is in front, when one is.
+  const front = await findGmailTab();
+  renderTopSenders(stats.topSenders || [], front?.url ? GCC.trash.accountOf(front.url) : null);
 
   // 8.13: the pitch is fed by the same totals the cards just showed, so
   // it can only ever quote a number this page is already displaying.
@@ -234,7 +236,13 @@ function senderIsProtected(email) {
   );
 }
 
-function renderTopSenders(senders) {
+// 9.7: every search link on this page went to /u/0/, which is the right
+// mailbox for one signed-in account and the wrong one for the rest.
+// `account` is a /u/N/ index; anything else is 0, as before.
+const mailboxUrl = (account) =>
+  "https://mail.google.com/mail/u/" + (isAccountIndex(account) ? String(account) : "0") + "/";
+
+function renderTopSenders(senders, account = null) {
   if (!ui.topSendersList) return;
   ui.topSendersList.textContent = "";
 
@@ -256,7 +264,10 @@ function renderTopSenders(senders) {
     const fill = GCC.createEl("div", { className: "category-bar-fill" });
     growBar(fill, "width", pct + "%", barIndex++);
 
-    const findUrl = "https://mail.google.com/mail/u/0/#search/from:" + encodeURIComponent(entry.sender || "");
+    // 9.7: the mailbox in front, not always the first one. Top senders
+    // are sampled across every account this browser has cleaned, so the
+    // most this link can do is search the mailbox the user is looking at.
+    const findUrl = mailboxUrl(account) + "#search/from:" + encodeURIComponent(entry.sender || "");
     const findLink = GCC.createEl("a", {
       className: "btn btn-sm",
       href: findUrl,
@@ -325,12 +336,20 @@ function renderDailyChart(dailyStats) {
   ui.chartBars.textContent = "";
   ui.chartLabels.textContent = "";
 
-  // Get last 30 days
+  // Get last 30 days.
+  //
+  // 9.7: in UTC, start to finish. The keys are UTC dates: the worker
+  // stamps dailyStats with toISOString().slice(0, 10). This walked back
+  // thirty LOCAL days and then read each one out as a UTC string, so
+  // for anyone west of Greenwich, every evening, "today" was tomorrow's
+  // UTC date, the run just finished was on a bar this page never drew,
+  // and across a DST change one date came out twice and its neighbour
+  // never. Walking the UTC calendar keys thirty distinct days, the last
+  // of them the one the worker is writing to right now.
   const days = [];
   const now = new Date();
   for (let i = 29; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i));
     days.push(d.toISOString().slice(0, 10));
   }
 
@@ -499,12 +518,34 @@ const tabsSendMessage = (tabId, message) =>
 const scriptingExecuteScript = (details) =>
   GCC.promisify(chrome.scripting.executeScript.bind(chrome.scripting), details);
 
-async function findGmailTab() {
+// 9.7: a mailbox, and when the caller knows which one, that one.
+//
+// This took any tab under mail.google.com, and the popup stopped doing
+// that in 9.0 for a reason that applies here twice over: Google Chat
+// lives at mail.google.com/chat, so with Chat in front and a mailbox
+// behind it, Restore injected the engine into Chat, where it found no
+// mailbox and (until 9.7) raised an alert nobody saw and never reported
+// back, leaving this page on "Starting restore..." with a Cancel button
+// and a Chat tab wearing a stray dialog. With only Chat open the same
+// thing, and a run that had never started had to be cancelled by hand.
+//
+// `account` is the /u/N/ index a recovery entry now carries. When it is
+// given, only a tab in that mailbox will do: a run recorded in account 1
+// searched from an account 0 tab finds nothing and reports "Nothing
+// left to restore" about mail sitting in the other Trash. No tab in that
+// mailbox answers null so the caller opens one there.
+const isAccountIndex = (value) => /^\d+$/.test(String(value ?? ""));
+
+async function findGmailTab(account = null) {
   if (!GCC.hasChromeTabs()) return null;
   try {
-    const tabs = await tabsQuery({ url: "https://mail.google.com/*" });
-    if (!tabs?.length) return null;
-    return tabs.find((t) => t.active) || tabs[0];
+    const tabs = (await tabsQuery({ url: "https://mail.google.com/*" }) || [])
+      .filter((t) => GCC.isMailboxUrl(t?.url));
+    const pool = isAccountIndex(account)
+      ? tabs.filter((t) => GCC.trash.accountOf(t.url) === String(account))
+      : tabs;
+    if (!pool.length) return null;
+    return pool.find((t) => t.active) || pool[0];
   } catch {
     return null;
   }
@@ -515,11 +556,13 @@ async function findGmailTab() {
 // restore progress) and the wait tolerates Gmail's slow first paint.
 const GMAIL_OPEN_TIMEOUT_MS = 30000;
 
-async function openGmailAndWait() {
+// 9.7: opened in the mailbox the caller names, default 0 as before.
+async function openGmailAndWait(account = null) {
+  const index = isAccountIndex(account) ? String(account) : "0";
   let created = null;
   try {
     created = await GCC.promisify(chrome.tabs.create.bind(chrome.tabs), {
-      url: "https://mail.google.com/mail/u/0/#inbox",
+      url: "https://mail.google.com/mail/u/" + index + "/#inbox",
       active: false
     });
   } catch {
@@ -537,7 +580,10 @@ async function openGmailAndWait() {
       return null;
     }
     if (tab?.status !== "complete") continue;
-    if (tab.url?.startsWith("https://mail.google.com/")) {
+    // 9.7: a mailbox URL, not any Gmail URL. The tab was opened at a
+    // mailbox address, so anything else here is Gmail sending it
+    // elsewhere, and the sign-out branch below is the right answer.
+    if (GCC.isMailboxUrl(tab.url)) {
       await GCC.sleep(1200);
       return tab;
     }
@@ -564,10 +610,16 @@ async function injectRestoreRun(entry) {
     GCC.showToast("Allow Gmail access from the extension popup first", "warning");
     return null;
   }
-  let gmailTab = await findGmailTab();
+  // 9.7: the mailbox the run acted on, when the entry records one. An
+  // entry written before 9.7 has none and gets the active mailbox, which
+  // is what every entry used to get.
+  const account = isAccountIndex(entry.account) ? String(entry.account) : null;
+  let gmailTab = await findGmailTab(account);
   if (!gmailTab) {
-    setRestoreStatus("No Gmail tab open. Opening Gmail...");
-    gmailTab = await openGmailAndWait();
+    setRestoreStatus(account !== null
+      ? "That mailbox is not open. Opening it..."
+      : "No Gmail tab open. Opening Gmail...");
+    gmailTab = await openGmailAndWait(account);
     if (!gmailTab) {
       setRestoreStatus("");
       GCC.showToast("Could not get a Gmail tab ready, try again", "warning");
@@ -857,10 +909,14 @@ async function loadUndoLog() {
     // restoreEligibility already treats that entry as unrestorable. Not
     // quoted here, because a test pins its absence and a pin that a comment
     // can satisfy is not a pin.
+    //
+    // 9.7: in the mailbox the run acted on. A search for the recovery
+    // label in account 0 for a run that tagged mail in account 1 was
+    // the same empty mailbox by another road.
     const findLink = entry.tagLabel
       ? GCC.createEl("a", {
         className: "btn btn-sm",
-        href: "https://mail.google.com/mail/u/0/#search/" +
+        href: mailboxUrl(entry.account) + "#search/" +
           encodeURIComponent('label:"' + entry.tagLabel + '"'),
         target: "_blank",
         rel: "noopener noreferrer",

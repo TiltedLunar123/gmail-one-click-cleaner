@@ -3115,6 +3115,28 @@ const GCC = (() => {
   });
 
   // =========================
+  // Account label (9.7)
+  // =========================
+  // What the popup's account pills say. A Gmail tab is titled
+  // "Inbox (3) - jude@example.com - Gmail", and the pill used to show
+  // the first 25 characters of that: the one part of the title that says
+  // which account this is, cut off at "jude@example.c". The address is
+  // the label whenever the title carries one; a title without one keeps
+  // the old trimmed slice; no title at all names the account index.
+  const ACCOUNT_LABEL_MAX = 32;
+
+  const accountLabel = (title, account) => {
+    const raw = String(title || "").trim();
+    if (!raw) return t("accountPill", "Account " + account, [String(account)]);
+    // "<view> - <address> - Gmail": the address is second to last, and
+    // the view before it may itself contain " - ".
+    const parts = raw.split(" - ");
+    const candidate = parts.length >= 3 ? parts[parts.length - 2].trim() : "";
+    if (/^[^\s@]+@[^\s@]+$/.test(candidate)) return candidate.slice(0, ACCOUNT_LABEL_MAX);
+    return raw.replace(/ - Gmail.*$/, "").slice(0, 25);
+  };
+
+  // =========================
   // Smart Suggestions (7.8)
   // =========================
   // Pure policy behind the Suggested section on the Clean tab. The
@@ -3789,6 +3811,9 @@ const GCC = (() => {
     receipts,
 
     // New in 9.5
-    trash
+    trash,
+
+    // New in 9.7
+    accountLabel
   });
 })();

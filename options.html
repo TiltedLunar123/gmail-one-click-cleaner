@@ -1325,13 +1325,15 @@
       <p class="hint">
         Everything this extension knows about who emails you is built from your mail and
         kept in this browser: the sender census, your unsubscribe receipts, the senders you
-        have ticked in those lists, and the sender lists behind the mailbox report, the
-        storage X-ray, the suggestions and the subscription scan. A census is cleared for
+        have ticked in those lists, the sender lists behind the mailbox report, the
+        storage X-ray, the suggestions and the subscription scan, the top senders list on
+        the Stats page, and the searches your past runs used. A census is cleared for
         you once it is three months old and its ticks go with it; everything else stays
-        until you remove it. Erasing here removes all of it now, and the four scans go back
-        to asking for a scan. Your rules, whitelist, protected keywords, schedules and Pro
-        key are settings rather than mailbox data, and are not touched, and neither is your
-        recovery log, so anything waiting in Trash can still be restored.
+        until you remove it. Erasing here removes all of it now, the four scans go back
+        to asking for a scan, and your run counts and totals stay. Your rules, whitelist,
+        protected keywords, schedules and Pro key are settings rather than mailbox data,
+        and are not touched, and neither is your recovery log, so anything waiting in
+        Trash can still be restored.
       </p>
       <div class="actions-row" role="group" aria-label="Stored sender data actions">
         <button id="eraseStoresBtn" class="button-link secondary" type="button" aria-describedby="erase-stores-hint">
@@ -1339,10 +1341,12 @@
         </button>
       </div>
       <p id="erase-stores-hint" class="sr-only">
-        Removes the sender census, the unsubscribe receipts, every ticked sender list, and
+        Removes the sender census, the unsubscribe receipts, every ticked sender list,
         the sender lists held by the mailbox report, the storage X-ray, the suggestions and
-        the subscription scan. Those four go back to asking for a scan. Scheduled cleanups
-        stop clearing the census senders you had ticked. This cannot be undone.
+        the subscription scan, the top senders list on the Stats page, and the searches
+        your past runs used. Those four scans go back to asking for a scan. Scheduled
+        cleanups stop clearing the census senders you had ticked. Your recovery log is not
+        touched. This cannot be undone.
       </p>
     </section>
 
