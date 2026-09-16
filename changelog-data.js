@@ -6,13 +6,181 @@
 // even of a file inside the package, would end the extension's
 // no-network-calls promise.
 //
-// Carries the newest 12 of 90 releases; the page says so
+// Carries the newest 12 of 91 releases; the page says so
 // and links the full log on GitHub.
 
 // eslint-disable-next-line no-unused-vars
 var GCC_CHANGELOG = {
-  "total": 90,
+  "total": 91,
   "entries": [
+    {
+      "version": "9.8.0",
+      "title": "Count the senders the button reaches",
+      "intro": [
+        "The census Clear button has a cap. It has had one since the feature shipped: twenty-five senders become rules on one run, and the rest wait for the next press. The line under the button did not know that. Tick forty senders and it quoted what forty would give back, over a button that cleared twenty-five.",
+        "This is the bug 9.1 fixed on the button directly beneath it, on the same tab. The receipts clear measures only the senders its cap reaches, and reports the rest as stranded. One card up, the census clear went on measuring every one of them.",
+        "The two halves also disagreed about which twenty-five. The subtitle walked the ranked list, biggest sender first. The handler sliced the set of ticked addresses, which is in the order the boxes were ticked. On any selection past the cap those are different senders, so the number was wrong twice over: too big, and about mail the run was never going to touch."
+      ],
+      "sections": [
+        {
+          "name": "Changed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "The census Clear button says how many senders this run reaches and how many are left for the next."
+                ],
+                [
+                  "",
+                  " The number beside it now counts only the senders the run will act on. The run takes them ranked, biggest first, so pressing it twice clears the largest fifty rather than whichever fifty boxes were ticked first, and a scheduled sweep carries the same senders the button would."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The Storage X-ray says its cap before the press, not after."
+                ],
+                [
+                  "",
+                  " That purge has taken the first twenty-five since 8.0 and has said so in a toast since 8.11, which arrives once the run is already going. The count line beside Select all says it while the boxes are still being ticked."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The census sender list has a Select all."
+                ],
+                [
+                  "",
+                  " It was the only ranked sender list without one, and the longest of them at up to sixty rows. A free licence can select the rows it can see."
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Fixed",
+          "items": [
+            {
+              "text": [
+                [
+                  "b",
+                  "A custom rule bounded to recent mail no longer reads as protected."
+                ],
+                [
+                  "",
+                  " A rule that reaches a whole view ("
+                ],
+                [
+                  "c",
+                  "in:inbox"
+                ],
+                [
+                  "",
+                  ", "
+                ],
+                [
+                  "c",
+                  "in:all"
+                ],
+                [
+                  "",
+                  ") with no age filter gets a warning, because it will delete mail that arrived this morning. The check for \"does this rule have an age filter\" accepted "
+                ],
+                [
+                  "c",
+                  "newer_than:"
+                ],
+                [
+                  "",
+                  " and "
+                ],
+                [
+                  "c",
+                  "after:"
+                ],
+                [
+                  "",
+                  ", which bound a rule to recent mail rather than away from it, so "
+                ],
+                [
+                  "c",
+                  "in:inbox newer_than:7d"
+                ],
+                [
+                  "",
+                  " was saved in silence. Only "
+                ],
+                [
+                  "c",
+                  "older_than:"
+                ],
+                [
+                  "",
+                  " and "
+                ],
+                [
+                  "c",
+                  "before:"
+                ],
+                [
+                  "",
+                  " count now; a date range still passes, because the "
+                ],
+                [
+                  "c",
+                  "before:"
+                ],
+                [
+                  "",
+                  " half is the floor."
+                ]
+              ]
+            },
+            {
+              "text": [
+                [
+                  "b",
+                  "The 90-day prune of the daily activity buckets kept to the local calendar."
+                ],
+                [
+                  "",
+                  " Those buckets are keyed by UTC date. The cutoff walked ninety days back on the local calendar and only then converted, which is the same instant until the timezone offset differs between the two ends. Across a DST change it was an hour out, and an hour moves the date when the local time of day sits near midnight UTC, so a day still inside the window was deleted. Same fix 9.7 made to the chart that draws them."
+                ]
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Internal",
+          "items": [
+            {
+              "text": "Four suites, 37 tests, each proved to fail on 9.7.0 before the fix that answers it."
+            },
+            {
+              "text": "The prune suite pins its own timezone and restores it afterwards, because the bug it covers only appears across a DST change and a runner in UTC would have passed either way."
+            },
+            {
+              "text": [
+                [
+                  "c",
+                  "GCC.smart.whitelistCovers"
+                ],
+                [
+                  "",
+                  " lower-cases the address it is given as well as the entry. Both callers already did; it is exported, and the failure direction for the next one is a protected sender going unprotected."
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "9.7.0",
       "title": "Put it back where it came from",
@@ -1346,59 +1514,6 @@ var GCC_CHANGELOG = {
                 [
                   "",
                   " Gmail leaves the previous search results sitting in the page where you cannot see them. When the cleaner's usual way of ticking rows does not work and it falls back to Gmail's own select-all checkbox, it was finding the leftover list's checkbox first, selecting nothing you could see, and then reporting that Gmail's layout had changed."
-                ]
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "version": "8.23.0",
-      "title": "It says what it is doing",
-      "intro": [
-        "The Mailbox Report, the Storage X-ray scan, the subscription scan, the suggestion scan and bulk unsubscribe all work inside your Gmail tab, and the popup closes the moment you click anything outside it. So the natural thing to do, click into Gmail to watch, took away the only thing telling you a scan was running. Reopening the popup showed a window with nothing happening in it while your mailbox was visibly being searched."
-      ],
-      "sections": [
-        {
-          "name": "Fixed",
-          "intro": [
-            "The progress dashboard is deliberately not offered for these runs. It is built for cleanups, and the recovery button on it re-injects the last cleanup settings, which is not a thing that should ever be one click away from a read-only scan."
-          ],
-          "items": [
-            {
-              "text": [
-                [
-                  "b",
-                  "The popup now says a scan is still going."
-                ],
-                [
-                  "",
-                  " It asks your Gmail tabs directly rather than looking for a marker, because these runs deliberately never book your mailbox the way a cleanup does. The banner names what is running, so a scan that is only reading is not confused with an unsubscribe that is changing things, and it says the part that matters: you can close the popup, the run keeps going, and the result will be waiting when it finishes."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "The banner clears itself when the run ends"
-                ],
-                [
-                  "",
-                  ", instead of sitting there claiming to be reading a mailbox it already finished reading."
-                ]
-              ]
-            },
-            {
-              "text": [
-                [
-                  "b",
-                  "Reset now aims at the run that is actually going"
-                ],
-                [
-                  "",
-                  ", in whichever Gmail tab it is in. With more than one account open the button had nothing to aim at, so there was no way to stop a scan short of reloading the tab."
                 ]
               ]
             }

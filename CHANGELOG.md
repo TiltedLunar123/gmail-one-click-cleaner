@@ -3,6 +3,72 @@
 All notable changes to this project will be documented in this file.
 This log tracks user-visible behavior, UI changes, and important internal fixes.
 
+## 9.8.0 - Count the senders the button reaches
+
+The census Clear button has a cap. It has had one since the feature
+shipped: twenty-five senders become rules on one run, and the rest wait
+for the next press. The line under the button did not know that. Tick
+forty senders and it quoted what forty would give back, over a button
+that cleared twenty-five.
+
+This is the bug 9.1 fixed on the button directly beneath it, on the same
+tab. The receipts clear measures only the senders its cap reaches, and
+reports the rest as stranded. One card up, the census clear went on
+measuring every one of them.
+
+The two halves also disagreed about which twenty-five. The subtitle
+walked the ranked list, biggest sender first. The handler sliced the set
+of ticked addresses, which is in the order the boxes were ticked. On any
+selection past the cap those are different senders, so the number was
+wrong twice over: too big, and about mail the run was never going to
+touch.
+
+### Changed
+- **The census Clear button says how many senders this run reaches and
+  how many are left for the next.** The number beside it now counts only
+  the senders the run will act on. The run takes them ranked, biggest
+  first, so pressing it twice clears the largest fifty rather than
+  whichever fifty boxes were ticked first, and a scheduled sweep carries
+  the same senders the button would.
+- **The Storage X-ray says its cap before the press, not after.** That
+  purge has taken the first twenty-five since 8.0 and has said so in a
+  toast since 8.11, which arrives once the run is already going. The
+  count line beside Select all says it while the boxes are still being
+  ticked.
+- **The census sender list has a Select all.** It was the only ranked
+  sender list without one, and the longest of them at up to sixty rows.
+  A free licence can select the rows it can see.
+
+### Fixed
+- **A custom rule bounded to recent mail no longer reads as protected.**
+  A rule that reaches a whole view (`in:inbox`, `in:all`) with no age
+  filter gets a warning, because it will delete mail that arrived this
+  morning. The check for "does this rule have an age filter" accepted
+  `newer_than:` and `after:`, which bound a rule to recent mail rather
+  than away from it, so `in:inbox newer_than:7d` was saved in silence.
+  Only `older_than:` and `before:` count now; a date range still passes,
+  because the `before:` half is the floor.
+- **The 90-day prune of the daily activity buckets kept to the local
+  calendar.** Those buckets are keyed by UTC date. The cutoff walked
+  ninety days back on the local calendar and only then converted, which
+  is the same instant until the timezone offset differs between the two
+  ends. Across a DST change it was an hour out, and an hour moves the
+  date when the local time of day sits near midnight UTC, so a day still
+  inside the window was deleted. Same fix 9.7 made to the chart that
+  draws them.
+
+### Internal
+- Four suites, 37 tests, each proved to fail on 9.7.0 before the fix
+  that answers it.
+- The prune suite pins its own timezone and restores it afterwards,
+  because the bug it covers only appears across a DST change and a
+  runner in UTC would have passed either way.
+- `GCC.smart.whitelistCovers` lower-cases the address it is given as
+  well as the entry. Both callers already did; it is exported, and the
+  failure direction for the next one is a protected sender going
+  unprotected.
+
+
 ## 9.7.0 - Put it back where it came from
 
 Every run surface since 9.2 has been careful about which signed-in

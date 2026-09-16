@@ -646,6 +646,7 @@
   "censusReachFloor": { "message": "Clear would take at least $1" },
   "censusPurgeTakes": { "message": "Clears $1 emails · older than 6 months only" },
   "censusPurgeTakesFloor": { "message": "Clears at least $1 emails · older than 6 months only" },
+  "purgeStranded": { "message": "$1 senders this run, $2 left for the next" },
   "censusTotalMb": { "message": "$1 senders account for $2 emails, worth $3." },
   "censusTotalMbFloor": { "message": "$1 senders account for at least $2 emails, worth at least $3." },
   "censusTotalCount": { "message": "$1 senders account for $2 emails." },

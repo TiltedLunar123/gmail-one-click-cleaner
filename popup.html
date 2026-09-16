@@ -3060,6 +3060,20 @@
             <button type="button" class="guard-note-btn" id="censusGuardNoteBtn" data-i18n="guardNoteBtn">Show guards</button>
           </div>
 
+          <!-- 9.8: the census was the one ranked sender list without a
+               Select all. The Unsubscribe, Storage and Suggested lists
+               have had one for releases, and this list is the longest of
+               them (up to 60 rows), so it was the one where ticking by
+               hand cost the most. Safe to add now that the Clear
+               subtitle says how many of a selection one run reaches. -->
+          <div class="subs-toolbar" id="censusToolbar" hidden>
+            <label class="subs-selectall">
+              <input type="checkbox" id="censusSelectAll" />
+              <span data-i18n="selectAll">Select all</span>
+            </label>
+            <span class="subs-count" id="censusCount"></span>
+          </div>
+
           <div id="censusList" class="subs-list" role="list" aria-label="Top senders" data-i18n-label="censusListLabel"></div>
 
           <button id="censusPurgeBtn" class="subs-unsub-btn" type="button" hidden>
@@ -3751,10 +3765,10 @@
             class="badge"
             id="versionBadge"
             type="button"
-            aria-label="Version 9.7.0, see what's new"
+            aria-label="Version 9.8.0, see what's new"
             title="What's new in this version"
             data-i18n-title="whatsNewTitle"
-          >v9.7.0</button>
+          >v9.8.0</button>
           <button id="kbdHelpBtn" class="linkish" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" data-i18n-label="kbdTitle" data-i18n-title="kbdBtnTitle">
             <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h.01M9.5 9.5h.01M13 9.5h.01M16.5 9.5h.01M6 13h.01M16.5 13h.01M9 13h6"/></svg>
           </button>

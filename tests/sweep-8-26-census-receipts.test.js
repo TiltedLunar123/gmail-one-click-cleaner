@@ -379,8 +379,15 @@ describe("census rules only ever come from senders the user ticked", () => {
     // Source pin: the gate is in buildConfig, and it is on the TICKS as
     // well as the licence. A scan finding that a bank mails you often is
     // not permission to delete the bank's mail.
+    // 9.8: the ticks are read through censusRunSenders(), which ranks
+    // and caps them; an empty answer is still an omitted key.
     const POPUP = read("popup.js");
-    expect(POPUP).toContain("state.subs.licenseActive && state.census.checked.size");
+    expect(POPUP).toContain("state.subs.licenseActive && censusRunSenders().length");
+    const picker = POPUP.slice(
+      POPUP.indexOf("const censusRunSenders"),
+      POPUP.indexOf("const buildConfig")
+    );
+    expect(picker).toContain("state.census.checked");
   });
 });
 

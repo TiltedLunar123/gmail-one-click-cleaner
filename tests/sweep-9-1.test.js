@@ -273,7 +273,11 @@ describe("a census tick cannot outlive the row it came from", () => {
     // 9.0 wired the persisted ticks into the unattended run config, so a
     // tick nobody could see was still generating a delete rule every
     // sweep. Same key, so reconciling the set reconciles the sweep.
-    expect(POPUP).toContain("censusSenders: [...state.census.checked]");
+    // 9.8: read through censusRunSenders(), which is that same set
+    // ranked and capped the way the Clear button takes it.
+    expect(POPUP).toContain("censusSenders: censusRunSenders()");
+    const picker = between(POPUP, "const censusRunSenders", "const buildConfig");
+    expect(picker).toContain("[...state.census.checked]");
   });
 });
 
