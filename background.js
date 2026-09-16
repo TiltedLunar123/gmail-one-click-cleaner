@@ -4,7 +4,7 @@
 (() => {
   "use strict";
 
-  const SW_VERSION = "9.7.0";
+  const SW_VERSION = "9.8.0";
 
   // =========================
   // Storage Keys
@@ -5224,9 +5224,26 @@
         const stats = result?.[STORAGE_KEYS.STATS];
         if (!stats?.dailyStats) return;
 
-        const cutoff = new Date();
-        cutoff.setDate(cutoff.getDate() - 90);
-        const cutoffStr = cutoff.toISOString().slice(0, 10);
+        // 9.8: ninety days back on the UTC calendar, because that is the
+        // calendar the keys are on. recordStats stamps a bucket with
+        // toISOString().slice(0, 10), and this used to walk the LOCAL
+        // calendar with setDate() and only then convert.
+        //
+        // Walking locally preserves the local time of day, so it lands on
+        // the same UTC instant as ninety days of milliseconds -- until
+        // the UTC offset differs between the two ends. Across a DST
+        // change it is an hour out, and an hour moves the DATE whenever
+        // the local time of day sits within an hour of midnight UTC. The
+        // cutoff was then a day late and this deleted a day still inside
+        // the window. Same fix 9.7 made to the Stats page's daily chart,
+        // which walked thirty local days and read each one out as a UTC
+        // string.
+        const today = new Date();
+        const cutoffStr = new Date(Date.UTC(
+          today.getUTCFullYear(),
+          today.getUTCMonth(),
+          today.getUTCDate() - 90
+        )).toISOString().slice(0, 10);
 
         let removed = 0;
         for (const date of Object.keys(stats.dailyStats)) {

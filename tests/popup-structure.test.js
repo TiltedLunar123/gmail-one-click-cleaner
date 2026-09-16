@@ -57,7 +57,15 @@ const POPUP_JS_IDS = [
   // 7.12 Auto-Pilot
   "autoPilotToggle", "autoPilotStatus", "autoPilotConfirm",
   "autoPilotConfirmText", "autoPilotConfirmBtn", "autoPilotUpsell",
-  "autoPilotUpsellText", "autoPilotBuyLink"
+  "autoPilotUpsellText", "autoPilotBuyLink",
+  // 8.26 sender census. This list predated the feature and never grew
+  // it; 9.8 added the Select all toolbar to that card, so the whole
+  // block joins the inventory rather than only the three new ids.
+  "censusBlock", "censusStamp", "censusHint", "censusScanBtn",
+  "censusStatus", "censusTotal", "censusGuardNote", "censusGuardNoteText",
+  "censusGuardNoteBtn", "censusToolbar", "censusSelectAll", "censusCount",
+  "censusList", "censusPurgeBtn", "censusPurgeSub", "censusUpsell",
+  "censusUpsellText", "censusBuyLink", "censusEnterKey"
 ];
 
 describe("popup.html: id inventory", () => {

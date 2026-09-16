@@ -658,7 +658,18 @@ const GCC = (() => {
   // it easy to delete recent mail. We require an age qualifier when these
   // are used so the user has to opt in explicitly.
   const AGE_REQUIRED_TOKENS = ["in:inbox", "in:all", "in:anywhere"];
-  const AGE_QUALIFIERS = /\bolder_than:|newer_than:|after:|before:/i;
+  // 9.8: the two that bound a query to OLD mail, and only those two.
+  //
+  // This list carried `newer_than:` and `after:` as well, which are the
+  // same operator pointing the other way: they bound a query to RECENT
+  // mail. So `in:inbox newer_than:7d`, whose entire match set is the
+  // last week of the inbox, satisfied the test for "this rule has an age
+  // filter, recent mail is protected" and the Options page saved it
+  // without the one line that says otherwise. The check answers a
+  // question about a floor; an operator that sets a ceiling is not an
+  // answer to it. A range (`after:X before:Y`) still passes, because the
+  // `before:` half is the floor.
+  const AGE_QUALIFIERS = /\bolder_than:|\bbefore:/i;
 
   // =========================
   // Protected keywords (subject shield)
@@ -2340,24 +2351,53 @@ const GCC = (() => {
     return now - at >= CENSUS_LIMITS.MAX_AGE_DAYS * CENSUS_DAY_MS;
   };
 
-  const censusClearable = (senders, emails) => {
+  // 9.8: the ticked senders, in the order a clear will take them, and
+  // how many of them one run reaches. The census half of what
+  // receiptsPurgeOrder is for the button below it.
+  //
+  // Two things used to be decided in two places. The subtitle walked
+  // rankCensusSenders and measured EVERY ticked sender; the handler
+  // sliced `state.census.checked` to MAX_RULE_SENDERS, and a Set is in
+  // the order the boxes were ticked. So past the cap the number
+  // described the biggest twenty-five and the run took the first
+  // twenty-five ticked, which are different sets, and the number was for
+  // forty senders over a button that cleared twenty-five either way.
+  //
+  // Ranked rather than tick-ordered because a run that cannot reach
+  // everything should reach the senders holding the most mail first, and
+  // because the number beside the button is already a ranked walk: the
+  // cheapest way for the two to agree is for there to be one of them.
+  const censusPurgeOrder = (senders, emails) => {
     const want = new Set(
       (Array.isArray(emails) ? emails : [])
         .map((e) => String(e || "").trim().toLowerCase())
         .filter(Boolean)
     );
+    if (!want.size) return { ordered: [], acting: [], stranded: 0 };
+    const ordered = rankCensusSenders(senders).filter((s) => s.measured && want.has(s.email));
+    const acting = ordered.slice(0, CENSUS_LIMITS.MAX_RULE_SENDERS);
+    return { ordered, acting, stranded: ordered.length - acting.length };
+  };
+
+  const censusClearable = (senders, emails) => {
+    const { acting, stranded } = censusPurgeOrder(senders, emails);
     let count = 0;
     let exact = true;
     let known = 0;
     let unknown = 0;
-    for (const s of rankCensusSenders(senders)) {
-      if (!want.has(s.email)) continue;
-      if (!s.measured || !Number.isFinite(s.reachable)) { unknown++; continue; }
+    for (const s of acting) {
+      // Kept as its own branch rather than folded into the filter above:
+      // a sender measured before 8.27 carries no `reachable`, and absent
+      // is not zero. It still occupies one of the twenty-five slots the
+      // run has, so it belongs in `acting` and is reported as unknown.
+      if (!Number.isFinite(s.reachable)) { unknown++; continue; }
       known++;
       count += s.reachable;
       if (!s.reachableExact) exact = false;
     }
-    return { count, exact, known, unknown };
+    // `senders` and `stranded` mirror receiptsClearable: what the button
+    // acts on, and what it leaves for the next press.
+    return { senders: acting.length, stranded, count, exact, known, unknown };
   };
 
   const census = Object.freeze({
@@ -2373,6 +2413,7 @@ const GCC = (() => {
     totals: censusTotals,
     isStale: censusIsStale,
     isExpired: censusIsExpired,
+    purgeOrder: censusPurgeOrder,
     clearable: censusClearable
   });
 
@@ -3192,12 +3233,20 @@ const GCC = (() => {
   // Whitelist entry semantics, mirrored from the engine's query
   // builder: exact email, *@domain wildcard, bare domain (which also
   // covers subdomains).
+  // 9.8: both sides are normalised. The entry always was; the address
+  // was taken on trust because the two callers in this file and in
+  // stats.js both lower-case it first. It is exported on GCC.smart, so
+  // the next caller is the one that would get it wrong, and the failure
+  // direction is the bad one: "Jude.Smith@Example.com" read off a Gmail
+  // row would miss a `*@example.com` entry and the sender the user
+  // protected would not be protected.
   const whitelistCoversSender = (entry, email) => {
     const e = String(entry || "").trim().toLowerCase();
-    if (!e) return false;
-    if (e.startsWith("*@")) return email.endsWith(e.slice(1));
-    if (e.includes("@")) return email === e;
-    return email.endsWith("@" + e) || email.endsWith("." + e);
+    const addr = String(email || "").trim().toLowerCase();
+    if (!e || !addr) return false;
+    if (e.startsWith("*@")) return addr.endsWith(e.slice(1));
+    if (e.includes("@")) return addr === e;
+    return addr.endsWith("@" + e) || addr.endsWith("." + e);
   };
 
   // Hard vetoes win over any score. Engine-side flags (starred,

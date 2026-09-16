@@ -646,6 +646,7 @@
   "censusReachFloor": { "message": "Le nettoyage prendrait au moins $1" },
   "censusPurgeTakes": { "message": "Supprime $1 e-mails · de plus de 6 mois uniquement" },
   "censusPurgeTakesFloor": { "message": "Supprime au moins $1 e-mails · de plus de 6 mois uniquement" },
+  "purgeStranded": { "message": "$1 expéditeurs pour cette exécution, $2 pour la suivante" },
   "censusTotalMb": { "message": "$1 expéditeurs représentent $2 e-mails, soit $3." },
   "censusTotalMbFloor": { "message": "$1 expéditeurs représentent au moins $2 e-mails, soit au moins $3." },
   "censusTotalCount": { "message": "$1 expéditeurs représentent $2 e-mails." },

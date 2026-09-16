@@ -646,6 +646,7 @@
   "censusReachFloor": { "message": "Очистка заберёт минимум $1" },
   "censusPurgeTakes": { "message": "Удалит $1 писем · только старше 6 месяцев" },
   "censusPurgeTakesFloor": { "message": "Удалит минимум $1 писем · только старше 6 месяцев" },
+  "purgeStranded": { "message": "$1 отправителей за этот запуск, ещё $2 в следующий" },
   "censusTotalMb": { "message": "На $1 отправителей приходится $2 писем, это $3." },
   "censusTotalMbFloor": { "message": "На $1 отправителей приходится минимум $2 писем, это минимум $3." },
   "censusTotalCount": { "message": "На $1 отправителей приходится $2 писем." },

@@ -646,6 +646,7 @@
   "censusReachFloor": { "message": "Löschen erfasst mindestens $1" },
   "censusPurgeTakes": { "message": "Löscht $1 E-Mails · nur älter als 6 Monate" },
   "censusPurgeTakesFloor": { "message": "Löscht mindestens $1 E-Mails · nur älter als 6 Monate" },
+  "purgeStranded": { "message": "$1 Absender in diesem Lauf, $2 bleiben für den nächsten" },
   "censusTotalMb": { "message": "$1 Absender stehen für $2 E-Mails, also $3." },
   "censusTotalMbFloor": { "message": "$1 Absender stehen für mindestens $2 E-Mails, also mindestens $3." },
   "censusTotalCount": { "message": "$1 Absender stehen für $2 E-Mails." },

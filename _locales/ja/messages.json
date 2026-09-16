@@ -646,6 +646,7 @@
   "censusReachFloor": { "message": "削除すると少なくとも $1 件が消えます" },
   "censusPurgeTakes": { "message": "$1 件を削除 · 6 か月より古いものだけ" },
   "censusPurgeTakesFloor": { "message": "少なくとも $1 件を削除 · 6 か月より古いものだけ" },
+  "purgeStranded": { "message": "今回は $1 件、残り $2 件は次回" },
   "censusTotalMb": { "message": "$1 人の送信者で $2 件、$3 分です。" },
   "censusTotalMbFloor": { "message": "$1 人の送信者で少なくとも $2 件、少なくとも $3 分です。" },
   "censusTotalCount": { "message": "$1 人の送信者で $2 件です。" },

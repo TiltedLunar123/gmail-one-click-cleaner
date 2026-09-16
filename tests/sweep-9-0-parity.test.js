@@ -74,7 +74,10 @@ describe("the census counts what its Clear button acts on", () => {
     const ranked = GCC.census.rankSenders(old);
     expect(ranked[0].reachable).toBeUndefined();
     const reach = GCC.census.clearable(old, ["a@x.com"]);
-    expect(reach).toEqual({ count: 0, exact: true, known: 0, unknown: 1 });
+    // 9.8 added `senders` and `stranded`, so the answer also says the
+    // run reaches this one and leaves nobody behind. It still occupies a
+    // slot; what it does not have is a number.
+    expect(reach).toEqual({ senders: 1, stranded: 0, count: 0, exact: true, known: 0, unknown: 1 });
   });
 
   test("clearable sums only the ticked senders, and only measured ones", () => {
@@ -85,7 +88,7 @@ describe("the census counts what its Clear button acts on", () => {
       { email: "c@x.com", name: "C", count: 10, exact: true, slices: 1, estMb: 1, estMbExact: true, measured: true, reachable: 7, reachableExact: true }
     ];
     expect(GCC.census.clearable(senders, ["a@x.com", "c@x.com"]))
-      .toEqual({ count: 127, exact: true, known: 2, unknown: 0 });
+      .toEqual({ senders: 2, stranded: 0, count: 127, exact: true, known: 2, unknown: 0 });
     // One inexact operand makes the sum a floor, exactly as everywhere else.
     expect(GCC.census.clearable(senders, ["a@x.com", "b@x.com"]).exact).toBe(false);
   });

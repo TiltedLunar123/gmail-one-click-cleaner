@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Constants & Configuration
   // =========================
 
-  const POPUP_VERSION = "9.7.0";
+  const POPUP_VERSION = "9.8.0";
 
   const CONFIG = Object.freeze({
     TOAST_DURATION_MS: 3000,
@@ -592,6 +592,9 @@ document.addEventListener("DOMContentLoaded", () => {
     censusGuardNote: $("censusGuardNote"),
     censusGuardNoteText: $("censusGuardNoteText"),
     censusGuardNoteBtn: $("censusGuardNoteBtn"),
+    censusToolbar: $("censusToolbar"),
+    censusSelectAll: $("censusSelectAll"),
+    censusCount: $("censusCount"),
     censusList: $("censusList"),
     censusPurgeBtn: $("censusPurgeBtn"),
     censusPurgeSub: $("censusPurgeSub"),
@@ -1868,6 +1871,23 @@ document.addEventListener("DOMContentLoaded", () => {
     return GCC.proSettings.read(active);
   };
 
+  // 9.8: the ticked census senders a run should carry, ranked and capped
+  // the way the Clear button takes them.
+  //
+  // loadCensus is fire and forget while loadCensusSelection is awaited,
+  // so there is a window on open where the ticks are known and the rows
+  // they belong to are not. Ranking needs the rows, so in that window
+  // this falls back to the tick order, which is exactly what every
+  // release before this one sent. A narrower answer there would drop
+  // senders from a run for no better reason than timing.
+  const censusRunSenders = () => {
+    const picked = [...state.census.checked];
+    if (!picked.length) return [];
+    const { acting } = GCC.census.purgeOrder(state.census.senders, picked);
+    if (acting.length) return acting.map((s) => s.email);
+    return picked.slice(0, GCC.census.LIMITS.MAX_RULE_SENDERS);
+  };
+
   const buildConfig = async () => {
     const whitelist = await getWhitelist();
     const protectKeywords = await getProtectKeywords();
@@ -1903,8 +1923,12 @@ document.addEventListener("DOMContentLoaded", () => {
       // the user chose, and only for a licence that paid for the
       // feature. An empty list is omitted entirely so a free run's
       // config is byte-identical to what it was before this release.
-      ...(state.subs.licenseActive && state.census.checked.size
-        ? { censusSenders: [...state.census.checked].slice(0, GCC.census.LIMITS.MAX_RULE_SENDERS) }
+      // 9.8: ranked and capped through GCC.census.purgeOrder, the same
+      // call the Clear button makes, so an unattended sweep reaches the
+      // senders holding the most mail rather than whichever twenty-five
+      // boxes happened to be ticked first.
+      ...(state.subs.licenseActive && censusRunSenders().length
+        ? { censusSenders: censusRunSenders() }
         : {}),
       // 6.0: focused target preset, if one is active (one run only).
       ...(Array.isArray(state.rulesOverride) && state.rulesOverride.length
@@ -4108,6 +4132,24 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  // 9.8: "N of M selected", the line the other three sender lists have
+  // carried since they grew a Select all. M is what is TICKABLE, which
+  // on a free licence is the five visible rows rather than every sender
+  // the census measured.
+  const updateCensusCount = () => {
+    if (!elements.censusCount) return;
+    const measured = GCC.census.rankSenders(state.census.senders).filter((s) => s.measured);
+    const total = state.subs.licenseActive
+      ? measured.length
+      : Math.min(measured.length, GCC.census.LIMITS.FREE_LIST);
+    const checked = state.census.checked.size;
+    elements.censusCount.textContent = checked
+      ? t("nOfMSelected", `${checked} of ${total} selected`, [String(checked), String(total)])
+      : (total === 1
+        ? t("oneSenderRanked", "1 sender ranked")
+        : t("nSendersRanked", `${total} senders ranked`, [String(total)]));
+  };
+
   const renderCensusList = () => {
     if (!elements.censusList) return;
     elements.censusList.textContent = "";
@@ -4115,10 +4157,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const measured = senders.filter((s) => s.measured);
     if (!measured.length) {
       if (elements.censusPurgeBtn) elements.censusPurgeBtn.hidden = true;
+      if (elements.censusToolbar) elements.censusToolbar.hidden = true;
       return;
     }
 
     const pro = state.subs.licenseActive;
+    // Same gate the X-ray's toolbar uses: a list nobody can tick has
+    // nothing to select all of.
+    if (elements.censusToolbar) elements.censusToolbar.hidden = !pro;
     const visible = pro ? measured : measured.slice(0, GCC.census.LIMITS.FREE_LIST);
 
     for (const sender of visible) {
@@ -4137,6 +4183,7 @@ document.addEventListener("DOMContentLoaded", () => {
       box.addEventListener("change", () => {
         if (box.checked) state.census.checked.add(sender.email);
         else state.census.checked.delete(sender.email);
+        updateCensusCount();
         updateCensusPurgeButton();
         persistCensusSelection();
       });
@@ -4202,6 +4249,15 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.censusList.appendChild(more);
     }
 
+    // The Select all box reflects the list rather than driving it, so
+    // reopening the popup on a full selection finds it already ticked.
+    if (elements.censusSelectAll) {
+      elements.censusSelectAll.checked = pro &&
+        visible.length > 0 &&
+        visible.every((s) => state.census.checked.has(s.email));
+      elements.censusSelectAll.disabled = !pro;
+    }
+    updateCensusCount();
     updateCensusPurgeButton();
   };
 
@@ -4240,6 +4296,21 @@ document.addEventListener("DOMContentLoaded", () => {
         sub = reach.exact
           ? t("censusPurgeTakes", `Clears ${n} emails · older than 6 months only`, [n])
           : t("censusPurgeTakesFloor", `Clears at least ${n} emails · older than 6 months only`, [n]);
+      }
+      // 9.8: and how many ticked senders this press will not reach. The
+      // cap has existed since the feature shipped and was only ever
+      // mentioned in a toast AFTER the button was pressed, under a
+      // subtitle that had just quoted a number for all of them. Appended
+      // rather than replacing the line, because what the run does take
+      // is still the more useful half.
+      if (reach.stranded > 0) {
+        const left = String(reach.stranded);
+        const acting = String(reach.senders);
+        sub += " · " + t(
+          "purgeStranded",
+          `${acting} senders this run, ${left} left for the next`,
+          [acting, left]
+        );
       }
       elements.censusPurgeSub.textContent = sub;
     }
@@ -4559,8 +4630,17 @@ document.addEventListener("DOMContentLoaded", () => {
       showToast(t("pickOneSender", "pick at least one sender first"), "warning");
       return;
     }
-    const capped = emails.slice(0, GCC.census.LIMITS.MAX_RULE_SENDERS);
-    if (emails.length > capped.length) {
+    // 9.8: the same twenty-five the subtitle was just about. Slicing the
+    // tick order here while the number above walked the ranked list
+    // meant the two described different senders on any selection past
+    // the cap. See GCC.census.purgeOrder.
+    const { acting, stranded } = GCC.census.purgeOrder(state.census.senders, emails);
+    const capped = acting.map((s) => s.email);
+    if (!capped.length) {
+      showToast(t("noSafeRule", "could not build a safe rule for this sender"), "warning");
+      return;
+    }
+    if (stranded > 0) {
       showToast(t("firstTwentyFive", "running the first 25; re-run for the rest"), "info");
     }
     const queries = GCC.census.purgeQueries(capped, "6m");
@@ -4731,11 +4811,30 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!elements.xrayCount) return;
     const total = state.xray.senders.length;
     const checked = getCheckedXrayEmails().length;
-    elements.xrayCount.textContent = checked
+    let text = checked
       ? t("nOfMSelected", `${checked} of ${total} selected`, [String(checked), String(total)])
       : (total === 1
         ? t("oneSenderRanked", "1 sender ranked")
         : t("nSendersRanked", `${total} senders ranked`, [String(total)]));
+    // 9.8: and the cap, BEFORE the button is pressed.
+    //
+    // The purge has taken the first twenty-five since 8.0. 8.11 added a
+    // toast saying so, which is the right sentence at the wrong moment:
+    // the list has a Select all beside it and a hundred rows under it,
+    // so the press that needs the warning is the one that already
+    // happened by the time it appears. Same line the census Clear
+    // subtitle grew in this release, in the place this tab counts.
+    const cap = GCC.storageXray.LIMITS.MAX_PURGE_PER_RUN;
+    if (checked > cap) {
+      const acting = String(cap);
+      const left = String(checked - cap);
+      text += " · " + t(
+        "purgeStranded",
+        `${acting} senders this run, ${left} left for the next`,
+        [acting, left]
+      );
+    }
+    elements.xrayCount.textContent = text;
   };
 
   const renderXrayTotals = () => {
@@ -7125,6 +7224,22 @@ document.addEventListener("DOMContentLoaded", () => {
     elements.receiptsPurgeBtn?.addEventListener("click", handleReceiptsPurge);
     elements.censusScanBtn?.addEventListener("click", handleCensusScan);
     elements.censusPurgeBtn?.addEventListener("click", handleCensusPurge);
+    // 9.8: the census rows own `state.census.checked` rather than the
+    // DOM, so this drives the set and repaints, where the other three
+    // lists tick the boxes and read them back. Only the VISIBLE rows,
+    // which on a free licence is the five that are not disabled.
+    elements.censusSelectAll?.addEventListener("change", () => {
+      const checked = !!elements.censusSelectAll.checked;
+      const visible = GCC.census.rankSenders(state.census.senders)
+        .filter((s) => s.measured)
+        .slice(0, state.subs.licenseActive ? undefined : GCC.census.LIMITS.FREE_LIST);
+      for (const sender of visible) {
+        if (checked) state.census.checked.add(sender.email);
+        else state.census.checked.delete(sender.email);
+      }
+      renderCensusList();
+      persistCensusSelection();
+    });
     elements.censusBuyLink?.addEventListener("click", () => openProPanel("census_buy", {
       fallbackUpsell: elements.censusUpsell
     }));

@@ -646,6 +646,7 @@
   "censusReachFloor": { "message": "Vaciar se llevaría al menos $1" },
   "censusPurgeTakes": { "message": "Borra $1 correos · solo de más de 6 meses" },
   "censusPurgeTakesFloor": { "message": "Borra al menos $1 correos · solo de más de 6 meses" },
+  "purgeStranded": { "message": "$1 remitentes en esta pasada, quedan $2 para la siguiente" },
   "censusTotalMb": { "message": "$1 remitentes suman $2 correos, es decir $3." },
   "censusTotalMbFloor": { "message": "$1 remitentes suman al menos $2 correos, es decir al menos $3." },
   "censusTotalCount": { "message": "$1 remitentes suman $2 correos." },
